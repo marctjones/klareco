@@ -1,34 +1,25 @@
 """
-Language identification services using fasttext.
+Language identification services using lingua-language-detector.
+Pure Python implementation with Esperanto support.
 """
-import fasttext
-import os
+from lingua import LanguageDetectorBuilder, Language, IsoCode639_1
 
-# Load the model
-# The model file is expected to be at models/lid.176.bin
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'lid.176.bin')
+# Build the language detector once at module load time
+# Using all languages for maximum flexibility
+# This takes a moment to initialize but subsequent calls are fast
+_detector = LanguageDetectorBuilder.from_all_languages().build()
 
-# Check if model exists
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(
-        f"FastText model not found at {MODEL_PATH}. "
-        "Please run scripts/download_fasttext_model.py to download it."
-    )
-
-# Pre-load the model to avoid loading it on every call
-try:
-    model = fasttext.load_model(MODEL_PATH)
-except ValueError as e:
-    # Provide a more helpful error message if the model is corrupted
-    raise RuntimeError(
-        f"Failed to load FastText model at {MODEL_PATH}. "
-        f"The model file might be corrupted. Please try downloading it again. Original error: {e}"
-    )
+# Mapping from lingua's Language enum to ISO 639-1 codes
+# lingua provides this via the iso_code_639_1 property
+def _get_iso_code(language: Language) -> str:
+    """Convert lingua Language enum to ISO 639-1 code string."""
+    iso_code = language.iso_code_639_1
+    return iso_code.name.lower()
 
 
 def identify_language(text: str) -> str | None:
     """
-    Identifies the language of a given text using fasttext.
+    Identifies the language of a given text using lingua.
 
     Args:
         text: The text to analyze.
@@ -38,19 +29,18 @@ def identify_language(text: str) -> str | None:
     """
     if not isinstance(text, str):
         raise TypeError("Input must be a string.")
-    
+
     if not text.strip():
         return None
 
-    # fasttext predicts a label like '__label__en'
-    # We need to extract the 'en' part.
-    # The predict method returns a tuple of lists: (labels, probabilities)
-    predictions = model.predict(text.replace("\n", " "), k=1)
-    if predictions[0]:
-        label = predictions[0][0]
-        lang_code = label.replace('__label__', '')
-        return lang_code
-    return None
+    # lingua's detect_language_of returns Language enum or None
+    detected_language = _detector.detect_language_of(text)
+
+    if detected_language is None:
+        return None
+
+    return _get_iso_code(detected_language)
+
 
 if __name__ == '__main__':
     # Example usage
@@ -69,7 +59,7 @@ if __name__ == '__main__':
             print(f"'{t}' -> {lang}")
         except TypeError as e:
             print(f"'{t}' -> Error: {e}")
-    
+
     # Test non-string input
     try:
         identify_language(123)

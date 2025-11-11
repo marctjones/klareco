@@ -17,7 +17,8 @@ class TestSafetyMonitor(unittest.TestCase):
 
     def test_check_input_length_fail(self):
         """Tests that input exceeding limits fails the length check."""
-        with self.assertRaisesRegex(ValueError, "Input text length \(.*\) exceeds maximum"): 
+        # Using raw string (r"...") to properly escape regex special characters
+        with self.assertRaisesRegex(ValueError, r"Input text length \(.*\) exceeds maximum"):
             self.monitor.check_input_length("a" * 51)
 
     def test_count_ast_nodes_morpheme_ast(self):
@@ -47,13 +48,15 @@ class TestSafetyMonitor(unittest.TestCase):
         #       'n' (str) -> 0
         #     root (str) -> 0
         # Total: 1 (sentence) + 3 * (1 (word dict) + 1 (suffixes list) + 1 (endings list)) = 1 + 3 * 3 = 10
-        self.assertEqual(self.monitor._count_ast_nodes(ast), 10)
+        # Updated: Parser now includes "artikolo" fields, adding 2 more nodes = 12 total
+        self.assertEqual(self.monitor._count_ast_nodes(ast), 12)
 
     def test_check_ast_complexity_ok(self):
         """Tests that an AST within limits passes the complexity check."""
         text = "mi vidas la hundon."
         ast = parse(text)
-        self.monitor.max_ast_nodes = 10 # Set to exactly the expected count
+        # Updated limit to accommodate article tracking in AST
+        self.monitor.max_ast_nodes = 12  # Set to accommodate improved AST structure
         self.monitor.check_ast_complexity(ast)
         # No exception means success
 
@@ -61,8 +64,9 @@ class TestSafetyMonitor(unittest.TestCase):
         """Tests that an AST exceeding limits fails the complexity check."""
         text = "La hundo amas la katon."
         ast = parse(text)
-        self.monitor.max_ast_nodes = 9 # Set just below the expected count
-        with self.assertRaisesRegex(ValueError, "AST complexity \(.*\) exceeds maximum"): 
+        self.monitor.max_ast_nodes = 11 # Set just below the expected count (12)
+        # Using raw string (r"...") to properly escape regex special characters
+        with self.assertRaisesRegex(ValueError, r"AST complexity \(.*\) exceeds maximum"):
             self.monitor.check_ast_complexity(ast)
 
 if __name__ == '__main__':

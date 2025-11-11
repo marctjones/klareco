@@ -5,7 +5,7 @@ This module defines the structure for logging the AI's "thought process".
 """
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 class ExecutionTrace:
     """
@@ -13,7 +13,9 @@ class ExecutionTrace:
     """
     def __init__(self, initial_query: str):
         self.trace_id = str(uuid.uuid4())
-        self.start_time = datetime.utcnow().isoformat() + "Z"
+        # Using timezone-aware datetime (Python 3.12+ best practice)
+        # datetime.utcnow() is deprecated as of Python 3.12
+        self.start_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         self.end_time = None
         self.initial_query = initial_query
         self.steps = []
@@ -33,7 +35,7 @@ class ExecutionTrace:
         step = {
             "step_id": len(self.steps) + 1,
             "name": step_name,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             "inputs": inputs,
             "outputs": outputs,
         }
@@ -44,12 +46,12 @@ class ExecutionTrace:
     def set_final_response(self, response: str):
         """Sets the final response and concludes the trace."""
         self.final_response = response
-        self.end_time = datetime.utcnow().isoformat() + "Z"
+        self.end_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
     def set_error(self, error_message: str):
         """Records an error and concludes the trace."""
         self.error = error_message
-        self.end_time = datetime.utcnow().isoformat() + "Z"
+        self.end_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
     def to_json(self, indent=2):
         """Serializes the trace to a JSON string."""

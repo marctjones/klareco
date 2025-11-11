@@ -32,7 +32,16 @@ KNOWN_ENDINGS = {
     "n": {},
 }
 
-KNOWN_ROOTS = {"san", "hund", "kat", "program", "vid", "am", "bon", "mi", "grand", "la"}
+# Personal pronouns (personaj pronomoj) - grammatically function exactly like nouns
+# Source: Wikipedia Esperanto Grammar, Fundamento de Esperanto (1905)
+# "Personal pronouns take the accusative suffix -n as nouns do" - can be subjects/objects
+# Rule 5 (Fundamento): mi (I), vi (you), li (he), ŝi (she), ĝi (it),
+#                       si (self-reflexive), ni (we), ili (they), oni (one/people)
+# Accusative forms: min, vin, lin, ŝin, ĝin, sin, nin, ilin, onin
+KNOWN_PRONOUNS = {"mi", "vi", "li", "ŝi", "ĝi", "si", "ni", "ili", "oni"}
+
+# Semantic roots (radikoj) - core vocabulary
+KNOWN_ROOTS = {"san", "hund", "kat", "program", "vid", "am", "bon", "grand", "la"}
 
 # -----------------------------------------------------------------------------
 # --- Layer 1: Morphological Analyzer (parse_word)
@@ -66,17 +75,30 @@ def parse_word(word: str) -> dict:
 
     # --- Step 2: Decode Grammatical Endings (right-to-left) ---
     remaining_word = lower_word
+
     # Rule 6: Accusative Case (-n)
+    # Pronouns can take accusative: mi→min, vi→vin, etc.
     if remaining_word.endswith('n'):
         ast["kazo"] = "akuzativo"
         remaining_word = remaining_word[:-1]
 
     # Rule 5: Plural (-j)
+    # Note: Personal pronouns don't take -j (they're already marked for number)
     if remaining_word.endswith('j'):
         ast["nombro"] = "pluralo"
         remaining_word = remaining_word[:-1]
 
+    # Check for pronouns EARLY - before POS ending checks
+    # Pronouns (pronomoj) are atomic morphemes - no affixes, no POS endings
+    # "mi" ends with "i" but that's NOT the infinitive ending, it's just how it's spelled!
+    # Must check before KNOWN_ENDINGS to prevent false matches (mi→m+i, vi→v+i, etc.)
+    if remaining_word in KNOWN_PRONOUNS or lower_word in KNOWN_PRONOUNS:
+        ast['radiko'] = remaining_word if remaining_word in KNOWN_PRONOUNS else lower_word
+        ast['vortspeco'] = 'pronomo'  # Pronoun (pronomoj - functions like substantivo)
+        return ast
+
     # Rule 4, 7, 8, 11, 12: Part of Speech & Tense/Mood
+    # Only check these for non-pronouns
     found_ending = False
     for ending, properties in KNOWN_ENDINGS.items():
         if remaining_word.endswith(ending):
@@ -84,14 +106,15 @@ def parse_word(word: str) -> dict:
             remaining_word = remaining_word[:-len(ending)]
             found_ending = True
             break
-    
+
+    # If no ending found and it's not a known root, it's invalid
     if not found_ending and lower_word not in KNOWN_ROOTS:
-         # If no ending found and it's not a known root (like 'mi'), it's invalid
          raise ValueError(f"Vorto '{original_word}' havas neniun konatan finaĵon.")
 
     # --- Step 3: Decode Affixes (finds one prefix and multiple suffixes) ---
+    # Only for non-pronouns - pronouns are atomic
     stem = remaining_word
-    
+
     # Prefixes (left side)
     for prefix in KNOWN_PREFIXES:
         if stem.startswith(prefix):
@@ -106,16 +129,11 @@ def parse_word(word: str) -> dict:
             ast["sufiksoj"].append(suffix)
             stem = stem.replace(suffix, '')
 
-    # --- Step 4: Identify Root ---
+    # --- Step 5: Identify Root ---
     if stem in KNOWN_ROOTS:
         ast["radiko"] = stem
     elif not ast["radiko"]:
-        # This could be a word like 'mi' which has no standard ending
-        if lower_word in KNOWN_ROOTS:
-            ast['radiko'] = lower_word
-            ast['vortspeco'] = 'pronomo' # Pronoun
-        else:
-            raise ValueError(f"Ne povis trovi validan radikon en '{original_word}'. Restaĵo: '{stem}'")
+        raise ValueError(f"Ne povis trovi validan radikon en '{original_word}'. Restaĵo: '{stem}'")
 
     return ast
 
@@ -146,12 +164,16 @@ def parse(text: str):
     }
 
     # Find the main components (verb, subject noun, object noun)
+    # Rule 6: Case determines grammatical function (nominative=subject, accusative=object)
+    # Pronouns (pronomoj) function exactly like nouns (substantivoj) grammatically
     for ast in word_asts:
         if ast["vortspeco"] == "verbo" and not sentence_ast["verbo"]:
             sentence_ast["verbo"] = ast
-        elif ast["vortspeco"] == "substantivo" and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"]:
+        # Object: any noun or pronoun in accusative case (-n)
+        elif ast["vortspeco"] in ["substantivo", "pronomo"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"]:
             sentence_ast["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
-        elif ast["vortspeco"] == "substantivo" and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"]:
+        # Subject: any noun or pronoun in nominative case (no -n)
+        elif ast["vortspeco"] in ["substantivo", "pronomo"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"]:
             sentence_ast["subjekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
 
     # Associate articles and adjectives with their noun groups

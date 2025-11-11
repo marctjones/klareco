@@ -23,7 +23,13 @@ cd klareco
 # Set up environment
 conda create -n klareco-env python=3.13
 conda activate klareco-env
-pip install -r requirements.txt
+
+# For Intel/AMD GPUs (no NVIDIA): Use CPU-only (saves ~1.5GB)
+./scripts/ensure_cpu_only.sh
+pip install -r requirements-cpu.txt
+
+# For NVIDIA GPUs: Use standard requirements
+# pip install -r requirements.txt
 
 # Run tests
 ./run.sh
@@ -65,13 +71,32 @@ python examples/basic_parsing.py
    python scripts/build_morpheme_vocab.py
    ```
 
-### CPU-Only Installation (Smaller, No GPU)
+### CPU-Only Installation (Recommended for Intel/AMD GPUs)
 
-If you don't have a GPU or want a smaller install:
+**For systems without NVIDIA GPUs** (Intel integrated, AMD, etc.):
+
 ```bash
-# Install PyTorch CPU version instead
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt
+# Option 1: Use the helper script (recommended)
+./scripts/ensure_cpu_only.sh
+pip install -r requirements-cpu.txt
+
+# Option 2: Manual installation
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-cpu.txt
+```
+
+**Benefits:**
+- ~1.5GB smaller installation
+- No unnecessary CUDA dependencies
+- Same performance (GPU acceleration not available anyway)
+
+**Verify CPU-only installation:**
+```bash
+python -c "import torch; print(torch.__version__)"
+# Should show +cpu (e.g., 2.1.0+cpu)
+
+python -c "import torch; print(torch.cuda.is_available())"
+# Should print: False
 ```
 
 ## Usage

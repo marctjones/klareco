@@ -1,0 +1,93 @@
+# ============================================================================
+# Klareco Requirements - CPU-Only Version
+# ============================================================================
+# This requirements file is optimized for systems without NVIDIA GPUs.
+# Use this for:
+#   - Intel integrated GPUs
+#   - AMD GPUs
+#   - Any system without CUDA support
+#
+# Benefits:
+#   - ~1.5GB smaller installation
+#   - No unnecessary CUDA dependencies
+#   - Faster installation times
+#
+# Installation:
+#   conda activate klareco-env
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements-cpu.txt
+#
+# Or use the helper script:
+#   ./scripts/ensure_cpu_only.sh
+#   pip install -r requirements-cpu.txt
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Core Dependencies (Phase 1-2)
+# ----------------------------------------------------------------------------
+
+# Language identification
+lingua-language-detector
+
+# Translation (Front Door)
+transformers
+# NOTE: Install PyTorch CPU-only FIRST:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# HTTP requests (model downloads)
+requests
+
+# Testing and coverage
+pytest
+pytest-cov
+hypothesis
+coverage
+
+# Progress bars
+tqdm
+
+# ----------------------------------------------------------------------------
+# Optional: Uncomment as needed for future phases
+# ----------------------------------------------------------------------------
+
+# Phase 3: GNN Encoder
+# Note: torch-geometric also needs CPU-only torch installed first
+# torch-geometric
+# pyg_lib
+# torch-scatter
+# torch-sparse
+
+# Phase 3: Vector search
+# faiss-cpu
+
+# Phase 3: Visualization
+# networkx
+# matplotlib
+
+# Phase 6: Database
+# sqlalchemy
+
+# Phase 8: Symbolic reasoning
+# pyDatalog
+# RestrictedPython
+
+# ----------------------------------------------------------------------------
+# Installation Notes
+# ----------------------------------------------------------------------------
+# 1. Always install PyTorch CPU-only BEFORE other dependencies:
+#    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#
+# 2. Then install the rest:
+#    pip install -r requirements-cpu.txt
+#
+# 3. To verify you're using CPU-only:
+#    python -c "import torch; print(torch.__version__)"
+#    # Should show +cpu in version string (e.g., 2.1.0+cpu)
+#
+# 4. To check for CUDA:
+#    python -c "import torch; print(torch.cuda.is_available())"
+#    # Should print: False
+#
+# 5. Use the helper script to check/fix your installation:
+#    ./scripts/ensure_cpu_only.sh
+# ----------------------------------------------------------------------------

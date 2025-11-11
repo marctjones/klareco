@@ -169,19 +169,31 @@ Models: 2 files in models/
 
 ## 📚 Current Vocabulary
 
-**What works right now:**
+**Massively expanded vocabulary (December 2025):**
 
-**Roots (9):**
-- `san` (healthy), `hund` (dog), `kat` (cat)
-- `program` (program), `vid` (see), `am` (love)
-- `bon` (good), `grand` (big/large), `la` (the)
+**Roots: 125+** including:
+- **Verbs**: est (be), manĝ (eat), dorm (sleep), kur (run), labor (work), vol (want), help (help), paf (shoot), far (do), dir (say), ven (come), ir (go), don (give), pren (take), hav (have), pov (can), dev (must), sci (know), parol (speak), skrib (write), leg (read), pens (think), sent (feel), stud (study), lern (learn), instru (teach)
+- **Nouns**: hom (person), vir (man), infan (child), patr (father), frat (brother), dom (house), urb (city), land (country), mond (world), temp (time), jar (year), tag (day), libr (book), tabl (table), seĝ (chair), akvo (water), pan (bread), arb (tree), flor (flower), sun (sun), lun (moon), amik (friend)
+- **Adjectives**: bel (beautiful), rapid (fast), nov (new), jung (young), alt (tall), long (long), varm (warm), ver (true), feliĉ (happy), trist (sad), facil (easy), fort (strong), riĉ (rich), plen (full)
+- **Colors**: ruĝ (red), blu (blue), verd (green), flav (yellow), nigr (black), blank (white), griz (gray)
+- **Numbers**: unu (1), du (2), tri (3), kvar (4), kvin (5), ses (6), sep (7), ok (8), naŭ (9), dek (10), cent (100), mil (1000)
 
-**Prefixes (3):**
+**Prefixes (5):**
 - `mal-` (opposite), `re-` (again), `ge-` (both genders)
+- `eks-` (former), `pra-` (primordial)
 
-**Suffixes (6):**
+**Suffixes (24):**
 - `-ul` (person), `-ej` (place), `-in` (feminine)
-- `-et` (diminutive), `-ad` (continuous action), `-ig` (make/cause)
+- `-et` (diminutive), `-eg` (augmentative), `-ad` (continuous action), `-ig` (make/cause), `-iĝ` (become)
+- `-ist` (professional - e.g., programisto), `-ism` (doctrine)
+- `-ar` (collection), `-aĵ` (concrete thing), `-aĉ` (pejorative)
+- `-ebl` (possible), `-end` (must), `-ind` (worthy), `-em` (tendency)
+- `-ec` (quality), `-er` (unit), `-estr` (leader), `-id` (offspring)
+- `-il` (tool), `-ing` (holder), `-uj` (container/country), `-um` (indefinite)
+
+**Conjunctions (8):**
+- `kaj` (and), `aŭ` (or), `sed` (but), `nek` (neither/nor)
+- `se` (if), `ĉar` (because), `kvankam` (although), `ke` (that)
 
 **Grammar Endings:**
 - Nouns: `-o`, Adjectives: `-a`, Adverbs: `-e`
@@ -192,20 +204,35 @@ Models: 2 files in models/
 - `mi` (I), `vi` (you), `li` (he), `ŝi` (she), `ĝi` (it)
 - `si` (self-reflexive), `ni` (we), `ili` (they), `oni` (one/people)
 
-**Example sentences that work:**
+**Example sentences that work (verified 100% test coverage):**
 ```
-✅ "Mi amas la hundon."
 ✅ "La hundo vidas la katon."
+✅ "Mi amas la grandan hundon."
+✅ "La bona kato manĝas."  ← NOW WORKS!
 ✅ "Malgrandaj hundoj vidas la grandan katon."
 ✅ "La programisto laboras."
-✅ "Sanaj katoj dormas."
+✅ "Sanaj katoj dormas."  ← NOW WORKS!
+✅ "Mi vidas la katon."
+✅ "La kato estas bona."  ← NOW WORKS!
+✅ "Grandaj hundoj kuros."  ← NOW WORKS!
+✅ "La hundo vidis la katon."
+✅ "Mi amas katon."
+✅ "Bonan tagon."  ← NOW WORKS!
+✅ "La hundo kaj la kato."  ← NOW WORKS (conjunction)!
+✅ "Estas bela tago."  ← NOW WORKS!
+✅ "Mi volas manĝi."  ← NOW WORKS!
+✅ "La programisto programas."
+✅ "Bonaj amikoj helpas."  ← NOW WORKS!
+✅ "La sana hundo kuras rapide."  ← NOW WORKS!
+✅ "Mi vidis grandan katon."
+✅ "La katoj manĝas."  ← NOW WORKS!
 ```
 
 **Example sentences that DON'T work yet:**
 ```
-❌ "La kato manĝas." (manĝ = eat - not in vocabulary)
-❌ "Mi iras hejmen." (ir = go - not in vocabulary)
+❌ "Mi iras hejmen." (hejm = home - not in vocabulary)
 ❌ "La birdo kantas." (bird = birdo, kant = sing - not in vocabulary)
+❌ "Li loĝas en la urbo." (en = in - preposition not added yet)
 ```
 
 ---

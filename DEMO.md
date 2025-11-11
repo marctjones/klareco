@@ -151,9 +151,9 @@ PyTorch: 2.9.0+cpu
 CUDA available: False
 
 Vocabulary:
-  Roots: 9
-  Prefixes: 3
-  Suffixes: 6
+  Roots: 8247
+  Prefixes: 5
+  Suffixes: 25
 
 Test corpus: 20 sentences
 Models: 2 files in models/
@@ -169,20 +169,25 @@ Models: 2 files in models/
 
 ## 📚 Current Vocabulary
 
-**Massively expanded vocabulary (December 2025):**
+**Massively expanded vocabulary (November 2025):**
 
-**Roots: 125+** including:
+**Roots: 8,247** (extracted from Gutenberg English-Esperanto Dictionary) including:
 - **Verbs**: est (be), manĝ (eat), dorm (sleep), kur (run), labor (work), vol (want), help (help), paf (shoot), far (do), dir (say), ven (come), ir (go), don (give), pren (take), hav (have), pov (can), dev (must), sci (know), parol (speak), skrib (write), leg (read), pens (think), sent (feel), stud (study), lern (learn), instru (teach)
 - **Nouns**: hom (person), vir (man), infan (child), patr (father), frat (brother), dom (house), urb (city), land (country), mond (world), temp (time), jar (year), tag (day), libr (book), tabl (table), seĝ (chair), akvo (water), pan (bread), arb (tree), flor (flower), sun (sun), lun (moon), amik (friend)
 - **Adjectives**: bel (beautiful), rapid (fast), nov (new), jung (young), alt (tall), long (long), varm (warm), ver (true), feliĉ (happy), trist (sad), facil (easy), fort (strong), riĉ (rich), plen (full)
 - **Colors**: ruĝ (red), blu (blue), verd (green), flav (yellow), nigr (black), blank (white), griz (gray)
 - **Numbers**: unu (1), du (2), tri (3), kvar (4), kvin (5), ses (6), sep (7), ok (8), naŭ (9), dek (10), cent (100), mil (1000)
 
-**Prefixes (5):**
-- `mal-` (opposite), `re-` (again), `ge-` (both genders)
-- `eks-` (former), `pra-` (primordial)
+**Prepositions (29):**
+- `en` (in), `sur` (on), `sub` (under), `super` (above), `kun` (with), `sen` (without), `de` (of/from), `al` (to), `ĝis` (until), `tra` (through), and 19 more
 
-**Suffixes (24):**
+**Correlatives (45):** - Complete table
+- `kiu/kio/kia` (who/what/which), `tiu/tio/tia` (that), `ĉiu/ĉio/ĉia` (every), `neniu/nenio/nenia` (no one/nothing), `iu/io/ia` (someone/something)
+
+**Prefixes (5):**
+- `mal-` (opposite), `re-` (again), `ge-` (both genders), `eks-` (former), `pra-` (primordial)
+
+**Suffixes (25):**
 - `-ul` (person), `-ej` (place), `-in` (feminine)
 - `-et` (diminutive), `-eg` (augmentative), `-ad` (continuous action), `-ig` (make/cause), `-iĝ` (become)
 - `-ist` (professional - e.g., programisto), `-ism` (doctrine)
@@ -191,9 +196,11 @@ Models: 2 files in models/
 - `-ec` (quality), `-er` (unit), `-estr` (leader), `-id` (offspring)
 - `-il` (tool), `-ing` (holder), `-uj` (container/country), `-um` (indefinite)
 
-**Conjunctions (8):**
-- `kaj` (and), `aŭ` (or), `sed` (but), `nek` (neither/nor)
-- `se` (if), `ĉar` (because), `kvankam` (although), `ke` (that)
+**Conjunctions (10):**
+- `kaj` (and), `aŭ` (or), `sed` (but), `nek` (neither/nor), `se` (if), `ĉar` (because), `kvankam` (although), `ke` (that), `tamen` (however), `do` (therefore)
+
+**Particles (27):**
+- `ne` (not), `jes` (yes), `ankaŭ` (also), `nur` (only), `tre` (very), `tro` (too much), `jam` (already), `nun` (now), `hodiaŭ` (today), and 18 more
 
 **Grammar Endings:**
 - Nouns: `-o`, Adjectives: `-a`, Adverbs: `-e`
@@ -395,10 +402,11 @@ echo "La hundo vidas la katon." | python -m klareco run
 
 ### ⚠️ Current Limitations
 
-1. **Limited Vocabulary**
-   - Only 9 roots (san, hund, kat, program, vid, am, bon, grand, la)
-   - Many common words missing (manĝ=eat, ir=go, dom=house, etc.)
-   - **Workaround**: Add roots to `klareco/parser.py:KNOWN_ROOTS`
+1. **Vocabulary Coverage** ✅ MOSTLY SOLVED
+   - Now has 8,247 roots from Gutenberg English-Esperanto Dictionary
+   - Test corpus coverage: 91.7%
+   - Can validate vocabulary with: `python scripts/validate_vocabulary.py`
+   - **Remaining issue**: Some specialized/technical terms may still be missing
 
 2. **Basic Response Generation**
    - Currently just echoes: "Vi diras, ke..." (You say that...)
@@ -426,28 +434,49 @@ echo "La hundo vidas la katon." | python -m klareco run
 
 ---
 
-## 🛠️ Extending Klareco
+## 🛠️ Vocabulary Management
 
-### Adding New Roots
+### Validating Vocabulary Coverage
 
-Edit `klareco/parser.py`:
+Check how well the vocabulary covers your texts:
+
+```bash
+# Generate comprehensive vocabulary report
+python scripts/validate_vocabulary.py
+
+# Save detailed report to JSON
+python scripts/validate_vocabulary.py --output vocab_report.json
+```
+
+**What it checks:**
+- Parser vocabulary size (8,247 roots + grammatical items)
+- Test corpus coverage percentage
+- Missing roots in corpus and other texts
+- Comparison between different vocabulary sources
+
+### Adding New Roots (if needed)
+
+The parser now uses the Gutenberg dictionary automatically. For additional roots:
 
 ```python
+# Edit klareco/parser.py
 KNOWN_ROOTS = {
-    "san", "hund", "kat", "program", "vid", "am", "bon", "grand", "la",
-    # Add your roots here:
-    "manĝ",  # eat
-    "dom",   # house
-    "ir",    # go
+    # ... existing 8,247 roots ...
+    "custom_root",  # your custom addition
 }
 ```
 
 ### Testing New Vocabulary
 
 ```bash
-# After adding roots, test immediately
-python -m klareco parse "La kato manĝas."
+# Test specific sentence
+python -m klareco parse "Nova frazo por testi."
+
+# Run full test suite
 python -m klareco test --num-sentences 20
+
+# Validate vocabulary coverage
+python scripts/validate_vocabulary.py
 ```
 
 ---
@@ -480,4 +509,6 @@ python -m klareco test --num-sentences 20
 
 **Last Updated**: 2025-11-11
 **Version**: Phase 2 (Core Foundation & Traceability)
-**Test Status**: 114/114 passing, 75% coverage
+**Test Status**: 20/20 integration tests passing, 75% code coverage
+**Vocabulary**: 8,397 items (8,247 roots + 150 grammatical words)
+**Corpus Coverage**: 91.7%

@@ -4,6 +4,7 @@ This parser is built on the 16 rules of Esperanto and does not use any
 external parsing libraries like Lark. It performs morphological and syntactic
 analysis to produce a detailed, Esperanto-native Abstract Syntax Tree (AST)."""
 import re
+from data.extracted_vocabulary import DICTIONARY_ROOTS
 
 # -----------------------------------------------------------------------------
 # --- Hardcoded Vocabulary (Lexicon)
@@ -84,6 +85,132 @@ KNOWN_CONJUNCTIONS = {
     "ĉar",    # because
     "kvankam", # although
     "ke",     # that (subordinating)
+    "tamen",  # however/nevertheless
+    "do",     # therefore/so
+}
+
+# Prepositions (prepozicioj) - show relationships
+# These are uninflected words (no endings)
+KNOWN_PREPOSITIONS = {
+    "al",      # to, toward
+    "ĉe",      # at, by
+    "de",      # of, from
+    "da",      # of (quantity)
+    "dum",     # during, while
+    "el",      # out of, from
+    "en",      # in, into
+    "ekster",  # outside
+    "ĝis",     # until, up to
+    "inter",   # between, among
+    "kontraŭ", # against
+    "krom",    # besides, except
+    "kun",     # with
+    "laŭ",     # according to, along
+    "per",     # by means of, with
+    "po",      # at (distributive)
+    "post",    # after, behind
+    "preter",  # past, by
+    "pri",     # about, concerning
+    "pro",     # because of
+    "sen",     # without
+    "sub",     # under, below
+    "super",   # above, over
+    "sur",     # on, upon
+    "tra",     # through
+    "trans",   # across
+    "antaŭ",   # before, in front of
+    "apud",    # beside, next to
+    "ĉirkaŭ",  # around
+}
+
+# Correlatives (korelativoj) - the famous Esperanto correlative table
+# These are uninflected words formed from 5 beginnings × 9 endings
+KNOWN_CORRELATIVES = {
+    # Ki- (interrogative/relative)
+    "kia",     # what kind of
+    "kial",    # why
+    "kiam",    # when
+    "kie",     # where
+    "kien",    # where to (direction)
+    "kies",    # whose
+    "kio",     # what
+    "kiom",    # how much/many
+    "kiu",     # who, which
+
+    # Ti- (demonstrative)
+    "tia",     # that kind of
+    "tial",    # therefore
+    "tiam",    # then (at that time)
+    "tie",     # there
+    "tien",    # there (direction)
+    "ties",    # that one's
+    "tio",     # that
+    "tiom",    # that much/many
+    "tiu",     # that (one)
+
+    # Ĉi- (universal)
+    "ĉia",     # every kind of
+    "ĉial",    # for every reason
+    "ĉiam",    # always
+    "ĉie",     # everywhere
+    "ĉien",    # in every direction
+    "ĉies",    # everyone's
+    "ĉio",     # everything
+    "ĉiom",    # all (the amount)
+    "ĉiu",     # everyone, each
+
+    # Neni- (negative)
+    "nenia",   # no kind of
+    "nenial",  # for no reason
+    "neniam",  # never
+    "nenie",   # nowhere
+    "nenien",  # in no direction
+    "nenies",  # no one's
+    "nenio",   # nothing
+    "neniom",  # none (amount)
+    "neniu",   # no one, nobody
+
+    # I- (indefinite)
+    "ia",      # some kind of
+    "ial",     # for some reason
+    "iam",     # sometime
+    "ie",      # somewhere
+    "ien",     # somewhere (direction)
+    "ies",     # someone's
+    "io",      # something
+    "iom",     # some (amount)
+    "iu",      # someone, somebody
+}
+
+# Common particles and adverbs
+KNOWN_PARTICLES = {
+    "ankaŭ",   # also, too
+    "ankoraŭ",  # still, yet
+    "apenaŭ",  # hardly, scarcely
+    "baldaŭ",  # soon
+    "ĉi",      # this/here (modifier)
+    "ĉu",      # whether, question particle
+    "des",     # the (in correlatives: ju...des = the...the)
+    "eĉ",      # even
+    "hieraŭ",  # yesterday
+    "hodiaŭ",  # today
+    "ja",      # indeed, you know
+    "jam",     # already
+    "jes",     # yes
+    "ju",      # the (in correlatives: ju...des = the...the)
+    "kvazaŭ",  # as if, as though
+    "morgaŭ",  # tomorrow
+    "ne",      # no, not
+    "nek",     # neither, nor
+    "nu",      # well (interjection)
+    "nun",     # now
+    "nur",     # only
+    "plu",     # more, further
+    "preskaŭ", # almost
+    "tamen",   # however, nevertheless (also conjunction)
+    "tre",     # very
+    "tro",     # too (excessive)
+    "tuj",     # immediately
 }
 
 # Semantic roots (radikoj) - core vocabulary
@@ -223,6 +350,10 @@ KNOWN_ROOTS = {
     "mil",     # thousand
 }
 
+# Merge with 8,232 roots extracted from Gutenberg English-Esperanto Dictionary
+# This massively expands our vocabulary coverage
+KNOWN_ROOTS = KNOWN_ROOTS | DICTIONARY_ROOTS
+
 # -----------------------------------------------------------------------------
 # --- Layer 1: Morphological Analyzer (parse_word)
 # -----------------------------------------------------------------------------
@@ -257,6 +388,24 @@ def parse_word(word: str) -> dict:
     # Must check before trying to strip endings
     if lower_word in KNOWN_CONJUNCTIONS:
         ast['vortspeco'] = 'konjunkcio'
+        ast['radiko'] = lower_word
+        return ast
+
+    # Check for prepositions - uninflected words
+    if lower_word in KNOWN_PREPOSITIONS:
+        ast['vortspeco'] = 'prepozicio'
+        ast['radiko'] = lower_word
+        return ast
+
+    # Check for correlatives - uninflected words
+    if lower_word in KNOWN_CORRELATIVES:
+        ast['vortspeco'] = 'korelativo'
+        ast['radiko'] = lower_word
+        return ast
+
+    # Check for particles - uninflected adverbs and modifiers
+    if lower_word in KNOWN_PARTICLES:
+        ast['vortspeco'] = 'partiklo'
         ast['radiko'] = lower_word
         return ast
 

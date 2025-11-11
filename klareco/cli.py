@@ -103,10 +103,10 @@ def cmd_parse(args):
 
 def cmd_translate(args):
     """Translate text to/from Esperanto."""
-    from klareco.translator import EsperantoTranslator
+    from klareco.translator import TranslationService
     from klareco.lang_id import identify_language
 
-    translator = EsperantoTranslator()
+    translator = TranslationService()
 
     # Get input text
     if args.text:
@@ -133,11 +133,7 @@ def cmd_translate(args):
             target_lang = 'eo'
 
     # Translate
-    if source_lang == 'eo':
-        result = translator.translate_from_esperanto(text, target_lang)
-    else:
-        result = translator.translate_to_esperanto(text, source_lang)
-
+    result = translator.translate(text, source_lang, target_lang)
     print(result)
 
 

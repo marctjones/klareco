@@ -21,6 +21,13 @@ data/
 models/
 *.log
 
+# Test outputs and temporary files
+.coverage
+htmlcov/
+.pytest_cache/
+run_output.txt
+temp_*
+
 # Dependencies
 *.egg-info/
 dist/

@@ -4,7 +4,11 @@ This parser is built on the 16 rules of Esperanto and does not use any
 external parsing libraries like Lark. It performs morphological and syntactic
 analysis to produce a detailed, Esperanto-native Abstract Syntax Tree (AST)."""
 import re
-from data.extracted_vocabulary import DICTIONARY_ROOTS
+try:
+    from data.merged_vocabulary import MERGED_ROOTS as DICTIONARY_ROOTS
+except ImportError:
+    # Fallback to Gutenberg dictionary if merged vocabulary not available
+    from data.extracted_vocabulary import DICTIONARY_ROOTS
 
 # -----------------------------------------------------------------------------
 # --- Hardcoded Vocabulary (Lexicon)
@@ -46,6 +50,13 @@ KNOWN_SUFFIXES = {
     "ing",  # holder/socket
     "uj",   # container/country
     "um",   # indefinite meaning
+    # Participial suffixes (active and passive)
+    "ant",  # present active participle (seeing)
+    "int",  # past active participle (having seen)
+    "ont",  # future active participle (about to see)
+    "at",   # present passive participle (being seen)
+    "it",   # past passive participle (having been seen)
+    "ot",   # future passive participle (about to be seen)
 }
 
 # The order of endings matters. Longer ones must be checked first.
@@ -184,6 +195,7 @@ KNOWN_CORRELATIVES = {
 
 # Common particles and adverbs
 KNOWN_PARTICLES = {
+    "ajn",     # any (modifier: kiu ajn = whoever)
     "ankaŭ",   # also, too
     "ankoraŭ",  # still, yet
     "apenaŭ",  # hardly, scarcely
@@ -205,12 +217,33 @@ KNOWN_PARTICLES = {
     "nu",      # well (interjection)
     "nun",     # now
     "nur",     # only
+    "pli",     # more (comparative)
+    "plej",    # most (superlative)
     "plu",     # more, further
     "preskaŭ", # almost
     "tamen",   # however, nevertheless (also conjunction)
     "tre",     # very
     "tro",     # too (excessive)
     "tuj",     # immediately
+}
+
+# Number words (numeraloj) - can function as adjectives or substantives
+KNOWN_NUMBERS = {
+    "nul",     # zero
+    "unu",     # one
+    "du",      # two
+    "tri",     # three
+    "kvar",    # four
+    "kvin",    # five
+    "ses",     # six
+    "sep",     # seven
+    "ok",      # eight
+    "naŭ",     # nine
+    "dek",     # ten
+    "cent",    # hundred
+    "mil",     # thousand
+    "milion",  # million
+    "miliard", # billion
 }
 
 # Semantic roots (radikoj) - core vocabulary
@@ -352,7 +385,8 @@ KNOWN_ROOTS = {
 
 # Merge with 8,232 roots extracted from Gutenberg English-Esperanto Dictionary
 # This massively expands our vocabulary coverage
-KNOWN_ROOTS = KNOWN_ROOTS | DICTIONARY_ROOTS
+# Also merge number words so they can be used as roots
+KNOWN_ROOTS = KNOWN_ROOTS | DICTIONARY_ROOTS | KNOWN_NUMBERS
 
 # -----------------------------------------------------------------------------
 # --- Layer 1: Morphological Analyzer (parse_word)
@@ -377,6 +411,23 @@ def parse_word(word: str) -> dict:
         "prefikso": None,
         "sufiksoj": [],
     }
+
+    # --- Handle foreign words and numbers ---
+    # Skip numeric literals (years, etc.) - treat as foreign words
+    if word.isdigit():
+        ast['vortspeco'] = 'numero'
+        ast['radiko'] = word
+        return ast
+
+    # Skip capitalized non-Esperanto names (but allow Esperanto proper nouns)
+    # If word is capitalized and doesn't end with Esperanto morphology, it's likely foreign
+    if word[0].isupper() and len(word) > 1:
+        # Check if it has Esperanto endings (could be proper noun: Mario, Johano, etc.)
+        if not any(word.endswith(ending) for ending in ['o', 'a', 'e', 'on', 'an', 'en', 'oj', 'aj']):
+            # Likely foreign name
+            ast['vortspeco'] = 'nomo'  # foreign name
+            ast['radiko'] = word
+            return ast
 
     # --- Handle special, uninflected words first ---
     if lower_word == 'la':
@@ -411,6 +462,21 @@ def parse_word(word: str) -> dict:
 
     # --- Step 2: Decode Grammatical Endings (right-to-left) ---
     remaining_word = lower_word
+
+    # Check for numbers - can be inflected like adjectives (dua, duaj, duan, etc.)
+    # Numbers can take -a (adjective), -e (adverb), -o (noun), -j (plural), -n (accusative)
+    # So we need to strip endings and check the root
+    temp_word = remaining_word
+    if temp_word.endswith('n'):
+        temp_word = temp_word[:-1]
+    if temp_word.endswith('j'):
+        temp_word = temp_word[:-1]
+    if temp_word.endswith(('a', 'e', 'o')):
+        temp_word = temp_word[:-1]
+    if temp_word in KNOWN_NUMBERS:
+        # It's a number - treat it as a root for morphological analysis
+        # Don't return early - let it go through normal ending analysis
+        pass
 
     # Rule 6: Accusative Case (-n)
     # Pronouns can take accusative: mi→min, vi→vin, etc.
@@ -463,29 +529,28 @@ def parse_word(word: str) -> dict:
     # Sort suffixes by length (longest first) to match greedily
     sorted_suffixes = sorted(KNOWN_SUFFIXES, key=len, reverse=True)
 
-    for suffix in sorted_suffixes:
-        # Check if suffix is present and would leave a valid root
-        if suffix in stem:
-            # Try removing the suffix
-            potential_root = stem.replace(suffix, '', 1)  # Remove only first occurrence
+    # Extract suffixes from right to left (innermost last, outermost first in final list)
+    while True:
+        found_suffix = False
+        for suffix in sorted_suffixes:
+            # Check if suffix is at the END of the stem
+            if stem.endswith(suffix):
+                # Try removing the suffix from the end
+                potential_root = stem[:-len(suffix)]
 
-            # Only accept this suffix if what remains is either:
-            # 1. A known root, OR
-            # 2. Could still contain other suffixes and a root
-            if potential_root in KNOWN_ROOTS or len(potential_root) >= 2:
-                # Check if removing this suffix leaves us with a known root eventually
-                # For now, only remove if we can verify the root exists
-                temp_stem = potential_root
-                # Try removing remaining suffixes
-                for other_suffix in sorted_suffixes:
-                    if other_suffix in temp_stem:
-                        temp_stem = temp_stem.replace(other_suffix, '', 1)
-
-                # If we end up with a known root, accept the suffix
-                if temp_stem in KNOWN_ROOTS:
+                # Only accept this suffix if what remains is either:
+                # 1. A known root, OR
+                # 2. Long enough to potentially contain more suffixes and a root
+                if potential_root in KNOWN_ROOTS or len(potential_root) >= 2:
+                    # Accept this suffix
                     ast["sufiksoj"].append(suffix)
                     stem = potential_root
-                    break  # Only remove one suffix at a time for now
+                    found_suffix = True
+                    break  # Found one suffix, check for more
+
+        # Stop if no more suffixes found
+        if not found_suffix:
+            break
 
     # --- Step 5: Identify Root ---
     if stem in KNOWN_ROOTS:
@@ -499,10 +564,40 @@ def parse_word(word: str) -> dict:
 # --- Layer 2: Syntactic Analyzer (parse)
 # -----------------------------------------------------------------------------
 
+def preprocess_text(text: str) -> str:
+    """
+    Preprocess text before parsing to normalize punctuation and whitespace.
+
+    - Converts em-dashes, en-dashes to spaces
+    - Normalizes smart quotes to straight quotes
+    - Normalizes whitespace
+    """
+    # Replace various dash types with spaces to separate words
+    text = text.replace('—', ' ')  # em-dash
+    text = text.replace('–', ' ')  # en-dash
+    text = text.replace('―', ' ')  # horizontal bar
+
+    # Normalize smart quotes to straight quotes (will be removed later)
+    text = text.replace('"', '"')  # left double quote
+    text = text.replace('"', '"')  # right double quote
+    text = text.replace(''', "'")  # left single quote
+    text = text.replace(''', "'")  # right single quote
+    text = text.replace('‚', "'")  # low single quote
+    text = text.replace('„', '"')  # low double quote
+
+    # Normalize whitespace (multiple spaces to single space)
+    text = ' '.join(text.split())
+
+    return text
+
+
 def parse(text: str):
     """
     Parses an Esperanto sentence and returns a structured, morpheme-based AST.
     """
+    # Preprocess: normalize punctuation
+    text = preprocess_text(text)
+
     # Simple tokenizer: split by space, remove all punctuation
     # Remove common punctuation marks: . , ! ? : ; " ' ( ) [ ] { }
     import string

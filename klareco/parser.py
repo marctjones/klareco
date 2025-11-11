@@ -11,8 +11,41 @@ import re
 # In a real system, this would be much larger, but for our static parser,
 # we define the known morphemes directly here.
 
-KNOWN_PREFIXES = {"mal", "re", "ge"}
-KNOWN_SUFFIXES = {"ul", "ej", "in", "et", "ad", "ig"}
+KNOWN_PREFIXES = {
+    "mal",  # opposite
+    "re",   # again
+    "ge",   # both genders
+    "eks",  # former, ex-
+    "pra",  # primordial, great- (as in great-grandfather)
+}
+
+KNOWN_SUFFIXES = {
+    "ul",   # person characterized by
+    "ej",   # place for
+    "in",   # feminine
+    "et",   # diminutive
+    "ad",   # continuous action
+    "ig",   # make/cause to be
+    "iĝ",   # become
+    "ism",  # doctrine/system
+    "ist",  # professional/adherent
+    "ar",   # collection/group
+    "aĉ",   # pejorative
+    "aĵ",   # concrete thing
+    "ebl",  # possible to
+    "end",  # must be done
+    "ec",   # quality/abstract noun
+    "eg",   # augmentative
+    "em",   # tendency to
+    "er",   # smallest unit
+    "estr", # leader/chief
+    "id",   # offspring
+    "il",   # tool/instrument
+    "ind",  # worthy of
+    "ing",  # holder/socket
+    "uj",   # container/country
+    "um",   # indefinite meaning
+}
 
 # The order of endings matters. Longer ones must be checked first.
 KNOWN_ENDINGS = {
@@ -40,8 +73,155 @@ KNOWN_ENDINGS = {
 # Accusative forms: min, vin, lin, ŝin, ĝin, sin, nin, ilin, onin
 KNOWN_PRONOUNS = {"mi", "vi", "li", "ŝi", "ĝi", "si", "ni", "ili", "oni"}
 
+# Conjunctions (konjunkcioj) - connect clauses and words
+# These are uninflected words (no endings)
+KNOWN_CONJUNCTIONS = {
+    "kaj",    # and
+    "aŭ",     # or
+    "sed",    # but
+    "nek",    # neither/nor
+    "se",     # if
+    "ĉar",    # because
+    "kvankam", # although
+    "ke",     # that (subordinating)
+}
+
 # Semantic roots (radikoj) - core vocabulary
-KNOWN_ROOTS = {"san", "hund", "kat", "program", "vid", "am", "bon", "grand", "la"}
+# Expanded to cover common Esperanto words
+KNOWN_ROOTS = {
+    # Original roots
+    "san", "hund", "kat", "program", "vid", "am", "bon", "grand", "la",
+
+    # From test corpus (essential for tests to pass)
+    "est",     # be/is (most important verb!)
+    "manĝ",    # eat
+    "dorm",    # sleep
+    "kur",     # run
+    "tag",     # day
+    "amik",    # friend
+    "aspekt",  # look/appear
+    "labor",   # work
+    "vol",     # want
+    "help",    # help
+    "bel",     # beautiful
+    "rapid",   # quick/fast
+
+    # Common verbs
+    "far",     # do/make
+    "dir",     # say
+    "ven",     # come
+    "ir",      # go
+    "don",     # give
+    "pren",    # take
+    "hav",     # have
+    "pov",     # can/be able
+    "dev",     # must
+    "sci",     # know
+    "komprен",  # understand
+    "parol",   # speak
+    "skrib",   # write
+    "leg",     # read
+    "pens",    # think
+    "sent",    # feel
+    "stud",    # study
+    "lern",    # learn
+    "instru",  # teach
+    "paf",     # shoot
+
+    # Common nouns
+    "hom",     # human/person
+    "vir",     # man
+    "infan",   # child
+    "patr",    # father
+    "patrın",  # mother
+    "frat",    # brother
+    "fil",     # son
+    "dom",     # house
+    "urb",     # city
+    "land",    # land/country
+    "mond",    # world
+    "temp",    # time
+    "jar",     # year
+    "monat",   # month
+    "semajn",  # week
+    "hor",     # hour
+    "minut",   # minute
+    "lok",     # place
+    "voj",     # way/road
+    "aŭt",     # car
+    "libr",    # book
+    "tabl",    # table
+    "seĝ",     # chair
+    "pord",    # door
+    "fenеstr", # window
+    "akvо",    # water
+    "pаn",     # bread
+    "viаnd",   # meat
+    "frukt",   # fruit
+    "arb",     # tree
+    "flor",    # flower
+    "sun",     # sun
+    "lun",     # moon
+    "stel",    # star
+
+    # Common adjectives
+    "nov",     # new
+    "malnov",  # old
+    "jung",    # young
+    "mal jung", # old (of people)
+    "alt",     # high/tall
+    "bas",     # low
+    "long",    # long
+    "kurt",    # short
+    "larg",    # wide
+    "gras",    # fat/thick
+    "dik",     # thick
+    "varm",    # warm
+    "malvarm", # cold
+    "vеr",     # true
+    "fals",    # false
+    "bon",     # good (duplicate but keep for clarity)
+    "malbon",  # bad
+    "bel",     # beautiful (duplicate but keep)
+    "malbel",  # ugly
+    "feliĉ",   # happy
+    "trist",   # sad
+    "fru",     # early
+    "malfru",  # late
+    "facil",   # easy
+    "malfacil", # difficult
+    "fort",    # strong
+    "malfort", # weak
+    "riĉ",     # rich
+    "malriĉ",  # poor
+    "plen",    # full
+    "malplen", # empty
+    "pеz",     # heavy
+    "malpеz",  # light
+
+    # Colors
+    "ruĝ",     # red
+    "blu",     # blue
+    "verd",    # green
+    "flav",    # yellow
+    "nigr",    # black
+    "blank",   # white
+    "griz",    # gray
+
+    # Numbers (as roots, can take endings)
+    "unu",     # one
+    "du",      # two
+    "tri",     # three
+    "kvar",    # four
+    "kvin",    # five
+    "ses",     # six
+    "sep",     # seven
+    "ok",      # eight
+    "naŭ",     # nine
+    "dek",     # ten
+    "cent",    # hundred
+    "mil",     # thousand
+}
 
 # -----------------------------------------------------------------------------
 # --- Layer 1: Morphological Analyzer (parse_word)
@@ -71,6 +251,13 @@ def parse_word(word: str) -> dict:
     if lower_word == 'la':
         ast['vortspeco'] = 'artikolo'
         ast['radiko'] = 'la'
+        return ast
+
+    # Check for conjunctions - uninflected words (no endings)
+    # Must check before trying to strip endings
+    if lower_word in KNOWN_CONJUNCTIONS:
+        ast['vortspeco'] = 'konjunkcio'
+        ast['radiko'] = lower_word
         return ast
 
     # --- Step 2: Decode Grammatical Endings (right-to-left) ---
@@ -122,12 +309,34 @@ def parse_word(word: str) -> dict:
             stem = stem[len(prefix):]
             break # Assume only one prefix for now
 
-    # Suffixes (middle) - this is complex, we'll do a simple greedy match for now
-    # This is a point for future improvement. A simple loop works for many cases.
-    for suffix in KNOWN_SUFFIXES:
+    # Suffixes (middle) - improved matching logic
+    # Only match suffixes if they leave behind a valid root
+    # Sort suffixes by length (longest first) to match greedily
+    sorted_suffixes = sorted(KNOWN_SUFFIXES, key=len, reverse=True)
+
+    for suffix in sorted_suffixes:
+        # Check if suffix is present and would leave a valid root
         if suffix in stem:
-            ast["sufiksoj"].append(suffix)
-            stem = stem.replace(suffix, '')
+            # Try removing the suffix
+            potential_root = stem.replace(suffix, '', 1)  # Remove only first occurrence
+
+            # Only accept this suffix if what remains is either:
+            # 1. A known root, OR
+            # 2. Could still contain other suffixes and a root
+            if potential_root in KNOWN_ROOTS or len(potential_root) >= 2:
+                # Check if removing this suffix leaves us with a known root eventually
+                # For now, only remove if we can verify the root exists
+                temp_stem = potential_root
+                # Try removing remaining suffixes
+                for other_suffix in sorted_suffixes:
+                    if other_suffix in temp_stem:
+                        temp_stem = temp_stem.replace(other_suffix, '', 1)
+
+                # If we end up with a known root, accept the suffix
+                if temp_stem in KNOWN_ROOTS:
+                    ast["sufiksoj"].append(suffix)
+                    stem = potential_root
+                    break  # Only remove one suffix at a time for now
 
     # --- Step 5: Identify Root ---
     if stem in KNOWN_ROOTS:
@@ -145,8 +354,12 @@ def parse(text: str):
     """
     Parses an Esperanto sentence and returns a structured, morpheme-based AST.
     """
-    # Simple tokenizer: split by space, remove punctuation for now.
-    words = text.replace('.', '').replace(',', '').split()
+    # Simple tokenizer: split by space, remove all punctuation
+    # Remove common punctuation marks: . , ! ? : ; " ' ( ) [ ] { }
+    import string
+    for punct in string.punctuation:
+        text = text.replace(punct, ' ')
+    words = text.split()
 
     if not words:
         return None

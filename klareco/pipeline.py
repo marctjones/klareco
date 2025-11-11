@@ -1,12 +1,17 @@
 """
 The main processing pipeline for Klareco.
 """
+import logging
+from .logging_config import setup_logging
 from .trace import ExecutionTrace
 from .front_door import FrontDoor
 from .parser import parse as parse_esperanto
 from .intent_classifier import classify_intent
 from .responder import respond_to_intent
 from .safety import SafetyMonitor
+
+# Setup logging at the module level
+setup_logging()
 
 class KlarecoPipeline:
     """
@@ -16,6 +21,7 @@ class KlarecoPipeline:
     def __init__(self):
         self.front_door = FrontDoor()
         self.safety_monitor = SafetyMonitor()
+        logging.info("KlarecoPipeline initialized.")
 
     def run(self, query: str, stop_after: str = None) -> ExecutionTrace:
         """
@@ -28,10 +34,12 @@ class KlarecoPipeline:
         Returns:
             A complete ExecutionTrace object.
         """
+        logging.info(f"Starting pipeline run for query: '{query}'")
         trace = ExecutionTrace(initial_query=query)
         
         try:
             # Step 1: Input Safety Check
+            logging.info("Step 1: SafetyMonitor - Checking input length.")
             self.safety_monitor.check_input_length(query)
             trace.add_step(
                 "SafetyMonitor",
@@ -42,6 +50,7 @@ class KlarecoPipeline:
             if stop_after == "SafetyMonitor": return trace
 
             # Step 2: Front Door
+            logging.info("Step 2: FrontDoor - Processing input text.")
             lang, processed_text = self.front_door.process(query)
             trace.add_step(
                 "FrontDoor",
@@ -52,6 +61,7 @@ class KlarecoPipeline:
             if stop_after == "FrontDoor": return trace
 
             # Step 3: Parser
+            logging.info("Step 3: Parser - Parsing Esperanto text to AST.")
             ast = parse_esperanto(processed_text)
             trace.add_step(
                 "Parser",
@@ -62,6 +72,7 @@ class KlarecoPipeline:
             if stop_after == "Parser": return trace
 
             # Step 4: AST Safety Check
+            logging.info("Step 4: SafetyMonitor - Checking AST complexity.")
             self.safety_monitor.check_ast_complexity(ast)
             node_count = self.safety_monitor._count_ast_nodes(ast)
             trace.add_step(
@@ -73,6 +84,7 @@ class KlarecoPipeline:
             if stop_after == "SafetyMonitor_AST": return trace # Differentiate from input safety check
             
             # Step 5: Intent Classifier
+            logging.info("Step 5: IntentClassifier - Classifying intent from AST.")
             intent = classify_intent(ast)
             trace.add_step(
                 "IntentClassifier",
@@ -83,6 +95,7 @@ class KlarecoPipeline:
             if stop_after == "IntentClassifier": return trace
 
             # Step 6: Responder
+            logging.info("Step 6: Responder - Generating response.")
             response_text = respond_to_intent(intent, ast)
             trace.add_step(
                 "Responder",
@@ -93,10 +106,12 @@ class KlarecoPipeline:
             if stop_after == "Responder": return trace
 
             # Set the final response
+            logging.info("Pipeline run completed successfully.")
             trace.set_final_response(response_text)
 
         except Exception as e:
             # Ensure any failure is logged to the trace
+            logging.error(f"Pipeline failed with error: {e}", exc_info=True)
             trace.set_error(str(e))
 
         return trace

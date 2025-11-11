@@ -1,12 +1,12 @@
 #!/bin/bash
-# This script runs a given command inside the 'klareco-env' conda environment.
-# Example usage: ./run.sh python3 scripts/clean_corpus.py
+# This script activates the conda environment, runs the Klareco integration tests
+# with coverage, and then generates a coverage report.
 
-# Check if a command was provided
-if [ -z "$1" ]; then
-    echo "Usage: ./run.sh <command_to_run>"
-    exit 1
-fi
+# Activate conda environment
+source /home/marc/miniconda3/bin/activate klareco-env
 
-# Execute the command within the conda environment
-conda run -n klareco-env "$@"
+# Run the integration test script with coverage using python -m
+python -m coverage run --source=klareco scripts/run_integration_test.py "$@" > run_output.txt 2>&1
+
+# Generate the coverage report
+python -m coverage report -m >> run_output.txt 2>&1

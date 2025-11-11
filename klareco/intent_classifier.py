@@ -11,31 +11,34 @@ def classify_intent(ast: dict) -> str:
     This is a simple, rule-based classifier that inspects the morphemes.
 
     Args:
-        ast: The Abstract Syntax Tree of the user's query.
+        ast: The Abstract Syntax Tree of the user's query (with Esperanto field names).
 
     Returns:
         A string representing the classified intent.
     """
-    if ast.get('type') != 'sentence':
+    # AST uses Esperanto field names: tipo, subjekto, verbo, objekto
+    if ast.get('tipo') != 'frazo':
         return "Unknown"
 
-    subject = ast.get('subject')
-    verb = ast.get('verb')
-    obj = ast.get('object')
+    # subjekto (subject) is a vortgrupo (noun phrase) with kerno (core/head noun)
+    subjekto = ast.get('subjekto')
+    verbo = ast.get('verbo')  # verbo (verb) is a vorto (word)
+    objekto = ast.get('objekto')  # objekto (object) is a vortgrupo
 
     # Rule for SimpleStatement:
-    # Check if we have a valid subject, verb, and object, all of type 'word'.
-    # This is a basic check for a declarative sentence structure.
-    if (subject and subject.get('type') == 'word' and subject.get('root')
-        and verb and verb.get('type') == 'word' and verb.get('root') and verb.get('endings')
-        and obj and obj.get('type') == 'word' and obj.get('root')):
-        
+    # Check if we have a valid subject, verb, and object
+    # Subject and object are vortgrupo (noun phrases) with kerno (core noun)
+    # Verb is a vorto (word) with radiko (root)
+    if (subjekto and subjekto.get('tipo') == 'vortgrupo' and subjekto.get('kerno')
+        and verbo and verbo.get('tipo') == 'vorto' and verbo.get('radiko')
+        and objekto and objekto.get('tipo') == 'vortgrupo' and objekto.get('kerno')):
+
         # Further checks could be added here, e.g., verb tense, presence of accusative on object.
         # For now, this is sufficient for a basic statement.
         return "SimpleStatement"
 
     # Placeholder for other intents, e.g., Questions
-    # if verb and verb.get('root') == 'demand': # If we had a root for 'ask'
+    # if verbo and verbo.get('radiko') == 'demand': # If we had a root for 'ask'
     #     return "Question"
 
     return "Unknown"

@@ -187,16 +187,25 @@ def parse(text: str):
                 sentence_ast["subjekto"]["priskriboj"].append(ast)
             else:
                 sentence_ast["aliaj"].append(ast)
-        
+
         elif ast["vortspeco"] == "artikolo":
-            # Find the next noun and associate the article with it.
-            # This is a simple heuristic that works for "la X" constructions.
-            if i + 1 < len(word_asts):
-                next_ast = word_asts[i+1]
-                if sentence_ast["objekto"] and next_ast == sentence_ast["objekto"]["kerno"]:
-                    sentence_ast["objekto"]["artikolo"] = "la"
-                elif sentence_ast["subjekto"] and next_ast == sentence_ast["subjekto"]["kerno"]:
-                    sentence_ast["subjekto"]["artikolo"] = "la"
+            # Find the noun that this article modifies (may have adjectives in between)
+            # Example: "la grandan katon" - article "la" applies to "katon" despite "grandan"
+            # Look ahead through adjectives to find the noun
+            for j in range(i + 1, len(word_asts)):
+                next_ast = word_asts[j]
+                # Skip adjectives, look for the noun
+                if next_ast["vortspeco"] in ["substantivo", "pronomo"]:
+                    # Check if this noun is the object or subject
+                    if sentence_ast["objekto"] and next_ast == sentence_ast["objekto"]["kerno"]:
+                        sentence_ast["objekto"]["artikolo"] = "la"
+                        break
+                    elif sentence_ast["subjekto"] and next_ast == sentence_ast["subjekto"]["kerno"]:
+                        sentence_ast["subjekto"]["artikolo"] = "la"
+                        break
+                elif next_ast["vortspeco"] != "adjektivo":
+                    # If we hit something that's not an adjective or noun, stop
+                    break
 
     # Clean up unassociated words
     placed_words = []

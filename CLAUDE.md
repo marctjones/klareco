@@ -155,6 +155,51 @@ A JSON-based logging system that records every pipeline step with inputs, output
 source /home/marc/miniconda3/bin/activate klareco-env
 ```
 
+### Unified CLI
+
+**Primary interface for all Klareco functionality:**
+
+```bash
+# Run the pipeline on input text
+python -m klareco run "La hundo vidas la katon."
+python -m klareco run --file input.txt
+python -m klareco run "Hello world" --output-format json --debug
+
+# Parse Esperanto text (debugging)
+python -m klareco parse "mi amas la hundon"
+
+# Translate text
+python -m klareco translate "The dog sees the cat."
+
+# Run tests
+python -m klareco test
+python -m klareco test --num-sentences 10
+python -m klareco test --pytest -v
+
+# System information
+python -m klareco info
+
+# Setup (download models, build vocabulary)
+python -m klareco setup --all
+```
+
+**Available commands:**
+- `run` - Run the pipeline on input text
+- `test` - Run integration tests (replaces scripts/run_integration_test.py)
+- `parse` - Parse Esperanto text into AST (debugging)
+- `translate` - Translate text to/from Esperanto
+- `corpus` - Corpus management (clean, verify, create-test)
+- `setup` - Setup Klareco (download models, build vocabulary)
+- `info` - Display system information
+
+**Key options:**
+- `--debug` - Enable debug-level logging with full context
+- `--stop-after <step>` - Stop pipeline at specific step
+- `--output-format` - text, json, or trace
+- `-f, --file` - Read input from file
+
+For detailed help: `python -m klareco <command> --help`
+
 ### Running Tests
 ```bash
 # Run full integration test suite with coverage

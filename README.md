@@ -101,6 +101,56 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 ## Usage
 
+### Command-Line Interface
+
+Klareco provides a unified CLI for all functionality:
+
+```bash
+# Run the pipeline on text
+python -m klareco run "La hundo vidas la katon."
+python -m klareco run --file input.txt
+python -m klareco run "Hello world" --output-format json
+
+# Parse Esperanto text (debugging)
+python -m klareco parse "mi amas la hundon"
+
+# Translate text
+python -m klareco translate "The dog sees the cat."
+python -m klareco translate "La hundo vidas la katon." --to en
+
+# Run tests
+python -m klareco test
+python -m klareco test --num-sentences 10
+python -m klareco test --pytest -v
+
+# System information
+python -m klareco info
+
+# Setup (download models, build vocabulary)
+python -m klareco setup --all
+```
+
+**Available Commands:**
+- `run` - Run the pipeline on input text (supports text, file, or stdin)
+- `test` - Run integration tests (supports both script and pytest)
+- `parse` - Parse Esperanto text into AST (debugging utility)
+- `translate` - Translate text to/from Esperanto
+- `corpus` - Corpus management (clean, verify, create-test)
+- `setup` - Setup Klareco (download models, build vocabulary)
+- `info` - Display system information
+
+**Common Options:**
+- `--debug` - Enable debug-level logging with full context
+- `--stop-after <step>` - Stop pipeline at specific step (for debugging)
+- `--output-format` - Output format: text, json, or trace
+- `-f, --file` - Read input from file
+- `-v, --verbose` - Verbose output
+
+For detailed help on any command:
+```bash
+python -m klareco <command> --help
+```
+
 ### Basic Pipeline
 
 ```python

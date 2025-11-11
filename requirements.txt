@@ -1,0 +1,15 @@
+# Core ML/NLP
+transformers
+torch
+fasttext
+requests
+sentencepiece
+sacremoses
+lark
+torch
+transformers
+sentencepiece
+sacremoses
+
+# Lisp environment
+hy

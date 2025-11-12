@@ -49,14 +49,15 @@ class TestSafetyMonitor(unittest.TestCase):
         #     root (str) -> 0
         # Total: 1 (sentence) + 3 * (1 (word dict) + 1 (suffixes list) + 1 (endings list)) = 1 + 3 * 3 = 10
         # Updated: Parser now includes "artikolo" fields, adding 2 more nodes = 12 total
-        self.assertEqual(self.monitor._count_ast_nodes(ast), 12)
+        # Further updated: Parser now includes "parse_statistics" dict, adding 2 more nodes = 14 total
+        self.assertEqual(self.monitor._count_ast_nodes(ast), 14)
 
     def test_check_ast_complexity_ok(self):
         """Tests that an AST within limits passes the complexity check."""
         text = "mi vidas la hundon."
         ast = parse(text)
-        # Updated limit to accommodate article tracking in AST
-        self.monitor.max_ast_nodes = 12  # Set to accommodate improved AST structure
+        # Updated limit to accommodate article tracking and parse_statistics in AST
+        self.monitor.max_ast_nodes = 14  # Set to accommodate improved AST structure with parse_statistics
         self.monitor.check_ast_complexity(ast)
         # No exception means success
 

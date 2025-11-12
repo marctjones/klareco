@@ -152,6 +152,8 @@ def main():
          "The Pit and the Pendulum (Poe)"),
         (project_root / 'data/cleaned/cleaned_la_hobito.txt',
          "The Hobbit (Tolkien)"),
+        (project_root / 'data/cleaned/cleaned_la_mastro_de_l_ringoj.txt',
+         "The Lord of the Rings (Tolkien)"),
         (project_root / 'data/cleaned/cleaned_ses_noveloj.txt',
          "Six Tales (Poe)"),
     ]

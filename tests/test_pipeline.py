@@ -147,20 +147,21 @@ class TestKlarecoPipeline(unittest.TestCase):
         self.assertEqual(len(trace.steps), 0)  # No steps added before exception
 
     def test_run_with_invalid_esperanto_syntax_records_error(self):
-        """Tests that invalid Esperanto syntax is recorded as error in trace."""
-        # Use a query with unknown root that will fail parsing
+        """Tests that invalid Esperanto syntax succeeds with graceful degradation."""
+        # Use a query with unknown root that will be handled gracefully
         query = "xyzabc"
 
         trace = self.pipeline.run(query)
 
-        # Verify error was recorded
-        self.assertIsNotNone(trace.error)
-        self.assertIsNone(trace.final_response)
+        # With graceful degradation, should succeed
+        self.assertIsNone(trace.error)
+        self.assertIsNotNone(trace.final_response)
 
-        # Verify pipeline got to Parser step before failing
+        # Verify pipeline completed all steps
         step_names = [step['name'] for step in trace.steps]
         self.assertIn("SafetyMonitor", step_names)
         self.assertIn("FrontDoor", step_names)
+        self.assertIn("Parser", step_names)  # Parser should complete successfully
 
     def test_run_with_complex_ast_exceeding_limit_records_error(self):
         """Tests that AST exceeding complexity limit is recorded as error."""

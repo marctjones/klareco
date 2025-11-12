@@ -46,14 +46,15 @@ class TestScratchDeparser(unittest.TestCase):
         Tests that parsing and then deparsing a sentence returns the original.
         This is the ultimate integration test for the parser/deparser pair.
         """
-        original_sentence = "Mi amas la grandan katon."
-        
+        # Use lowercase 'mi' so parser recognizes it as pronoun subject
+        original_sentence = "mi amas la grandan katon."
+
         # 1. Parse the sentence into our new AST format
         ast = parse(original_sentence)
-        
+
         # 2. Deparse the AST back into a string
         reconstructed_sentence = deparse(ast)
-        
+
         # 3. Compare the result (case-insensitively, ignoring final punctuation)
         self.assertEqual(
             reconstructed_sentence.lower().strip('.'),

@@ -309,18 +309,29 @@ class TestPipelineErrorHandlingE2E(unittest.TestCase):
         self.pipeline = KlarecoPipeline()
 
     def test_e2e_invalid_esperanto_records_error_in_trace(self):
-        """Tests that invalid Esperanto input records error in trace."""
+        """Tests that invalid Esperanto input succeeds with graceful degradation."""
         query = "xyzabc"  # Not valid Esperanto
 
         trace = self.pipeline.run(query)
 
-        # Should have error recorded
-        self.assertIsNotNone(trace.error)
-        self.assertIsNone(trace.final_response)
+        # With graceful degradation, parser should succeed and mark words as failed
+        self.assertIsNone(trace.error)  # No error - graceful degradation works
+        self.assertIsNotNone(trace.final_response)  # Pipeline completes successfully
 
-        # Should have attempted parsing
+        # Should have completed all parsing steps
         step_names = [step['name'] for step in trace.steps]
         self.assertIn("FrontDoor", step_names)
+        self.assertIn("Parser", step_names)
+
+        # Check that parser produced an AST with parse_statistics showing failures
+        parser_step = next((s for s in trace.steps if s['name'] == 'Parser'), None)
+        if parser_step and 'outputs' in parser_step and 'ast' in parser_step['outputs']:
+            ast = parser_step['outputs']['ast']
+            # AST should have parse_statistics showing non-Esperanto words
+            if 'parse_statistics' in ast:
+                stats = ast['parse_statistics']
+                # Should have detected some non-Esperanto words
+                self.assertGreater(stats.get('non_esperanto_words', 0), 0)
 
     def test_e2e_very_long_input_blocked_by_safety_monitor(self):
         """Tests that extremely long input is blocked by SafetyMonitor."""

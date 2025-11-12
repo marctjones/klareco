@@ -21,7 +21,9 @@ KNOWN_PREFIXES = {
     "re",   # again
     "ge",   # both genders
     "eks",  # former, ex-
+    "ek",   # sudden action, beginning
     "pra",  # primordial, great- (as in great-grandfather)
+    "for",  # away, completely
 }
 
 KNOWN_SUFFIXES = {
@@ -113,6 +115,7 @@ KNOWN_PREPOSITIONS = {
     "ekster",  # outside
     "ĝis",     # until, up to
     "inter",   # between, among
+    "je",      # (undefined meaning - used when no other preposition fits)
     "kontraŭ", # against
     "krom",    # besides, except
     "kun",     # with
@@ -204,10 +207,13 @@ KNOWN_PARTICLES = {
     "ĉu",      # whether, question particle
     "des",     # the (in correlatives: ju...des = the...the)
     "eĉ",      # even
+    "ha",      # ha (interjection)
     "hieraŭ",  # yesterday
+    "ho",      # oh (interjection)
     "hodiaŭ",  # today
     "ja",      # indeed, you know
     "jam",     # already
+    "jen",     # behold, here is/are
     "jes",     # yes
     "ju",      # the (in correlatives: ju...des = the...the)
     "kvazaŭ",  # as if, as though
@@ -221,10 +227,14 @@ KNOWN_PARTICLES = {
     "plej",    # most (superlative)
     "plu",     # more, further
     "preskaŭ", # almost
+    "ree",     # again (adverb)
     "tamen",   # however, nevertheless (also conjunction)
     "tre",     # very
     "tro",     # too (excessive)
     "tuj",     # immediately
+    "tju",     # phew, whew (interjection)
+    "ve",      # woe, alas (interjection)
+    "ĵus",     # just (recently)
 }
 
 # Number words (numeraloj) - can function as adjectives or substantives
@@ -244,6 +254,24 @@ KNOWN_NUMBERS = {
     "mil",     # thousand
     "milion",  # million
     "miliard", # billion
+    # Compound numbers
+    "dek unu", # eleven
+    "dek du",  # twelve
+    "dek tri", # thirteen
+    "dek kvar", # fourteen
+    "dek kvin", # fifteen
+    "dek ses", # sixteen
+    "dek sep", # seventeen
+    "dek ok",  # eighteen
+    "dek naŭ", # nineteen
+    "dudek",   # twenty
+    "tridek",  # thirty
+    "kvardek", # forty
+    "kvindek", # fifty
+    "sesdek",  # sixty
+    "sepdek",  # seventy
+    "okdek",   # eighty
+    "naŭdek",  # ninety
 }
 
 # Semantic roots (radikoj) - core vocabulary
@@ -328,7 +356,6 @@ KNOWN_ROOTS = {
     "nov",     # new
     "malnov",  # old
     "jung",    # young
-    "mal jung", # old (of people)
     "alt",     # high/tall
     "bas",     # low
     "long",    # long
@@ -381,6 +408,85 @@ KNOWN_ROOTS = {
     "dek",     # ten
     "cent",    # hundred
     "mil",     # thousand
+
+    # Additional common roots from Gutenberg corpus
+    "reĝ",     # king
+    "best",    # beast/animal
+    "leon",    # lion
+    "kolomb",  # dove/pigeon
+    "bird",    # bird
+    "roz",     # rose
+    "pom",     # apple
+    "ter",     # earth/ground
+    "ŝton",    # stone
+    "ĉiel",    # sky/heaven
+    "krajon",  # pencil
+    "plum",    # pen/feather
+    "dent",    # tooth
+    "man",     # hand
+    "respond", # respond/answer
+    "reg",     # rule/reign
+    "obed",    # obey
+    "rajt",    # right/entitle
+    "apart",   # belong to
+    "kuŝ",     # lie down
+    "bril",    # shine
+    "peto",    # request/petition
+    "dang",    # danger
+    "kuraĝ",   # courage
+    "rajd",    # ride
+    "mor",     # die
+    "pet", # request (alternative)
+    "fenestr", # window (fixed spelling)
+    "akv",     # water (fixed spelling)
+    "pan",     # bread (fixed spelling)
+    "viand",   # meat (fixed spelling)
+    "aŭt",     # car (fixed spelling)
+    "just",    # just/fair
+    "ĝust",    # correct/exact
+    "hon",     # shame/be ashamed
+    "lev",     # lift/raise
+    "ŝancel",  # stagger/totter
+    "cel",     # aim/goal
+    "ekst",    # ecstasy (noun root, not prefix)
+    "enu",     # bore/annoy
+    "aŭd",     # hear
+    "ramp",    # crawl/creep
+    "viv",     # live
+    "ricev",   # receive
+    "konsil",  # advise/counsel
+    "turn",    # turn
+    "duon",    # half
+
+    # From literary corpus analysis (analyze_failures.py - verified standard Esperanto)
+    "region",  # region (regiono)
+    "trankv",  # calm, tranquil (trankvila)
+    "alfabet", # alphabet (alfabeto)
+    "liĝ",     # law (leĝo)
+    "punkt",   # point (punkto)
+    "manier",  # manner (maniero)
+    "preciz",  # precise (preciza)
+    "sven",    # faint, swoon (sveni)
+    "disting", # distinguish (distingi)
+    "renkont", # encounter, meet (renkonti)
+    "distanc", # distance (distanco)
+    "demand",  # ask, demand (demandi)
+    "bord",    # edge, border (bordo)
+    "miz",     # misery (mizero)
+    "memor",   # memory (memoro)
+    "fakt",    # fact (fakto)
+    "mir",     # wonder, marvel (miri)
+    "ofer",    # offer, sacrifice (oferi)
+    "kord",    # cord, heart (koro)
+    "nask",    # birth, be born (naski)
+    "redakt",  # edit, redact (redakti)
+    "prezid",  # preside (prezidi)
+    "akademi", # academy (akademio)
+    "vok",     # call (voki)
+    "konfirm", # confirm (konfirmi)
+    "absolut", # absolute (absoluta)
+    "dialog",  # dialogue (dialogo)
+    "sistematik", # systematic (sistematika)
 }
 
 # Merge with 8,232 roots extracted from Gutenberg English-Esperanto Dictionary
@@ -499,6 +605,13 @@ def parse_word(word: str) -> dict:
         ast['vortspeco'] = 'pronomo'  # Pronoun (pronomoj - functions like substantivo)
         return ast
 
+    # Check for bare number words (before ending stripping)
+    # Numbers like "du" would otherwise be parsed as "d" + "u" (volitive ending)
+    if remaining_word in KNOWN_NUMBERS:
+        ast['radiko'] = remaining_word
+        ast['vortspeco'] = 'numero'
+        return ast
+
     # Rule 4, 7, 8, 11, 12: Part of Speech & Tense/Mood
     # Only check these for non-pronouns
     found_ending = False
@@ -518,11 +631,18 @@ def parse_word(word: str) -> dict:
     stem = remaining_word
 
     # Prefixes (left side)
-    for prefix in KNOWN_PREFIXES:
-        if stem.startswith(prefix):
-            ast["prefikso"] = prefix
-            stem = stem[len(prefix):]
-            break # Assume only one prefix for now
+    # IMPORTANT: Only strip prefix if stem is NOT already a known root
+    # This prevents "reĝo" from being parsed as "re" + "ĝo" instead of "reĝ" + "o"
+    if stem not in KNOWN_ROOTS:
+        for prefix in KNOWN_PREFIXES:
+            if stem.startswith(prefix):
+                remaining_after_prefix = stem[len(prefix):]
+                # Only strip prefix if what remains could be valid
+                # (either a known root or long enough to potentially have suffixes)
+                if remaining_after_prefix in KNOWN_ROOTS or len(remaining_after_prefix) >= 3:
+                    ast["prefikso"] = prefix
+                    stem = remaining_after_prefix
+                    break # Assume only one prefix for now
 
     # Suffixes (middle) - improved matching logic
     # Only match suffixes if they leave behind a valid root
@@ -530,7 +650,11 @@ def parse_word(word: str) -> dict:
     sorted_suffixes = sorted(KNOWN_SUFFIXES, key=len, reverse=True)
 
     # Extract suffixes from right to left (innermost last, outermost first in final list)
-    while True:
+    # Be conservative - only remove suffix if it leads to a known root eventually
+    max_suffix_depth = 3  # Limit suffix chaining to prevent over-matching
+    suffix_count = 0
+
+    while suffix_count < max_suffix_depth:
         found_suffix = False
         for suffix in sorted_suffixes:
             # Check if suffix is at the END of the stem
@@ -539,26 +663,163 @@ def parse_word(word: str) -> dict:
                 potential_root = stem[:-len(suffix)]
 
                 # Only accept this suffix if what remains is either:
-                # 1. A known root, OR
-                # 2. Long enough to potentially contain more suffixes and a root
-                if potential_root in KNOWN_ROOTS or len(potential_root) >= 2:
-                    # Accept this suffix
+                # 1. A known root (BEST case)
+                # 2. A known particle/adverb (for compounds like "tre" + "eg")
+                if (potential_root in KNOWN_ROOTS or
+                    potential_root in KNOWN_PARTICLES or
+                    potential_root in KNOWN_PREPOSITIONS):
                     ast["sufiksoj"].append(suffix)
                     stem = potential_root
                     found_suffix = True
+                    suffix_count += 1
                     break  # Found one suffix, check for more
+
+                # 3. Could have a prefix that leads to a known root
+                elif len(potential_root) >= 3:
+                    # Check if removing a prefix leaves a known root
+                    could_have_prefix = False
+                    for prefix in KNOWN_PREFIXES:
+                        if potential_root.startswith(prefix):
+                            root_without_prefix = potential_root[len(prefix):]
+                            if root_without_prefix in KNOWN_ROOTS:
+                                could_have_prefix = True
+                                break
+
+                    if could_have_prefix:
+                        ast["sufiksoj"].append(suffix)
+                        stem = potential_root
+                        found_suffix = True
+                        suffix_count += 1
+                        break
 
         # Stop if no more suffixes found
         if not found_suffix:
             break
 
-    # --- Step 5: Identify Root ---
+    # --- Step 5: Identify Root (with compound word decomposition) ---
     if stem in KNOWN_ROOTS:
         ast["radiko"] = stem
-    elif not ast["radiko"]:
-        raise ValueError(f"Ne povis trovi validan radikon en '{original_word}'. Restaĵo: '{stem}'")
+    elif stem in KNOWN_PARTICLES or stem in KNOWN_PREPOSITIONS:
+        # It's a particle/preposition used as a root (e.g., "tre" in "treege")
+        ast["radiko"] = stem
+    else:
+        # Try compound word decomposition
+        # Pattern 1: preposition/adverb + root (ekster+mond, tiu+punkt, tre+eg)
+        compound_found = False
+
+        # Check if starts with a preposition
+        for prep in KNOWN_PREPOSITIONS:
+            if stem.startswith(prep) and len(stem) > len(prep):
+                remaining = stem[len(prep):]
+                if remaining in KNOWN_ROOTS:
+                    # It's a compound: preposition + root
+                    ast["radiko"] = remaining
+                    ast["prefikso"] = prep  # Use prefix field for compound marker
+                    compound_found = True
+                    break
+
+        # Check if starts with a correlative (tiu, kiu, etc.)
+        if not compound_found:
+            for corr in ['tiu', 'kiu', 'ĉiu', 'neniu', 'iu', 'tio', 'kio']:
+                if stem.startswith(corr) and len(stem) > len(corr):
+                    remaining = stem[len(corr):]
+                    if remaining in KNOWN_ROOTS:
+                        ast["radiko"] = remaining
+                        ast["prefikso"] = corr
+                        compound_found = True
+                        break
+
+        # Check if starts with an adverb (tre, pli, plej, etc.)
+        if not compound_found:
+            for adv in ['tre', 'pli', 'plej', 'tro', 'tre', 'nun', 'jam']:
+                if stem.startswith(adv) and len(stem) > len(adv):
+                    remaining = stem[len(adv):]
+                    if remaining in KNOWN_ROOTS:
+                        ast["radiko"] = remaining
+                        ast["prefikso"] = adv
+                        compound_found = True
+                        break
+
+        # Check if starts with sub/super + en/el/etc (suben, superen)
+        if not compound_found:
+            for compound_prep in ['suben', 'superen', 'ekster', 'interne']:
+                if stem.startswith(compound_prep) and len(stem) > len(compound_prep):
+                    remaining = stem[len(compound_prep):]
+                    if remaining in KNOWN_ROOTS:
+                        ast["radiko"] = remaining
+                        ast["prefikso"] = compound_prep
+                        compound_found = True
+                        break
+
+        # If still not found, raise error
+        if not compound_found and not ast["radiko"]:
+            raise ValueError(f"Ne povis trovi validan radikon en '{original_word}'. Restaĵo: '{stem}'")
 
     return ast
+
+def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
+    """
+    Categorize an unknown word that failed to parse.
+
+    Returns an AST node marking the word as non-Esperanto with best-guess categorization.
+    Categories:
+    - proper_name: Capitalized word (person, place)
+    - foreign_word: Lowercase but not Esperanto
+    - number_literal: Numeric
+    - unknown: Cannot categorize
+    """
+    ast = {
+        "tipo": "vorto",
+        "plena_vorto": word,
+        "radiko": word,
+        "vortspeco": "nekonata",
+        "parse_status": "failed",
+        "parse_error": error_msg,
+        "category": "unknown",
+        "nombro": "singularo",
+        "kazo": "nominativo",
+        "prefikso": None,
+        "sufiksoj": [],
+    }
+
+    # Categorization heuristics
+
+    # 1. Number literal (digits)
+    if word.isdigit():
+        ast["category"] = "number_literal"
+        ast["vortspeco"] = "numero"
+        return ast
+
+    # 2. Proper name (starts with capital letter)
+    if word[0].isupper() and len(word) > 1:
+        ast["category"] = "proper_name"
+        ast["vortspeco"] = "propra_nomo"
+
+        # Try to detect if it has Esperanto-like endings (might be Esperantized name)
+        if word.endswith(('o', 'on', 'oj', 'ojn')):
+            ast["category"] = "proper_name_esperantized"
+            # Extract the case/number from ending
+            if word.endswith('n'):
+                ast["kazo"] = "akuzativo"
+                word = word[:-1]
+            if word.endswith('j'):
+                ast["nombro"] = "pluralo"
+
+        return ast
+
+    # 3. Single letter (often grammar examples)
+    if len(word) == 1:
+        ast["category"] = "single_letter"
+        ast["vortspeco"] = "ekzemplo"
+        return ast
+
+    # 4. Foreign word (lowercase, no Esperanto structure)
+    # Has no recognizable Esperanto endings or morphology
+    ast["category"] = "foreign_word"
+    ast["vortspeco"] = "fremda_vorto"
+
+    return ast
+
 
 # -----------------------------------------------------------------------------
 # --- Layer 2: Syntactic Analyzer (parse)
@@ -568,10 +829,24 @@ def preprocess_text(text: str) -> str:
     """
     Preprocess text before parsing to normalize punctuation and whitespace.
 
+    - Converts CX-system (cx, gx, etc.) to Unicode (ĉ, ĝ, etc.)
     - Converts em-dashes, en-dashes to spaces
     - Normalizes smart quotes to straight quotes
     - Normalizes whitespace
     """
+    # Normalize CX-system (ASCII representation) to Unicode
+    # This is used in older Esperanto texts from Project Gutenberg
+    cx_replacements = {
+        'Cx': 'Ĉ', 'cx': 'ĉ', 'CX': 'Ĉ',
+        'Gx': 'Ĝ', 'gx': 'ĝ', 'GX': 'Ĝ',
+        'Hx': 'Ĥ', 'hx': 'ĥ', 'HX': 'Ĥ',
+        'Jx': 'Ĵ', 'jx': 'ĵ', 'JX': 'Ĵ',
+        'Sx': 'Ŝ', 'sx': 'ŝ', 'SX': 'Ŝ',
+        'Ux': 'Ŭ', 'ux': 'ŭ', 'UX': 'Ŭ',
+    }
+    for old, new in cx_replacements.items():
+        text = text.replace(old, new)
+
     # Replace various dash types with spaces to separate words
     text = text.replace('—', ' ')  # em-dash
     text = text.replace('–', ' ')  # en-dash
@@ -609,7 +884,21 @@ def parse(text: str):
         return None
 
     # Step 1: Morphological analysis of all words
-    word_asts = [parse_word(w) for w in words]
+    # Gracefully handle unknown words by categorizing them
+    word_asts = []
+    for w in words:
+        try:
+            ast = parse_word(w)
+            ast["parse_status"] = "success"  # Mark as successfully parsed Esperanto
+            word_asts.append(ast)
+        except ValueError as e:
+            # Word failed to parse - categorize it as non-Esperanto
+            unknown_ast = categorize_unknown_word(w, str(e))
+            word_asts.append(unknown_ast)
+        except Exception as e:
+            # Unexpected error - still create a node
+            unknown_ast = categorize_unknown_word(w, f"Unexpected error: {str(e)}")
+            word_asts.append(unknown_ast)
 
     # Step 2: Syntactic analysis to find sentence structure
     sentence_ast = {
@@ -679,6 +968,25 @@ def parse(text: str):
         if ast["vortspeco"] != 'artikolo' and ast not in placed_words:
             sentence_ast["aliaj"].append(ast)
 
+    # Add parse statistics (word-level success metrics)
+    total_words = len(word_asts)
+    successful_words = sum(1 for ast in word_asts if ast.get("parse_status") == "success")
+    failed_words = total_words - successful_words
+
+    # Categorize the failed words
+    categories = {}
+    for ast in word_asts:
+        if ast.get("parse_status") == "failed":
+            category = ast.get("category", "unknown")
+            categories[category] = categories.get(category, 0) + 1
+
+    sentence_ast["parse_statistics"] = {
+        "total_words": total_words,
+        "esperanto_words": successful_words,
+        "non_esperanto_words": failed_words,
+        "success_rate": successful_words / total_words if total_words > 0 else 0.0,
+        "categories": categories
+    }
 
     return sentence_ast
 

@@ -270,6 +270,26 @@ Coverage reports are generated automatically:
 - ✅ Basic intent classification and response generation
 - ✅ Comprehensive test suite with coverage tracking
 
+### Parser Performance
+
+**Current performance on diverse Esperanto corpus (547 MB, 28 texts):**
+
+| Text Type | Success Rate | AST Production | Notes |
+|-----------|-------------|----------------|-------|
+| Standard Esperanto (Zamenhof) | 99.1% | 100% | Baseline - authoritative texts |
+| Literary Fiction (Poe) | 96.3% | 100% | Creative writing |
+| Fantasy Literature (Tolkien) | 93.6% | 100% | Specialized vocabulary |
+| Wikipedia (Encyclopedia) | 87.6% | 100% | Technical terms, proper nouns |
+| **Overall Average** | **93.9%** | **100%** | Across all text types |
+
+**Key Features:**
+- ✅ **Graceful degradation** - 100% of sentences produce valid ASTs (zero crashes)
+- ✅ **Vocabulary: 192 verified Esperanto roots** (manually audited, no foreign words)
+- ✅ **Unknown word categorization** - Proper names, foreign words flagged (not discarded)
+- ✅ **Corpus: 547 MB clean Esperanto text** (removed 72% HTML/wiki artifacts from Wikipedia)
+
+See `COMPREHENSIVE_PARSER_REPORT.md`, `PARSER_VOCABULARY_AUDIT.md`, and `WIKIPEDIA_PARSER_VERIFICATION.md` for detailed performance analysis.
+
 **Planned (Phases 3-9):**
 - Phase 3: GNN Encoder for semantic RAG
 - Phase 4: Expert routing and tool integration

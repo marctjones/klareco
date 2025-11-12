@@ -1,0 +1,101 @@
+======================================================================
+TESTING PARSER ON ALL ESPERANTO CORPORA
+======================================================================
+Sampling 200 sentences per file
+
+Gutenberg (tested):
+  Already tested via gutenberg_sentences.json
+
+Tolkien:
+  Loading la_hobito.txt... extracted 200 sentences
+  ✓ la_hobito.txt
+    Sentences: 200/200 with AST (100.0%)
+    Words: 2721/2909 Esperanto (93.5%)
+  Loading la_mastro_de_l_ringoj.txt... extracted 200 sentences
+  ✓ la_mastro_de_l_ringoj.txt
+    Sentences: 200/200 with AST (100.0%)
+    Words: 2906/3126 Esperanto (93.0%)
+
+Poe Stories:
+  Loading kadavrejo_strato.txt... extracted 200 sentences
+  ✓ kadavrejo_strato.txt
+    Sentences: 200/200 with AST (100.0%)
+    Words: 3602/3835 Esperanto (93.9%)
+  Loading la_korvo.txt... extracted 200 sentences
+  ✓ la_korvo.txt
+    Sentences: 200/200 with AST (100.0%)
+    Words: 5123/5347 Esperanto (95.8%)
+  Loading puto_kaj_pendolo.txt... extracted 200 sentences
+  ✓ puto_kaj_pendolo.txt
+    Sentences: 200/200 with AST (100.0%)
+    Words: 3412/3460 Esperanto (98.6%)
+  Loading ses_noveloj.txt... extracted 200 sentences
+  ✓ ses_noveloj.txt
+    Sentences: 200/200 with AST (100.0%)
+    Words: 4118/4305 Esperanto (95.7%)
+  Loading usxero_domo.txt... extracted 200 sentences
+  ✓ usxero_domo.txt
+    Sentences: 200/200 with AST (100.0%)
+    Words: 4969/5190 Esperanto (95.7%)
+
+Other Classics:
+  Loading alicio.txt... extracted 0 sentences
+  ✓ alicio.txt
+    Sentences: 0/0 with AST (0.0%)
+    Words: 0/0 Esperanto (0.0%)
+  Loading frankenstejno.txt... extracted 25 sentences
+  ✓ frankenstejno.txt
+    Sentences: 25/25 with AST (100.0%)
+    Words: 238/352 Esperanto (67.6%)
+  Loading jekyll_hyde.txt... extracted 10 sentences
+  ✓ jekyll_hyde.txt
+    Sentences: 10/10 with AST (100.0%)
+    Words: 126/243 Esperanto (51.9%)
+  Loading milito_de_la_mondoj.txt... extracted 9 sentences
+  ✓ milito_de_la_mondoj.txt
+    Sentences: 9/9 with AST (100.0%)
+    Words: 99/235 Esperanto (42.1%)
+  Loading sorcxisto_de_oz.txt... extracted 0 sentences
+  ✓ sorcxisto_de_oz.txt
+    Sentences: 0/0 with AST (0.0%)
+    Words: 0/0 Esperanto (0.0%)
+
+Wikipedia:
+  Sampling from 540MB cleaned file
+  Loading wikipedia.txt... extracted 200 sentences
+  ✓ wikipedia.txt
+    Sentences: 200/200 with AST (100.0%)
+    Words: 3575/4036 Esperanto (88.6%)
+
+======================================================================
+SUMMARY BY CATEGORY
+======================================================================
+Tolkien:
+  Files tested: 2
+  Total words: 6,035
+  Esperanto words: 5,627 (93.2%)
+
+Poe Stories:
+  Files tested: 5
+  Total words: 22,137
+  Esperanto words: 21,224 (95.9%)
+
+Other Classics:
+  Files tested: 5
+  Total words: 830
+  Esperanto words: 463 (55.8%)
+
+Wikipedia:
+  Files tested: 1
+  Total words: 4,036
+  Esperanto words: 3,575 (88.6%)
+
+======================================================================
+OVERALL STATISTICS
+======================================================================
+Total files tested: 13
+Total words analyzed: 33,038
+Esperanto words: 30,889 (93.5%)
+Non-Esperanto: 2,149 (6.5%)
+
+Detailed results saved to: /home/marc/klareco/data/corpus_test_results.json

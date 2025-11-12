@@ -138,15 +138,14 @@ class DateExpert(Expert):
         text = ' '.join(words_lower)
 
         # Very high confidence patterns
-        high_confidence_patterns = [
-            'kiu tago',
-            'kioma horo',
-            'kiu dato',
-            'hodiaŭ estas',
-            'kiam estas',
-        ]
-
-        if any(pattern in text for pattern in high_confidence_patterns):
+        # Check for specific word combinations (order-independent)
+        if ('kioma' in text or 'kiu' in text) and 'horo' in text:
+            return 0.98
+        if ('kiu' in text or 'kio' in text) and ('tago' in text or 'dato' in text):
+            return 0.98
+        if 'hodiaŭ' in text and 'estas' in text:
+            return 0.98
+        if 'kiam' in text and 'estas' in text:
             return 0.98
 
         # High confidence: temporal keywords present
@@ -173,6 +172,15 @@ class DateExpert(Expert):
         Returns:
             Response with date/time information
         """
+        # Validate AST
+        if not ast or ast.get('tipo') != 'frazo':
+            return {
+                'answer': 'Mi ne povas procezi malplenan aŭ malvalidan demandon.',
+                'confidence': 0.0,
+                'expert': self.name,
+                'error': 'Invalid or empty AST'
+            }
+
         try:
             # Get current date/time
             now = datetime.now()
@@ -256,14 +264,16 @@ class DateExpert(Expert):
         words = self._extract_all_words(ast)
         text = ' '.join(words).lower()
 
-        # Check for specific patterns
-        if 'kioma horo' in text or 'kiu horo' in text:
-            return 'current_time'
-
-        if 'kiu tago' in text and 'semajno' in text:
+        # Check for day of week queries (kiu tago + semajno)
+        if ('kiu' in text or 'kio' in text) and 'tago' in text and 'semajno' in text:
             return 'current_day'
 
-        if 'kiu dato' in text or 'kiu tago estas' in text:
+        # Check for time queries (kioma/kiu horo)
+        if ('kioma' in text or 'kiu' in text) and 'horo' in text:
+            return 'current_time'
+
+        # Check for specific patterns
+        if 'kiu dato' in text:
             return 'current_date'
 
         if 'hieraŭ' in text:

@@ -67,8 +67,8 @@ KNOWN_ENDINGS = {
     "as": {"vortspeco": "verbo", "tempo": "prezenco"},
     "is": {"vortspeco": "verbo", "tempo": "pasinteco"},
     "os": {"vortspeco": "verbo", "tempo": "futuro"},
-    "us": {"vortspeco": "verbo", "modo": "kondiĉa"},
-    "u": {"vortspeco": "verbo", "modo": "vola"},
+    "us": {"vortspeco": "verbo", "tempo": "kondiĉa"},  # Conditional uses 'tempo' for consistency
+    "u": {"vortspeco": "verbo", "modo": "imperativo"},  # Imperative/volitional
     "i": {"vortspeco": "verbo", "modo": "infinitivo"},
     # Part of Speech
     "o": {"vortspeco": "substantivo"},
@@ -888,7 +888,7 @@ def parse(text: str):
     words = text.split()
 
     if not words:
-        return None
+        raise ValueError("Ne povis analizi malplenan ĉenon.")
 
     # Step 1: Morphological analysis of all words
     # Gracefully handle unknown words by categorizing them

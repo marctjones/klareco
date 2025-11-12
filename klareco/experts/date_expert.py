@@ -139,11 +139,16 @@ class DateExpert(Expert):
 
         # Very high confidence patterns
         # Check for specific word combinations (order-independent)
+        # For time queries: kioma/kiu + horo
         if ('kioma' in text or 'kiu' in text) and 'horo' in text:
             return 0.98
-        if ('kiu' in text or 'kio' in text) and ('tago' in text or 'dato' in text):
+
+        # For day queries: kiu + tago + semajno (day of week)
+        if 'kiu' in text and 'tago' in text and 'semajno' in text:
             return 0.98
-        if 'hodiaŭ' in text and 'estas' in text:
+
+        # For very direct temporal queries with action words
+        if ('hodiaŭ' in text or 'hieraŭ' in text or 'morgaŭ' in text) and 'estas' in text:
             return 0.98
         if 'kiam' in text and 'estas' in text:
             return 0.98

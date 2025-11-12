@@ -30,6 +30,17 @@ from klareco.experts.rag_expert import create_rag_expert
 from klareco.experts.date_expert import DateExpert
 from klareco.experts.math_expert import MathExpert
 from klareco.experts.grammar_expert import GrammarExpert
+from klareco.translator import TranslationService
+
+# Global translator for demo translations
+_translator = None
+
+def get_translator():
+    """Get or create translator instance."""
+    global _translator
+    if _translator is None:
+        _translator = TranslationService()
+    return _translator
 
 
 def print_separator(title=""):
@@ -65,21 +76,42 @@ def demo_rag_query(rag_expert, query, description):
 
     print(f"🎯 Confidence: {confidence:.2f}")
     print()
-    print("💡 Answer (in Esperanto - retrieved from Tolkien corpus):")
+
+    # Show Esperanto answer
+    print("💡 Answer (Esperanto - from corpus):")
     for line in answer.split('\n'):
         print(f"   {line}")
+    print()
+
+    # Translate answer to English
+    translator = get_translator()
+    try:
+        answer_en = translator.translate(answer, 'eo', 'en')
+        print("   🇬🇧 English translation:")
+        for line in answer_en.split('\n'):
+            print(f"   {line}")
+    except Exception as e:
+        print(f"   (Translation unavailable: {e})")
     print()
 
     # Show sources if available
     if 'sources' in response and response['sources']:
         print("📚 Retrieved Sources (Esperanto sentences from corpus):")
-        print("   These are actual sentences from Tolkien's works in Esperanto")
-        print("   that semantically match the query:")
+        print("   These are actual sentences from Tolkien's works")
         print()
         for i, source in enumerate(response['sources'][:3], 1):
             score = source.get('score', 0.0)
             text = source['text']
-            print(f"   {i}. [Similarity: {score:.3f}] {text[:80]}...")
+            print(f"   {i}. [Similarity: {score:.3f}]")
+            print(f"      Esperanto: {text[:100]}...")
+
+            # Translate source to English
+            try:
+                text_en = translator.translate(text[:200], 'eo', 'en')
+                print(f"      🇬🇧 English: {text_en[:100]}...")
+            except:
+                pass
+            print()
 
         if len(response['sources']) > 3:
             print(f"   ... and {len(response['sources']) - 3} more matching sentences")
@@ -136,9 +168,18 @@ def demo_pipeline_query(pipeline, query, description):
 
     # Final response
     response = trace.final_response
-    print(f"💬 System Response (in Esperanto):")
-    print(f"   {response}")
-    print(f"   Note: This is the raw output from the {expert if orchestrator_step else 'expert'}")
+    print(f"💬 System Response:")
+    print(f"   Esperanto: {response}")
+
+    # Translate response to English
+    translator = get_translator()
+    try:
+        response_en = translator.translate(response, 'eo', 'en')
+        print(f"   🇬🇧 English: {response_en}")
+    except Exception as e:
+        print(f"   (Translation unavailable)")
+
+    print(f"   Note: This is the output from the {expert if orchestrator_step else 'expert'} expert")
     print()
 
 

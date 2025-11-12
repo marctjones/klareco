@@ -262,6 +262,43 @@ def save_checkpoint(
         logger.info(f"  Saved best model: {best_file}")
 
 
+def load_checkpoint(checkpoint_path: Path, model, optimizer, logger):
+    """
+    Load checkpoint and return start epoch.
+
+    Args:
+        checkpoint_path: Path to checkpoint file
+        model: Model to load state into
+        optimizer: Optimizer to load state into
+        logger: Logger
+
+    Returns:
+        Starting epoch number
+    """
+    logger.info(f"Loading checkpoint from {checkpoint_path}")
+    checkpoint = torch.load(checkpoint_path)
+
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    start_epoch = checkpoint['epoch'] + 1
+
+    logger.info(f"  Resumed from epoch {checkpoint['epoch']}")
+    logger.info(f"  Train loss: {checkpoint['train_loss']:.4f}")
+
+    return start_epoch
+
+
+def find_latest_checkpoint(output_dir: Path) -> Path:
+    """Find the latest checkpoint in the output directory."""
+    checkpoints = list(output_dir.glob('checkpoint_epoch_*.pt'))
+    if not checkpoints:
+        return None
+
+    # Sort by epoch number
+    checkpoints.sort(key=lambda p: int(p.stem.split('_')[-1]))
+    return checkpoints[-1]
+
+
 def main():
     """Train Tree-LSTM encoder."""
     parser = argparse.ArgumentParser(description='Train Tree-LSTM with contrastive learning')
@@ -269,6 +306,8 @@ def main():
                         help='Training data directory')
     parser.add_argument('--output', type=str, default='models/tree_lstm',
                         help='Output directory for model checkpoints')
+    parser.add_argument('--resume', type=str, default=None,
+                        help='Resume from checkpoint (path or "auto" for latest)')
     parser.add_argument('--vocab-size', type=int, default=10000,
                         help='Vocabulary size')
     parser.add_argument('--embed-dim', type=int, default=128,
@@ -367,14 +406,47 @@ def main():
         output_dir = Path(args.output)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Handle checkpoint resumption
+        start_epoch = 1
+        training_history = []
+
+        if args.resume:
+            if args.resume == 'auto':
+                # Find latest checkpoint
+                checkpoint_path = find_latest_checkpoint(output_dir)
+                if checkpoint_path:
+                    start_epoch = load_checkpoint(checkpoint_path, model, optimizer, logger)
+                    # Load training history if exists
+                    history_file = output_dir / 'training_history.json'
+                    if history_file.exists():
+                        with open(history_file, 'r') as f:
+                            training_history = json.load(f)
+                        logger.info(f"  Loaded training history ({len(training_history)} epochs)")
+                else:
+                    logger.info("No checkpoint found, starting from scratch")
+            else:
+                # Load specific checkpoint
+                checkpoint_path = Path(args.resume)
+                if checkpoint_path.exists():
+                    start_epoch = load_checkpoint(checkpoint_path, model, optimizer, logger)
+                    # Load training history if exists
+                    history_file = output_dir / 'training_history.json'
+                    if history_file.exists():
+                        with open(history_file, 'r') as f:
+                            training_history = json.load(f)
+                        logger.info(f"  Loaded training history ({len(training_history)} epochs)")
+                else:
+                    logger.error(f"Checkpoint not found: {checkpoint_path}")
+                    return 1
+
         # Training loop
         logger.info("Starting training...")
+        logger.info(f"  Epochs: {start_epoch} to {args.epochs}")
         logger.info("")
 
         best_val_loss = float('inf')
-        training_history = []
 
-        for epoch in range(1, args.epochs + 1):
+        for epoch in range(start_epoch, args.epochs + 1):
             logger.info(f"Epoch {epoch}/{args.epochs}")
             logger.info("-" * 70)
 

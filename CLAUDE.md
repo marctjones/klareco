@@ -82,33 +82,41 @@ The system processes multi-language queries by translating them to Esperanto, pa
 
 ## Current Implementation Status
 
-The project is currently in **Phase 2** (Core Foundation & Traceability) of the 9-phase roadmap. Here's what's built vs. planned:
+The project is currently in **Phase 3-4** (GNN Encoder + Expert System) of the 9-phase roadmap. Here's what's built vs. planned:
 
-### ✅ Completed (Phases 1-2)
+### ✅ Completed (Phases 1-3)
 - **Front Door**: Language identification (FastText) and translation (Opus-MT)
-- **Parser**: Pure Python, morpheme-based parser implementing the 16 Rules
+- **Parser**: Pure Python, morpheme-based parser implementing the 16 Rules (95.7% accuracy on 1.27M sentences)
 - **Deparser**: AST-to-text reconstruction
 - **Execution Trace**: Complete JSON-based logging system
 - **Safety Monitor**: Input length and AST complexity validation
-- **Intent Classifier (Level 1)**: Symbolic, rule-based intent detection
-- **Responder**: Basic response generation (currently symbolic-only)
-- **Pipeline**: Full orchestration with traceability
+- **Pipeline**: Full orchestration with traceability and expert system integration
 - **Test Infrastructure**: Integration tests, unit tests, coverage tracking
+- **GNN Encoder**: Tree-LSTM for encoding Esperanto ASTs (98.7% accuracy, 1.7M parameters, training complete)
+- **Baseline RAG**: FAISS-based semantic search for comparison
+
+### ✅ Completed (Phase 4 - Expert System) **NEW**
+- **Gating Network**: Symbolic intent classifier (Level 1) with 7 intent types
+- **Orchestrator**: Expert routing with fallback capability-based selection
+- **MathExpert**: Symbolic computation (arithmetic operations, symbolic)
+- **DateExpert**: Temporal queries (current date/time, day of week, symbolic)
+- **GrammarExpert**: AST grammatical analysis and explanation (symbolic)
+- **Expert Integration**: All three experts integrated into main pipeline
+- **End-to-End Demo**: Complete demo showing multi-language → AST → expert routing → response
 
 ### 🚧 In Development
-- **Parser Refinement** (Task 0.5): Expanding vocabulary, handling edge cases
+- **Parser Refinement**: Expanding vocabulary (8,397 roots), handling edge cases
 - **Test Corpus**: Building diverse Esperanto test sentences
 
-### 📋 Planned (Phases 3-9)
-- **Phase 3**: GNN Encoder for RAG, Esperanto corpus indexing
-- **Phase 4**: Orchestrator, Execution Loop, Factoid_QA_Expert, Tool Experts
-- **Phase 5**: Summarize_Expert, multi-step Blueprints
-- **Phase 6**: STM/LTM memory system, Memory_Read/Write_Tools
+### 📋 Planned (Phases 4-9)
+- **Phase 4 (Remaining)**: Dictionary Expert, Factoid_QA_Expert (neural RAG), Execution Loop, Memory Tools
+- **Phase 5**: Summarize_Expert, multi-step Blueprints, Neural Gating Network (Level 2)
+- **Phase 6**: STM/LTM memory system, Memory_Read/Write_Tools, Consolidate_Expert
 - **Phase 7**: Goals and Values manifests with alignment
 - **Phase 8**: External tool integration (Web Search, Code Interpreter, Prolog)
 - **Phase 9**: Learning Loop with Emergent Intent Analyzer and Distillation Pipeline
 
-**Development Philosophy**: Build the symbolic foundation perfectly first (parser, AST structure, traceability), then layer neural components on top. The parser must handle 100% of Esperanto grammar deterministically before moving to Phase 3.
+**Development Philosophy**: Build the symbolic foundation perfectly first (parser, AST structure, traceability), then layer neural components on top. Phase 3 GNN and Phase 4 symbolic experts are complete - ready for neural RAG expert integration.
 
 ## Core Architecture
 
@@ -121,9 +129,11 @@ The `KlarecoPipeline` orchestrates all processing through these stages:
 2. **FrontDoor** - Language identification and translation to Esperanto
 3. **Parser** - Morphological analysis producing detailed ASTs
 4. **SafetyMonitor** - AST complexity validation
-5. **IntentClassifier** - Intent extraction from AST
-6. **Responder** - Response generation
-7. **Final SafetyMonitor** - Output validation
+5. **Orchestrator** - Intent classification (Gating Network) + Expert routing
+   - **Gating Network**: Symbolic rules classify intent (7 types: calculation_request, temporal_query, grammar_query, factoid_question, dictionary_lookup, command_intent, general_query)
+   - **Expert Selection**: Routes to registered expert or uses fallback capability-based selection
+   - **Expert Execution**: Specialized handler processes query (MathExpert, DateExpert, GrammarExpert, etc.)
+6. **Response Integration** - Expert response integrated into trace
 
 All operations are logged through the `ExecutionTrace` system for complete traceability.
 
@@ -210,6 +220,13 @@ python scripts/run_integration_test.py --stop-after Parser
 
 # Run limited number of test sentences
 python scripts/run_integration_test.py --num-sentences 5
+
+# Test expert system
+python scripts/test_experts.py          # Test individual experts
+python scripts/test_orchestrator.py     # Test orchestrator integration
+
+# Run end-to-end demo
+python scripts/demo_klareco.py          # Full multi-language demo
 
 # Run unit tests
 python -m pytest tests/
@@ -307,6 +324,9 @@ python -c "from klareco.parser import parse; from klareco.deparser import depars
 
 # Test front door
 python -c "from klareco.front_door import FrontDoor; fd = FrontDoor(); print(fd.process('Hello world'))"
+
+# Test orchestrator with experts
+python -c "from klareco.parser import parse; from klareco.orchestrator import create_orchestrator_with_experts; o = create_orchestrator_with_experts(); ast = parse('Kiom estas du plus tri?'); print(o.route(ast))"
 ```
 
 ## Key Implementation Details
@@ -363,6 +383,9 @@ The long-term vision (documented in `eHy.md`) is to make every Esperanto word a 
 - `16RULES.MD` - Complete Esperanto grammar specification
 - `eHy.md` - Vision for Esperanto-Hy integration
 - `TODO.md` - Current development priorities
+- `EXPERT_INTEGRATION_SUMMARY.md` - Expert system architecture and integration (Phase 4)
+- `GNN_TRAINING_GUIDE.md` - Guide for training the Tree-LSTM GNN encoder (Phase 3)
+- `CHECKPOINT_RESUMPTION_SUMMARY.md` - Checkpoint save/resume implementation details
 
 ## Testing Philosophy
 The system uses a multi-tiered testing approach:

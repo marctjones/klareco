@@ -47,8 +47,7 @@ class TestPipelineIntegrationE2E(unittest.TestCase):
         step_names = [step['name'] for step in trace.steps]
         self.assertIn("FrontDoor", step_names)
         self.assertIn("Parser", step_names)
-        self.assertIn("IntentClassifier", step_names)
-        self.assertIn("Responder", step_names)
+        self.assertIn("Orchestrator", step_names)
 
     def test_e2e_pronoun_subject_sentence_completes_successfully(self):
         """Tests that sentences with pronoun subjects work end-to-end."""
@@ -194,42 +193,40 @@ class TestPipelineIntegrationE2E(unittest.TestCase):
 
         self.assertIsNone(trace.error)
 
-        # Find IntentClassifier step
-        intent_step = None
+        # Find Orchestrator step (replaces IntentClassifier)
+        orchestrator_step = None
         for step in trace.steps:
-            if step['name'] == 'IntentClassifier':
-                intent_step = step
+            if step['name'] == 'Orchestrator':
+                orchestrator_step = step
                 break
 
-        self.assertIsNotNone(intent_step)
-        self.assertIn('intent', intent_step['outputs'])
+        self.assertIsNotNone(orchestrator_step)
+        self.assertIn('intent', orchestrator_step['outputs'])
 
-        # For simple statement with subject-verb-object, should classify as SimpleStatement
-        intent = intent_step['outputs']['intent']
-        self.assertEqual(intent, 'SimpleStatement')
+        # For simple statement with subject-verb-object, should classify as general_query
+        intent = orchestrator_step['outputs']['intent']
+        self.assertEqual(intent, 'general_query')
 
-    def test_e2e_responder_generates_output_from_intent(self):
-        """Tests that Responder generates output based on classified intent."""
+    def test_e2e_orchestrator_generates_output_from_intent(self):
+        """Tests that Orchestrator generates output based on classified intent."""
         query = "La hundo vidas la katon."
 
         trace = self.pipeline.run(query)
 
         self.assertIsNone(trace.error)
 
-        # Find Responder step
-        responder_step = None
+        # Find Orchestrator step (replaces Responder)
+        orchestrator_step = None
         for step in trace.steps:
-            if step['name'] == 'Responder':
-                responder_step = step
+            if step['name'] == 'Orchestrator':
+                orchestrator_step = step
                 break
 
-        self.assertIsNotNone(responder_step)
-        self.assertIn('response_text', responder_step['outputs'])
+        self.assertIsNotNone(orchestrator_step)
 
-        # Response should not be empty
-        response = responder_step['outputs']['response_text']
-        self.assertIsInstance(response, str)
-        self.assertGreater(len(response), 0)
+        # Verify final_response is set (Orchestrator response gets converted to final_response)
+        self.assertIsNotNone(trace.final_response)
+        self.assertGreater(len(trace.final_response), 0)
 
     def test_e2e_multiple_corpus_sentences(self):
         """Tests that multiple sentences from test corpus process successfully."""

@@ -37,8 +37,8 @@ class TestKlarecoPipeline(unittest.TestCase):
         self.assertIsNone(trace.error)
         self.assertIsNotNone(trace.end_time)
 
-        # Verify all steps were executed (6 steps: Safety, FrontDoor, Parser, Safety_AST, Intent, Responder)
-        self.assertGreaterEqual(len(trace.steps), 6)
+        # Verify all steps were executed (5 steps: Safety, FrontDoor, Parser, Safety_AST, Orchestrator)
+        self.assertGreaterEqual(len(trace.steps), 5)
 
     def test_run_records_all_pipeline_steps(self):
         """Tests that all pipeline steps are recorded in the trace."""
@@ -52,8 +52,7 @@ class TestKlarecoPipeline(unittest.TestCase):
         self.assertIn("SafetyMonitor", step_names)
         self.assertIn("FrontDoor", step_names)
         self.assertIn("Parser", step_names)
-        self.assertIn("IntentClassifier", step_names)
-        self.assertIn("Responder", step_names)
+        self.assertIn("Orchestrator", step_names)
 
         # Verify SafetyMonitor appears at least twice (input and AST checks)
         safety_count = step_names.count("SafetyMonitor")
@@ -117,18 +116,18 @@ class TestKlarecoPipeline(unittest.TestCase):
         self.assertEqual(last_step['name'], "SafetyMonitor")
         self.assertIn("node_count", last_step['outputs'])
 
-    def test_run_with_stop_after_intent_classifier(self):
-        """Tests that pipeline stops after IntentClassifier when requested."""
+    def test_run_with_stop_after_orchestrator(self):
+        """Tests that pipeline stops after Orchestrator when requested."""
         query = "La hundo vidas la katon."
-        trace = self.pipeline.run(query, stop_after="IntentClassifier")
+        trace = self.pipeline.run(query, stop_after="Orchestrator")
 
         # Verify trace has 5 steps
         self.assertEqual(len(trace.steps), 5)
 
-        # Verify IntentClassifier outputs contain intent
-        intent_step = trace.steps[4]
-        self.assertEqual(intent_step['name'], "IntentClassifier")
-        self.assertIn("intent", intent_step['outputs'])
+        # Verify Orchestrator outputs contain intent and expert info
+        orchestrator_step = trace.steps[4]
+        self.assertEqual(orchestrator_step['name'], "Orchestrator")
+        self.assertIn("intent", orchestrator_step['outputs'])
 
     def test_run_with_invalid_input_length_records_error(self):
         """Tests that input exceeding length limit is recorded as error in trace."""
@@ -264,16 +263,16 @@ class TestKlarecoPipeline(unittest.TestCase):
 
         self.assertEqual(trace.initial_query, query)
 
-    def test_run_with_stop_after_responder_returns_trace(self):
-        """Tests that pipeline stops after Responder (effectively full run)."""
+    def test_run_with_stop_after_orchestrator_returns_trace(self):
+        """Tests that pipeline stops after Orchestrator (effectively full run)."""
         query = "La hundo amas la katon."
-        trace = self.pipeline.run(query, stop_after="Responder")
+        trace = self.pipeline.run(query, stop_after="Orchestrator")
 
-        # stop_after="Responder" should be same as full run
-        # (Responder is the last step, so trace should have response but no end_time set by set_final_response)
-        self.assertEqual(len(trace.steps), 6)
+        # stop_after="Orchestrator" should be same as full run
+        # (Orchestrator is the last step, so trace should have response but no end_time set by set_final_response)
+        self.assertEqual(len(trace.steps), 5)
 
-        # When stopping after Responder, final_response is not set
+        # When stopping after Orchestrator, final_response is not set
         # (pipeline returns before calling trace.set_final_response())
         self.assertIsNone(trace.final_response)
 

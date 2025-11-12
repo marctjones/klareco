@@ -631,18 +631,25 @@ def parse_word(word: str) -> dict:
     stem = remaining_word
 
     # Prefixes (left side)
-    # IMPORTANT: Only strip prefix if stem is NOT already a known root
-    # This prevents "reĝo" from being parsed as "re" + "ĝo" instead of "reĝ" + "o"
-    if stem not in KNOWN_ROOTS:
-        for prefix in KNOWN_PREFIXES:
-            if stem.startswith(prefix):
-                remaining_after_prefix = stem[len(prefix):]
-                # Only strip prefix if what remains could be valid
-                # (either a known root or long enough to potentially have suffixes)
-                if remaining_after_prefix in KNOWN_ROOTS or len(remaining_after_prefix) >= 3:
-                    ast["prefikso"] = prefix
-                    stem = remaining_after_prefix
-                    break # Assume only one prefix for now
+    # Check for decomposable prefixes FIRST, even if the compound form exists
+    # This is linguistically correct for Esperanto (compositional semantics)
+    # e.g., "malgrand" should be "mal-" + "grand", not a standalone root
+    prefix_stripped = False
+    for prefix in KNOWN_PREFIXES:
+        if stem.startswith(prefix):
+            remaining_after_prefix = stem[len(prefix):]
+            # Prefer prefix decomposition if what remains is a known root
+            if remaining_after_prefix in KNOWN_ROOTS:
+                ast["prefikso"] = prefix
+                stem = remaining_after_prefix
+                prefix_stripped = True
+                break # Assume only one prefix for now
+            # Also accept if what remains is long enough to potentially have suffixes
+            elif stem not in KNOWN_ROOTS and len(remaining_after_prefix) >= 3:
+                ast["prefikso"] = prefix
+                stem = remaining_after_prefix
+                prefix_stripped = True
+                break
 
     # Suffixes (middle) - improved matching logic
     # Only match suffixes if they leave behind a valid root

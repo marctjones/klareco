@@ -173,17 +173,17 @@ def has_math_operators(ast: Dict[str, Any]) -> bool:
     if ast.get('tipo') != 'frazo':
         return False
 
-    # Helper to get root from word/vortgrupo
-    def get_root(item):
+    # Helper to get root and full word from word/vortgrupo
+    def get_word_forms(item):
         if not item:
-            return None
+            return None, None
         if item.get('tipo') == 'vorto':
-            return item.get('radiko')
+            return item.get('radiko'), item.get('plena_vorto')
         elif item.get('tipo') == 'vortgrupo':
             kerno = item.get('kerno')
             if kerno:
-                return kerno.get('radiko')
-        return None
+                return kerno.get('radiko'), kerno.get('plena_vorto')
+        return None, None
 
     # Check all parts
     aliaj = ast.get('aliaj', [])
@@ -192,8 +192,10 @@ def has_math_operators(ast: Dict[str, Any]) -> bool:
     objekto = ast.get('objekto')
 
     for item in [subjekto, verbo, objekto] + aliaj:
-        root = get_root(item)
-        if root and root.lower() in MATH_OPERATORS:
+        root, full_word = get_word_forms(item)
+        # Check both root and full word against MATH_OPERATORS
+        if (root and root.lower() in MATH_OPERATORS) or \
+           (full_word and full_word.lower() in MATH_OPERATORS):
             return True
 
     return False
@@ -253,17 +255,17 @@ def has_temporal_keywords(ast: Dict[str, Any]) -> bool:
     if ast.get('tipo') != 'frazo':
         return False
 
-    # Helper to get root from word/vortgrupo
-    def get_root(item):
+    # Helper to get root and full word from word/vortgrupo
+    def get_word_forms(item):
         if not item:
-            return None
+            return None, None
         if item.get('tipo') == 'vorto':
-            return item.get('radiko')
+            return item.get('radiko'), item.get('plena_vorto')
         elif item.get('tipo') == 'vortgrupo':
             kerno = item.get('kerno')
             if kerno:
-                return kerno.get('radiko')
-        return None
+                return kerno.get('radiko'), kerno.get('plena_vorto')
+        return None, None
 
     # Check all parts
     aliaj = ast.get('aliaj', [])
@@ -272,8 +274,10 @@ def has_temporal_keywords(ast: Dict[str, Any]) -> bool:
     objekto = ast.get('objekto')
 
     for item in [subjekto, verbo, objekto] + aliaj:
-        root = get_root(item)
-        if root and root.lower() in TEMPORAL_KEYWORDS:
+        root, full_word = get_word_forms(item)
+        # Check both root and full word against TEMPORAL_KEYWORDS
+        if (root and root.lower() in TEMPORAL_KEYWORDS) or \
+           (full_word and full_word.lower() in TEMPORAL_KEYWORDS):
             return True
 
     return False

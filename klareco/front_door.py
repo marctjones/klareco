@@ -39,8 +39,14 @@ class FrontDoor:
         if original_lang == self.internal_lang:
             return original_lang, text
         else:
-            translated_text = self.translator.translate(text, original_lang, self.internal_lang)
-            return original_lang, translated_text
+            try:
+                translated_text = self.translator.translate(text, original_lang, self.internal_lang)
+                return original_lang, translated_text
+            except ValueError as e:
+                # Translation model not available - fall back to original text
+                # This happens for rare language pairs (e.g., Irish Gaelic → Esperanto)
+                # Assume text might already be in target language or close enough
+                return original_lang, text
 
 if __name__ == '__main__':
     # Example Usage

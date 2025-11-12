@@ -525,6 +525,21 @@ def parse_word(word: str) -> dict:
         ast['radiko'] = word
         return ast
 
+    # Check for pronouns FIRST - before foreign name check
+    # Pronouns can be capitalized at start of sentence: "Mi vidas..." = "I see..."
+    # Check both lowercase and (for accusative) with -n ending
+    temp_word_for_pronoun = lower_word
+    if temp_word_for_pronoun.endswith('n'):
+        temp_word_for_pronoun = temp_word_for_pronoun[:-1]
+
+    if temp_word_for_pronoun in KNOWN_PRONOUNS:
+        ast['radiko'] = temp_word_for_pronoun
+        ast['vortspeco'] = 'pronomo'
+        # Check if it had accusative ending
+        if lower_word.endswith('n'):
+            ast['kazo'] = 'akuzativo'
+        return ast
+
     # Skip capitalized non-Esperanto names (but allow Esperanto proper nouns)
     # If word is capitalized and doesn't end with Esperanto morphology, it's likely foreign
     if word[0].isupper() and len(word) > 1:
@@ -596,14 +611,8 @@ def parse_word(word: str) -> dict:
         ast["nombro"] = "pluralo"
         remaining_word = remaining_word[:-1]
 
-    # Check for pronouns EARLY - before POS ending checks
-    # Pronouns (pronomoj) are atomic morphemes - no affixes, no POS endings
-    # "mi" ends with "i" but that's NOT the infinitive ending, it's just how it's spelled!
-    # Must check before KNOWN_ENDINGS to prevent false matches (mi→m+i, vi→v+i, etc.)
-    if remaining_word in KNOWN_PRONOUNS or lower_word in KNOWN_PRONOUNS:
-        ast['radiko'] = remaining_word if remaining_word in KNOWN_PRONOUNS else lower_word
-        ast['vortspeco'] = 'pronomo'  # Pronoun (pronomoj - functions like substantivo)
-        return ast
+    # NOTE: Pronouns are now checked earlier (before foreign name check)
+    # to handle capitalized pronouns like "Mi" at sentence start
 
     # Check for bare number words (before ending stripping)
     # Numbers like "du" would otherwise be parsed as "d" + "u" (volitive ending)

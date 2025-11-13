@@ -165,8 +165,9 @@ class RAGExpert(Expert):
             }
 
         try:
-            # Retrieve relevant sentences
-            results = self.retriever.retrieve_from_ast(
+            # Retrieve relevant sentences using hybrid approach
+            # (keyword filter + semantic rerank for better entity matching)
+            results = self.retriever.retrieve_hybrid(
                 ast,
                 k=self.k,
                 return_scores=True
@@ -196,14 +197,7 @@ class RAGExpert(Expert):
                 'answer': answer,
                 'confidence': confidence,
                 'expert': self.name,
-                'sources': [
-                    {
-                        'text': r['text'],
-                        'index': r['index'],
-                        'score': r['score']
-                    }
-                    for r in filtered_results
-                ],
+                'sources': filtered_results,  # Pass through all metadata (text, source_name, line, etc.)
                 'retrieved_count': len(filtered_results),
                 'explanation': f'Trovis {len(filtered_results)} rilatan frazon en la korpuso'
             }

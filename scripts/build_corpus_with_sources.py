@@ -29,7 +29,8 @@ def build_corpus(
     output_file: Path,
     texts: List[Tuple[str, str]],
     skip_empty: bool = True,
-    skip_metadata: bool = True
+    skip_metadata: bool = True,
+    min_length: int = 20
 ) -> int:
     """
     Build corpus from cleaned texts with source metadata.
@@ -40,6 +41,7 @@ def build_corpus(
         texts: List of (filename, display_name) tuples
         skip_empty: Skip empty lines
         skip_metadata: Skip likely metadata lines (very short, all caps, etc.)
+        min_length: Minimum sentence length in characters (default: 20)
 
     Returns:
         Total number of sentences written
@@ -67,8 +69,8 @@ def build_corpus(
 
                     # Skip likely metadata
                     if skip_metadata:
-                        # Skip very short lines (< 10 chars)
-                        if len(line) < 10:
+                        # Skip very short lines (< min_length chars)
+                        if len(line) < min_length:
                             continue
 
                         # Skip lines that are all caps (likely headers)
@@ -130,6 +132,12 @@ def main():
         action="store_true",
         help="Include all lines (don't skip metadata)"
     )
+    parser.add_argument(
+        "--min-length",
+        type=int,
+        default=20,
+        help="Minimum sentence length in characters (default: 20)"
+    )
 
     args = parser.parse_args()
 
@@ -153,7 +161,8 @@ def main():
         args.output,
         texts,
         skip_empty=True,
-        skip_metadata=not args.no_skip_metadata
+        skip_metadata=not args.no_skip_metadata,
+        min_length=args.min_length
     )
 
     print()

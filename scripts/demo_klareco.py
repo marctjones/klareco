@@ -19,11 +19,24 @@ Usage:
 
 import sys
 import argparse
+import logging
 from pathlib import Path
+
+# Configure logging BEFORE importing Klareco modules
+# This suppresses INFO logs, only shows WARNING and above
+logging.basicConfig(
+    level=logging.WARNING,
+    format='%(levelname)s: %(message)s',
+    force=True  # Force reconfiguration even if logging was already set up
+)
+
+# Set root logger to WARNING
+logging.getLogger().setLevel(logging.WARNING)
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Import Klareco modules AFTER logging is configured
 from klareco.pipeline import KlarecoPipeline
 from klareco.parser import parse, parse_word
 from klareco.experts.rag_expert import create_rag_expert
@@ -31,6 +44,13 @@ from klareco.experts.date_expert import DateExpert
 from klareco.experts.math_expert import MathExpert
 from klareco.experts.grammar_expert import GrammarExpert
 from klareco.translator import TranslationService
+
+# Remove console handlers added by Klareco's setup_logging()
+# Keep file logging, but suppress console output for clean demo
+root_logger = logging.getLogger()
+for handler in root_logger.handlers[:]:  # Copy list to safely modify during iteration
+    if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
+        root_logger.removeHandler(handler)
 
 # Global translator for demo translations
 _translator = None
@@ -97,18 +117,24 @@ def demo_rag_query(rag_expert, query, description):
     # Show sources if available
     if 'sources' in response and response['sources']:
         print("📚 Retrieved Sources (Esperanto sentences from corpus):")
-        print("   These are actual sentences from Tolkien's works")
+        print("   These are actual sentences from indexed books with source attribution")
         print()
         for i, source in enumerate(response['sources'][:3], 1):
             score = source.get('score', 0.0)
             text = source['text']
+
+            # Show source attribution if available
+            source_name = source.get('source_name', 'Unknown')
+            source_line = source.get('line', '?')
+
             print(f"   {i}. [Similarity: {score:.3f}]")
-            print(f"      Esperanto: {text[:100]}...")
+            print(f"      📖 Source: {source_name}, line {source_line}")
+            print(f"      Esperanto: {text[:150]}{'...' if len(text) > 150 else ''}")
 
             # Translate source to English
             try:
                 text_en = translator.translate(text[:200], 'eo', 'en')
-                print(f"      🇬🇧 English: {text_en[:100]}...")
+                print(f"      🇬🇧 English: {text_en[:150]}{'...' if len(text_en) > 150 else ''}")
             except:
                 pass
             print()
@@ -131,6 +157,10 @@ def demo_pipeline_query(pipeline, query, description):
     print(f"   🇬🇧 What we're asking: {description}")
     print()
 
+    # Show thinking process in Esperanto
+    print("🤔 Pensante... (Thinking...)")
+    print()
+
     # Run pipeline
     trace = pipeline.run(query)
 
@@ -147,28 +177,57 @@ def demo_pipeline_query(pipeline, query, description):
         lang = front_door_step['outputs'].get('original_lang', 'unknown')
         esperanto_text = front_door_step['outputs'].get('processed_text', '')
         if lang != 'eo':
-            print(f"🌍 Detected Language: {lang}")
-            print(f"🔄 Translated to Esperanto: \"{esperanto_text}\"")
-            print(f"   (The system processes everything internally in Esperanto)")
+            print(f"   🌍 Mi detektis lingvon: {lang} → Esperanto")
+            print(f"      (I detected language: {lang} → Esperanto)")
+            print(f"   📝 Tradukita: \"{esperanto_text}\"")
             print()
+
+    # Parser
+    parser_step = next((s for s in steps if s['name'] == 'Parser'), None)
+    if parser_step:
+        print(f"   🔍 Mi analizas la gramatikon...")
+        print(f"      (I'm analyzing the grammar...)")
+        print(f"   ✓ AST kreita (AST created)")
+        print()
 
     # Orchestrator
     orchestrator_step = next((s for s in steps if s['name'] == 'Orchestrator'), None)
+    orchestrator_outputs = None
     if orchestrator_step:
-        outputs = orchestrator_step['outputs']
-        intent = outputs.get('intent', 'unknown')
-        expert = outputs.get('expert', 'none')
-        confidence = outputs.get('confidence', 0)
+        orchestrator_outputs = orchestrator_step['outputs']
+        intent = orchestrator_outputs.get('intent', 'unknown')
+        expert = orchestrator_outputs.get('expert', 'none')
+        confidence = orchestrator_outputs.get('confidence', 0)
 
-        print(f"🎯 Detected Intent: {intent}")
-        print(f"🤖 Routing to Expert: {expert}")
-        print(f"   (The system automatically picks the right expert for the query)")
-        print(f"📊 Routing Confidence: {confidence:.2%}")
+        # Translate intent to Esperanto
+        intent_eo_map = {
+            'factoid_question': 'faktoid-demando',
+            'calculation_request': 'kalkul-peto',
+            'temporal_query': 'temp-demando',
+            'grammar_query': 'gramatik-demando'
+        }
+        intent_eo = intent_eo_map.get(intent, intent)
+
+        print(f"   🎯 Mi klasifikis la demandon: {intent_eo}")
+        print(f"      (I classified the question: {intent})")
+        print(f"   🤖 Mi elektas sperton: {expert}")
+        print(f"      (I'm selecting expert: {expert})")
+        print(f"   📊 Konfido: {confidence:.0%}")
         print()
+
+        # Show RAG retrieval process if RAG Expert
+        if 'RAG' in expert:
+            print(f"   🔎 Mi serĉas en la korpuso...")
+            print(f"      (I'm searching the corpus...)")
+            if orchestrator_outputs and 'full_response' in orchestrator_outputs:
+                retrieved = orchestrator_outputs['full_response'].get('retrieved_count', 0)
+                print(f"   ✓ Trovis {retrieved} rilatan frazon")
+                print(f"      (Found {retrieved} relevant sentences)")
+            print()
 
     # Final response
     response = trace.final_response
-    print(f"💬 System Response:")
+    print(f"💬 Mia Respondo: (My Response:)")
     print()
 
     # Show Esperanto and English side-by-side for multi-line responses
@@ -188,8 +247,39 @@ def demo_pipeline_query(pipeline, query, description):
                 print(f"   🇬🇧 English: (translation unavailable for this line)")
         print()
 
-    print(f"   Note: This is the output from the {expert if orchestrator_step else 'expert'} expert")
-    print()
+    # Show sources if available (from RAG Expert)
+    # Sources are nested in full_response field
+    sources = None
+    if orchestrator_outputs and 'full_response' in orchestrator_outputs:
+        sources = orchestrator_outputs['full_response'].get('sources', [])
+
+    if sources:
+        print("📚 Fontoj: (Sources:)")
+        print("   (Sentences from indexed Esperanto books)")
+        print()
+        for i, source in enumerate(sources[:3], 1):
+            score = source.get('score', 0.0)
+            text = source['text']
+
+            # Show source attribution if available
+            source_name = source.get('source_name', 'Unknown')
+            source_line = source.get('line', '?')
+
+            print(f"   {i}. [Similarity: {score:.3f}]")
+            print(f"      📖 Source: {source_name}, line {source_line}")
+            print(f"      Esperanto: {text[:150]}{'...' if len(text) > 150 else ''}")
+
+            # Translate source to English
+            try:
+                text_en = translator.translate(text, 'eo', 'en')
+                print(f"      🇬🇧 English: {text_en[:150]}{'...' if len(text_en) > 150 else ''}")
+            except:
+                pass
+            print()
+
+        if len(sources) > 3:
+            print(f"   ... and {len(sources) - 3} more matching sentences")
+        print()
 
 
 def demo_parser_morphology():

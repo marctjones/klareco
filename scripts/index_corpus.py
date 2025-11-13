@@ -189,26 +189,56 @@ class CorpusIndexer:
             logging.debug(f"Failed to encode sentence: {e}")
             return None
 
-    def load_corpus(self, corpus_path: str) -> List[str]:
+    def load_corpus(self, corpus_path: str) -> Tuple[List[str], List[Dict]]:
         """Load corpus sentences from file.
 
         Args:
-            corpus_path: Path to corpus file (one sentence per line)
+            corpus_path: Path to corpus file (one sentence per line, or JSONL with metadata)
 
         Returns:
-            List of sentences
+            Tuple of (sentences, metadata_list)
+            - sentences: List of sentence strings
+            - metadata_list: List of metadata dicts (empty dict if plain text)
         """
         logging.info(f"Loading corpus from {corpus_path}")
 
         sentences = []
+        metadata_list = []
+        is_jsonl = False
+
         with open(corpus_path, 'r', encoding='utf-8') as f:
-            for line in f:
+            for line_num, line in enumerate(f, 1):
                 line = line.strip()
-                if line and len(line) > 5:  # Filter very short lines
-                    sentences.append(line)
+                if not line or len(line) < 5:
+                    continue
+
+                # Try to parse as JSON (for JSONL format with metadata)
+                if line_num == 1 or is_jsonl:
+                    try:
+                        data = json.loads(line)
+                        is_jsonl = True
+                        sentence = data.get('text', line)
+                        # Preserve all metadata except 'text'
+                        metadata = {k: v for k, v in data.items() if k != 'text'}
+                    except json.JSONDecodeError:
+                        # Plain text format
+                        sentence = line
+                        metadata = {}
+                else:
+                    sentence = line
+                    metadata = {}
+
+                if sentence and len(sentence) > 5:
+                    sentences.append(sentence)
+                    metadata_list.append(metadata)
 
         logging.info(f"  Loaded {len(sentences)} sentences")
-        return sentences
+        if is_jsonl:
+            logging.info(f"  Format: JSONL with source metadata")
+        else:
+            logging.info(f"  Format: Plain text")
+
+        return sentences, metadata_list
 
     def index_corpus(
         self,
@@ -226,7 +256,7 @@ class CorpusIndexer:
             self.load_model()
 
         # Load corpus
-        sentences = self.load_corpus(corpus_path)
+        sentences, source_metadata = self.load_corpus(corpus_path)
         self.stats["total_sentences"] = len(sentences)
         self.stats["start_time"] = time.time()
 
@@ -272,12 +302,16 @@ class CorpusIndexer:
                             # Save embedding
                             batch_embeddings.append(embedding)
 
-                            # Save metadata
+                            # Save metadata (including source info if available)
                             metadata = {
                                 "idx": global_idx,
                                 "sentence": sentence,
                                 "embedding_idx": self.stats["successful"],
                             }
+                            # Add source metadata if available
+                            if source_metadata and global_idx < len(source_metadata):
+                                metadata.update(source_metadata[global_idx])
+
                             metadata_file.write(json.dumps(metadata, ensure_ascii=False) + '\n')
                             metadata_file.flush()
 

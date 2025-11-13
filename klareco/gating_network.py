@@ -54,6 +54,12 @@ GRAMMAR_KEYWORDS = {
     'nombro', 'tempo', 'modo', 'strukt'
 }
 
+# Summarization keywords
+SUMMARIZATION_KEYWORDS = {
+    'resum', 'mallonig', 'kompen', 'konciz', 'ĉef', 'punkt',
+    'esenc', 'kondenz'
+}
+
 
 def has_question_word(ast: Dict[str, Any]) -> Optional[str]:
     """
@@ -283,6 +289,48 @@ def has_temporal_keywords(ast: Dict[str, Any]) -> bool:
     return False
 
 
+def has_summarization_keywords(ast: Dict[str, Any]) -> bool:
+    """
+    Check if AST contains summarization-related keywords.
+
+    Args:
+        ast: Parsed query AST
+
+    Returns:
+        True if AST contains summarization keywords
+    """
+    if ast.get('tipo') != 'frazo':
+        return False
+
+    # Helper to get root from word/vortgrupo
+    def get_root(item):
+        if not item:
+            return None
+        if item.get('tipo') == 'vorto':
+            return item.get('radiko')
+        elif item.get('tipo') == 'vortgrupo':
+            kerno = item.get('kerno')
+            if kerno:
+                return kerno.get('radiko')
+        return None
+
+    # Check all parts
+    aliaj = ast.get('aliaj', [])
+    subjekto = ast.get('subjekto')
+    verbo = ast.get('verbo')
+    objekto = ast.get('objekto')
+
+    for part in [subjekto, verbo, objekto] + aliaj:
+        root = get_root(part)
+        if root:
+            # Check for partial matches (e.g., 'resum' matches 'resumu', 'resumo', etc.)
+            for keyword in SUMMARIZATION_KEYWORDS:
+                if root.lower().startswith(keyword):
+                    return True
+
+    return False
+
+
 def has_grammar_keywords(ast: Dict[str, Any]) -> bool:
     """
     Check if AST contains grammar-related keywords.
@@ -339,10 +387,15 @@ def classify_intent_symbolic(ast: Dict[str, Any]) -> str:
         - 'temporal_query': Date/time related question
         - 'grammar_query': Grammar explanation request
         - 'dictionary_query': Word definition request
+        - 'summarization_request': Text summarization request
         - 'command_intent': General command (imperative mood)
         - 'general_query': Fallback for unclassified queries
     """
-    # Check for grammar query first (specific)
+    # Check for summarization request first (most specific)
+    if has_summarization_keywords(ast):
+        return 'summarization_request'
+
+    # Check for grammar query (specific)
     if has_grammar_keywords(ast):
         return 'grammar_query'
 

@@ -386,7 +386,8 @@ def create_orchestrator_with_experts() -> Orchestrator:
     Factory function to create an Orchestrator with all available experts registered.
 
     Returns:
-        Orchestrator with all available experts: Math, Date, Grammar, and RAG (if available)
+        Orchestrator with all available experts: Math, Date, Grammar, Dictionary,
+        Factoid QA (RAG + LLM), and Summarize (LLM)
 
     Example:
         >>> orchestrator = create_orchestrator_with_experts()
@@ -397,7 +398,8 @@ def create_orchestrator_with_experts() -> Orchestrator:
     """
     from .experts import MathExpert, DateExpert, GrammarExpert
     from .experts.dictionary_expert import DictionaryExpert
-    from .experts.rag_expert import create_rag_expert
+    from .experts.summarize_expert import create_summarize_expert
+    from .experts.factoid_qa_expert import create_factoid_qa_expert
 
     # Create orchestrator (uses symbolic gating network by default)
     orchestrator = Orchestrator()
@@ -408,16 +410,24 @@ def create_orchestrator_with_experts() -> Orchestrator:
     orchestrator.register_expert('grammar_query', GrammarExpert())
     orchestrator.register_expert('dictionary_query', DictionaryExpert())
 
-    # Register RAG expert (if corpus and model are available)
+    # Register neural experts (LLM-powered)
+    # These use auto-detected LLM provider (Claude Code when available)
+
+    # Summarize Expert (always available - uses LLM)
     try:
-        rag_expert = create_rag_expert()
-        orchestrator.register_expert('factoid_question', rag_expert)
-        logger.info("RAG Expert successfully loaded and registered for factoid questions")
+        summarize_expert = create_summarize_expert()
+        orchestrator.register_expert('summarization_request', summarize_expert)
+        logger.info("Summarize Expert successfully registered")
     except Exception as e:
-        logger.warning(
-            f"Could not load RAG Expert (corpus/model unavailable): {e}. "
-            f"Factoid questions will not be answered."
-        )
+        logger.warning(f"Could not load Summarize Expert: {e}")
+
+    # Factoid QA Expert (RAG + LLM - may not have corpus)
+    try:
+        factoid_qa_expert = create_factoid_qa_expert()
+        orchestrator.register_expert('factoid_question', factoid_qa_expert)
+        logger.info("Factoid QA Expert successfully registered")
+    except Exception as e:
+        logger.warning(f"Could not load Factoid QA Expert: {e}")
 
     logger.info(
         f"Created orchestrator with {len(orchestrator.experts)} experts: "

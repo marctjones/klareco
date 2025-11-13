@@ -204,7 +204,8 @@ def demo_pipeline_query(pipeline, query, description):
             'factoid_question': 'faktoid-demando',
             'calculation_request': 'kalkul-peto',
             'temporal_query': 'temp-demando',
-            'grammar_query': 'gramatik-demando'
+            'grammar_query': 'gramatik-demando',
+            'dictionary_query': 'vortara-demando'
         }
         intent_eo = intent_eo_map.get(intent, intent)
 

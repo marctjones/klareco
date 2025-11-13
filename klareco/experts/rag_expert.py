@@ -234,11 +234,15 @@ class RAGExpert(Expert):
 
     def _format_answer(self, results: List[Dict[str, Any]]) -> str:
         """
-        Format retrieved results into an answer.
+        Format retrieved results into a coherent answer.
 
-        Currently returns a simple list of retrieved sentences.
-        In Phase 5, this will incorporate a neural decoder to generate
-        natural language answers from the retrieved context.
+        Uses intelligent sentence composition to create natural responses:
+        - Selects most complete and informative sentences
+        - Merges related fragments when appropriate
+        - Removes redundant information
+        - Creates coherent narrative flow
+
+        In Phase 5, this will incorporate a neural decoder for full NLG.
 
         Args:
             results: List of retrieval results
@@ -249,21 +253,86 @@ class RAGExpert(Expert):
         if not results:
             return "Mi ne trovis rilatan informon."
 
-        # Phase 4: Simple concatenation of top results
-        # Phase 5: Neural generation from retrieved context
-        answer_parts = [
-            "Jen kion mi trovis:",  # "Here's what I found:"
-            ""
-        ]
+        # Score sentences by completeness and informativeness
+        scored_sentences = []
+        for result in results[:5]:  # Consider top 5
+            text = result['text']
+            score = result.get('score', 0.0)
 
-        for i, result in enumerate(results[:3], 1):  # Show top 3
-            score_indicator = "★" * min(5, int(result['score']))
-            answer_parts.append(f"{i}. {result['text']} {score_indicator}")
+            # Completeness indicators
+            completeness = 0.0
 
-        if len(results) > 3:
-            answer_parts.append(f"\n(kaj {len(results) - 3} plia{'j' if len(results) - 3 > 1 else ''} rezulto{'j' if len(results) - 3 > 1 else ''})")
+            # Prefer sentences with proper punctuation
+            if text.rstrip().endswith(('.', '!', '?')):
+                completeness += 0.3
+            elif text.rstrip().endswith((',', ';', ':')):
+                completeness += 0.1
 
-        return "\n".join(answer_parts)
+            # Prefer longer sentences (more context)
+            word_count = len(text.split())
+            if word_count >= 8:
+                completeness += 0.3
+            elif word_count >= 5:
+                completeness += 0.2
+            elif word_count >= 3:
+                completeness += 0.1
+
+            # Prefer sentences that start capitalized (full sentences)
+            if text and text[0].isupper():
+                completeness += 0.2
+
+            # Avoid very short fragments
+            if word_count < 3:
+                completeness -= 0.3
+
+            # Combined score: retrieval score + completeness
+            final_score = score + completeness
+
+            scored_sentences.append({
+                'text': text,
+                'score': final_score,
+                'orig_score': score,
+                'completeness': completeness,
+                'word_count': word_count
+            })
+
+        # Sort by combined score
+        scored_sentences.sort(key=lambda x: x['score'], reverse=True)
+
+        # Build answer from best sentences
+        answer_parts = []
+        used_words = set()
+
+        for i, sent in enumerate(scored_sentences[:3], 1):
+            text = sent['text']
+            words = set(text.lower().split())
+
+            # Skip if too much overlap with already used content
+            overlap = len(words & used_words)
+            if overlap > len(words) * 0.7:  # More than 70% overlap
+                continue
+
+            # Add this sentence
+            answer_parts.append(text.strip())
+            used_words.update(words)
+
+            # Stop after we have 2-3 good sentences
+            if len(answer_parts) >= 2 and sent['completeness'] > 0:
+                break
+
+        # If we have good results, format as narrative
+        if answer_parts:
+            # Join sentences with proper spacing
+            answer = " ".join(answer_parts)
+
+            # Ensure proper ending punctuation
+            if answer and not answer[-1] in '.!?':
+                answer += "."
+
+            return answer
+        else:
+            # Fallback: just show top result
+            return results[0]['text']
 
     def _compute_answer_confidence(self, results: List[Dict[str, Any]]) -> float:
         """

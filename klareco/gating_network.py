@@ -31,9 +31,9 @@ QUESTION_WORDS = {
 
 # Command verbs for dictionary lookup
 DICTIONARY_VERBS = {
-    'difini': 'dictionary_lookup',   # define
-    'klarigi': 'dictionary_lookup',  # explain/clarify
-    'signifi': 'dictionary_lookup',  # mean/signify
+    'difin': 'dictionary_query',    # define
+    'klarig': 'dictionary_query',   # explain/clarify
+    'signif': 'dictionary_query',   # mean/signify
 }
 
 # Mathematical operators
@@ -338,7 +338,7 @@ def classify_intent_symbolic(ast: Dict[str, Any]) -> str:
         - 'calculation_request': Mathematical calculation
         - 'temporal_query': Date/time related question
         - 'grammar_query': Grammar explanation request
-        - 'dictionary_lookup': Word definition request
+        - 'dictionary_query': Word definition request
         - 'command_intent': General command (imperative mood)
         - 'general_query': Fallback for unclassified queries
     """
@@ -352,7 +352,7 @@ def classify_intent_symbolic(ast: Dict[str, Any]) -> str:
 
     # Check for dictionary lookup command
     if has_dictionary_verb(ast):
-        return 'dictionary_lookup'
+        return 'dictionary_query'
 
     # Check for mathematical calculation
     if has_numbers(ast) and has_math_operators(ast):

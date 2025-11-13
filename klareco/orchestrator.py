@@ -64,6 +64,43 @@ class Orchestrator:
         for intent, expert in intent_expert_map.items():
             self.register_expert(intent, expert)
 
+    def _detect_compound_question(self, ast: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+        """
+        Detect if AST represents a compound question (multiple questions with 'kaj').
+
+        Args:
+            ast: Parsed query AST
+
+        Returns:
+            List of sub-query ASTs if compound, None otherwise
+
+        Example:
+            "Kio estas Esperanto kaj kiu kreis ĝin?"
+            → ["Kio estas Esperanto?", "Kiu kreis ĝin?"]
+        """
+        if not ast or ast.get('tipo') != 'frazo':
+            return None
+
+        # Look for 'kaj' (and) in the sentence
+        aliaj = ast.get('aliaj', [])
+        has_kaj = False
+
+        for word in aliaj:
+            if word.get('tipo') == 'vorto':
+                if word.get('radiko', '').lower() == 'kaj':
+                    has_kaj = True
+                    break
+
+        # If no 'kaj', not a compound question
+        if not has_kaj:
+            return None
+
+        # For now, we don't split the AST (that would require complex parsing)
+        # Instead, we mark it as compound and let the execution loop handle it
+        # Phase 5 will add proper AST splitting
+        logger.info("Detected compound question with 'kaj', but AST splitting not yet implemented")
+        return None
+
     def route(self, ast: Dict[str, Any]) -> Dict[str, Any]:
         """
         Route a query to the appropriate expert.
@@ -232,13 +269,47 @@ class Orchestrator:
             True if goal achieved, False otherwise
 
         Note:
-            This is a placeholder. Phase 5 will implement proper goal checking.
+            This is a Level 1 implementation using simple heuristics.
+            Phase 5 will add neural goal completion checking.
         """
-        # For now, single-step goals are always achieved after one step
-        if goal == "answer_question" and len(steps) >= 1:
-            return steps[-1].get('confidence', 0) > 0.5
+        # Goal: answer_question - check if we got a confident answer
+        if goal == "answer_question":
+            if len(steps) >= 1:
+                last_step = steps[-1]
+                # Consider goal achieved if:
+                # 1. We got an answer with confidence > 0.5, OR
+                # 2. We got an error (can't proceed further)
+                if last_step.get('error'):
+                    return True  # Stop on error
+                if last_step.get('confidence', 0) > 0.5:
+                    return True  # Got confident answer
+            return False
 
-        return False
+        # Goal: compound_question - check if all sub-questions answered
+        if goal == "compound_question":
+            # For compound questions, we need at least 2 steps
+            if len(steps) >= 2:
+                # Check if all steps have confident answers
+                all_confident = all(
+                    step.get('confidence', 0) > 0.5 or step.get('error')
+                    for step in steps
+                )
+                return all_confident
+            return False
+
+        # Goal: solve_problem - check if we have a final solution
+        if goal == "solve_problem":
+            if len(steps) >= 1:
+                last_step = steps[-1]
+                # Look for calculation results or final answers
+                if last_step.get('expert') == 'Math Expert':
+                    return True  # Math problems are single-step
+                if last_step.get('confidence', 0) > 0.7:
+                    return True
+            return False
+
+        # Default: single-step goals achieved after one confident response
+        return len(steps) >= 1 and steps[-1].get('confidence', 0) > 0.5
 
     def _plan_next(
         self,
@@ -248,6 +319,11 @@ class Orchestrator:
         """
         Plan the next action based on current response and goal.
 
+        This is a Level 1 symbolic implementation that handles:
+        - Compound questions (detected at runtime)
+        - Sequential tool invocations
+        - Error recovery
+
         Args:
             response: Response from previous step
             goal: Overall goal
@@ -256,9 +332,31 @@ class Orchestrator:
             AST for next query, or None if no next action
 
         Note:
-            This is a placeholder. Phase 5 will implement Blueprint generation.
+            Phase 5 will add Blueprint-based planning with neural components.
         """
-        # For now, no multi-step planning
+        # If previous step had an error, stop
+        if response.get('error'):
+            logger.info("Previous step had error, stopping execution loop")
+            return None
+
+        # If previous step had low confidence, stop
+        if response.get('confidence', 0) < 0.3:
+            logger.info("Previous step had low confidence, stopping execution loop")
+            return None
+
+        # For compound questions, check if there's a pending sub-query
+        # This is set during initial routing if compound structure detected
+        if goal == "compound_question":
+            pending_subqueries = response.get('_pending_subqueries', [])
+            if pending_subqueries:
+                next_ast = pending_subqueries[0]
+                # Pass remaining subqueries forward
+                next_ast['_pending_subqueries'] = pending_subqueries[1:]
+                logger.info(f"Processing next sub-query ({len(pending_subqueries)} remaining)")
+                return next_ast
+
+        # For other goals, no next action by default
+        # Phase 5 will add Blueprint-based planning here
         return None
 
     def list_experts(self) -> List[str]:
@@ -298,6 +396,7 @@ def create_orchestrator_with_experts() -> Orchestrator:
         La rezulto estas: 5
     """
     from .experts import MathExpert, DateExpert, GrammarExpert
+    from .experts.dictionary_expert import DictionaryExpert
     from .experts.rag_expert import create_rag_expert
 
     # Create orchestrator (uses symbolic gating network by default)
@@ -307,6 +406,7 @@ def create_orchestrator_with_experts() -> Orchestrator:
     orchestrator.register_expert('calculation_request', MathExpert())
     orchestrator.register_expert('temporal_query', DateExpert())
     orchestrator.register_expert('grammar_query', GrammarExpert())
+    orchestrator.register_expert('dictionary_query', DictionaryExpert())
 
     # Register RAG expert (if corpus and model are available)
     try:

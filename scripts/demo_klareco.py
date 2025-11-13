@@ -169,15 +169,24 @@ def demo_pipeline_query(pipeline, query, description):
     # Final response
     response = trace.final_response
     print(f"💬 System Response:")
-    print(f"   Esperanto: {response}")
+    print()
 
-    # Translate response to English
+    # Show Esperanto and English side-by-side for multi-line responses
     translator = get_translator()
-    try:
-        response_en = translator.translate(response, 'eo', 'en')
-        print(f"   🇬🇧 English: {response_en}")
-    except Exception as e:
-        print(f"   (Translation unavailable)")
+    lines = response.split('\n')
+
+    for line in lines:
+        # Show Esperanto line
+        print(f"   Esperanto: {line}")
+
+        # Try to translate each line
+        if line.strip():
+            try:
+                line_en = translator.translate(line, 'eo', 'en')
+                print(f"   🇬🇧 English: {line_en}")
+            except:
+                print(f"   🇬🇧 English: (translation unavailable for this line)")
+        print()
 
     print(f"   Note: This is the output from the {expert if orchestrator_step else 'expert'} expert")
     print()

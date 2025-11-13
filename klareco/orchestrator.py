@@ -288,7 +288,7 @@ def create_orchestrator_with_experts() -> Orchestrator:
     Factory function to create an Orchestrator with all available experts registered.
 
     Returns:
-        Orchestrator with MathExpert, DateExpert, and GrammarExpert registered
+        Orchestrator with all available experts: Math, Date, Grammar, and RAG (if available)
 
     Example:
         >>> orchestrator = create_orchestrator_with_experts()
@@ -298,14 +298,26 @@ def create_orchestrator_with_experts() -> Orchestrator:
         La rezulto estas: 5
     """
     from .experts import MathExpert, DateExpert, GrammarExpert
+    from .experts.rag_expert import create_rag_expert
 
     # Create orchestrator (uses symbolic gating network by default)
     orchestrator = Orchestrator()
 
-    # Register symbolic tool experts
+    # Register symbolic tool experts (always available)
     orchestrator.register_expert('calculation_request', MathExpert())
     orchestrator.register_expert('temporal_query', DateExpert())
     orchestrator.register_expert('grammar_query', GrammarExpert())
+
+    # Register RAG expert (if corpus and model are available)
+    try:
+        rag_expert = create_rag_expert()
+        orchestrator.register_expert('factoid_question', rag_expert)
+        logger.info("RAG Expert successfully loaded and registered for factoid questions")
+    except Exception as e:
+        logger.warning(
+            f"Could not load RAG Expert (corpus/model unavailable): {e}. "
+            f"Factoid questions will not be answered."
+        )
 
     logger.info(
         f"Created orchestrator with {len(orchestrator.experts)} experts: "

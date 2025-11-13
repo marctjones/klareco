@@ -122,7 +122,9 @@ class TestOrchestrator:
         """Test factory function creates orchestrator with all experts."""
         orchestrator = create_orchestrator_with_experts()
 
-        assert len(orchestrator.experts) == 3
+        # Should have at least 3 experts (Math, Date, Grammar)
+        # RAG Expert is optional (depends on corpus availability)
+        assert len(orchestrator.experts) >= 3
         assert 'Math Tool Expert' in orchestrator.list_experts()
         assert 'Date/Time Tool Expert' in orchestrator.list_experts()
         assert 'Grammar Tool Expert' in orchestrator.list_experts()
@@ -130,6 +132,10 @@ class TestOrchestrator:
         assert 'calculation_request' in orchestrator.list_intents()
         assert 'temporal_query' in orchestrator.list_intents()
         assert 'grammar_query' in orchestrator.list_intents()
+
+        # If RAG Expert is available, verify it's registered
+        if 'RAG Expert' in orchestrator.list_experts():
+            assert 'factoid_question' in orchestrator.list_intents()
 
     def test_route_adds_metadata(self):
         """Test that route adds orchestration metadata to response."""

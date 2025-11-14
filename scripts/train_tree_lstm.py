@@ -301,6 +301,14 @@ def find_latest_checkpoint(output_dir: Path) -> Path:
 
 def main():
     """Train Tree-LSTM encoder."""
+    # Warn if in web environment (browser-based Claude Code)
+    try:
+        from klareco.environment import warn_if_web_training
+        warn_if_web_training()  # Will prompt user or exit if in web
+    except ImportError:
+        # environment module not available, continue
+        pass
+
     parser = argparse.ArgumentParser(description='Train Tree-LSTM with contrastive learning')
     parser.add_argument('--training-data', type=str, default='data/training_pairs',
                         help='Training data directory')

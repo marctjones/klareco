@@ -267,14 +267,18 @@ class KlarecoRetriever:
             if node.get('tipo') == 'vorto':
                 radiko = node.get('radiko', '').lower()
                 vortspeco = node.get('vortspeco', '')
+                plena_vorto = node.get('plena_vorto', '').lower()
 
                 # Skip question words (even if classified as proper nouns)
                 if radiko in QUESTION_WORDS:
                     return
 
                 # Always include proper nouns (HIGHEST PRIORITY)
-                if vortspeco == 'nomo':
-                    keywords.append(radiko)
+                # Check both vortspeco and category for proper names
+                if (vortspeco in ['nomo', 'propra_nomo'] or
+                    node.get('category') in ['proper_name', 'proper_name_esperantized']):
+                    # Use full word for proper names (not root)
+                    keywords.append(plena_vorto if plena_vorto else radiko)
                 # Include content words (nouns, verbs, adjectives)
                 elif vortspeco in ['substantivo', 'verbo', 'adjektivo']:
                     # Skip very common verbs
@@ -298,7 +302,8 @@ class KlarecoRetriever:
         ast: Dict[str, Any],
         k: int = 20,
         keyword_candidates: int = 200,
-        return_scores: bool = True
+        return_scores: bool = True,
+        return_stage1_info: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Hybrid retrieval: keyword filter + semantic rerank.
@@ -315,9 +320,13 @@ class KlarecoRetriever:
             k: Final number of results to return
             keyword_candidates: Number of keyword candidates to consider
             return_scores: Include similarity scores
+            return_stage1_info: Return dict with stage1 stats and results
 
         Returns:
-            List of result dictionaries (keyword-filtered + semantically ranked)
+            If return_stage1_info=False:
+                List of result dictionaries (keyword-filtered + semantically ranked)
+            If return_stage1_info=True:
+                Dict with 'results' (stage 2) and 'stage1' (stage 1 info)
         """
         # Extract keywords from AST
         keywords = self._extract_keywords_from_ast(ast)
@@ -344,6 +353,18 @@ class KlarecoRetriever:
             return self.retrieve_from_ast(ast, k=k, return_scores=return_scores)
 
         logger.debug(f"Found {len(candidate_indices)} keyword candidates")
+
+        # Store stage1 info before limiting
+        stage1_total_candidates = len(candidate_indices)
+        stage1_candidates = []
+        if return_stage1_info:
+            # Build stage1 results (limited for display)
+            for idx in list(candidate_indices)[:min(20, len(candidate_indices))]:
+                result = dict(self.metadata[idx])
+                if 'sentence' in result:
+                    result['text'] = result.pop('sentence')
+                result['index'] = int(idx)
+                stage1_candidates.append(result)
 
         # Limit candidates for efficiency
         candidate_indices = list(candidate_indices)[:keyword_candidates]
@@ -385,7 +406,19 @@ class KlarecoRetriever:
 
             results.append(result)
 
-        return results
+        # Return with or without stage1 info
+        if return_stage1_info:
+            return {
+                'results': results,
+                'stage1': {
+                    'keywords': keywords,
+                    'total_candidates': stage1_total_candidates,
+                    'candidates_shown': stage1_candidates,
+                    'candidates_reranked': len(candidate_indices)
+                }
+            }
+        else:
+            return results
 
     def batch_retrieve(
         self,

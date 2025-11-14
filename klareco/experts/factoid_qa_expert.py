@@ -12,11 +12,12 @@ from typing import Dict, Any, Optional, List
 import logging
 from pathlib import Path
 from ..llm_provider import get_llm_provider
+from .base import Expert
 
 logger = logging.getLogger(__name__)
 
 
-class FactoidQAExpert:
+class FactoidQAExpert(Expert):
     """
     Expert for answering factual questions using RAG.
 
@@ -35,7 +36,7 @@ class FactoidQAExpert:
             rag_system: Optional RAG system (created if None)
             corpus_path: Optional path to corpus (uses default if None)
         """
-        self.name = "Factoid_QA_Expert"
+        super().__init__(name="Factoid_QA_Expert")
         self.capabilities = ["factual_questions", "knowledge_retrieval", "rag"]
         self.llm_provider = llm_provider or get_llm_provider()
 
@@ -48,28 +49,49 @@ class FactoidQAExpert:
 
     def _initialize_rag(self, corpus_path: Optional[str]):
         """
-        Initialize RAG system with hybrid retrieval.
+        Initialize RAG system with KlarecoRetriever.
 
         Args:
-            corpus_path: Path to corpus file
+            corpus_path: Path to corpus directory (not used - uses indexed corpus)
 
         Returns:
-            Initialized RAG system or None if unavailable
+            Initialized KlarecoRetriever or None if unavailable
         """
         try:
-            from ..rag.hybrid_rag import HybridRAG
+            from ..rag.retriever import KlarecoRetriever
 
-            # Use default corpus if not specified
-            if corpus_path is None:
-                corpus_path = Path(__file__).parent.parent.parent / "data" / "esperanto_corpus.jsonl"
+            # Use default index directory
+            index_dir = Path(__file__).parent.parent.parent / "data" / "corpus_index"
 
-            if not Path(corpus_path).exists():
-                logger.warning(f"Corpus not found at {corpus_path}, RAG disabled")
+            # Try to find latest model checkpoint
+            model_dir = Path(__file__).parent.parent.parent / "models" / "tree_lstm"
+
+            # Try epochs in descending order: 20, 12, 5, 4, 3, 2, 1
+            for epoch in [20, 12, 5, 4, 3, 2, 1]:
+                model_path = model_dir / f"checkpoint_epoch_{epoch}.pt"
+                if model_path.exists():
+                    logger.info(f"Found model checkpoint: checkpoint_epoch_{epoch}.pt")
+                    break
+            else:
+                # No checkpoint found
+                model_path = model_dir / "checkpoint_epoch_20.pt"  # Will fail below
+
+            if not index_dir.exists():
+                logger.warning(f"Index directory not found at {index_dir}, RAG disabled")
                 return None
 
-            rag = HybridRAG(corpus_path=str(corpus_path))
-            logger.info(f"RAG system initialized with corpus: {corpus_path}")
-            return rag
+            if not model_path.exists():
+                logger.warning(f"Model checkpoint not found at {model_path}, RAG disabled")
+                return None
+
+            retriever = KlarecoRetriever(
+                index_dir=str(index_dir),
+                model_path=str(model_path),
+                mode='tree_lstm',
+                device='cpu'
+            )
+            logger.info(f"RAG system (KlarecoRetriever) initialized with index: {index_dir}")
+            return retriever
 
         except ImportError as e:
             logger.warning(f"RAG dependencies not available: {e}")
@@ -119,7 +141,35 @@ class FactoidQAExpert:
 
         return False
 
-    def handle(self, ast: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> str:
+    def estimate_confidence(self, ast: Dict[str, Any]) -> float:
+        """
+        Estimate confidence in handling this query.
+
+        Args:
+            ast: Parsed query AST
+
+        Returns:
+            Confidence score 0.0-1.0
+        """
+        if not self.can_handle(ast):
+            return 0.0
+
+        # High confidence for questions with question words
+        words = self._extract_words(ast)
+        question_words = {'kio', 'kiu', 'kie', 'kiam', 'kial', 'kiel', 'kiom', 'ĉu'}
+
+        for word in words:
+            radiko = word.get('radiko', '').lower()
+            if radiko in question_words:
+                # Very high confidence if RAG system is available
+                if self.rag_system:
+                    return 0.90
+                else:
+                    return 0.50  # Lower if no RAG available
+
+        return 0.70
+
+    def execute(self, ast: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Answer factual question using RAG + LLM.
 
@@ -128,22 +178,86 @@ class FactoidQAExpert:
             context: Optional context
 
         Returns:
-            Generated answer
+            Response dictionary with:
+            - 'answer': The generated answer
+            - 'confidence': Confidence in the answer
+            - 'expert': Name of this expert
+            - 'sources': Retrieved source documents
+            - 'question': The extracted question
         """
         logger.info(f"{self.name} handling factual question")
 
-        # Extract question from AST
-        question = self._extract_question(ast, context)
+        try:
+            # Extract question from AST
+            question = self._extract_question(ast, context)
+            logger.debug(f"Question: {question}")
 
-        logger.debug(f"Question: {question}")
+            # Check if RAG system is available
+            if not self.rag_system:
+                return {
+                    'answer': 'RAG system ne disponeblas. (RAG system not available.)',
+                    'confidence': 0.0,
+                    'expert': self.name,
+                    'error': 'RAG system not initialized',
+                    'question': question
+                }
 
-        # Retrieve relevant documents
-        retrieved_docs = self._retrieve_documents(ast, question)
+            # Retrieve relevant documents
+            retrieval_result = self._retrieve_documents(ast, question)
 
-        # Generate answer using LLM
-        answer = self._generate_answer(question, retrieved_docs)
+            # Handle dict or list return (for backwards compatibility)
+            if isinstance(retrieval_result, dict):
+                retrieved_docs = retrieval_result.get('results', [])
+                stage1_info = retrieval_result.get('stage1_info', {})
+            elif isinstance(retrieval_result, list):
+                retrieved_docs = retrieval_result
+                stage1_info = {}
+            else:
+                # Unexpected type, treat as empty
+                retrieved_docs = []
+                stage1_info = {}
 
-        return answer
+            if not retrieved_docs:
+                return {
+                    'answer': 'Mi ne trovis rilatan informon. (I did not find relevant information.)',
+                    'confidence': 0.3,
+                    'expert': self.name,
+                    'sources': [],
+                    'question': question,
+                    'stage1_stats': stage1_info
+                }
+
+            # Generate answer using LLM if available, otherwise format retrieved docs
+            if self.llm_provider and hasattr(self.llm_provider, '_claude_code_callback') \
+               and self.llm_provider._claude_code_callback:
+                # LLM callback available - use it to generate answer
+                logger.debug("Using LLM generation with callback")
+                answer = self._generate_answer(question, retrieved_docs)
+                confidence = 0.90
+            else:
+                # No LLM callback - just format retrieved documents
+                logger.debug("No LLM callback, formatting retrieved docs")
+                answer = self._format_retrieved_docs(question, retrieved_docs)
+                confidence = 0.75
+
+            return {
+                'answer': answer,
+                'confidence': confidence,
+                'expert': self.name,
+                'sources': retrieved_docs,
+                'question': question,
+                'num_sources': len(retrieved_docs),
+                'stage1_stats': stage1_info
+            }
+
+        except Exception as e:
+            logger.error(f"Error executing factoid QA: {e}", exc_info=True)
+            return {
+                'answer': f'Eraro: {str(e)}',
+                'confidence': 0.0,
+                'expert': self.name,
+                'error': str(e)
+            }
 
     def _extract_words(self, ast: Dict[str, Any]) -> list:
         """
@@ -206,19 +320,76 @@ class FactoidQAExpert:
             return []
 
         try:
-            # Use hybrid retrieval (BM25 + semantic)
-            results = self.rag_system.retrieve(
-                query_ast=ast,
-                query_text=question,
-                top_k=3  # Retrieve top 3 documents
+            # Use hybrid retrieval: keyword filter + semantic rerank
+            # Stage 1: Find keyword candidates (BM25-like)
+            # Stage 2: Rerank by Tree-LSTM semantic similarity
+            result = self.rag_system.retrieve_hybrid(
+                ast=ast,
+                k=5,  # Return top 5 after reranking
+                keyword_candidates=100,  # Consider top 100 keyword matches
+                return_scores=True,
+                return_stage1_info=True  # Get stage1 stats for display
             )
 
-            logger.info(f"Retrieved {len(results)} documents")
-            return results
+            # Handle different return formats
+            if isinstance(result, dict):
+                # Dict with results and stage1 info
+                results = result.get('results', [])
+                stage1_info = result.get('stage1', {})
+            elif isinstance(result, list):
+                # Just a list of results (backwards compatibility)
+                results = result
+                stage1_info = {}
+            else:
+                # Unexpected return type
+                logger.warning(f"Unexpected retrieval result type: {type(result)}")
+                results = []
+                stage1_info = {}
+
+            if results and stage1_info:
+                logger.info(f"Retrieved {len(results)} documents via hybrid search "
+                           f"(stage1: {stage1_info.get('total_candidates', '?')} candidates)")
+            elif results:
+                logger.info(f"Retrieved {len(results)} documents")
+
+            # Return both results and stage1 info
+            return {
+                'results': results,
+                'stage1_info': stage1_info
+            }
 
         except Exception as e:
-            logger.error(f"Error retrieving documents: {e}")
-            return []
+            logger.error(f"Error retrieving documents: {e}", exc_info=True)
+            # Return empty result dict instead of empty list
+            return {
+                'results': [],
+                'stage1_info': {}
+            }
+
+    def _format_retrieved_docs(self, question: str, retrieved_docs: List[Dict[str, Any]]) -> str:
+        """
+        Format retrieved documents as answer (without LLM generation).
+
+        Args:
+            question: Original question
+            retrieved_docs: Retrieved documents from RAG
+
+        Returns:
+            Formatted answer from retrieved docs
+        """
+        if not retrieved_docs:
+            return "Mi ne trovis informon pri tio. (I didn't find information about that.)"
+
+        # Take the top result
+        top_doc = retrieved_docs[0]
+        text = top_doc.get('text', '')
+        score = top_doc.get('score', 0.0)
+        source = top_doc.get('source_name', 'Unknown')
+
+        # Format answer showing the most relevant sentence
+        answer = f"Laŭ la trovita teksto:\n\"{text}\"\n\n(Fonto: {source}, simileco: {score:.3f})"
+
+        return answer
 
     def _generate_answer(self, question: str, retrieved_docs: List[Dict[str, Any]]) -> str:
         """

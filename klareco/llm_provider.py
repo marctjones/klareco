@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 
 class LLMProviderType(Enum):
     """Supported LLM provider types"""
-    CLAUDE_CODE = "claude_code"  # Both web and CLI
+    CLAUDE_CODE_WEB = "claude_code_web"  # Claude Code Web (browser)
+    CLAUDE_CODE_CLI = "claude_code_cli"  # Claude Code CLI
+    CLAUDE_CODE = "claude_code"  # Generic (backwards compatibility)
     ANTHROPIC_API = "anthropic_api"
     OPENAI_API = "openai_api"
     INTERACTIVE = "interactive"  # Manual input for testing
@@ -76,14 +78,31 @@ class LLMProvider:
         """
         Detect which LLM provider to use based on environment.
 
+        Distinguishes between:
+        - Claude Code Web (browser-based, no heavy compute)
+        - Claude Code CLI (local, can do training)
+        - API-based (Anthropic, OpenAI)
+
         Returns:
             Detected provider type
         """
         # Check for Claude Code environment variables
         # Claude Code sets these when running code
-        if os.environ.get('CLAUDE_CODE_SESSION_ID'):
-            logger.debug("Detected Claude Code via SESSION_ID")
-            return LLMProviderType.CLAUDE_CODE
+        session_id = os.environ.get('CLAUDE_CODE_SESSION_ID')
+
+        if session_id:
+            # Detect if we're in Web or CLI
+            # Web: browser-based, shouldn't do training
+            # CLI: local execution, can do heavy compute
+
+            # Heuristic: Check if we're in a browser-like environment
+            # Web version typically has limited environment variables
+            if self._is_web_environment():
+                logger.debug("Detected Claude Code Web via SESSION_ID + environment")
+                return LLMProviderType.CLAUDE_CODE_WEB
+            else:
+                logger.debug("Detected Claude Code CLI via SESSION_ID")
+                return LLMProviderType.CLAUDE_CODE_CLI
 
         # Check for anthropic package in user site-packages (indicates Claude Code)
         # This is a heuristic - Claude Code often has anthropic installed
@@ -91,8 +110,13 @@ class LLMProvider:
             import anthropic
             # If we can import but no API key, likely in Claude Code
             if not os.environ.get('ANTHROPIC_API_KEY'):
-                logger.debug("Detected Claude Code via anthropic package without API key")
-                return LLMProviderType.CLAUDE_CODE
+                # Try to determine Web vs CLI
+                if self._is_web_environment():
+                    logger.debug("Detected Claude Code Web via anthropic package")
+                    return LLMProviderType.CLAUDE_CODE_WEB
+                else:
+                    logger.debug("Detected Claude Code CLI via anthropic package")
+                    return LLMProviderType.CLAUDE_CODE_CLI
         except ImportError:
             pass
 
@@ -105,10 +129,52 @@ class LLMProvider:
             logger.debug("Detected OpenAI API via API key")
             return LLMProviderType.OPENAI_API
 
-        # Default to Claude Code if we're uncertain
-        # (better to assume we're in Claude Code than fail)
-        logger.debug("No specific environment detected, defaulting to Claude Code")
-        return LLMProviderType.CLAUDE_CODE
+        # Default to Claude Code Web if we're uncertain
+        # (better to assume we're in Claude Code Web - more restrictive)
+        logger.debug("No specific environment detected, defaulting to Claude Code Web")
+        return LLMProviderType.CLAUDE_CODE_WEB
+
+    def _is_web_environment(self) -> bool:
+        """
+        Detect if we're running in Claude Code Web (browser) vs CLI.
+
+        Web environment characteristics:
+        - Limited environment variables
+        - No GPU/CUDA typically
+        - Shouldn't do model training
+        - Browser-based execution
+
+        Returns:
+            True if web environment, False if CLI
+        """
+        # Check for typical CLI-only environment variables
+        cli_indicators = [
+            'SSH_CONNECTION',  # SSH session (CLI)
+            'DISPLAY',         # X11 display (CLI/desktop)
+            'TMUX',            # tmux session (CLI)
+            'STY',             # screen session (CLI)
+        ]
+
+        for indicator in cli_indicators:
+            if os.environ.get(indicator):
+                return False  # Found CLI indicator
+
+        # Check for GPU/CUDA (usually only in CLI/local)
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return False  # Has GPU, likely CLI
+        except ImportError:
+            pass
+
+        # Check terminal characteristics
+        # Web typically has limited TERM
+        term = os.environ.get('TERM', '')
+        if term in ['xterm', 'xterm-256color', 'screen', 'tmux-256color']:
+            return False  # Full terminal, likely CLI
+
+        # Default to Web (more conservative)
+        return True
 
     def generate(
         self,
@@ -133,7 +199,10 @@ class LLMProvider:
         """
         logger.debug(f"Generating with {self.provider_type.value}: {prompt[:100]}...")
 
-        if self.provider_type == LLMProviderType.CLAUDE_CODE:
+        # Handle all Claude Code variants
+        if self.provider_type in [LLMProviderType.CLAUDE_CODE,
+                                   LLMProviderType.CLAUDE_CODE_WEB,
+                                   LLMProviderType.CLAUDE_CODE_CLI]:
             return self._generate_claude_code(prompt, system, max_tokens, temperature)
         elif self.provider_type == LLMProviderType.ANTHROPIC_API:
             return self._generate_anthropic(prompt, system, max_tokens, temperature)

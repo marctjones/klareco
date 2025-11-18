@@ -16,8 +16,12 @@ venv.bak/
 .idea/
 .vscode/
 
-# Data
-data/
+# Data - ignore large files but keep vocabulary modules
+data/*
+!data/__init__.py
+!data/extracted_vocabulary.py
+!data/merged_vocabulary.py
+!data/README.md
 models/
 *.log
 

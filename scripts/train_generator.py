@@ -102,8 +102,11 @@ def main():
     parser.add_argument("--learning-rate", type=float, default=0.001)
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--embed-dim", type=int, default=128)
+    parser.add_argument("--checkpoint-dir", type=Path, default=Path("models/generator_checkpoints"))
+    parser.add_argument("--load-checkpoint", type=Path, default=None, help="Path to a checkpoint to resume training from.")
     args = parser.parse_args()
 
+    args.checkpoint_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device: {device}")
 
@@ -111,25 +114,43 @@ def main():
     vocab_size = 1000 # Placeholder
     
     # Instantiate dataset and dataloader
-    # Note: The custom collate_fn would be needed for batching graphs.
     dataset = SynthesisDataset(args.dataset_path)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True) # collate_fn would be needed here
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
-    # Instantiate model
+    # Instantiate model and optimizer
     model = Graph2SeqGenerator(
         vocab_size=vocab_size,
         embed_dim=args.embed_dim,
         hidden_dim=args.hidden_dim,
         gnn_out_dim=args.hidden_dim
     ).to(device)
-
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    criterion = torch.nn.CrossEntropyLoss(ignore_index=0) # Assuming 0 is a padding token
+    criterion = torch.nn.CrossEntropyLoss(ignore_index=0)
+
+    start_epoch = 1
+    if args.load_checkpoint and args.load_checkpoint.exists():
+        logging.info(f"Loading checkpoint from {args.load_checkpoint}")
+        checkpoint = torch.load(args.load_checkpoint, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        logging.info(f"Resuming training from epoch {start_epoch}")
 
     logging.info("Starting training...")
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         loss = train(model, dataloader, optimizer, criterion, device)
         logging.info(f"Epoch {epoch}/{args.epochs}, Loss: {loss:.4f}")
+
+        # Save checkpoint
+        checkpoint_path = args.checkpoint_dir / f"checkpoint_epoch_{epoch}.pt"
+        logging.info(f"Saving checkpoint to {checkpoint_path}")
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': loss,
+        }, checkpoint_path)
+        
     logging.info("Training complete.")
 
 

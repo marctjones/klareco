@@ -78,9 +78,11 @@ def run_pipeline(question: str, retriever, model, converter, device):
     
     answer = "(Model output is not implemented yet as the model is not trained)"
 
-    logging.info("5. Final Answer:")
-    print(answer)
-    
+    logging.info("5. Synthesizing Final Answer...")
+    # The deparsing step will be called here once the model is trained.
+    # For now, we return a placeholder.
+    answer = "[Placeholder: Model is not trained. No answer generated.]"
+
     return answer
 
 
@@ -110,7 +112,11 @@ def main():
     logging.info("Components loaded.")
     
     # --- Run pipeline ---
-    run_pipeline(args.question, retriever, model, converter, device)
+    final_answer = run_pipeline(args.question, retriever, model, converter, device)
+    
+    print("\n--- Klareco Respondo ---")
+    print(final_answer)
+    print("------------------------")
 
 
 if __name__ == "__main__":

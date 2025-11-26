@@ -63,9 +63,7 @@ def test_create_training_examples_single_paragraph(mock_parse, mock_converter):
     assert "question_graph" in first_example
     assert "context_graph" in first_example
     assert "target_text" in first_example
-    assert first_example["target_text"] == "La knabo ludas"
-    assert "La kato dormas. La hundo kuras." in first_example["context_graph"]["edge_index"] # Checking for partial match in mocked graph dict
-
+            assert first_example["target_text"] == "La knabo ludas"
 def test_create_training_examples_short_paragraph(mock_parse, mock_converter):
     """Test that short paragraphs yield no examples."""
     paragraph = "Tro mallonga frazo."

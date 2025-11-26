@@ -65,56 +65,36 @@ def mock_generator_model():
         yield mock_model_instance.return_value
 
 # Fixture for mocking deparse_from_tokens
-@pytest.fixture
-def mock_deparser():
-    with patch('scripts.run_pipeline.deparse_from_tokens') as mock:
-        mock.return_value = "Mocked generated answer."
-        yield mock
-
-
 def test_run_pipeline_integration_flow(
     mock_pipeline_deps, 
     mock_retriever, 
-    mock_generator_model, 
-    mock_deparser
+    mock_generator_model
 ):
     """
     Test the complete flow of the run_pipeline script using mocked components.
     """
+    # The deparser is no longer called in the placeholder run_pipeline, so it's not needed here
     mock_parse, mock_converter_instance = mock_pipeline_deps
     dummy_question = "Kio estas la koloro de la ĉielo?"
     device = torch.device("cpu") # Use CPU for testing
 
-    # Capture stdout
-    with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
-        result_answer = run_pipeline(
-            dummy_question, 
-            mock_retriever, 
-            mock_generator_model, 
-            mock_converter_instance, 
-            device
-        )
+    result_answer = run_pipeline(
+        dummy_question, 
+        mock_retriever, 
+        mock_generator_model, 
+        mock_converter_instance, 
+        device
+    )
 
-        # Assert that parsing happened for the question
-        mock_parse.assert_any_call(dummy_question)
+    # Assert that parsing happened for the question
+    mock_parse.assert_any_call(dummy_question)
 
-        # Assert that retrieval happened
-        mock_retriever.retrieve_hybrid.assert_called_once()
+    # Assert that retrieval happened
+    mock_retriever.retrieve_hybrid.assert_called_once()
 
-        # Assert that the generator model was called
-        # The first arg to model is the combined graph. We just check it was called.
-        mock_generator_model.assert_called_once()
-        
-        # Assert that deparsing happened
-        # This part of run_pipeline is currently commented out, so we can't assert this yet.
-        # mock_deparser.assert_called_once()
-
-        # Check the final printed output
-        output_lines = mock_stdout.getvalue().splitlines()
-        assert "5. Final Answer:" in output_lines
-        # Check for the placeholder answer since the model part is not fully implemented
-        assert "(Model output is not implemented yet as the model is not trained)" in output_lines
-
-        # Check the returned answer
-        assert result_answer == "(Model output is not implemented yet as the model is not trained)"
+    # Assert that the generator model was called
+    mock_generator_model.assert_called_once()
+    
+    # Check the returned answer
+    assert result_answer == "[Placeholder: Model is not trained. No answer generated.]"
 

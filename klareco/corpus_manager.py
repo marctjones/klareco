@@ -286,26 +286,26 @@ class TextValidator:
             - message: Description of validation result
         """
         if not file_path.exists():
-            return False, 0.0, "File does not exist"
+            return False, 0.0, "Validation Error: File does not exist"
 
-        # Check file size (too small = probably metadata only)
+        # Check file size
         file_size = file_path.stat().st_size
         if file_size < 100:  # Less than 100 bytes
-            return False, 0.0, f"File too small ({file_size} bytes)"
+            return False, 0.0, f"Validation Error: File too small ({file_size} bytes)"
 
         # Read sample of lines
         with file_path.open('r', encoding='utf-8', errors='ignore') as f:
             lines = [line.strip() for line in f if line.strip()]
 
         if len(lines) < 10:
-            return False, 0.1, f"Too few lines ({len(lines)})"
+            return False, 0.1, f"Validation Error: Too few lines ({len(lines)})"
 
         # Check language on sample (first 100 lines)
         sample_text = '\n'.join(lines[:100])
         detected_lang = identify_language(sample_text)
 
         if detected_lang != 'eo':
-            return False, 0.2, f"Language detected as '{detected_lang}', not Esperanto"
+            return False, 0.2, f"Validation Error: Language detected as '{detected_lang}', not 'eo'"
 
         # Try parsing sample sentences
         parse_successes = 0
@@ -324,7 +324,7 @@ class TextValidator:
                 pass
 
         if parse_attempts == 0:
-            return False, 0.3, "No parseable sentences found"
+            return False, 0.3, "Validation Error: No parseable sentences found"
 
         success_rate = parse_successes / parse_attempts
 
@@ -334,7 +334,7 @@ class TextValidator:
         elif success_rate >= 0.4:
             return True, success_rate, f"Acceptable Esperanto ({success_rate:.1%} parse rate, may need cleaning)"
         else:
-            return False, success_rate, f"Poor parse rate ({success_rate:.1%}), likely not clean Esperanto"
+            return False, success_rate, f"Validation Error: Poor parse rate ({success_rate:.1%})"
 
 
 class CorpusManager:

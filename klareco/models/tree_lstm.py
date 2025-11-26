@@ -291,6 +291,12 @@ class TreeLSTMEncoder(nn.Module):
         """
         super().__init__()
 
+        # Store dimensions
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+
         # Morpheme embedding layer
         self.embed = nn.Embedding(vocab_size, embed_dim)
 

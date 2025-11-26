@@ -41,3 +41,7 @@ develop-eggs/
 .installed.cfg
 lib/
 lib64/
+
+.gemini/
+gha-creds-*.json
+.model_backups/

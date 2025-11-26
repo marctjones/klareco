@@ -43,7 +43,7 @@ class RAGExpert(Expert):
     def __init__(
         self,
         retriever: KlarecoRetriever,
-        k: int = 5,
+        k: int = 30,
         min_score_threshold: float = 0.5
     ):
         """
@@ -51,7 +51,7 @@ class RAGExpert(Expert):
 
         Args:
             retriever: Initialized KlarecoRetriever instance
-            k: Number of results to retrieve per query
+            k: Number of results to retrieve per query (default: 30, models trained with k=75)
             min_score_threshold: Minimum similarity score to include result
         """
         super().__init__("RAG Expert")

@@ -91,7 +91,7 @@ class TestCorpusManagementCLI(unittest.TestCase):
                 test_file,
                 title="Test Book"
             )
-            self.assertTrue(success1)
+            self.assertTrue(success1, msg=message)
 
             # Add second time - should fail
             success2, message2, text_id2 = manager.add_text_from_file(

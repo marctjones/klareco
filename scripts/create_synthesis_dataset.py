@@ -31,33 +31,22 @@ def generate_question_from_ast(ast_node):
     Analyzes an AST and generates a rule-based question.
     Returns the question string.
     """
-    # Rule: Look for a direct object (Akuzativo) to ask "Kion?" (What?)
-    # This is a simplified check. A real implementation would traverse the tree.
-    if "OBJ" in str(ast_node): # A crude but simple check for an object
-        # Find the verb to make the question more natural
-        verb = "faris" # default verb "did"
-        # A real implementation would extract the actual verb from the AST
-        return f"Kion {verb} la subjekto?" # "What did the subject do?"
-
-    # Rule: Look for a subject to ask "Kiu?" (Who?)
+    if "OBJ" in str(ast_node):
+        return "Kion faris la subjekto?"
     if "SUBJ" in str(ast_node):
-        return "Kiu faris tion?" # "Who did that?"
-
-    # Fallback rule
-    return "Kio okazis?" # "What happened?"
+        return "Kiu faris tion?"
+    return "Kio okazis?"
 
 def create_training_examples(paragraph: str, converter: ASTToGraphConverter):
     """
     From a paragraph of text, create one or more training examples.
     Yields each valid example.
     """
-    # A more robust sentence splitter would be better, e.g., using NLTK.
     sentences = [s.strip() for s in paragraph.split('.') if len(s.strip()) > 3]
     if len(sentences) < 2:
         return
 
     for i, target_sentence in enumerate(sentences):
-        # The rest of the sentences form the context.
         context_sentences = sentences[:i] + sentences[i+1:]
         if not context_sentences:
             continue
@@ -65,15 +54,11 @@ def create_training_examples(paragraph: str, converter: ASTToGraphConverter):
         context_text = ". ".join(context_sentences) + "."
 
         try:
-            # Generate a question based on the target sentence's structure
             target_ast = parse(target_sentence)
             question_text = generate_question_from_ast(target_ast)
-
-            # Parse all components into ASTs
             question_ast = parse(question_text)
             context_ast = parse(context_text)
             
-            # Convert ASTs to graphs
             question_graph = converter.ast_to_graph(question_ast).to_dict()
             context_graph = converter.ast_to_graph(context_ast).to_dict()
 
@@ -83,8 +68,7 @@ def create_training_examples(paragraph: str, converter: ASTToGraphConverter):
                 "target_text": target_sentence
             }
         except Exception as e:
-            # Log specific error but continue processing
-            logging.debug(f"Could not process sentence pair: {e}")
+            logging.debug(f"Could not process sentence pair in '{paragraph}': {e}")
             continue
 
 
@@ -96,7 +80,6 @@ def process_corpus(corpus_dir: Path, output_file: Path, max_examples: int):
     example_count = 0
 
     with open(output_file, 'w', encoding='utf-8') as f_out:
-        # Use sorted() to ensure deterministic order for reproducibility
         for text_file in sorted(corpus_dir.glob("*.txt")):
             if example_count >= max_examples:
                 logging.info(f"Reached max examples limit of {max_examples}.")
@@ -104,24 +87,20 @@ def process_corpus(corpus_dir: Path, output_file: Path, max_examples: int):
             
             logging.info(f"Processing file: {text_file.name}")
             with open(text_file, 'r', encoding='utf-8') as f_in:
-                # Process the file content
                 content = f_in.read()
-                # A simple paragraph splitter based on double newlines
                 paragraphs = content.split('\n\n')
 
                 for para in paragraphs:
                     if example_count >= max_examples:
                         break
                     
-                    # Basic cleaning of the paragraph
                     para = para.strip().replace('\n', ' ')
-                    if not para or len(para) < 20: # Skip very short paragraphs
+                    if not para or len(para) < 20:
                         continue
 
                     for example in create_training_examples(para, converter):
                         if example_count >= max_examples:
                             break
-                        
                         f_out.write(json.dumps(example) + '\n')
                         example_count += 1
                         if example_count % 100 == 0:
@@ -152,7 +131,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # Ensure output directory exists
     args.output_file.parent.mkdir(parents=True, exist_ok=True)
 
     logging.info("Starting dataset generation...")

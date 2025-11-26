@@ -30,11 +30,12 @@ class TestCorpusManagementCLI(unittest.TestCase):
         """Test adding a valid Esperanto text."""
         # Create valid test file
         test_file = self.test_path / "test_book.txt"
-        test_file.write_text(
-            "La hundo vidas la katon.\n" * 50 +  # 50 valid sentences
-            "Mi amas Esperanton.\n" * 50,
-            encoding='utf-8'
-        )
+        long_esperanto_text = """
+La rapida bruna vulpo saltas super la mallaborema hundo.
+Esperanto estas la internacia lingvo. Ĝi estas tre facila por lerni.
+La suno brilas kaj la birdoj kantas en la arboj.
+""" * 35
+        test_file.write_text(long_esperanto_text, encoding='utf-8')
 
         # Add to corpus
         with CorpusManager(self.test_path) as manager:
@@ -80,18 +81,20 @@ class TestCorpusManagementCLI(unittest.TestCase):
         """Test that duplicate filenames are rejected."""
         # Create test file
         test_file = self.test_path / "test_book.txt"
-        test_file.write_text(
-            "La hundo vidas la katon.\n" * 100,
-            encoding='utf-8'
-        )
+        long_esperanto_text = """
+La rapida bruna vulpo saltas super la mallaborema hundo.
+Esperanto estas la internacia lingvo. Ĝi estas tre facila por lerni.
+La suno brilas kaj la birdoj kantas en la arboj.
+""" * 35
+        test_file.write_text(long_esperanto_text, encoding='utf-8')
 
         with CorpusManager(self.test_path) as manager:
             # Add first time - should succeed
-            success1, _, text_id1 = manager.add_text_from_file(
+            success1, message1, text_id1 = manager.add_text_from_file(
                 test_file,
                 title="Test Book"
             )
-            self.assertTrue(success1, msg=message)
+            self.assertTrue(success1, msg=message1)
 
             # Add second time - should fail
             success2, message2, text_id2 = manager.add_text_from_file(
@@ -257,11 +260,12 @@ class TestTextValidator(unittest.TestCase):
     def test_validate_valid_esperanto(self):
         """Test validating a valid Esperanto file."""
         test_file = self.test_path / "valid.txt"
-        test_file.write_text(
-            "La hundo vidas la katon.\n" * 50 +
-            "Mi amas Esperanton.\n" * 50,
-            encoding='utf-8'
-        )
+        long_esperanto_text = """
+La rapida bruna vulpo saltas super la mallaborema hundo.
+Esperanto estas la internacia lingvo. Ĝi estas tre facila por lerni.
+La suno brilas kaj la birdoj kantas en la arboj.
+""" * 20
+        test_file.write_text(long_esperanto_text, encoding='utf-8')
 
         is_valid, score, message = self.validator.validate_file(test_file)
 

@@ -77,9 +77,22 @@ def process_corpus(corpus_dir: Path, output_file: Path, max_examples: int):
     Process all text files in the corpus directory and generate the dataset.
     """
     converter = ASTToGraphConverter()
-    example_count = 0
+    
+    # Check for existing examples to make the script resumable
+    existing_examples = 0
+    if output_file.exists():
+        with open(output_file, 'r', encoding='utf-8') as f:
+            existing_examples = sum(1 for line in f)
+        logging.info(f"Resuming. Found {existing_examples} existing examples in output file.")
 
-    with open(output_file, 'w', encoding='utf-8') as f_out:
+    example_count = existing_examples
+
+    if example_count >= max_examples:
+        logging.info("Max examples limit already met or exceeded by existing file. Exiting.")
+        return
+
+    with open(output_file, 'a', encoding='utf-8') as f_out:
+        # Use sorted() to ensure deterministic order for reproducibility
         for text_file in sorted(corpus_dir.glob("*.txt")):
             if example_count >= max_examples:
                 logging.info(f"Reached max examples limit of {max_examples}.")
@@ -104,7 +117,7 @@ def process_corpus(corpus_dir: Path, output_file: Path, max_examples: int):
                         f_out.write(json.dumps(example) + '\n')
                         example_count += 1
                         if example_count % 100 == 0:
-                            logging.info(f"Generated {example_count} examples...")
+                            logging.info(f"Generated {example_count} total examples...")
                         
     logging.info(f"Done. Total examples generated: {example_count}")
 

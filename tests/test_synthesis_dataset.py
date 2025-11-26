@@ -63,33 +63,34 @@ def test_create_training_examples_single_paragraph(mock_parse, mock_converter):
     assert "question_graph" in first_example
     assert "context_graph" in first_example
     assert "target_text" in first_example
-            assert first_example["target_text"] == "La knabo ludas"
+    assert first_example["target_text"] == "La knabo ludas"
+
 def test_create_training_examples_short_paragraph(mock_parse, mock_converter):
     """Test that short paragraphs yield no examples."""
     paragraph = "Tro mallonga frazo."
     examples = list(create_training_examples(paragraph, mock_converter))
     assert len(examples) == 0
 
-    def test_process_corpus_limit(tmp_path, mock_parse, mock_converter):
-        """Test that process_corpus respects max_examples."""
-        # Create dummy corpus files with simple sentences
-        (tmp_path / "corpus").mkdir()
-        (tmp_path / "corpus" / "file1.txt").write_text("Unua frazo. Dua frazo. Tria frazo.\n\nDua paragrafo unua frazo. Dua paragrafo dua frazo.")
-        (tmp_path / "corpus" / "file2.txt").write_text("Tria paragrafo unua frazo. Tria paragrafo dua frazo.")
+def test_process_corpus_limit(tmp_path, mock_parse, mock_converter):
+    """Test that process_corpus respects max_examples."""
+    # Create dummy corpus files with simple sentences
+    (tmp_path / "corpus").mkdir()
+    (tmp_path / "corpus" / "file1.txt").write_text("Unua frazo. Dua frazo. Tria frazo.\n\nDua paragrafo unua frazo. Dua paragrafo dua frazo.")
+    (tmp_path / "corpus" / "file2.txt").write_text("Tria paragrafo unua frazo. Tria paragrafo dua frazo.")
 
-        output_file = tmp_path / "output.jsonl"
-        
-        # Paragraph 1 has 3 sentences -> 3 examples
-        # Paragraph 2 has 2 sentences -> 2 examples
-        # Paragraph 3 has 2 sentences -> 2 examples
-        # Total possible = 7 examples.
-        
-        # Limit to 4 examples
-        process_corpus(tmp_path / "corpus", output_file, max_examples=4)
-        
-        with open(output_file, 'r') as f:
-            lines = f.readlines()
-        assert len(lines) == 4
+    output_file = tmp_path / "output.jsonl"
+    
+    # Paragraph 1 has 3 sentences -> 3 examples
+    # Paragraph 2 has 2 sentences -> 2 examples
+    # Paragraph 3 has 2 sentences -> 2 examples
+    # Total possible = 7 examples.
+    
+    # Limit to 4 examples
+    process_corpus(tmp_path / "corpus", output_file, max_examples=4)
+    
+    with open(output_file, 'r') as f:
+        lines = f.readlines()
+    assert len(lines) == 4
 
 def test_process_corpus_file_processing(tmp_path, mock_parse, mock_converter):
     """Test that process_corpus processes files and produces valid JSONL."""

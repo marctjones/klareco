@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e # Exit immediately if a command exits with a non-zero status.
 #
 # This script runs the dataset synthesis process for the new Graph2Seq model.
 # It is designed to be run in the background and can be restarted. If the
@@ -13,6 +14,8 @@ mkdir -p logs
 
 LOG_FILE="logs/dataset_generation.log"
 
+echo "Attempting to activate conda environment..."
+
 # Activate conda environment (best effort)
 # This makes the script more portable for different setups.
 if [ -d "env" ]; then
@@ -20,6 +23,8 @@ if [ -d "env" ]; then
 elif command -v conda &> /dev/null && conda env list | grep -q 'klareco-env'; then
     conda activate klareco-env
 fi
+
+echo "Conda environment activation attempted. Proceeding..."
 
 echo "Starting dataset generation for 50,000 examples..."
 echo "Progress will be logged to: $LOG_FILE"

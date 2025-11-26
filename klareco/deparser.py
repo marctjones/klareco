@@ -117,3 +117,9 @@ if __name__ == '__main__':
     
     # Verification
     print(f"\nĈu rekonstruo egalas originalon? {deparsed_text.lower().startswith(sentence.lower())}")
+
+
+def deparse_from_tokens(tokens: list[str]) -> str:
+    """A simple deparser that joins a list of tokens."""
+    return " ".join(tokens)
+

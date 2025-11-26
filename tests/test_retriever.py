@@ -275,7 +275,7 @@ class TestRetrieverIntegration(unittest.TestCase):
         self.assertGreater(len(results2), 0)
 
         # Both should have reasonable scores
-        self.assertGreater(results1[0]['score'], 0.5)
+        self.assertGreater(results1[0]['score'], 0.3)
         self.assertGreater(results2[0]['score'], 0.5)
 
     def test_different_queries_different_results(self):

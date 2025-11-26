@@ -290,7 +290,7 @@ class TextValidator:
 
         # Check file size (too small = probably metadata only)
         file_size = file_path.stat().st_size
-        if file_size < 1000:  # Less than 1KB
+        if file_size < 100:  # Less than 100 bytes
             return False, 0.0, f"File too small ({file_size} bytes)"
 
         # Read sample of lines

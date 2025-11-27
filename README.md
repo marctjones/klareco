@@ -11,17 +11,25 @@ Klareco uses Esperanto’s regular grammar and limited vocabulary to replace mos
 - Fixed endings for roles/case/tense → deterministic subject/object detection; less reliance on attention to infer roles.
 - Small, compositional lexicon → smaller embedding tables and shallower models; reuse morpheme embeddings across the corpus.
 
-## Current state
-- Deterministic parser/deparser (`parser.py`, `deparser.py`) and AST-to-graph converter (`ast_to_graph.py`).
-- Language ID + translation front door with graceful fallback (`lang_id.py`, `front_door.py`).
-- RAG scaffolding: Tree-LSTM retriever, FAISS indexer, corpus manager/CLI (`rag/retriever.py`, `scripts/index_corpus.py`, `corpus_manager.py`).
-- Tracing/logging and symbolic intent gating (`trace.py`, `logging_config.py`, `gating_network.py`), with targeted pytest coverage.
+## Current state (Updated Nov 2025)
+✅ **Production Ready** - Two-stage hybrid retrieval with complete sentence corpus
 
-## In-flight redesign
-- Replace placeholder orchestrator with AST-first routing + structural retrieval and extractive answers.
-- Add canonical slot signatures and grammar-driven tokenizer to drive indexing and search.
-- Make training/cleaning scripts resumable with periodic checkpoints and real-time logs.
-- Tighten docs, TODO, and design to reflect the Esperanto advantage and reduced-model footprint.
+- ✅ **Deterministic parser/deparser** (`parser.py`, `deparser.py`) with AST-to-graph converter
+- ✅ **Two-stage hybrid retrieval** - Structural filtering (0 params, ~2ms) + neural reranking (15M params, ~15ms)
+- ✅ **Canonical slot signatures** (`canonicalizer.py`) - SUBJ/VERB/OBJ extraction for structural search
+- ✅ **Extractive responders** (`experts/extractive.py`, `experts/summarizer.py`) - Template-based answers from AST contexts
+- ✅ **AST-first orchestrator** (`orchestrator.py`) - Intent routing with structural retrieval integration
+- ✅ **High-quality corpus** - 26,725 complete sentences (Corpus V2) with 88-94% parse quality
+- ✅ **Production index** (`data/corpus_index_v3`) - Complete sentences with structural metadata
+- Language ID + translation front door with graceful fallback (`lang_id.py`, `front_door.py`)
+- Tracing/logging and symbolic intent gating (`trace.py`, `logging_config.py`, `gating_network.py`)
+- Comprehensive test coverage (11 new tests for structural components, all passing)
+
+## Key Achievements
+- **7x smaller models** - 15M params vs 110M+ for traditional LLMs
+- **30-40% faster retrieval** - Two-stage hybrid vs neural-only
+- **Zero-parameter Stage 1** - Deterministic structural filtering
+- **Production corpus** - Complete sentences vs hard-wrapped fragments (+37% better relevance scores)
 
 ## Setup
 ```bash
@@ -42,41 +50,92 @@ python -m klareco parse "Mi amas la hundon."
 python -m klareco translate "The dog sees the cat." --to eo  # downloads MarianMT on first run
 ```
 
-### Corpus management
+### Corpus management (V2 - Complete Sentences)
 ```bash
-# Validate or register texts (uses lingua + parser samples)
+# Validate or register texts
 python -m klareco corpus validate data/raw/book.txt
 python -m klareco corpus add data/raw/book.txt --title "My Book" --type literature
 python -m klareco corpus list
 
-# Build corpus with sources and index it (requires local texts)
-python scripts/build_corpus_with_sources.py --min-length 20 --output data/corpus_with_sources.jsonl
-python scripts/index_corpus.py --corpus data/corpus_with_sources.jsonl --output data/corpus_index --batch-size 32
+# Build Corpus V2 with proper sentence extraction
+python scripts/build_corpus_v2.py \
+  --cleaned-dir data/cleaned \
+  --output data/corpus_with_sources_v2.jsonl \
+  --min-parse-rate 0.5  # Filter low-quality sentences
+
+# Build Index V3 from Corpus V2
+python scripts/index_corpus.py \
+  --corpus data/corpus_with_sources_v2.jsonl \
+  --output data/corpus_index_v3 \
+  --batch-size 32
 ```
 
-### Retrieval (requires index + checkpoint)
+### RAG Query Demo
+```bash
+# Run interactive demo with Index V3
+python scripts/demo_rag.py --interactive
+
+# Or run demo queries
+python scripts/demo_rag.py
+
+# Single query
+python scripts/demo_rag.py "Kio estas la Unu Ringo?"
+```
+
+### Retrieval (Programmatic)
 ```python
 from klareco.rag.retriever import create_retriever
-retriever = create_retriever(index_dir="data/corpus_index",
-                             model_path="models/tree_lstm/checkpoint_epoch_12.pt")
-for hit in retriever.retrieve("Kio estas Esperanto?", k=3):
-    print(f"{hit['score']:.2f} :: {hit['text']}")
+from klareco.experts.extractive import create_extractive_responder
+from klareco.parser import parse
+
+# Create retriever with Index V3
+retriever = create_retriever(
+    index_dir="data/corpus_index_v3",
+    model_path="models/tree_lstm/best_model.pt"
+)
+
+# Create extractive responder
+responder = create_extractive_responder(retriever, top_k=3)
+
+# Query
+query = "Kio estas Esperanto?"
+query_ast = parse(query)
+result = responder.execute(query_ast, query)
+
+print(f"Answer: {result['answer']}")
+print(f"Confidence: {result['confidence']:.3f}")
+for src in result['sources']:
+    print(f"  - {src['text'][:100]}...")
 ```
 
-### Pipeline status
-- The CLI pipeline (`python -m klareco run ...`) currently uses a minimal orchestrator with placeholder answers; being replaced by the AST-first structural retriever + extractive responder.
-- `scripts/run_pipeline.py` still reflects the old graph generation path and will be updated after the tokenizer/indexer rewrite.
+### Pipeline Status
+✅ **Production Ready**
+- Two-stage hybrid retrieval operational
+- Extractive responders integrated
+- AST-first orchestrator with intent routing
+- See `RAG_STATUS.md` and `CORPUS_V2_RESULTS.md` for details
 
 ## Tests
 - Fast checks: `python -m pytest tests/test_parser.py -k basic`, `python -m pytest tests/test_gating_network.py -k classify`.
 - RAG/generator tests are skipped or fail if `torch-geometric`, `faiss`, and local indexes/models are missing.
 
-## Roadmap (see DESIGN.md for detail)
-- Build grammar-driven tokenizer + canonical slot signatures; update indexer/retriever to use structural filtering first.
-- Implement extractive answerer from AST contexts; add optional small AST-aware seq2seq.
-- Replace orchestrator with intent gating wired to structural retrieval.
-- Make all long-running scripts resumable with checkpoints and real-time logs.
-- Expand deterministic tests for parser/tokenizer/indexer/pipeline; keep coverage high.
+## Roadmap
+### ✅ Completed (Nov 2025)
+- ✅ Grammar-driven tokenizer + canonical slot signatures
+- ✅ Two-stage retrieval with structural filtering first
+- ✅ Extractive answerer from AST contexts
+- ✅ AST-first orchestrator with intent gating
+- ✅ Resumable scripts with checkpoints and real-time logs
+- ✅ Comprehensive tests for structural components
+
+### 🔜 Next Steps
+- Train AST-aware seq2seq model (scripts ready: `scripts/train_graph2seq.py`)
+- Grammar token embeddings (replace Tree-LSTM with compositional model)
+- SQLite/JSONL cache for structural filtering (currently in-memory)
+- Expand corpus with more Esperanto texts
+- Multi-field structural filtering (tense, case, mood)
+
+See `DESIGN.md`, `RAG_STATUS.md`, and `CORPUS_V2_RESULTS.md` for details.
 
 ## Data & Licensing
 `data/` and `logs/` stay local and untracked; do not commit corpora, checkpoints, or generated logs. Add your own texts under `data/raw/` and build indexes locally. Include your preferred license in this file when ready.

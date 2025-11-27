@@ -17,14 +17,27 @@ import logging
 import json
 from pathlib import Path
 import sys
+from typing import Dict # Added this import
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from klareco.parser import parse
 from klareco.ast_to_graph import ASTToGraphConverter
+from torch_geometric.data import Data # Import Data
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def graph_to_serializable_dict(data_obj: Data) -> Dict:
+    """
+    Converts a PyTorch Geometric Data object to a JSON-serializable dictionary.
+    """
+    return {
+        "x": data_obj.x.tolist(),  # Node features
+        "edge_index": data_obj.edge_index.tolist(),  # Edge connections
+        "edge_attr": data_obj.edge_attr.tolist(),  # Edge types
+        "num_nodes": data_obj.num_nodes,
+    }
 
 def generate_question_from_ast(ast_node):
     """
@@ -59,8 +72,14 @@ def create_training_examples(paragraph: str, converter: ASTToGraphConverter):
             question_ast = parse(question_text)
             context_ast = parse(context_text)
             
-            question_graph = converter.ast_to_graph(question_ast).to_dict()
-            context_graph = converter.ast_to_graph(context_ast).to_dict()
+            question_ast = parse(question_text)
+            context_ast = parse(context_text)
+            
+            question_graph_data = converter.ast_to_graph(question_ast)
+            context_graph_data = converter.ast_to_graph(context_ast)
+            
+            question_graph = graph_to_serializable_dict(question_graph_data)
+            context_graph = graph_to_serializable_dict(context_graph_data)
 
             yield {
                 "question_graph": question_graph,

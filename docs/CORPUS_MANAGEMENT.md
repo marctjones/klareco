@@ -1,6 +1,6 @@
 # Corpus Management System
 
-Complete system for managing Esperanto texts with automatic validation, cleaning, and incremental indexing.
+Complete system for managing Esperanto texts with automatic validation, cleaning, and incremental indexing. Long-running steps (cleaning, building JSONL, indexing) must be resumable via checkpoints and emit line-buffered logs to stdout and rotating files so runs can be monitored or restarted without losing progress.
 
 ## Overview
 

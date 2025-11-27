@@ -1,21 +1,25 @@
-# Klareco RAG System Documentation
+# Klareco RAG System (Esperanto-First, AST-Driven)
+
+> Status: being rewritten to prioritize structural retrieval and extractive answers. Legacy Tree-LSTM details remain for reference; new work leans on grammar-driven signatures first, with small rerankers optional.
 
 ## Overview
 
-The Klareco RAG (Retrieval-Augmented Generation) system provides semantic search over Esperanto text using Graph Neural Network embeddings. Unlike keyword-based search, it understands the structural and semantic relationships in language through Tree-LSTM encodings of parsed ASTs.
+The Klareco RAG system exploits Esperanto’s regular grammar to minimize learned components. Queries and documents are parsed to ASTs; slot-based signatures (SUBJ/VERB/OBJ + modifiers + tense/case) provide deterministic filtering. A small neural encoder (Tree-LSTM or shallow transformer) can rerank only the short candidate list. Answers default to extractive/template generation from the retrieved ASTs, with an optional lightweight AST-aware seq2seq for abstraction.
 
-## Architecture
+## Architecture (current direction)
 
 ```
-Query (Esperanto)
+Query (Esperanto or translated)
     ↓
-Parser → AST
+Parser → AST with roles/case/tense + morphemes
     ↓
-Tree-LSTM Encoder → 512-dim embedding
+Canonical signatures (SUBJ/VERB/OBJ + modifiers) + grammar tokens
     ↓
-FAISS Index Search (cosine similarity)
+Stage 1: structural filter (signatures, roots, roles) over indexed metadata
     ↓
-Retrieved sentences with scores
+Stage 2: optional small encoder → FAISS rerank on a small candidate set
+    ↓
+Extractive/template answerer (optional AST-aware seq2seq for abstraction)
 ```
 
 ### Key Components

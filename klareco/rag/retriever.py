@@ -16,6 +16,8 @@ import torch
 from klareco.parser import parse
 from klareco.models.tree_lstm import TreeLSTMEncoder
 from klareco.ast_to_graph import ASTToGraphConverter
+from klareco.structural_index import rank_candidates_by_slot_overlap
+from klareco.canonicalizer import canonicalize_sentence
 
 
 logger = logging.getLogger(__name__)
@@ -193,7 +195,8 @@ class KlarecoRetriever:
         self,
         ast: Dict[str, Any],
         k: int = 5,
-        return_scores: bool = True
+        return_scores: bool = True,
+        structural_candidates: int = 500,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve top-k similar sentences for AST query.
@@ -202,39 +205,59 @@ class KlarecoRetriever:
             ast: Parsed query AST
             k: Number of results to return
             return_scores: Include similarity scores in results
+            structural_candidates: Max candidates to consider from structural filter
 
         Returns:
             List of result dictionaries
         """
+        # Structural filter (Stage 1)
+        candidate_indices = None
+        try:
+            query_slots = canonicalize_sentence(ast)
+            query_slot_roots = {role: slot.root for role, slot in query_slots.items() if slot and slot.root}
+            has_slot_roots = any(isinstance(m, dict) and m.get('slot_roots') for m in self.metadata[:10])
+            if has_slot_roots and query_slot_roots:
+                candidate_indices = rank_candidates_by_slot_overlap(
+                    query_slot_roots,
+                    self.metadata,
+                    limit=structural_candidates,
+                )
+                if candidate_indices:
+                    logger.debug("Structural filter kept %d candidates", len(candidate_indices))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("Structural filter skipped: %s", exc)
+
         # Encode query
         query_embedding = self._encode_ast(ast)
-
-        # Ensure 2D array for FAISS
         query_embedding = query_embedding.reshape(1, -1).astype('float32')
 
-        # Search FAISS index (using inner product = cosine similarity for normalized vectors)
-        scores, indices = self.index.search(query_embedding, k)
+        if candidate_indices:
+            # Manual rerank on candidate embeddings
+            candidate_embeddings = self.embeddings[candidate_indices]
+            scores = np.dot(candidate_embeddings, query_embedding.T).flatten()
+            sorted_pairs = sorted(
+                zip(candidate_indices, scores),
+                key=lambda x: x[1],
+                reverse=True
+            )[:k]
+            indices_scores = [(idx, score) for idx, score in sorted_pairs]
+        else:
+            # Full FAISS search
+            scores, indices = self.index.search(query_embedding, k)
+            indices_scores = list(zip(indices[0], scores[0]))
 
         # Build results
         results = []
-        for i, (idx, score) in enumerate(zip(indices[0], scores[0])):
-            if idx == -1:  # FAISS returns -1 for missing results
+        for i, (idx, score) in enumerate(indices_scores, 1):
+            if idx == -1:
                 continue
-
-            # Start with all metadata fields
             result = dict(self.metadata[idx])
-
-            # Rename 'sentence' to 'text' for consistency
             if 'sentence' in result:
                 result['text'] = result.pop('sentence')
-
-            # Add retrieval-specific fields
             result['index'] = int(idx)
-            result['rank'] = i + 1
-
+            result['rank'] = i
             if return_scores:
                 result['score'] = float(score)
-
             results.append(result)
 
         return results

@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from klareco.parser import parse
 from klareco.models.tree_lstm import TreeLSTMEncoder
 from klareco.ast_to_graph import ASTToGraphConverter
+from klareco.structural_index import build_structural_metadata
 
 
 class CorpusIndexer:
@@ -157,14 +158,14 @@ class CorpusIndexer:
 
         logging.debug(f"Checkpoint saved: {self.stats['processed']}/{self.stats['total_sentences']}")
 
-    def encode_sentence(self, sentence: str) -> Optional[np.ndarray]:
-        """Encode single sentence to embedding.
+    def encode_sentence(self, sentence: str) -> Tuple[Optional[np.ndarray], Optional[Dict]]:
+        """Encode single sentence to embedding and return AST.
 
         Args:
             sentence: Esperanto sentence
 
         Returns:
-            Embedding vector or None if parsing failed
+            Tuple of (embedding vector or None, ast or None)
         """
         try:
             # Parse sentence
@@ -173,7 +174,7 @@ class CorpusIndexer:
             # Convert AST to graph
             graph_data = self.converter.ast_to_graph(ast)
             if graph_data is None:
-                return None
+                return None, ast
 
             # Move to device
             graph_data = graph_data.to(self.device)
@@ -183,11 +184,11 @@ class CorpusIndexer:
                 embedding = self.model(graph_data)
                 embedding = embedding.cpu().numpy()
 
-            return embedding
+            return embedding, ast
 
         except Exception as e:
             logging.debug(f"Failed to encode sentence: {e}")
-            return None
+            return None, None
 
     def load_corpus(self, corpus_path: str) -> Tuple[List[str], List[Dict]]:
         """Load corpus sentences from file.
@@ -276,14 +277,16 @@ class CorpusIndexer:
 
                 logging.info(f"Resuming from sentence {start_idx}")
 
-        # Open files for appending
-        metadata_file = open(self.metadata_path, 'a', encoding='utf-8')
-        failed_file = open(self.failed_path, 'a', encoding='utf-8')
+        # Open files for appending (line-buffered for live tailing)
+        metadata_file = open(self.metadata_path, 'a', encoding='utf-8', buffering=1)
+        failed_file = open(self.failed_path, 'a', encoding='utf-8', buffering=1)
 
         # Determine if we need to create or append to embeddings
         if start_idx == 0 and self.embeddings_path.exists():
             # Starting fresh, remove old file
             self.embeddings_path.unlink()
+        elif start_idx > 0 and not self.embeddings_path.exists():
+            raise FileNotFoundError("Checkpoint found but embeddings file is missing")
 
         # Process sentences in batches
         try:
@@ -296,9 +299,9 @@ class CorpusIndexer:
                         global_idx = i + j
 
                         # Encode sentence
-                        embedding = self.encode_sentence(sentence)
+                        embedding, ast = self.encode_sentence(sentence)
 
-                        if embedding is not None:
+                        if embedding is not None and ast is not None:
                             # Save embedding
                             batch_embeddings.append(embedding)
 
@@ -308,6 +311,12 @@ class CorpusIndexer:
                                 "sentence": sentence,
                                 "embedding_idx": self.stats["successful"],
                             }
+                            # Add structural fields
+                            try:
+                                metadata.update(build_structural_metadata(ast))
+                            except Exception as exc:
+                                logging.debug(f"Failed to build structural metadata: {exc}")
+
                             # Add source metadata if available
                             if source_metadata and global_idx < len(source_metadata):
                                 metadata.update(source_metadata[global_idx])

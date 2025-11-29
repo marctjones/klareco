@@ -7,18 +7,20 @@ suitable for PyTorch Geometric (PyG) processing.
 Graph Structure:
 - Nodes: Individual AST elements (words, morphemes)
 - Edges: Syntactic and morphological relationships
-- Node features: Embedded morpheme information
+- Node features: Compositional morpheme embeddings or raw morpheme indices
 - Edge types: has_subject, has_verb, has_object, modifies, etc.
 """
 
 import torch
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 import numpy as np
+from pathlib import Path
 
 try:
     from torch_geometric.data import Data
     TORCH_GEOMETRIC_AVAILABLE = True
 except ImportError:
+    Data = None  # Type hint fallback
     TORCH_GEOMETRIC_AVAILABLE = False
     print("Warning: torch-geometric not installed. Install with: pip install torch-geometric")
 
@@ -68,16 +70,34 @@ CASE_TAGS = {
 class ASTToGraphConverter:
     """Converts Klareco ASTs to PyTorch Geometric Data objects."""
 
-    def __init__(self, embed_dim: int = 128):
+    def __init__(
+        self,
+        embed_dim: int = 128,
+        compositional_embedding: Optional['CompositionalEmbedding'] = None,
+        vocab_dir: Optional[Path] = None,
+    ):
         """
         Initialize converter.
 
         Args:
             embed_dim: Dimension for morpheme embeddings
+            compositional_embedding: Optional CompositionalEmbedding instance
+            vocab_dir: Optional path to vocabulary files (loads CompositionalEmbedding)
         """
         self.embed_dim = embed_dim
         self.morpheme_vocab = {}  # Will be populated from corpus
         self.next_morpheme_id = 0
+
+        # Compositional embedding support
+        self.compositional_embedding = compositional_embedding
+        if vocab_dir and compositional_embedding is None:
+            try:
+                from klareco.embeddings.compositional import CompositionalEmbedding
+                self.compositional_embedding = CompositionalEmbedding.from_vocabulary_files(
+                    vocab_dir, embed_dim=embed_dim
+                )
+            except Exception as e:
+                print(f"Warning: Could not load compositional embeddings: {e}")
 
     def get_morpheme_id(self, morpheme: str) -> int:
         """
@@ -94,20 +114,81 @@ class ASTToGraphConverter:
             self.next_morpheme_id += 1
         return self.morpheme_vocab[morpheme]
 
-    def extract_node_features(self, node: Dict) -> torch.Tensor:
+    def extract_ending(self, node: Dict) -> Optional[str]:
         """
-        Extract feature vector from AST node.
+        Extract grammatical ending from node.
 
         Args:
             node: AST node dictionary
 
         Returns:
-            Feature tensor (270d by default)
+            Grammatical ending string or None
         """
+        finajxo = node.get('finajxo')
+        if finajxo:
+            return finajxo
+
+        # Infer from vortspeco and kazo/nombro
+        pos = node.get('vortspeco', '')
+        kazo = node.get('kazo', 'nominativo')
+        nombro = node.get('nombro', 'singularo')
+
+        if pos == 'substantivo':
+            if nombro == 'pluralo':
+                return 'ojn' if kazo == 'akuzativo' else 'oj'
+            else:
+                return 'on' if kazo == 'akuzativo' else 'o'
+        elif pos == 'adjektivo':
+            if nombro == 'pluralo':
+                return 'ajn' if kazo == 'akuzativo' else 'aj'
+            else:
+                return 'an' if kazo == 'akuzativo' else 'a'
+        elif pos == 'verbo':
+            tempo = node.get('tempo', 'as')
+            return tempo if tempo in ['as', 'is', 'os', 'us', 'u', 'i'] else 'as'
+        elif pos == 'adverbo':
+            return 'e'
+
+        return None
+
+    def extract_node_features(self, node: Dict) -> torch.Tensor:
+        """
+        Extract feature vector from AST node.
+
+        If compositional embedding is available, uses learned morpheme embeddings.
+        Otherwise, uses raw morpheme IDs with grammatical features.
+
+        Args:
+            node: AST node dictionary
+
+        Returns:
+            Feature tensor (embed_dim + 16 for compositional, 19 for legacy)
+        """
+        # Extract morpheme components
+        root = node.get('radiko', '')
+        prefix = node.get('prefikso', '')
+        suffixes = node.get('sufiksoj', [])
+        ending = self.extract_ending(node)
+
+        # Use compositional embedding if available
+        if self.compositional_embedding is not None:
+            with torch.no_grad():
+                word_emb = self.compositional_embedding.encode_word(
+                    root=root if root else '<UNK>',
+                    prefix=prefix if prefix else None,
+                    suffixes=suffixes if suffixes else None,
+                    ending=ending,
+                )
+
+            # Add grammatical features (16d)
+            grammatical_features = self._extract_grammatical_features(node)
+            features = torch.cat([word_emb, grammatical_features])
+            return features
+
+        # Legacy: raw IDs + grammatical features (19d total)
         features = []
 
-        # Root embedding ID (128d placeholder - will be replaced by actual embedding)
-        root = node.get('radiko', '')
+        # Root embedding ID
         root_id = self.get_morpheme_id(root) if root else 0
         features.append(float(root_id))
 
@@ -129,19 +210,87 @@ class ASTToGraphConverter:
         case_onehot[CASE_TAGS.get(case, 0)] = 1.0
         features.extend(case_onehot)
 
-        # Prefix ID (64d placeholder)
-        prefix = node.get('prefikso', '')
+        # Prefix ID
         prefix_id = self.get_morpheme_id(prefix) if prefix else 0
         features.append(float(prefix_id))
 
-        # Suffixes (mean of suffix IDs, 64d placeholder)
-        suffixes = node.get('sufiksoj', [])
+        # Suffixes (mean of suffix IDs)
         if suffixes:
             suffix_ids = [self.get_morpheme_id(s) for s in suffixes]
             suffix_mean = np.mean(suffix_ids)
         else:
             suffix_mean = 0.0
         features.append(suffix_mean)
+
+        # Parse status (1d: 0=success, 1=failed)
+        parse_status = 0.0 if node.get('parse_status') == 'success' else 1.0
+        features.append(parse_status)
+
+        return torch.tensor(features, dtype=torch.float)
+
+    def get_feature_dim(self) -> int:
+        """Get the dimension of node features."""
+        if self.compositional_embedding is not None:
+            # embed_dim (from compositional) + 16 (grammatical features)
+            return self.compositional_embedding.embed_dim + 16
+        else:
+            # Legacy: 19 features (root_id + 11 POS + 2 number + 2 case + prefix + suffix_mean + parse_status)
+            return 19
+
+    def _get_sentence_node_features(self) -> torch.Tensor:
+        """Get zero features for sentence root node."""
+        return torch.zeros(self.get_feature_dim())
+
+    def _get_article_node_features(self) -> torch.Tensor:
+        """Get features for article node (la)."""
+        if self.compositional_embedding is not None:
+            # Use compositional embedding for 'la'
+            with torch.no_grad():
+                word_emb = self.compositional_embedding.encode_word(
+                    root='la',
+                    prefix=None,
+                    suffixes=None,
+                    ending=None,
+                )
+            # Add grammatical features (article is POS index 8)
+            gram_features = torch.zeros(16)
+            gram_features[8] = 1.0  # artikolo POS
+            return torch.cat([word_emb, gram_features])
+        else:
+            # Legacy features
+            article_features = torch.zeros(19)
+            article_features[POS_TAGS['artikolo'] + 1] = 1.0
+            return article_features
+
+    def _extract_grammatical_features(self, node: Dict) -> torch.Tensor:
+        """
+        Extract grammatical features from node (16d).
+
+        Args:
+            node: AST node dictionary
+
+        Returns:
+            Grammatical feature tensor (16d)
+        """
+        features = []
+
+        # POS tag (one-hot, 11d)
+        pos = node.get('vortspeco', 'unknown')
+        pos_onehot = [0.0] * len(POS_TAGS)
+        pos_onehot[POS_TAGS.get(pos, POS_TAGS['unknown'])] = 1.0
+        features.extend(pos_onehot)
+
+        # Number (one-hot, 2d)
+        number = node.get('nombro', 'singularo')
+        number_onehot = [0.0] * len(NUMBER_TAGS)
+        number_onehot[NUMBER_TAGS.get(number, 0)] = 1.0
+        features.extend(number_onehot)
+
+        # Case (one-hot, 2d)
+        case = node.get('kazo', 'nominativo')
+        case_onehot = [0.0] * len(CASE_TAGS)
+        case_onehot[CASE_TAGS.get(case, 0)] = 1.0
+        features.extend(case_onehot)
 
         # Parse status (1d: 0=success, 1=failed)
         parse_status = 0.0 if node.get('parse_status') == 'success' else 1.0
@@ -176,7 +325,7 @@ class ASTToGraphConverter:
         node_id += 1
         nodes.append({'type': 'sentence', 'id': sentence_node_id})
         # Sentence node features (placeholder - aggregate of children)
-        node_features.append(torch.zeros(19))  # 19 features (excluding morpheme IDs)
+        node_features.append(self._get_sentence_node_features())
 
         # Process subject
         if ast.get('subjekto'):
@@ -211,10 +360,8 @@ class ASTToGraphConverter:
                     if 'artikolo' in subject:
                         article_node_id = node_id
                         node_id += 1
-                        article_features = torch.zeros(19)
-                        article_features[POS_TAGS['artikolo'] + 1] = 1.0  # +1 because first feature is root_id
                         nodes.append({'type': 'article', 'id': article_node_id})
-                        node_features.append(article_features)
+                        node_features.append(self._get_article_node_features())
 
                         # Edge: subject → article
                         edges.append([subject_node_id, article_node_id])
@@ -265,10 +412,8 @@ class ASTToGraphConverter:
                     if 'artikolo' in obj:
                         article_node_id = node_id
                         node_id += 1
-                        article_features = torch.zeros(19)
-                        article_features[POS_TAGS['artikolo'] + 1] = 1.0
                         nodes.append({'type': 'article', 'id': article_node_id})
-                        node_features.append(article_features)
+                        node_features.append(self._get_article_node_features())
 
                         # Edge: object → article
                         edges.append([object_node_id, article_node_id])

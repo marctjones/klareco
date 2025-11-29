@@ -33,10 +33,32 @@ from klareco import parser as eo_parser_module
 from klareco.models.tree_lstm import TreeLSTMEncoder
 from klareco.ast_to_graph import ASTToGraphConverter
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+def setup_logging(output_dir: Path):
+    """Setup logging to both console and file."""
+    log_file = output_dir / 'training.log'
+
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+
+    # File handler
+    file_handler = logging.FileHandler(log_file, mode='a')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+
+    # Setup root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)
+
+    return logging.getLogger(__name__)
+
+# Placeholder - will be properly initialized in main()
 logger = logging.getLogger(__name__)
 
 
@@ -283,6 +305,8 @@ def main():
     parser.add_argument("--max-val-samples", type=int, default=10000)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--resume", action="store_true", help="Resume from checkpoint if available")
+    parser.add_argument("--patience", type=int, default=3, help="Early stopping patience (epochs without improvement)")
 
     args = parser.parse_args()
 
@@ -290,15 +314,19 @@ def main():
     random.seed(args.seed)
     torch.manual_seed(args.seed)
 
+    # Create output directory first (needed for logging)
+    args.output.mkdir(parents=True, exist_ok=True)
+
+    # Setup logging to file and console
+    global logger
+    logger = setup_logging(args.output)
+
     # Device
     if args.device == "auto":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device(args.device)
     logger.info(f"Using device: {device}")
-
-    # Create output directory
-    args.output.mkdir(parents=True, exist_ok=True)
 
     # Load vocabularies and create embedding
     logger.info(f"Loading vocabularies from {args.vocab_dir}")
@@ -366,11 +394,32 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    # Training loop
+    # Resume from checkpoint if requested
+    start_epoch = 1
     best_val_corr = -1.0
+    checkpoint_path = args.output / 'best_model.pt'
+
+    if args.resume and checkpoint_path.exists():
+        logger.info(f"Resuming from checkpoint: {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_val_corr = checkpoint['val_correlation']
+        # Advance scheduler to correct position
+        for _ in range(checkpoint['epoch']):
+            scheduler.step()
+        logger.info(f"Resumed from epoch {checkpoint['epoch']} (val_corr={best_val_corr:.4f})")
+    elif args.resume:
+        logger.info("No checkpoint found, starting from scratch")
+
+    # Early stopping tracking
+    epochs_without_improvement = 0
+
+    # Training loop
     logger.info("Starting training...")
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         train_loss, train_corr = train_epoch(
             model, train_loader, optimizer, criterion, device, epoch
         )
@@ -384,9 +433,10 @@ def main():
             f"val_loss={val_loss:.4f}, val_corr={val_corr:.4f}"
         )
 
-        # Save best model
+        # Save best model and track early stopping
         if val_corr > best_val_corr:
             best_val_corr = val_corr
+            epochs_without_improvement = 0
             checkpoint = {
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -402,6 +452,13 @@ def main():
             }
             torch.save(checkpoint, args.output / 'best_model.pt')
             logger.info(f"  Saved best model (val_corr={val_corr:.4f})")
+        else:
+            epochs_without_improvement += 1
+            logger.info(f"  No improvement for {epochs_without_improvement} epoch(s)")
+
+            if epochs_without_improvement >= args.patience:
+                logger.info(f"Early stopping: no improvement for {args.patience} epochs")
+                break
 
     logger.info(f"\nTraining complete. Best val_correlation: {best_val_corr:.4f}")
     logger.info(f"Model saved to {args.output / 'best_model.pt'}")

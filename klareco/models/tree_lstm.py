@@ -19,6 +19,8 @@ try:
     from torch_geometric.nn import MessagePassing
     TORCH_GEOMETRIC_AVAILABLE = True
 except ImportError:
+    Data = None  # Type hint fallback
+    Batch = None
     TORCH_GEOMETRIC_AVAILABLE = False
 
 
@@ -269,25 +271,31 @@ class TreeLSTMEncoder(nn.Module):
     Complete Tree-LSTM encoder with morpheme embeddings.
 
     Wraps ChildSumTreeLSTM with input embedding layer for morphemes.
+    Supports both legacy mode (raw feature IDs) and compositional mode
+    (using CompositionalEmbedding for morpheme composition).
     """
 
     def __init__(
         self,
-        vocab_size: int,
+        vocab_size: int = 1000,
         embed_dim: int = 128,
         hidden_dim: int = 256,
         output_dim: int = 512,
-        dropout: float = 0.1
+        dropout: float = 0.1,
+        input_dim: Optional[int] = None,
+        use_compositional: bool = False,
     ):
         """
         Initialize encoder.
 
         Args:
-            vocab_size: Size of morpheme vocabulary
+            vocab_size: Size of morpheme vocabulary (legacy mode)
             embed_dim: Dimension of morpheme embeddings
             hidden_dim: Dimension of LSTM hidden state
             output_dim: Dimension of sentence embeddings
             dropout: Dropout probability
+            input_dim: Override input dimension (auto-detected if None)
+            use_compositional: If True, expects compositional embeddings as input
         """
         super().__init__()
 
@@ -296,22 +304,33 @@ class TreeLSTMEncoder(nn.Module):
         self.embed_dim = embed_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
+        self.use_compositional = use_compositional
 
-        # Morpheme embedding layer
+        # Morpheme embedding layer (legacy mode)
         self.embed = nn.Embedding(vocab_size, embed_dim)
 
-        # Feature dimension: embed_dim + POS (11) + number (2) + case (2) + parse_status (1) = embed_dim + 16
-        # But our current features are just concatenated IDs, so we need to adjust
-        # For now, use the raw feature dimension from ast_to_graph (19)
-        input_dim = 19  # From ast_to_graph.py extract_node_features
+        # Feature dimension
+        # Compositional: embed_dim + 16 (grammatical features)
+        # Legacy: 19 (root_id + 11 POS + 2 number + 2 case + prefix + suffix + parse_status)
+        if input_dim is not None:
+            self._input_dim = input_dim
+        elif use_compositional:
+            self._input_dim = embed_dim + 16
+        else:
+            self._input_dim = 19
 
         # Tree-LSTM
         self.tree_lstm = ChildSumTreeLSTM(
-            input_dim=input_dim,
+            input_dim=self._input_dim,
             hidden_dim=hidden_dim,
             output_dim=output_dim,
             dropout=dropout
         )
+
+    @property
+    def input_dim(self) -> int:
+        """Get the expected input feature dimension."""
+        return self._input_dim
 
     def forward(self, data: Data) -> torch.Tensor:
         """

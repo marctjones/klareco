@@ -18,6 +18,7 @@ from klareco.models.tree_lstm import TreeLSTMEncoder
 from klareco.ast_to_graph import ASTToGraphConverter
 from klareco.structural_index import rank_candidates_by_slot_overlap
 from klareco.canonicalizer import canonicalize_sentence
+from klareco.semantic_signatures import extract_signature, match_signature
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,8 @@ class KlarecoRetriever:
         index_dir: str,
         model_path: str,
         mode: str = 'tree_lstm',
-        device: str = 'cpu'
+        device: str = 'cpu',
+        semantic_index_dir: Optional[str] = None,
     ):
         """
         Initialize retriever.
@@ -45,6 +47,7 @@ class KlarecoRetriever:
             model_path: Path to Tree-LSTM checkpoint
             mode: 'tree_lstm' or 'baseline' encoder
             device: 'cpu' or 'cuda'
+            semantic_index_dir: Optional path to semantic signature index
         """
         self.index_dir = Path(index_dir)
         self.model_path = Path(model_path)
@@ -57,6 +60,16 @@ class KlarecoRetriever:
         self._load_metadata()
         self._load_embeddings()  # Load raw embeddings for hybrid retrieval
 
+        # Load semantic index if available
+        self.semantic_index = None
+        if semantic_index_dir:
+            self._load_semantic_index(semantic_index_dir)
+        else:
+            # Try default location
+            default_semantic_dir = Path(index_dir).parent / "semantic_index"
+            if default_semantic_dir.exists():
+                self._load_semantic_index(str(default_semantic_dir))
+
         if mode == 'tree_lstm':
             self._load_tree_lstm()
         elif mode == 'baseline':
@@ -67,6 +80,8 @@ class KlarecoRetriever:
         logger.info(f"Retriever initialized in {mode} mode")
         logger.info(f"  Corpus size: {len(self.metadata):,} sentences")
         logger.info(f"  Embedding dim: {self.index.d}")
+        if self.semantic_index:
+            logger.info(f"  Semantic index: {len(self.semantic_index.signatures):,} signatures")
 
     def _load_index(self):
         """Load FAISS index."""
@@ -98,6 +113,17 @@ class KlarecoRetriever:
 
         self.embeddings = np.load(embeddings_path)
         logger.debug(f"Loaded {self.embeddings.shape[0]:,} embeddings of dimension {self.embeddings.shape[1]}")
+
+    def _load_semantic_index(self, index_dir: str):
+        """Load semantic signature index for role-based filtering."""
+        from klareco.semantic_search import SemanticIndex
+
+        try:
+            self.semantic_index = SemanticIndex(Path(index_dir))
+            logger.debug(f"Loaded semantic index: {len(self.semantic_index.signatures):,} signatures")
+        except Exception as e:
+            logger.warning(f"Could not load semantic index: {e}")
+            self.semantic_index = None
 
     def _load_tree_lstm(self):
         """Load Tree-LSTM encoder."""
@@ -256,6 +282,139 @@ class KlarecoRetriever:
                 result['text'] = result.pop('sentence')
             result['index'] = int(idx)
             result['rank'] = i
+            if return_scores:
+                result['score'] = float(score)
+            results.append(result)
+
+        return results
+
+    def retrieve_semantic(
+        self,
+        query: str,
+        k: int = 10,
+        use_neural_rerank: bool = True,
+        return_scores: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve using semantic role filtering.
+
+        Uses (agent, action, patient) signatures to find sentences
+        where entities play the same semantic roles as in the query.
+
+        Example:
+            Query: "Kiu vidas la katon?" (Who sees the cat?)
+            Finds sentences where cat is PATIENT (being seen),
+            not where cat is AGENT (doing the seeing).
+
+        Args:
+            query: Query sentence in Esperanto
+            k: Number of results to return
+            use_neural_rerank: Whether to rerank with Tree-LSTM (default True)
+            return_scores: Include similarity scores
+
+        Returns:
+            List of result dictionaries
+        """
+        # Parse query
+        try:
+            ast = parse(query)
+        except Exception as e:
+            logger.error(f"Failed to parse query '{query}': {e}")
+            return []
+
+        return self.retrieve_semantic_from_ast(
+            ast, k=k, use_neural_rerank=use_neural_rerank, return_scores=return_scores
+        )
+
+    def retrieve_semantic_from_ast(
+        self,
+        ast: Dict[str, Any],
+        k: int = 10,
+        use_neural_rerank: bool = True,
+        return_scores: bool = True,
+        semantic_candidates: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve using semantic role filtering from AST.
+
+        Three-stage retrieval:
+        1. Semantic filter: Find sentences with matching (agent, action, patient) roles
+        2. Neural rerank: Score candidates with Tree-LSTM (optional)
+        3. Return top-k results
+
+        Args:
+            ast: Parsed query AST
+            k: Number of results to return
+            use_neural_rerank: Whether to rerank with Tree-LSTM
+            return_scores: Include similarity scores
+            semantic_candidates: Max candidates from semantic filter
+
+        Returns:
+            List of result dictionaries
+        """
+        if not self.semantic_index:
+            logger.warning("No semantic index loaded, falling back to standard retrieval")
+            return self.retrieve_from_ast(ast, k=k, return_scores=return_scores)
+
+        # Extract query signature
+        query_sig = extract_signature(ast)
+
+        if not any(query_sig):
+            logger.debug("No semantic signature extracted, falling back to standard retrieval")
+            return self.retrieve_from_ast(ast, k=k, return_scores=return_scores)
+
+        logger.debug(f"Query signature: {query_sig}")
+
+        # Stage 1: Semantic filtering
+        semantic_results = self.semantic_index.search(query_sig, k=semantic_candidates)
+
+        if not semantic_results:
+            logger.debug("No semantic matches, falling back to standard retrieval")
+            return self.retrieve_from_ast(ast, k=k, return_scores=return_scores)
+
+        logger.debug(f"Semantic filter returned {len(semantic_results)} candidates")
+
+        # Get candidate indices (map from semantic index IDs to our metadata IDs)
+        # Note: semantic index uses corpus line numbers as IDs
+        candidate_indices = [r['sentence_id'] for r in semantic_results]
+
+        # Filter to valid indices
+        valid_candidates = [idx for idx in candidate_indices if idx < len(self.metadata)]
+
+        if not valid_candidates:
+            logger.warning("No valid candidates after semantic filter")
+            return self.retrieve_from_ast(ast, k=k, return_scores=return_scores)
+
+        if use_neural_rerank:
+            # Stage 2: Neural reranking
+            query_embedding = self._encode_ast(ast).reshape(1, -1).astype('float32')
+            candidate_embeddings = self.embeddings[valid_candidates]
+            scores = np.dot(candidate_embeddings, query_embedding.T).flatten()
+
+            # Sort by score
+            sorted_pairs = sorted(
+                zip(valid_candidates, scores),
+                key=lambda x: x[1],
+                reverse=True
+            )[:k]
+        else:
+            # Use semantic match scores directly
+            idx_to_score = {r['sentence_id']: r['score'] for r in semantic_results}
+            sorted_pairs = sorted(
+                [(idx, idx_to_score.get(idx, 0)) for idx in valid_candidates],
+                key=lambda x: x[1],
+                reverse=True
+            )[:k]
+
+        # Build results
+        results = []
+        for rank, (idx, score) in enumerate(sorted_pairs, 1):
+            result = dict(self.metadata[idx])
+            if 'sentence' in result:
+                result['text'] = result.pop('sentence')
+            result['index'] = int(idx)
+            result['rank'] = rank
+            result['semantic_signature'] = query_sig
             if return_scores:
                 result['score'] = float(score)
             results.append(result)

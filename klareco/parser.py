@@ -779,6 +779,7 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
 
     Returns an AST node marking the word as non-Esperanto with best-guess categorization.
     Categories:
+    - proper_name_known: Known proper noun from dictionary (parse_status=success!)
     - proper_name: Capitalized word (person, place)
     - foreign_word: Lowercase but not Esperanto
     - number_literal: Numeric
@@ -808,6 +809,33 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
 
     # 2. Proper name (starts with capital letter)
     if word[0].isupper() and len(word) > 1:
+        # Check proper noun dictionary first
+        from klareco.proper_nouns import get_proper_noun_dictionary
+        pn_dict = get_proper_noun_dictionary()
+
+        if pn_dict.is_proper_noun(word):
+            # Known proper noun - mark as SUCCESS, not failed!
+            ast["parse_status"] = "success"
+            ast["category"] = "proper_name_known"
+            ast["vortspeco"] = "propra_nomo"
+            ast["parse_error"] = ""
+
+            # Add metadata from dictionary
+            metadata = pn_dict.get_metadata(word)
+            if metadata:
+                ast["proper_noun_category"] = metadata.get("category", "other")
+                ast["proper_noun_frequency"] = metadata.get("frequency", 0)
+
+            # Extract case/number from Esperanto endings
+            if word.endswith(('o', 'on', 'oj', 'ojn', 'a', 'an', 'aj', 'ajn')):
+                if word.endswith('n'):
+                    ast["kazo"] = "akuzativo"
+                if word.endswith(('j', 'jn')):
+                    ast["nombro"] = "pluralo"
+
+            return ast
+
+        # Unknown proper name (not in dictionary)
         ast["category"] = "proper_name"
         ast["vortspeco"] = "propra_nomo"
 

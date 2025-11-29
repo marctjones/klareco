@@ -26,7 +26,7 @@ echo "  - Good model: >0.6"
 echo "  - Excellent: >0.8"
 echo ""
 
-# Run training
+# Run training (use --resume to continue from checkpoint)
 python3 -u scripts/train_semantic_similarity.py \
     --train-file data/similarity_pairs_train.jsonl \
     --val-file data/similarity_pairs_val.jsonl \
@@ -40,7 +40,8 @@ python3 -u scripts/train_semantic_similarity.py \
     --lr 0.001 \
     --max-train-samples 50000 \
     --max-val-samples 5000 \
-    --device auto
+    --device auto \
+    --resume
 
 echo ""
 echo "=============================================="

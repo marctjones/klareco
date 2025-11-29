@@ -21,6 +21,8 @@ Klareco uses Esperanto’s regular grammar and limited vocabulary to replace mos
 - ✅ **AST-first orchestrator** (`orchestrator.py`) - Intent routing with structural retrieval integration
 - ✅ **High-quality corpus** - 26,725 complete sentences (Corpus V2) with 88-94% parse quality
 - ✅ **Production index** (`data/corpus_index_v3`) - Complete sentences with structural metadata
+- ✅ **Compositional embeddings** (`klareco/embeddings/compositional.py`) - Morpheme-aware embeddings (320K vs 1.28M params)
+- ✅ **Semantic similarity training** - Using Tatoeba EN-EO parallel corpus (271K pairs) as similarity oracle
 - Language ID + translation front door with graceful fallback (`lang_id.py`, `front_door.py`)
 - Tracing/logging and symbolic intent gating (`trace.py`, `logging_config.py`, `gating_network.py`)
 - Comprehensive test coverage (11 new tests for structural components, all passing)
@@ -129,8 +131,9 @@ for src in result['sources']:
 - ✅ Comprehensive tests for structural components
 
 ### 🔜 Next Steps
+- ⏳ Train semantic similarity model on Tatoeba-derived pairs (`scripts/run_semantic_training.sh`)
+- Evaluate semantic similarity model and integrate into retrieval
 - Train AST-aware seq2seq model (scripts ready: `scripts/train_graph2seq.py`)
-- Grammar token embeddings (replace Tree-LSTM with compositional model)
 - SQLite/JSONL cache for structural filtering (currently in-memory)
 - Expand corpus with more Esperanto texts
 - Multi-field structural filtering (tense, case, mood)

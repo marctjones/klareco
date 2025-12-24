@@ -2,7 +2,21 @@
 # Run morpheme-aware embedding training
 #
 # Usage:
-#   ./scripts/run_morpheme_training.sh [--test]  # Use --test for quick testing with limited samples
+#   ./scripts/run_morpheme_training.sh              # Full training (auto-resumes from checkpoint)
+#   ./scripts/run_morpheme_training.sh --test       # Test mode (limited samples, 3 epochs)
+#   ./scripts/run_morpheme_training.sh --fresh      # Start fresh (ignore checkpoints)
+#
+# Checkpoint Management:
+#   - Automatically resumes from latest_checkpoint.pt if it exists
+#   - Saves best model to best_model.pt (use this for production)
+#   - Rotates previous best to best_model.prev.pt as backup
+#   - Early stopping after 3 epochs without improvement
+#
+# Model Files:
+#   models/morpheme_aware/best_model.pt           - Best model so far (for production use)
+#   models/morpheme_aware/best_model.prev.pt      - Previous best (backup)
+#   models/morpheme_aware/latest_checkpoint.pt    - Latest epoch (for resume)
+#   models/morpheme_aware/training.log            - Training log
 
 set -e  # Exit on error
 

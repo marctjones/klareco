@@ -68,6 +68,41 @@ def setup_logging(output_dir: Path):
     return logging.getLogger(__name__)
 
 
+def save_checkpoint_atomic(checkpoint_path: Path, checkpoint: dict):
+    """
+    Save checkpoint atomically to prevent corruption.
+
+    Uses temp file + rename pattern for atomic writes on POSIX systems.
+    """
+    temp_path = checkpoint_path.with_suffix('.pt.tmp')
+    try:
+        torch.save(checkpoint, temp_path)
+        temp_path.rename(checkpoint_path)  # Atomic on POSIX
+    except Exception as e:
+        logger.error(f"Failed to save checkpoint to {checkpoint_path}: {e}")
+        if temp_path.exists():
+            temp_path.unlink()
+        raise
+
+
+def rotate_best_checkpoint(output_dir: Path):
+    """
+    Rotate best checkpoint: best_model.pt -> best_model.prev.pt
+
+    Keeps previous best model as backup.
+    """
+    best_path = output_dir / 'best_model.pt'
+    prev_path = output_dir / 'best_model.prev.pt'
+
+    if best_path.exists():
+        # Remove old previous backup if exists
+        if prev_path.exists():
+            prev_path.unlink()
+        # Move current best to previous
+        best_path.rename(prev_path)
+        logger.info("Rotated previous best model to best_model.prev.pt")
+
+
 # Placeholder - will be properly initialized in main()
 logger = logging.getLogger(__name__)
 
@@ -497,42 +532,105 @@ def main():
     # Step 6: Setup optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    # Step 7: Training loop
-    logger.info(f"Starting training for {args.epochs} epochs...")
+    # Step 7: Resume from checkpoint if exists
+    start_epoch = 1
+    best_loss = float('inf')
+    epochs_without_improvement = 0
+    patience = 3  # Early stopping patience
 
-    for epoch in range(1, args.epochs + 1):
+    checkpoint_path = args.output_dir / 'latest_checkpoint.pt'
+
+    if checkpoint_path.exists() and not args.fresh:
+        try:
+            logger.info(f"Loading checkpoint from {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint['epoch'] + 1
+            best_loss = checkpoint.get('best_loss', float('inf'))
+            epochs_without_improvement = checkpoint.get('epochs_without_improvement', 0)
+            logger.info(f"Resumed from epoch {checkpoint['epoch']}, best loss: {best_loss:.4f}")
+        except Exception as e:
+            logger.error(f"Failed to load checkpoint: {e}")
+            logger.info("Starting from scratch")
+            start_epoch = 1
+            best_loss = float('inf')
+    elif args.fresh and checkpoint_path.exists():
+        logger.info("--fresh flag set, ignoring existing checkpoint")
+
+    # Step 8: Training loop with best model tracking
+    logger.info(f"Starting training from epoch {start_epoch} to {args.epochs}...")
+
+    for epoch in range(start_epoch, args.epochs + 1):
         avg_loss = train_epoch(model, dataloader, optimizer, device, epoch)
         logger.info(f"Epoch {epoch}/{args.epochs} - Loss: {avg_loss:.4f}")
 
-        # Save checkpoint
-        checkpoint_path = args.output_dir / f'checkpoint_epoch{epoch}.pt'
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': avg_loss,
-            'root_vocab': root_vocab,
-            'prefix_vocab': prefix_vocab,
-            'suffix_vocab': suffix_vocab,
-        }, checkpoint_path)
+        # Save latest checkpoint (for resume)
+        try:
+            save_checkpoint_atomic(
+                checkpoint_path,
+                {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'train_loss': avg_loss,
+                    'best_loss': best_loss,
+                    'epochs_without_improvement': epochs_without_improvement,
+                    'root_vocab': root_vocab,
+                    'prefix_vocab': prefix_vocab,
+                    'suffix_vocab': suffix_vocab,
+                }
+            )
+            logger.info(f"Saved latest checkpoint")
+        except Exception as e:
+            logger.error(f"Failed to save checkpoint: {e}")
+            logger.info("Continuing training despite checkpoint save failure")
 
-        logger.info(f"Saved checkpoint to {checkpoint_path}")
+        # Save best model if improved
+        if avg_loss < best_loss:
+            logger.info(f"New best model! Loss: {avg_loss:.4f} (prev: {best_loss:.4f})")
+            best_loss = avg_loss
+            epochs_without_improvement = 0
 
-    # Save final model
-    final_path = args.output_dir / 'final_model.pt'
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'root_vocab': root_vocab,
-        'prefix_vocab': prefix_vocab,
-        'suffix_vocab': suffix_vocab,
-        'config': {
-            'vocab_size': args.vocab_size,
-            'embed_dim': args.embed_dim,
-            'composition_method': args.composition_method,
-        },
-    }, final_path)
+            # Rotate old best model
+            rotate_best_checkpoint(args.output_dir)
 
-    logger.info(f"Training complete! Final model saved to {final_path}")
+            # Save new best model
+            try:
+                save_checkpoint_atomic(
+                    args.output_dir / 'best_model.pt',
+                    {
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'train_loss': avg_loss,
+                        'root_vocab': root_vocab,
+                        'prefix_vocab': prefix_vocab,
+                        'suffix_vocab': suffix_vocab,
+                        'config': {
+                            'vocab_size': args.vocab_size,
+                            'embed_dim': args.embed_dim,
+                            'composition_method': args.composition_method,
+                        },
+                    }
+                )
+                logger.info(f"Saved best model to best_model.pt")
+            except Exception as e:
+                logger.error(f"Failed to save best model: {e}")
+        else:
+            epochs_without_improvement += 1
+            logger.info(f"No improvement for {epochs_without_improvement} epoch(s)")
+
+        # Early stopping
+        if epochs_without_improvement >= patience:
+            logger.info(f"Early stopping after {epoch} epochs (no improvement for {patience} epochs)")
+            break
+
+    logger.info("=" * 80)
+    logger.info(f"Training complete!")
+    logger.info(f"Best loss: {best_loss:.4f}")
+    logger.info(f"Best model: {args.output_dir / 'best_model.pt'}")
+    logger.info(f"Latest checkpoint: {checkpoint_path}")
+    logger.info("=" * 80)
 
 
 if __name__ == '__main__':

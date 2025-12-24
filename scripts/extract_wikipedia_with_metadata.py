@@ -33,57 +33,59 @@ logger = logging.getLogger(__name__)
 
 
 def parse_mediawiki_dump(xml_file: Path) -> Iterator[dict]:
-    """
-    Stream parse MediaWiki XML dump.
-
-    Yields:
-        dict with keys: article_title, article_id, text, timestamp
-    """
+    """Stream parse MediaWiki XML dump."""
     logger.info(f"Opening Wikipedia dump: {xml_file}")
 
-    # MediaWiki XML namespace
-    ns = {'mw': 'http://www.mediawiki.org/xml/export-0.10/'}
-
-    # Open compressed file
     with bz2.open(xml_file, 'rt', encoding='utf-8') as f:
-        # Iterate through XML events
         context = ET.iterparse(f, events=['start', 'end'])
         context = iter(context)
-
-        # Skip root element
         event, root = next(context)
 
         article_count = 0
         current_page = {}
         in_page = False
+        in_revision = False
 
         for event, elem in context:
-            tag = elem.tag.replace('{http://www.mediawiki.org/xml/export-0.10/}', '')
+            # Extract tag name without namespace
+            if '}' in elem.tag:
+                tag = elem.tag.split('}')[1]
+            else:
+                tag = elem.tag
 
-            if event == 'start' and tag == 'page':
-                in_page = True
-                current_page = {}
+            if event == 'start':
+                if tag == 'page':
+                    in_page = True
+                    current_page = {}
+                elif tag == 'revision':
+                    in_revision = True
 
             elif event == 'end' and in_page:
                 if tag == 'title':
                     current_page['article_title'] = elem.text or ''
 
-                elif tag == 'id' and 'article_id' not in current_page:
-                    # First <id> is article ID, later ones are revision IDs
-                    current_page['article_id'] = int(elem.text)
+                elif tag == 'id':
+                    # First <id> is article ID (before <revision>)
+                    if 'article_id' not in current_page and not in_revision:
+                        try:
+                            current_page['article_id'] = int(elem.text)
+                        except (ValueError, TypeError):
+                            pass
 
-                elif tag == 'timestamp':
+                elif tag == 'timestamp' and in_revision:
                     current_page['timestamp'] = elem.text
 
-                elif tag == 'text':
+                elif tag == 'text' and in_revision:
                     current_page['text'] = elem.text or ''
 
+                elif tag == 'revision':
+                    in_revision = False
+
                 elif tag == 'page':
-                    # End of page element
                     in_page = False
 
-                    # Skip redirects (they have no text)
-                    if current_page.get('text'):
+                    # Skip redirects and empty pages
+                    if current_page.get('text') and current_page.get('article_id'):
                         article_count += 1
 
                         if article_count % 100 == 0:
@@ -92,10 +94,10 @@ def parse_mediawiki_dump(xml_file: Path) -> Iterator[dict]:
                         yield current_page
 
                     current_page = {}
-
-                    # Clear element to save memory
                     elem.clear()
                     root.clear()
+
+        logger.info(f"Finished: {article_count} articles total")
 
 
 def extract_sections(text: str) -> list[dict]:

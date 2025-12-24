@@ -30,14 +30,11 @@ This document provides a complete index of all Klareco documentation with clear 
 
 ### Supporting Documentation
 
-| File | Purpose |
-|------|---------|
-| **[DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)** | This file - complete doc index |
-| **[AGENTS.md](AGENTS.md)** | Agent-specific documentation (if used) |
-| **[COMPOSITIONAL_EMBEDDINGS.md](COMPOSITIONAL_EMBEDDINGS.md)** | Embeddings design and implementation |
-| **[CORPUS_AND_AST_AUDIT.md](CORPUS_AND_AST_AUDIT.md)** | Corpus quality analysis |
-| **[CORPUS_V2_RESULTS.md](CORPUS_V2_RESULTS.md)** | Results from Corpus V2 build |
-| **[RAG_STATUS.md](RAG_STATUS.md)** | RAG pipeline status and performance |
+| File | Purpose | Status |
+|------|---------|--------|
+| **[DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)** | This file - complete doc index | Active |
+| **[AGENTS.md](AGENTS.md)** | Agent-specific documentation | Active |
+| **[MIGRATION_PLAN.md](MIGRATION_PLAN.md)** | Documentation migration plan | Completed ✅ |
 
 ---
 
@@ -56,14 +53,18 @@ This document provides a complete index of all Klareco documentation with clear 
 
 ---
 
-## Wiki Draft Pages (`docs/wiki-drafts/`)
+## GitHub Wiki Pages
 
-**Purpose**: Content ready for GitHub Wiki migration
+**URL**: https://github.com/marctjones/klareco/wiki
 
-| File | Wiki Page Title | Status | Priority |
-|------|----------------|--------|----------|
-| **[docs/wiki-drafts/Esperanto-Grammar-Reference.md](docs/wiki-drafts/Esperanto-Grammar-Reference.md)** | Esperanto Grammar Reference | ✅ Complete | P0 |
-| **[docs/wiki-drafts/LLM-Architecture-Fundamentals.md](docs/wiki-drafts/LLM-Architecture-Fundamentals.md)** | LLM Architecture Fundamentals | ✅ Complete | P0 |
+### Published Pages ✅
+
+| Wiki Page | Description | Source |
+|-----------|-------------|--------|
+| **[Home](https://github.com/marctjones/klareco/wiki/Home)** | Wiki navigation and overview | - |
+| **[Esperanto Grammar Reference](https://github.com/marctjones/klareco/wiki/Esperanto-Grammar-Reference)** | Complete 16 rules, morphology, why it enables deterministic parsing | docs/wiki-drafts/ |
+| **[LLM Architecture Fundamentals](https://github.com/marctjones/klareco/wiki/LLM-Architecture-Fundamentals)** | Traditional LLMs vs Klareco, tensor types, parameter savings | docs/wiki-drafts/ |
+| **[Compositional Embeddings](https://github.com/marctjones/klareco/wiki/Compositional-Embeddings)** | Root + prefix + suffix embedding strategy | COMPOSITIONAL_EMBEDDINGS.md |
 
 ### Planned Wiki Pages (To Be Created)
 
@@ -276,3 +277,33 @@ This document provides a complete index of all Klareco documentation with clear 
 - [ ] Create interactive parser demo
 - [ ] Write blog post about deterministic vs learned boundaries
 - [ ] Create diagrams for all wiki pages
+
+---
+
+## GitHub Discussions
+
+**URL**: https://github.com/marctjones/klareco/discussions
+
+### Published Discussions ✅
+
+| Discussion | Category | Description |
+|------------|----------|-------------|
+| **[Corpus V2 Build Results](https://github.com/marctjones/klareco/discussions/11)** | Show and tell | 26,725 complete sentences, 91.8% parse rate, +37% retrieval improvement |
+| **[Corpus Quality Analysis](https://github.com/marctjones/klareco/discussions/12)** | Show and tell | Parse failure analysis, proper noun handling, recommendations |
+| **[Two-Stage Retrieval Performance](https://github.com/marctjones/klareco/discussions/13)** | Show and tell | Structural + neural retrieval, 30-40% faster |
+
+---
+
+## Migrated Files ✅
+
+**Date**: 2025-12-23
+
+| Original File | Migrated To | Status |
+|---------------|-------------|--------|
+| `docs/wiki-drafts/*.md` | [GitHub Wiki](https://github.com/marctjones/klareco/wiki) | ✅ Published |
+| `COMPOSITIONAL_EMBEDDINGS.md` | [Wiki: Compositional Embeddings](https://github.com/marctjones/klareco/wiki/Compositional-Embeddings) | ✅ Published |
+| `CORPUS_V2_RESULTS.md` | [Discussion #11](https://github.com/marctjones/klareco/discussions/11) | ✅ Published |
+| `CORPUS_AND_AST_AUDIT.md` | [Discussion #12](https://github.com/marctjones/klareco/discussions/12) | ✅ Published |
+| `RAG_STATUS.md` | [Discussion #13](https://github.com/marctjones/klareco/discussions/13) | ✅ Published |
+
+**All migrated files moved to `docs/archive/` for historical reference.**

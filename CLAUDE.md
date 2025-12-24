@@ -380,6 +380,38 @@ Migrate when discussion crystallizes into:
 - ❌ `/tmp/research_ideas.md` - Create GitHub Discussion instead
 - ❌ Ephemeral tracking files - GitHub is source of truth
 
+### docs/ Directory Management
+
+**KEY INSIGHT**: The `docs/` directory should contain ONLY operational guides tied to code, not educational content or session notes.
+
+**What STAYS in docs/ (Tier 4):**
+- ✅ Technical guides for running scripts (e.g., `CORPUS_BUILDING.md`)
+- ✅ Operational references (e.g., `CORPUS_INVENTORY.md` - simplified list)
+- ✅ API documentation
+- ✅ Setup/installation guides tied to specific code
+
+**What MOVES to Wiki (Tier 1):**
+- ❌ `RAG_SYSTEM.md` → Wiki: "RAG System Overview"
+- ❌ `TWO_STAGE_RETRIEVAL.md` → Wiki: "Two-Stage Retrieval Architecture"
+- ❌ `RETRIEVAL_GUIDE.md` → Wiki: Merge into retrieval page
+- ❌ `CORPUS_MANAGEMENT.md` → Wiki: "Corpus Management Guide"
+- **Why**: Explains concepts/algorithms (educational, timeless)
+
+**What MOVES to Discussions (Tier 2):**
+- ❌ `SESSION_SUMMARY.md` → Discussion: "Lab Notebook: [Date]"
+- ❌ `docs/archive/*.md` → Discussion: "Lab Notebook: Archive"
+- **Why**: Session notes, experiment results, historical record
+
+**Decision Rule for docs/**:
+- **Keep**: "How do I run this code?" (operational)
+- **Move to Wiki**: "How does this work?" (conceptual)
+- **Move to Discussion**: "What did we learn?" (results/notes)
+
+**Example**:
+- ✅ KEEP: `CORPUS_BUILDING.md` - Step-by-step guide to run `./scripts/run_wikipedia_extraction.sh`
+- ❌ MOVE: `RAG_SYSTEM.md` - Explains RAG architecture concepts (→ Wiki)
+- ❌ MOVE: `SESSION_SUMMARY.md` - Notes from development session (→ Discussion)
+
 ## See Also
 
 - `VISION.md` - Long-term architecture goals

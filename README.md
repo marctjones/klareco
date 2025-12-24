@@ -1,15 +1,26 @@
-# Klareco - Esperanto-First AST RAG
+# Klareco - Pure Esperanto AI
 
-Klareco uses Esperanto’s regular grammar and limited vocabulary to replace most probabilistic LLM steps with deterministic structure:
-- Parse every sentence into an AST with explicit roles (subject/object/verb), case, number, tense, and morphemes.
-- Tokenize by grammar (prefix + root + suffix + ending) so tokens align with meaning and stay stable.
-- Retrieve by structural signatures first, then use a small model only for semantic smoothing.
-- Generate extractively from AST contexts, with a lightweight AST-aware seq2seq as an optional layer.
+**A general-purpose conversational AI that maximizes deterministic processing and minimizes learned parameters.**
 
-**Why Esperanto helps**
-- Fully regular morphology → programmatic tokenization and tagging; minimal need for learned POS/NER.
-- Fixed endings for roles/case/tense → deterministic subject/object detection; less reliance on attention to infer roles.
-- Small, compositional lexicon → smaller embedding tables and shallower models; reuse morpheme embeddings across the corpus.
+Klareco leverages Esperanto's regular grammar to replace most traditional LLM components with programmatic structure:
+- **100% deterministic**: Parser, deparser, morphology, grammar checker, symbolic reasoner
+- **Minimal learned**: Root embeddings (320K params) + AST Reasoning Core (20-100M params)
+- **The thesis**: By making grammar explicit through ASTs, a small reasoning core can match larger models while being fully explainable and grammatically perfect.
+
+## Vision & Purpose
+
+**Core Thesis**: Traditional LLMs waste capacity learning grammar. By factoring out linguistic structure programmatically, we can focus all learned parameters on *reasoning*.
+
+**Proof of Concept Plan**:
+1. Month 1-2: Symbolic reasoner + deterministic features → answer 50 questions with ZERO learned reasoning
+2. Month 3-4: Add 20M param reasoning core → measure improvement
+3. Success: 80%+ accuracy on Esperanto Q&A, fully explainable, grammatically perfect
+
+**Why Esperanto Enables This**:
+- Fully regular morphology → 100% programmatic parsing (no learned POS/NER needed)
+- Fixed endings for case/tense → deterministic role detection (no attention needed)
+- Compositional lexicon → root embeddings only (prefix/suffix as features, not embeddings)
+- 16 explicit grammar rules → symbolic reasoning over AST structures
 
 ## Current state (Updated Nov 2025)
 ✅ **Production Ready** - Two-stage hybrid retrieval with complete sentence corpus
@@ -122,23 +133,45 @@ for src in result['sources']:
 - RAG/generator tests are skipped or fail if `torch-geometric`, `faiss`, and local indexes/models are missing.
 
 ## Roadmap
-### ✅ Completed (Nov 2025)
-- ✅ Grammar-driven tokenizer + canonical slot signatures
-- ✅ Two-stage retrieval with structural filtering first
-- ✅ Extractive answerer from AST contexts
-- ✅ AST-first orchestrator with intent gating
-- ✅ Resumable scripts with checkpoints and real-time logs
-- ✅ Comprehensive tests for structural components
 
-### 🔜 Next Steps
-- ⏳ Train semantic similarity model on Tatoeba-derived pairs (`scripts/run_semantic_training.sh`)
-- Evaluate semantic similarity model and integrate into retrieval
-- Train AST-aware seq2seq model (scripts ready: `scripts/train_graph2seq.py`)
-- SQLite/JSONL cache for structural filtering (currently in-memory)
-- Expand corpus with more Esperanto texts
-- Multi-field structural filtering (tense, case, mood)
+See `ESPERANTO_FIRST_IMPLEMENTATION_PLAN.md` for the complete implementation plan with epics, milestones, and GitHub issues.
 
-See `DESIGN.md`, `RAG_STATUS.md`, and `CORPUS_V2_RESULTS.md` for details.
+### ✅ Phase 0: Foundation (Completed Nov 2025)
+- ✅ Parser with 16 grammar rules (91.8% parse rate)
+- ✅ Compositional embeddings (320K params)
+- ✅ Two-stage hybrid retrieval (structural + neural)
+- ✅ Extractive answering from AST contexts
+- ✅ Semantic similarity training (val_corr=0.84)
+
+### 🎯 Phase 1: Deterministic Baseline (Month 1-2)
+**Goal**: Answer 50 questions using ONLY deterministic + retrieval (zero learned reasoning)
+
+Priority tasks:
+- Expand parser to handle all edge cases (100% coverage)
+- Build full deparser (AST → text)
+- Implement symbolic reasoner (temporal, spatial, causal, quantifier logic)
+- Create grammar checker with error detection/correction
+- Convert prefix/suffix/ending from embeddings to features
+
+### 🎯 Phase 2: Minimal Reasoning Core (Month 3-4)
+**Goal**: Add 20M param Graph-to-Graph Transformer, achieve 70%+ accuracy
+
+Priority tasks:
+- Design and implement Graph-to-Graph Transformer architecture
+- Keep only root embeddings as learned (320K params)
+- Train on paraphrase pairs, synthetic QA, reasoning chains
+- Achieve 70%+ accuracy on multi-hop questions
+
+### 🎯 Phase 3: Proof of Concept (Month 5-6)
+**Goal**: 80%+ accuracy, fully explainable, grammatically perfect
+
+Priority tasks:
+- Scale to 500K training examples
+- Rigorous evaluation (grammar, reasoning, conversation)
+- Performance optimization
+- Production deployment preparation
+
+See `DESIGN.md`, `VISION.md`, and `ESPERANTO_FIRST_IMPLEMENTATION_PLAN.md` for details.
 
 ## Data & Licensing
 `data/` and `logs/` stay local and untracked; do not commit corpora, checkpoints, or generated logs. Add your own texts under `data/raw/` and build indexes locally. Include your preferred license in this file when ready.

@@ -4,7 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Core Concept
 
-Klareco is an **Esperanto-first AI system** that leverages Esperanto's regular grammar to replace probabilistic LLM components with deterministic structure. The thesis: explicit grammar + compositional morphology → smaller models that learn reasoning, not language rules.
+Klareco is a **Pure Esperanto AI** that maximizes deterministic processing and minimizes learned parameters. The core thesis: By making grammar, morphology, and linguistic structure 100% programmatic, we can focus all learned capacity on *reasoning*, not language rules.
+
+**The Proof of Concept Plan:**
+- Month 1-2: Build symbolic reasoner + deterministic features
+- GOAL: Answer 50 questions using ONLY deterministic processing + retrieval (zero learned reasoning)
+- NEXT: Add minimal 20M param reasoning core, measure improvement
+- THESIS TEST: If 50-100M param core gets 80%+ accuracy on Esperanto Q&A while being fully explainable and grammatically perfect, the thesis is proven
+
+**This is achievable.** The foundation is strong. The key shift: stop trying to learn grammar, focus learned capacity entirely on reasoning.
 
 ## Key Architecture Principles
 
@@ -17,9 +25,9 @@ Text → Parser (rules) → AST → Compositional Embeddings → Retrieval/Reaso
 ```
 
 **What's Deterministic vs Learned**:
-- Deterministic: Parser, deparser, morpheme tokenization, grammatical features (case/tense/number)
-- Learned: Root embeddings (~500K params), semantic similarity model, retrieval reranking
-- Goal: Keep learned components small by factoring out structure
+- **100% Deterministic**: Parser, deparser, morphology analyzer, grammar checker, symbolic reasoner, prefix/suffix/ending features
+- **Minimal Learned**: Root embeddings only (320K params), AST Reasoning Core (target 20-100M params), retrieval reranking
+- **Goal**: Maximum deterministic processing. Learn reasoning patterns, NOT grammar rules.
 
 **The Big Idea** (see `VISION.md`): Traditional LLMs waste capacity learning grammar. By making grammar explicit through ASTs, we hypothesize a 100M-500M param "reasoning core" could match larger models on structured tasks.
 

@@ -86,7 +86,7 @@ def detect_chapter_marker(line: str) -> Optional[dict]:
 
 def extract_sentences_from_text(text: str, min_words: int = 3, max_words: int = 150) -> list[str]:
     """
-    Extract sentences from text.
+    Extract sentences from text with proper handling of abbreviations.
 
     Args:
         text: Input text
@@ -96,12 +96,39 @@ def extract_sentences_from_text(text: str, min_words: int = 3, max_words: int = 
     Returns:
         List of sentences
     """
+    # Pre-process: protect common abbreviations by replacing periods temporarily
+    abbrev_map = {
+        'D-ro.': 'D-ro▁',
+        'S-ro.': 'S-ro▁',
+        'S-ino.': 'S-ino▁',
+        'd-ro.': 'd-ro▁',
+        's-ro.': 's-ro▁',
+        'ktp.': 'ktp▁',
+        'k.t.p.': 'k▁t▁p▁',
+        'ekz.': 'ekz▁',
+        'n-ro.': 'n-ro▁',
+        'vol.': 'vol▁',
+        'p.K.': 'p▁K▁',
+        'a.K.': 'a▁K▁',
+    }
+
+    # Replace abbreviations
+    protected_text = text
+    for abbrev, replacement in abbrev_map.items():
+        protected_text = protected_text.replace(abbrev, replacement)
+
     # Split on sentence boundaries
-    sentences = re.split(r'[.!?]+', text)
+    # . ! ? followed by whitespace and capital letter, or just followed by whitespace/end
+    # but not after digit (to preserve decimals like 1.5)
+    pattern = r'(?<!\d)[.!?]+'
+    potential_sentences = re.split(pattern, protected_text)
+
+    # Restore abbreviations
+    potential_sentences = [s.replace('▁', '.') for s in potential_sentences]
 
     # Clean and filter
     result = []
-    for sent in sentences:
+    for sent in potential_sentences:
         sent = sent.strip()
 
         # Skip empty
@@ -115,6 +142,16 @@ def extract_sentences_from_text(text: str, min_words: int = 3, max_words: int = 
 
         # Skip if it's a chapter marker
         if detect_chapter_marker(sent):
+            continue
+
+        # Filter out sentences that are mostly non-alphabetic (page numbers, etc.)
+        alpha_chars = sum(c.isalpha() or c.isspace() for c in sent)
+        total_chars = len(sent)
+        if total_chars > 0 and alpha_chars / total_chars < 0.7:
+            continue
+
+        # Filter out sentences that start with numbers (likely page markers)
+        if sent and sent[0].isdigit():
             continue
 
         result.append(sent)

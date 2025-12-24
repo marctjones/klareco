@@ -1,12 +1,10 @@
 """
-Unified Command-Line Interface for Klareco.
+Simplified Command-Line Interface for Klareco POC.
 
-Provides a coherent interface for all Klareco functionality:
-- Running the pipeline on input text
-- Running tests
-- Managing corpus data
-- Setup and configuration
-- Utility commands (parse, translate)
+Focused on essential POC functionality:
+- Parsing Esperanto text
+- Querying corpus with retrieval
+- Corpus management
 """
 import sys
 import os
@@ -15,72 +13,9 @@ import json
 from pathlib import Path
 
 
-def cmd_run(args):
-    """Run the Klareco pipeline on input text."""
-    from klareco.pipeline import KlarecoPipeline
-    from klareco.logging_config import setup_logging
-
-    # Setup logging
-    setup_logging(log_file=args.log_file, debug=args.debug)
-
-    # Get input text
-    if args.text:
-        query = args.text
-    elif args.file:
-        with open(args.file, 'r', encoding='utf-8') as f:
-            query = f.read().strip()
-    else:
-        # Read from stdin
-        print("Enter text (Ctrl+D when done):")
-        query = sys.stdin.read().strip()
-
-    # Run pipeline
-    pipeline = KlarecoPipeline()
-    trace = pipeline.run(query, stop_after=args.stop_after)
-
-    # Output result
-    if args.output_format == 'json':
-        print(trace.to_json())
-    elif args.output_format == 'trace':
-        print(trace.to_json(indent=2))
-    else:  # 'text'
-        if trace.error:
-            print(f"ERROR: {trace.error}", file=sys.stderr)
-            sys.exit(1)
-        else:
-            print(trace.final_response or "[No response generated]")
-
-
-def cmd_test(args):
-    """Run integration tests."""
-    # Import here to avoid loading test dependencies if not needed
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-
-    if args.pytest:
-        # Use pytest
-        import pytest
-        pytest_args = ['tests/']
-        if args.verbose:
-            pytest_args.append('-v')
-        if args.pattern:
-            pytest_args.append('-k')
-            pytest_args.append(args.pattern)
-        sys.exit(pytest.main(pytest_args))
-    else:
-        # Use integration test script
-        from scripts.run_integration_test import run_integration_test
-        run_integration_test(
-            corpus_path=args.corpus,
-            num_sentences=args.num_sentences,
-            stop_after=args.stop_after,
-            debug=args.debug
-        )
-
-
 def cmd_parse(args):
-    """Parse Esperanto text into AST (debugging utility)."""
+    """Parse Esperanto text into AST."""
     from klareco.parser import parse
-    import json
 
     # Get input text
     if args.text:
@@ -95,9 +30,68 @@ def cmd_parse(args):
     # Parse
     try:
         ast = parse(text)
-        print(json.dumps(ast, indent=2, ensure_ascii=False))
+        if args.format == 'json':
+            print(json.dumps(ast, indent=2, ensure_ascii=False))
+        else:
+            # Simple readable format
+            print(f"Sentence type: {ast.get('tipo', 'unknown')}")
+            if 'subjekto' in ast:
+                print(f"Subject: {ast['subjekto']}")
+            if 'verbo' in ast:
+                print(f"Verb: {ast['verbo']}")
+            if 'objekto' in ast:
+                print(f"Object: {ast['objekto']}")
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_query(args):
+    """Query corpus using two-stage hybrid retrieval."""
+    from klareco.rag.retriever import KlarecoRetriever
+    from klareco.parser import parse
+
+    # Initialize retriever
+    index_dir = args.index_dir or "data/corpus_index_v3"
+    model_path = args.model_path or "models/tree_lstm/best_model.pt"
+
+    try:
+        retriever = KlarecoRetriever(
+            index_dir=index_dir,
+            model_path=model_path,
+            mode='tree_lstm',
+            device=args.device
+        )
+    except Exception as e:
+        print(f"ERROR initializing retriever: {e}", file=sys.stderr)
+        print(f"Make sure index exists at {index_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    # Get query text
+    if args.query:
+        query_text = args.query
+    else:
+        print("Enter query in Esperanto:")
+        query_text = input().strip()
+
+    # Retrieve
+    try:
+        results = retriever.retrieve(
+            query_text,
+            top_k=args.top_k,
+            use_structural=not args.neural_only
+        )
+
+        print(f"\n=== Query: {query_text} ===\n")
+        for i, result in enumerate(results, 1):
+            print(f"{i}. [Score: {result['score']:.4f}]")
+            print(f"   {result['text']}")
+            if args.verbose and 'source' in result:
+                print(f"   Source: {result['source']}")
+            print()
+
+    except Exception as e:
+        print(f"ERROR during retrieval: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -137,145 +131,157 @@ def cmd_translate(args):
     print(result)
 
 
-def cmd_corpus_clean(args):
-    """Clean corpus data."""
-    from scripts.clean_corpus import main as clean_main
-    clean_main()
+def cmd_corpus_validate(args):
+    """Validate Esperanto corpus file."""
+    from klareco.corpus_manager import CorpusManager
+
+    manager = CorpusManager()
+    result = manager.validate_file(args.file)
+
+    print(f"File: {args.file}")
+    print(f"Valid: {result['valid']}")
+    print(f"Total sentences: {result['total_sentences']}")
+    print(f"Parseable: {result['parseable_count']} ({result['parse_rate']:.1%})")
+
+    if not result['valid']:
+        print(f"\nErrors:")
+        for error in result['errors']:
+            print(f"  - {error}")
 
 
-def cmd_corpus_verify(args):
-    """Verify corpus integrity."""
-    from scripts.verify_corpus import main as verify_main
-    verify_main()
+def cmd_corpus_add(args):
+    """Add corpus file to registry."""
+    from klareco.corpus_manager import CorpusManager
+
+    manager = CorpusManager()
+    manager.add_corpus(
+        file_path=args.file,
+        title=args.title,
+        corpus_type=args.type,
+        language='eo'
+    )
+    print(f"✓ Added {args.file} to corpus registry")
 
 
-def cmd_corpus_create_test(args):
-    """Create test corpus."""
-    from scripts.create_test_corpus import main as create_test_main
-    create_test_main()
+def cmd_corpus_list(args):
+    """List registered corpus files."""
+    from klareco.corpus_manager import CorpusManager
 
+    manager = CorpusManager()
+    corpora = manager.list_corpora()
 
-def cmd_setup(args):
-    """Setup Klareco (download models, build vocabularies)."""
-    print("Setting up Klareco...")
+    if not corpora:
+        print("No corpus files registered")
+        return
 
-    # Download FastText model if needed
-    if args.download_models or args.all:
-        print("\n1. Downloading FastText language identification model...")
-        from scripts.download_fasttext_model import main as download_main
-        download_main()
-
-    # Build morpheme vocabulary if needed
-    if args.build_vocab or args.all:
-        print("\n2. Building morpheme vocabulary...")
-        from scripts.build_morpheme_vocab import main as vocab_main
-        vocab_main()
-
-    print("\n✓ Setup complete!")
+    print(f"Registered corpus files ({len(corpora)}):\n")
+    for corpus in corpora:
+        print(f"  {corpus['title']}")
+        print(f"    File: {corpus['file_path']}")
+        print(f"    Type: {corpus['type']}")
+        print(f"    Sentences: {corpus.get('sentence_count', 'unknown')}")
+        print()
 
 
 def cmd_info(args):
     """Display system information."""
     import torch
-    from klareco.parser import KNOWN_ROOTS, KNOWN_PREFIXES, KNOWN_SUFFIXES
+    from klareco.parser import KNOWN_PREFIXES, KNOWN_SUFFIXES
 
-    print("=== Klareco System Information ===\n")
+    print("=== Klareco POC System Information ===\n")
 
     print(f"Python: {sys.version.split()[0]}")
     print(f"PyTorch: {torch.__version__}")
     print(f"CUDA available: {torch.cuda.is_available()}")
 
-    print(f"\nVocabulary:")
-    print(f"  Roots: {len(KNOWN_ROOTS)}")
+    print(f"\nVocabulary (deterministic):")
     print(f"  Prefixes: {len(KNOWN_PREFIXES)}")
     print(f"  Suffixes: {len(KNOWN_SUFFIXES)}")
 
-    # Check for test corpus
-    corpus_path = Path(__file__).parent.parent / 'data' / 'test_corpus.json'
-    if corpus_path.exists():
-        with open(corpus_path) as f:
-            corpus = json.load(f)
-        print(f"\nTest corpus: {len(corpus)} sentences")
+    # Check for corpus index
+    index_path = Path('data/corpus_index_v3')
+    if index_path.exists():
+        metadata_path = index_path / 'metadata.jsonl'
+        if metadata_path.exists():
+            with open(metadata_path) as f:
+                count = sum(1 for _ in f)
+            print(f"\nCorpus index: {count:,} sentences")
+        else:
+            print(f"\nCorpus index: Found (metadata missing)")
     else:
-        print(f"\nTest corpus: Not found")
+        print(f"\nCorpus index: Not found at {index_path}")
 
-    # Check for models
-    model_dir = Path(__file__).parent.parent / 'models'
-    if model_dir.exists():
-        models = list(model_dir.glob('*'))
-        print(f"Models: {len(models)} files in models/")
+    # Check for model
+    model_path = Path('models/tree_lstm/best_model.pt')
+    if model_path.exists():
+        print(f"Tree-LSTM model: Found at {model_path}")
     else:
-        print(f"Models: Directory not found")
+        print(f"Tree-LSTM model: Not found")
 
 
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog='klareco',
-        description='Klareco: A neuro-symbolic AI agent using Esperanto as an intermediate representation.',
+        description='Klareco: Pure Esperanto AI - POC with deterministic processing + minimal learning',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run pipeline on text
-  klareco run "La hundo vidas la katon."
-  klareco run --file input.txt
-
-  # Run tests
-  klareco test
-  klareco test --num-sentences 10
-
   # Parse Esperanto text
-  klareco parse "mi amas la hundon"
+  klareco parse "La hundo vidas la katon"
+  klareco parse --file input.txt --format json
+
+  # Query corpus with hybrid retrieval
+  klareco query "Kio estas Esperanto?"
+  klareco query --top-k 5 --verbose
 
   # Translate text
-  klareco translate "The dog sees the cat."
+  klareco translate "The dog sees the cat" --to eo
+  klareco translate "Mi amas vin" --to en
 
-  # Setup and info
-  klareco setup --all
+  # Corpus management
+  klareco corpus validate data/raw/book.txt
+  klareco corpus add data/cleaned/book.txt --title "My Book" --type literature
+  klareco corpus list
+
+  # System info
   klareco info
 
-For more information, visit: https://github.com/yourusername/klareco
+POC Goals:
+  Month 1-2: Answer 50 questions using ONLY deterministic + retrieval (zero learned reasoning)
+  Month 3-4: Add 20M param reasoning core, measure improvement
         """
     )
 
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    # --- run command ---
-    parser_run = subparsers.add_parser('run', help='Run the Klareco pipeline on input text')
-    parser_run.add_argument('text', nargs='?', help='Input text to process')
-    parser_run.add_argument('-f', '--file', help='Read input from file')
-    parser_run.add_argument('-o', '--output-format', choices=['text', 'json', 'trace'],
-                           default='text', help='Output format (default: text)')
-    parser_run.add_argument('--stop-after', choices=['SafetyMonitor', 'FrontDoor', 'Parser',
-                           'SafetyMonitor_AST', 'IntentClassifier', 'Responder'],
-                           help='Stop pipeline after this step')
-    parser_run.add_argument('--log-file', default='klareco.log', help='Log file path')
-    parser_run.add_argument('--debug', action='store_true', help='Enable debug logging')
-    parser_run.set_defaults(func=cmd_run)
-
-    # --- test command ---
-    parser_test = subparsers.add_parser('test', help='Run integration tests')
-    parser_test.add_argument('--corpus', default='data/test_corpus.json',
-                            help='Path to test corpus (default: data/test_corpus.json)')
-    parser_test.add_argument('--num-sentences', type=int, help='Limit number of test sentences')
-    parser_test.add_argument('--stop-after', help='Stop pipeline after this step')
-    parser_test.add_argument('--debug', action='store_true', help='Enable debug logging')
-    parser_test.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
-    parser_test.add_argument('--pytest', action='store_true', help='Use pytest instead of integration script')
-    parser_test.add_argument('--pattern', help='Test name pattern (for pytest -k)')
-    parser_test.set_defaults(func=cmd_test)
-
     # --- parse command ---
-    parser_parse = subparsers.add_parser('parse', help='Parse Esperanto text into AST (debugging)')
+    parser_parse = subparsers.add_parser('parse', help='Parse Esperanto text into AST')
     parser_parse.add_argument('text', nargs='?', help='Esperanto text to parse')
     parser_parse.add_argument('-f', '--file', help='Read input from file')
+    parser_parse.add_argument('--format', choices=['text', 'json'], default='text',
+                             help='Output format (default: text)')
     parser_parse.set_defaults(func=cmd_parse)
+
+    # --- query command ---
+    parser_query = subparsers.add_parser('query', help='Query corpus with two-stage retrieval')
+    parser_query.add_argument('query', nargs='?', help='Query in Esperanto')
+    parser_query.add_argument('--index-dir', help='Path to corpus index (default: data/corpus_index_v3)')
+    parser_query.add_argument('--model-path', help='Path to Tree-LSTM model')
+    parser_query.add_argument('--top-k', type=int, default=3, help='Number of results (default: 3)')
+    parser_query.add_argument('--neural-only', action='store_true',
+                             help='Skip structural filtering (neural-only retrieval)')
+    parser_query.add_argument('--device', default='cpu', choices=['cpu', 'cuda'],
+                             help='Device for neural model (default: cpu)')
+    parser_query.add_argument('-v', '--verbose', action='store_true', help='Show source info')
+    parser_query.set_defaults(func=cmd_query)
 
     # --- translate command ---
     parser_translate = subparsers.add_parser('translate', help='Translate text to/from Esperanto')
     parser_translate.add_argument('text', nargs='?', help='Text to translate')
     parser_translate.add_argument('-f', '--file', help='Read input from file')
-    parser_translate.add_argument('--from', dest='from_lang', help='Source language code (auto-detect if not specified)')
+    parser_translate.add_argument('--from', dest='from_lang',
+                                 help='Source language code (auto-detect if not specified)')
     parser_translate.add_argument('--to', dest='to_lang', help='Target language code')
     parser_translate.set_defaults(func=cmd_translate)
 
@@ -283,21 +289,20 @@ For more information, visit: https://github.com/yourusername/klareco
     parser_corpus = subparsers.add_parser('corpus', help='Corpus management')
     corpus_subparsers = parser_corpus.add_subparsers(dest='corpus_command', help='Corpus commands')
 
-    corpus_clean = corpus_subparsers.add_parser('clean', help='Clean corpus data')
-    corpus_clean.set_defaults(func=cmd_corpus_clean)
+    corpus_validate = corpus_subparsers.add_parser('validate', help='Validate Esperanto corpus file')
+    corpus_validate.add_argument('file', help='Path to corpus file')
+    corpus_validate.set_defaults(func=cmd_corpus_validate)
 
-    corpus_verify = corpus_subparsers.add_parser('verify', help='Verify corpus integrity')
-    corpus_verify.set_defaults(func=cmd_corpus_verify)
+    corpus_add = corpus_subparsers.add_parser('add', help='Add corpus file to registry')
+    corpus_add.add_argument('file', help='Path to corpus file')
+    corpus_add.add_argument('--title', required=True, help='Corpus title')
+    corpus_add.add_argument('--type', required=True,
+                           choices=['literature', 'dictionary', 'wikipedia', 'other'],
+                           help='Corpus type')
+    corpus_add.set_defaults(func=cmd_corpus_add)
 
-    corpus_test = corpus_subparsers.add_parser('create-test', help='Create test corpus')
-    corpus_test.set_defaults(func=cmd_corpus_create_test)
-
-    # --- setup command ---
-    parser_setup = subparsers.add_parser('setup', help='Setup Klareco (download models, build vocab)')
-    parser_setup.add_argument('--all', action='store_true', help='Run all setup steps')
-    parser_setup.add_argument('--download-models', action='store_true', help='Download required models')
-    parser_setup.add_argument('--build-vocab', action='store_true', help='Build morpheme vocabulary')
-    parser_setup.set_defaults(func=cmd_setup)
+    corpus_list = corpus_subparsers.add_parser('list', help='List registered corpus files')
+    corpus_list.set_defaults(func=cmd_corpus_list)
 
     # --- info command ---
     parser_info = subparsers.add_parser('info', help='Display system information')

@@ -58,8 +58,7 @@ class ExecutionTrace:
         return json.dumps(self, default=lambda o: o.__dict__, indent=indent, ensure_ascii=False)
 
 if __name__ == '__main__':
-    # Example Usage
-    from klareco.front_door import FrontDoor
+    # Example Usage (simplified for POC)
     from klareco.parser import parse
     from klareco.deparser import deparse
 
@@ -67,29 +66,19 @@ if __name__ == '__main__':
     trace = ExecutionTrace(initial_query=query)
 
     try:
-        # Step 1: Front Door (although in this case, it does nothing)
-        front_door = FrontDoor()
-        lang, processed_text = front_door.process(query)
-        trace.add_step(
-            "FrontDoor",
-            inputs={"text": query},
-            outputs={"original_lang": lang, "processed_text": processed_text},
-            description="Identified language and translated to internal standard (Esperanto)."
-        )
-
-        # Step 2: Parser
-        ast = parse(processed_text)
+        # Step 1: Parser
+        ast = parse(query)
         trace.add_step(
             "Parser",
-            inputs={"text": processed_text},
+            inputs={"text": query},
             outputs={"ast": ast},
             description="Parsed Esperanto text into an Abstract Syntax Tree."
         )
 
-        # --- Imagine many complex AI logic steps here ---
+        # --- Imagine reasoning steps here ---
         # For this example, we'll just deparse the same AST.
-        
-        # Step 3: Deparser
+
+        # Step 2: Deparser
         final_text = deparse(ast)
         trace.add_step(
             "Deparser",

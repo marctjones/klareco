@@ -32,7 +32,25 @@ The enhanced corpus includes rich metadata for proper citations:
 
 ## Quick Start
 
-Run all three steps in sequence:
+### Option 1: Run All Extraction Steps Automatically (Recommended)
+
+```bash
+# Runs Wikipedia + Books extraction with automatic archiving
+./scripts/run_full_extraction.sh
+```
+
+This script:
+- Archives any existing extracted data to `data/archive/extraction_YYYYMMDD_HHMMSS/`
+- Runs Wikipedia extraction (2-3 hours)
+- Runs book extraction (5-10 minutes)
+- Shows summary and next steps
+
+**To skip archiving** (if starting fresh):
+```bash
+./scripts/run_full_extraction.sh --no-archive
+```
+
+### Option 2: Run Steps Manually
 
 ```bash
 # Step 1: Extract Wikipedia (2-3 hours)

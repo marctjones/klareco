@@ -228,8 +228,8 @@ def clean_mediawiki_markup(text: str) -> str:
     # Remove remaining HTML tags
     clean_text = re.sub(r'<[^>]+>', '', clean_text)
 
-    # Remove section headers
-    clean_text = re.sub(r'==+\s*.*?\s*==+', '', clean_text)
+    # NOTE: Do NOT remove section headers here - they're extracted before cleaning
+    # clean_text = re.sub(r'==+\s*.*?\s*==+', '', clean_text)
 
     # Remove external links [http://... text] -> text
     clean_text = re.sub(r'\[http[^\s]+ ([^\]]+)\]', r'\1', clean_text)
@@ -348,25 +348,25 @@ def process_wikipedia_dump(
                 continue
 
             try:
-                # Clean text
-                text = clean_mediawiki_markup(article.get('text', ''))
-
-                # Extract sections
-                sections = extract_sections(text)
+                # Extract sections BEFORE cleaning (to preserve section headers)
+                raw_text = article.get('text', '')
+                sections = extract_sections(raw_text)
 
                 # If no sections, treat whole text as one section
                 if not sections:
                     sections = [{
                         'section_name': None,
                         'section_level': 0,
-                        'content': [text]
+                        'content': [raw_text]
                     }]
 
                 # Extract sentences from each section
                 article_sentence_count = 0
                 for section in sections:
+                    # Clean markup for this section's content
                     section_text = ' '.join(section['content'])
-                    sentences = extract_sentences(section_text)
+                    clean_section_text = clean_mediawiki_markup(section_text)
+                    sentences = extract_sentences(clean_section_text)
 
                     for sentence in sentences:
                         entry = {

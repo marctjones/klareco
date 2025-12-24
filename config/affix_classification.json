@@ -1,0 +1,186 @@
+{
+  "description": "Classification of Esperanto affixes for morpheme-aware training",
+  "reference": "https://github.com/marctjones/klareco/wiki/Esperanto-Grammar-Reference#morpheme-classification-for-ai-training",
+
+  "semantic_prefixes": {
+    "description": "Prefixes that transform root meaning - need 128d dense embeddings",
+    "affixes": [
+      "mal",
+      "re",
+      "ge",
+      "eks",
+      "pra",
+      "dis",
+      "for",
+      "mis"
+    ],
+    "examples": {
+      "mal": "bon → malbona (good → bad)",
+      "re": "fari → refari (do → redo)",
+      "ge": "patro → gepatroj (father → parents)",
+      "eks": "reĝo → eksreĝo (king → ex-king)",
+      "pra": "avo → praavo (grandfather → great-grandfather)",
+      "dis": "semi → dissemi (sow → scatter)",
+      "for": "iri → foriri (go → go away)",
+      "mis": "kompreni → miskompreni (understand → misunderstand)"
+    }
+  },
+
+  "semantic_suffixes": {
+    "description": "Suffixes that derive new concepts - need 128d dense embeddings",
+    "affixes": [
+      "ul",
+      "ej",
+      "il",
+      "aĵ",
+      "ar",
+      "et",
+      "eg",
+      "in",
+      "id",
+      "ec",
+      "aĉ",
+      "er",
+      "estr",
+      "um",
+      "obl"
+    ],
+    "examples": {
+      "ul": "riĉ → riĉulo (rich → rich person)",
+      "ej": "lern → lernejo (learn → school)",
+      "il": "tranĉ → tranĉilo (cut → knife)",
+      "aĵ": "manĝ → manĝaĵo (eat → food)",
+      "ar": "hom → homaro (human → humanity)",
+      "et": "dom → dometo (house → cottage)",
+      "eg": "dom → domego (house → mansion)",
+      "in": "patr → patrino (father → mother)",
+      "id": "kat → katido (cat → kitten)",
+      "ec": "bel → beleco (beautiful → beauty)",
+      "aĉ": "dom → domaĉo (house → shack)",
+      "er": "pan → panero (bread → crumb)",
+      "estr": "urb → urbestro (city → mayor)",
+      "um": "kol → kolumo (neck → collar)",
+      "obl": "tri → triobla (three → triple)"
+    }
+  },
+
+  "grammatical_prefixes": {
+    "description": "Prefixes that encode grammatical relations - need 16d sparse embeddings",
+    "affixes": [
+      "bo",
+      "duon",
+      "vic",
+      "ek"
+    ],
+    "examples": {
+      "bo": "patro → bopatro (father → father-in-law)",
+      "duon": "frato → duonfrato (brother → half-brother)",
+      "vic": "prezidanto → vicprezidanto (president → vice president)",
+      "ek": "krii → ekkrii (cry → cry out suddenly)"
+    }
+  },
+
+  "grammatical_suffixes": {
+    "description": "Suffixes that modify grammatical aspect/voice - need 16d sparse embeddings",
+    "affixes": [
+      "ad",
+      "ig",
+      "iĝ",
+      "ebl",
+      "ind",
+      "end",
+      "em",
+      "ant",
+      "int",
+      "ont",
+      "at",
+      "it",
+      "ot"
+    ],
+    "examples": {
+      "ad": "paroli → paroladi (speak → keep talking)",
+      "ig": "morti → mortigi (die → kill)",
+      "iĝ": "sidi → sidiĝi (sit → sit down)",
+      "ebl": "manĝi → manĝebla (eat → edible)",
+      "ind": "vidi → vidinda (see → worth seeing)",
+      "end": "fari → farenda (do → must be done)",
+      "em": "babili → babilema (chat → talkative)",
+      "ant": "vidi → vidanta (see → seeing, active present)",
+      "int": "vidi → vidinta (see → having seen, active past)",
+      "ont": "vidi → vidonta (see → about to see, active future)",
+      "at": "vidi → vidata (see → being seen, passive present)",
+      "it": "vidi → vidita (see → having been seen, passive past)",
+      "ot": "vidi → vidota (see → about to be seen, passive future)"
+    }
+  },
+
+  "endings": {
+    "description": "Pure grammatical endings - need 8-16d one-hot encoding",
+    "noun_endings": ["o", "oj", "on", "ojn"],
+    "adjective_endings": ["a", "aj", "an", "ajn"],
+    "adverb_endings": ["e", "en"],
+    "verb_endings": ["i", "as", "is", "os", "us", "u"],
+    "no_ending": [""],
+    "all_endings": [
+      "o", "oj", "on", "ojn",
+      "a", "aj", "an", "ajn",
+      "e", "en",
+      "i", "as", "is", "os", "us", "u",
+      ""
+    ],
+    "examples": {
+      "o": "noun nominative singular",
+      "oj": "noun nominative plural",
+      "on": "noun accusative singular",
+      "ojn": "noun accusative plural",
+      "a": "adjective nominative singular",
+      "aj": "adjective nominative plural",
+      "an": "adjective accusative singular",
+      "ajn": "adjective accusative plural",
+      "e": "adverb",
+      "en": "adverb with direction",
+      "i": "verb infinitive",
+      "as": "verb present tense",
+      "is": "verb past tense",
+      "os": "verb future tense",
+      "us": "verb conditional",
+      "u": "verb volitive/imperative",
+      "": "particle or correlative"
+    }
+  },
+
+  "correlative_components": {
+    "description": "Components of correlatives - compositional, no special handling needed",
+    "prefixes": ["ki", "ti", "ĉi", "neni", "i"],
+    "suffixes": ["o", "u", "e", "am", "al", "el", "om", "a", "es"],
+    "note": "Correlatives are compositional (prefix + suffix), already covered by semantic affix embeddings"
+  },
+
+  "statistics": {
+    "total_semantic_affixes": 23,
+    "total_grammatical_affixes": 17,
+    "total_endings": 17,
+    "semantic_prefixes_count": 8,
+    "semantic_suffixes_count": 15,
+    "grammatical_prefixes_count": 4,
+    "grammatical_suffixes_count": 13
+  },
+
+  "training_strategy": {
+    "semantic_affixes": {
+      "embedding_dim": 128,
+      "training_method": "composition_learning",
+      "learn_from": "affix_application_patterns"
+    },
+    "grammatical_affixes": {
+      "embedding_dim": 16,
+      "training_method": "grammatical_feature_prediction",
+      "learn_from": "syntax_patterns"
+    },
+    "endings": {
+      "embedding_dim": 16,
+      "training_method": "one_hot_or_minimal",
+      "learn_from": "grammatical_rules"
+    }
+  }
+}

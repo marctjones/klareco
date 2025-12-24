@@ -229,11 +229,15 @@ def example_5_tense_variations():
         print(f"  {description}:")
         print(f"    '{sentence}'")
         ast = parse(sentence)
-        verb = ast.get('verbo', {})
-        if verb.get('tempo'):
-            print(f"    Verb: {verb['radiko']} + {verb['tempo']}")
-        elif verb.get('modo'):
-            print(f"    Verb: {verb['radiko']} + {verb['modo']}")
+        verb = ast.get('verbo')
+        if verb and isinstance(verb, dict):
+            if verb.get('tempo'):
+                print(f"    Verb: {verb['radiko']} + {verb['tempo']}")
+            elif verb.get('modo'):
+                print(f"    Verb: {verb['radiko']} + {verb['modo']}")
+        else:
+            # Imperative might be in different location
+            print(f"    (Verb structure varies for imperative)")
         print()
 
     print("KEY INSIGHT:")

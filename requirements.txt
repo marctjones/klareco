@@ -29,6 +29,9 @@ coverage
 # Progress bars
 tqdm
 
+# Wikipedia/MediaWiki parsing (corpus building)
+mwparserfromhell  # Clean Wikipedia markup
+
 # ----------------------------------------------------------------------------
 # Phase 3+: Future Components (NOT YET USED)
 # ----------------------------------------------------------------------------

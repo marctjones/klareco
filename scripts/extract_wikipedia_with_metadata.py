@@ -148,48 +148,138 @@ def extract_sections(text: str) -> list[dict]:
 
 def clean_mediawiki_markup(text: str) -> str:
     """
-    Remove MediaWiki markup from text.
+    Remove MediaWiki markup from text using mwparserfromhell.
 
     Removes:
-    - Wiki links: [[Link|Display]] -> Display
-    - Bold/italic: '''bold''' -> bold
-    - Templates: {{template}} -> (removed)
-    - HTML comments: <!-- comment --> -> (removed)
+    - Templates, tables, references, images, categories
+    - HTML tags and comments
+    - Wiki links converted to plain text
+    - Bold/italic markup
     """
+    import mwparserfromhell
     import re
 
+    # Pre-process: remove MediaWiki tables before parsing (they often cause parse errors)
+    # MediaWiki table syntax: {| ... |}
+    text = re.sub(r'\{\|.*?\|\}', '', text, flags=re.DOTALL)
+
+    try:
+        # Parse with mwparserfromhell
+        wikicode = mwparserfromhell.parse(text)
+
+        # Remove specific unwanted elements
+        for tag in wikicode.filter_tags():
+            # Remove ref tags, table tags, and other HTML
+            if tag.tag.lower() in ['ref', 'table', 'tr', 'td', 'th', 'div', 'span']:
+                try:
+                    wikicode.remove(tag)
+                except:
+                    pass  # Skip if removal fails
+
+        for template in wikicode.filter_templates():
+            # Remove all templates (infoboxes, citations, etc.)
+            try:
+                wikicode.remove(template)
+            except:
+                pass  # Skip if removal fails
+
+        for link in wikicode.filter_wikilinks():
+            # Handle File/Image links - remove them
+            if link.title.startswith(('File:', 'Image:', 'Dosiero:')):
+                try:
+                    wikicode.remove(link)
+                except:
+                    pass
+            # Handle Category links - remove them
+            elif link.title.startswith(('Category:', 'Kategorio:')):
+                try:
+                    wikicode.remove(link)
+                except:
+                    pass
+
+        # Strip all remaining markup to plain text
+        clean_text = wikicode.strip_code()
+
+    except Exception as e:
+        # Fallback: use regex-based cleaning if mwparserfromhell fails
+        logger.debug(f"mwparserfromhell failed, using regex fallback: {e}")
+        clean_text = text
+
+        # Regex-based cleaning as fallback
+        # Remove templates
+        clean_text = re.sub(r'\{\{[^}]*\}\}', '', clean_text)
+
+        # Convert wiki links [[Link|Display]] -> Display, [[Link]] -> Link
+        clean_text = re.sub(r'\[\[([^\]|]+)\|([^\]]+)\]\]', r'\2', clean_text)
+        clean_text = re.sub(r'\[\[([^:\]]+)\]\]', r'\1', clean_text)  # Skip File:, Category:
+        clean_text = re.sub(r'\[\[File:[^\]]+\]\]', '', clean_text)
+        clean_text = re.sub(r'\[\[Dosiero:[^\]]+\]\]', '', clean_text)
+        clean_text = re.sub(r'\[\[Category:[^\]]+\]\]', '', clean_text)
+        clean_text = re.sub(r'\[\[Kategorio:[^\]]+\]\]', '', clean_text)
+
+        # Remove bold/italic markup
+        clean_text = re.sub(r"'''([^']+)'''", r'\1', clean_text)
+        clean_text = re.sub(r"''([^']+)''", r'\1', clean_text)
+
+    # Additional cleanup with regex (applied to both paths)
     # Remove HTML comments
-    text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+    clean_text = re.sub(r'<!--.*?-->', '', clean_text, flags=re.DOTALL)
 
-    # Remove templates ({{...}})
-    # This is a simplified approach; real MediaWiki parsing is complex
-    text = re.sub(r'\{\{[^}]*\}\}', '', text)
+    # Remove remaining HTML tags
+    clean_text = re.sub(r'<[^>]+>', '', clean_text)
 
-    # Convert wiki links [[Link|Display]] -> Display, [[Link]] -> Link
-    text = re.sub(r'\[\[([^\]|]+)\|([^\]]+)\]\]', r'\2', text)
-    text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
-
-    # Remove bold/italic markup
-    text = re.sub(r"'''([^']+)'''", r'\1', text)
-    text = re.sub(r"''([^']+)''", r'\1', text)
+    # Remove section headers
+    clean_text = re.sub(r'==+\s*.*?\s*==+', '', clean_text)
 
     # Remove external links [http://... text] -> text
-    text = re.sub(r'\[http[^\s]+ ([^\]]+)\]', r'\1', text)
-    text = re.sub(r'\[http[^\s]+\]', '', text)
+    clean_text = re.sub(r'\[http[^\s]+ ([^\]]+)\]', r'\1', clean_text)
+    clean_text = re.sub(r'\[http[^\s]+\]', '', clean_text)
 
-    return text.strip()
+    # Clean up whitespace
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+
+    return clean_text.strip()
 
 
 def extract_sentences(text: str) -> list[str]:
     """
-    Extract sentences from text.
+    Extract sentences from text with proper handling of abbreviations.
 
-    Simple sentence splitting on . ! ?
+    Uses regex with lookahead to avoid splitting on:
+    - Common abbreviations (Dr., Mr., etc.)
+    - Decimal numbers (1.5, 3.14)
+    - Initials (J.R.R.)
     """
     import re
 
+    # Pre-process: protect common abbreviations by replacing periods temporarily
+    abbrev_map = {
+        'D-ro.': 'D-ro▁',
+        'S-ro.': 'S-ro▁',
+        'S-ino.': 'S-ino▁',
+        'd-ro.': 'd-ro▁',
+        's-ro.': 's-ro▁',
+        'ktp.': 'ktp▁',
+        'k.t.p.': 'k▁t▁p▁',
+        'ekz.': 'ekz▁',
+        'n-ro.': 'n-ro▁',
+        'vol.': 'vol▁',
+        'p.K.': 'p▁K▁',
+        'a.K.': 'a▁K▁',
+    }
+
+    # Replace abbreviations
+    protected_text = text
+    for abbrev, replacement in abbrev_map.items():
+        protected_text = protected_text.replace(abbrev, replacement)
+
     # Split on sentence boundaries
-    sentences = re.split(r'[.!?]+', text)
+    # . ! ? followed by space and capital letter (or end of string), but not after digit
+    pattern = r'(?<!\d)[.!?]+(?=\s+[A-ZĈĜĤĴŜŬ]|\s*$)'
+    sentences = re.split(pattern, protected_text)
+
+    # Restore abbreviations
+    sentences = [s.replace('▁', '.') for s in sentences]
 
     # Clean and filter
     sentences = [s.strip() for s in sentences if s.strip()]
@@ -197,7 +287,16 @@ def extract_sentences(text: str) -> list[str]:
     # Filter out very short sentences (likely fragments)
     sentences = [s for s in sentences if len(s.split()) >= 3]
 
-    return sentences
+    # Filter out sentences that are mostly non-alphabetic (tables, data, etc.)
+    cleaned_sentences = []
+    for s in sentences:
+        # Count alphabetic vs non-alphabetic characters
+        alpha_chars = sum(c.isalpha() or c.isspace() for c in s)
+        total_chars = len(s)
+        if total_chars > 0 and alpha_chars / total_chars > 0.6:
+            cleaned_sentences.append(s)
+
+    return cleaned_sentences
 
 
 def process_wikipedia_dump(

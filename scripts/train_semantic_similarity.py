@@ -305,7 +305,7 @@ def main():
     parser.add_argument("--max-val-samples", type=int, default=10000)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--resume", action="store_true", help="Resume from checkpoint if available")
+    parser.add_argument("--fresh", action="store_true", help="Start fresh, ignoring any existing checkpoint")
     parser.add_argument("--patience", type=int, default=3, help="Early stopping patience (epochs without improvement)")
 
     args = parser.parse_args()
@@ -399,18 +399,26 @@ def main():
     best_val_corr = -1.0
     checkpoint_path = args.output / 'best_model.pt'
 
-    if args.resume and checkpoint_path.exists():
-        logger.info(f"Resuming from checkpoint: {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch'] + 1
-        best_val_corr = checkpoint['val_correlation']
-        # Advance scheduler to correct position
-        for _ in range(checkpoint['epoch']):
-            scheduler.step()
-        logger.info(f"Resumed from epoch {checkpoint['epoch']} (val_corr={best_val_corr:.4f})")
-    elif args.resume:
+    # By default, resume from checkpoint if it exists (safe behavior)
+    # Use --fresh to explicitly start over
+    if checkpoint_path.exists() and not args.fresh:
+        try:
+            logger.info(f"Found checkpoint: {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint['epoch'] + 1
+            best_val_corr = checkpoint['val_correlation']
+            # Advance scheduler to correct position
+            for _ in range(checkpoint['epoch']):
+                scheduler.step()
+            logger.info(f"Resumed from epoch {checkpoint['epoch']} (val_corr={best_val_corr:.4f})")
+        except Exception as e:
+            logger.warning(f"Failed to load checkpoint: {e}")
+            logger.info("Starting from scratch")
+    elif args.fresh and checkpoint_path.exists():
+        logger.info("--fresh flag set, ignoring existing checkpoint")
+    else:
         logger.info("No checkpoint found, starting from scratch")
 
     # Early stopping tracking
@@ -450,8 +458,26 @@ def main():
                     'num_roots': len(compositional_embedding.root_vocab),
                 },
             }
-            torch.save(checkpoint, args.output / 'best_model.pt')
-            logger.info(f"  Saved best model (val_corr={val_corr:.4f})")
+            # Save checkpoint with rotation (keep last 2)
+            temp_path = args.output / 'best_model.pt.tmp'
+            best_path = args.output / 'best_model.pt'
+            prev_path = args.output / 'best_model.prev.pt'
+            try:
+                # Write to temp file first
+                torch.save(checkpoint, temp_path)
+                # Rotate: current best -> prev, temp -> best
+                if best_path.exists():
+                    if prev_path.exists():
+                        prev_path.unlink()
+                    best_path.rename(prev_path)
+                temp_path.rename(best_path)
+                logger.info(f"  Saved best model (val_corr={val_corr:.4f})")
+            except Exception as e:
+                logger.error(f"  Failed to save checkpoint: {e}")
+                # Clean up temp file if it exists
+                if temp_path.exists():
+                    temp_path.unlink()
+                # Continue training - don't crash
         else:
             epochs_without_improvement += 1
             logger.info(f"  No improvement for {epochs_without_improvement} epoch(s)")

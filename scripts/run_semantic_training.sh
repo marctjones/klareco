@@ -40,8 +40,7 @@ python3 -u scripts/train_semantic_similarity.py \
     --lr 0.001 \
     --max-train-samples 50000 \
     --max-val-samples 5000 \
-    --device auto \
-    --resume
+    --device auto
 
 echo ""
 echo "=============================================="

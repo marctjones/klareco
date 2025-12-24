@@ -72,7 +72,7 @@ class ASTToGraphConverter:
 
     def __init__(
         self,
-        embed_dim: int = 128,
+        embed_dim_or_embedding: Union[int, 'CompositionalEmbedding'] = 128,
         compositional_embedding: Optional['CompositionalEmbedding'] = None,
         vocab_dir: Optional[Path] = None,
     ):
@@ -80,21 +80,29 @@ class ASTToGraphConverter:
         Initialize converter.
 
         Args:
-            embed_dim: Dimension for morpheme embeddings
+            embed_dim_or_embedding: Dimension for morpheme embeddings (int), or a
+                CompositionalEmbedding instance for backwards compatibility
             compositional_embedding: Optional CompositionalEmbedding instance
             vocab_dir: Optional path to vocabulary files (loads CompositionalEmbedding)
         """
-        self.embed_dim = embed_dim
+        # Handle backwards compatibility: first arg can be int or CompositionalEmbedding
+        from klareco.embeddings.compositional import CompositionalEmbedding as CE
+        if isinstance(embed_dim_or_embedding, CE):
+            # First arg is actually a CompositionalEmbedding
+            self.compositional_embedding = embed_dim_or_embedding
+            self.embed_dim = embed_dim_or_embedding.embed_dim
+        else:
+            self.embed_dim = embed_dim_or_embedding
+            self.compositional_embedding = compositional_embedding
+
         self.morpheme_vocab = {}  # Will be populated from corpus
         self.next_morpheme_id = 0
 
-        # Compositional embedding support
-        self.compositional_embedding = compositional_embedding
-        if vocab_dir and compositional_embedding is None:
+        # Load from vocab_dir if provided and no embedding yet
+        if vocab_dir and self.compositional_embedding is None:
             try:
-                from klareco.embeddings.compositional import CompositionalEmbedding
-                self.compositional_embedding = CompositionalEmbedding.from_vocabulary_files(
-                    vocab_dir, embed_dim=embed_dim
+                self.compositional_embedding = CE.from_vocabulary_files(
+                    vocab_dir, embed_dim=self.embed_dim
                 )
             except Exception as e:
                 print(f"Warning: Could not load compositional embeddings: {e}")

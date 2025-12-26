@@ -640,5 +640,345 @@ class TestParserMoodVsTense(unittest.TestCase):
             self.assertNotIn('tempo', ast)
 
 
+# =============================================================================
+# TDD TESTS FOR REMAINING PARSER ISSUES
+# =============================================================================
+
+class TestParserElision(unittest.TestCase):
+    """Test suite for elision handling (Issue #88).
+
+    Rule 16: The final -o of nouns may be elided and replaced with apostrophe.
+    Common in poetry: l' (la), hund' (hundo), amik' (amiko).
+    """
+
+    def test_elided_article_l(self):
+        """Test elided article l' (la)."""
+        ast = parse_word("l'")
+        self.assertEqual(ast['vortspeco'], 'artikolo')
+        self.assertEqual(ast['radiko'], 'la')
+        self.assertTrue(ast.get('elidita', False))
+
+    def test_elided_noun_hund(self):
+        """Test elided noun hund' (hundo)."""
+        ast = parse_word("hund'")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        self.assertEqual(ast['radiko'], 'hund')
+        self.assertTrue(ast.get('elidita', False))
+
+    def test_elided_noun_amik(self):
+        """Test elided noun amik' (amiko)."""
+        ast = parse_word("amik'")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        self.assertEqual(ast['radiko'], 'amik')
+        self.assertTrue(ast.get('elidita', False))
+
+    def test_elided_with_prefix(self):
+        """Test elided noun with prefix: malamik' (malamiko)."""
+        ast = parse_word("malamik'")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        self.assertEqual(ast['radiko'], 'amik')
+        self.assertEqual(ast['prefikso'], 'mal')
+        self.assertTrue(ast.get('elidita', False))
+
+
+class TestParserSentenceType(unittest.TestCase):
+    """Test suite for sentence type detection (Issue #87).
+
+    Esperanto sentence types:
+    - demando (question): ĉu-questions or ki-questions
+    - ordono (command): imperative mood verb
+    - deklaro (statement): everything else
+    """
+
+    def test_chu_question(self):
+        """Test ĉu-question detection."""
+        ast = parse("Ĉu vi amas min?")
+        self.assertEqual(ast.get('fraztipo'), 'demando')
+        self.assertEqual(ast.get('demandotipo'), 'ĉu')
+
+    def test_ki_question_kio(self):
+        """Test ki-question with kio."""
+        ast = parse("Kio estas tio?")
+        self.assertEqual(ast.get('fraztipo'), 'demando')
+        self.assertEqual(ast.get('demandotipo'), 'ki')
+
+    def test_ki_question_kiu(self):
+        """Test ki-question with kiu."""
+        ast = parse("Kiu venas?")
+        self.assertEqual(ast.get('fraztipo'), 'demando')
+        self.assertEqual(ast.get('demandotipo'), 'ki')
+
+    def test_ki_question_kie(self):
+        """Test ki-question with kie."""
+        ast = parse("Kie vi loĝas?")
+        self.assertEqual(ast.get('fraztipo'), 'demando')
+        self.assertEqual(ast.get('demandotipo'), 'ki')
+
+    def test_command_imperative(self):
+        """Test command with imperative verb."""
+        ast = parse("Venu!")
+        self.assertEqual(ast.get('fraztipo'), 'ordono')
+
+    def test_command_with_object(self):
+        """Test command with object."""
+        ast = parse("Donu al mi la libron.")
+        self.assertEqual(ast.get('fraztipo'), 'ordono')
+
+    def test_statement_present(self):
+        """Test statement with present tense."""
+        ast = parse("La hundo vidas la katon.")
+        self.assertEqual(ast.get('fraztipo'), 'deklaro')
+
+    def test_statement_past(self):
+        """Test statement with past tense."""
+        ast = parse("Mi vidis la hundon.")
+        self.assertEqual(ast.get('fraztipo'), 'deklaro')
+
+
+class TestParserParticiples(unittest.TestCase):
+    """Test suite for participle tense/voice structure (Issue #84).
+
+    Esperanto participles encode tense × voice:
+    Active: -ant- (present), -int- (past), -ont- (future)
+    Passive: -at- (present), -it- (past), -ot- (future)
+    """
+
+    def test_active_present_participle(self):
+        """Test active present participle -ant-."""
+        ast = parse_word("vidanta")
+        self.assertEqual(ast['vortspeco'], 'adjektivo')
+        self.assertIn('ant', ast.get('sufiksoj', []))
+        self.assertEqual(ast.get('participo_voĉo'), 'aktiva')
+        self.assertEqual(ast.get('participo_tempo'), 'prezenco')
+
+    def test_active_past_participle(self):
+        """Test active past participle -int-."""
+        ast = parse_word("vidinta")
+        self.assertEqual(ast['vortspeco'], 'adjektivo')
+        self.assertIn('int', ast.get('sufiksoj', []))
+        self.assertEqual(ast.get('participo_voĉo'), 'aktiva')
+        self.assertEqual(ast.get('participo_tempo'), 'pasinteco')
+
+    def test_active_future_participle(self):
+        """Test active future participle -ont-."""
+        ast = parse_word("vidonta")
+        self.assertEqual(ast['vortspeco'], 'adjektivo')
+        self.assertIn('ont', ast.get('sufiksoj', []))
+        self.assertEqual(ast.get('participo_voĉo'), 'aktiva')
+        self.assertEqual(ast.get('participo_tempo'), 'futuro')
+
+    def test_passive_present_participle(self):
+        """Test passive present participle -at-."""
+        ast = parse_word("vidata")
+        self.assertEqual(ast['vortspeco'], 'adjektivo')
+        self.assertIn('at', ast.get('sufiksoj', []))
+        self.assertEqual(ast.get('participo_voĉo'), 'pasiva')
+        self.assertEqual(ast.get('participo_tempo'), 'prezenco')
+
+    def test_passive_past_participle(self):
+        """Test passive past participle -it-."""
+        ast = parse_word("vidita")
+        self.assertEqual(ast['vortspeco'], 'adjektivo')
+        self.assertIn('it', ast.get('sufiksoj', []))
+        self.assertEqual(ast.get('participo_voĉo'), 'pasiva')
+        self.assertEqual(ast.get('participo_tempo'), 'pasinteco')
+
+    def test_passive_future_participle(self):
+        """Test passive future participle -ot-."""
+        ast = parse_word("vidota")
+        self.assertEqual(ast['vortspeco'], 'adjektivo')
+        self.assertIn('ot', ast.get('sufiksoj', []))
+        self.assertEqual(ast.get('participo_voĉo'), 'pasiva')
+        self.assertEqual(ast.get('participo_tempo'), 'futuro')
+
+    def test_participle_as_noun(self):
+        """Test participle used as noun: vidinto (one who has seen)."""
+        ast = parse_word("vidinto")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        self.assertIn('int', ast.get('sufiksoj', []))
+        self.assertEqual(ast.get('participo_voĉo'), 'aktiva')
+        self.assertEqual(ast.get('participo_tempo'), 'pasinteco')
+
+
+class TestParserCompoundWords(unittest.TestCase):
+    """Test suite for compound word decomposition (Issue #80).
+
+    Rule 15: Compound words are formed by joining roots.
+    The main meaning comes from the last root.
+    """
+
+    def test_compound_vaporshipo(self):
+        """Test compound vaporŝipo (steamship) = vapor + ŝip."""
+        ast = parse_word("vaporŝipo")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        # Should have compound roots
+        self.assertEqual(ast.get('radiko'), 'ŝip')
+        self.assertIn('vapor', ast.get('kunmetitaj_radikoj', []))
+
+    def test_compound_akvobirdo(self):
+        """Test compound akvobirdo (waterbird) = akv + bird."""
+        ast = parse_word("akvobirdo")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        self.assertEqual(ast.get('radiko'), 'bird')
+        self.assertIn('akv', ast.get('kunmetitaj_radikoj', []))
+
+    def test_compound_sunfloro(self):
+        """Test compound sunfloro (sunflower) = sun + flor."""
+        ast = parse_word("sunfloro")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        self.assertEqual(ast.get('radiko'), 'flor')
+        self.assertIn('sun', ast.get('kunmetitaj_radikoj', []))
+
+    def test_compound_with_suffix(self):
+        """Test compound with suffix: ŝtonego (boulder) = ŝton + eg."""
+        ast = parse_word("ŝtonego")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        self.assertEqual(ast.get('radiko'), 'ŝton')
+        self.assertIn('eg', ast.get('sufiksoj', []))
+
+    def test_compound_librovendo(self):
+        """Test compound librovendo (book-selling) = libr + vend."""
+        ast = parse_word("librovendo")
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+        self.assertEqual(ast.get('radiko'), 'vend')
+        self.assertIn('libr', ast.get('kunmetitaj_radikoj', []))
+
+
+class TestParserCorrelativeSemantics(unittest.TestCase):
+    """Test suite for correlative system semantics (Issue #76).
+
+    Correlatives are compositional: prefix (ki-, ti-, i-, ĉi-, neni-)
+    + suffix (-o, -u, -a, -e, -am, -el, -om, -al, -es).
+    """
+
+    def test_correlative_decomposition_kio(self):
+        """Test correlative kio = ki + o (what-thing)."""
+        ast = parse_word("kio")
+        self.assertEqual(ast['vortspeco'], 'korelativo')
+        self.assertEqual(ast.get('korelativo_prefikso'), 'ki')
+        self.assertEqual(ast.get('korelativo_sufikso'), 'o')
+        self.assertEqual(ast.get('korelativo_signifo'), 'demanda')  # question
+
+    def test_correlative_decomposition_tiu(self):
+        """Test correlative tiu = ti + u (that-person)."""
+        ast = parse_word("tiu")
+        self.assertEqual(ast['vortspeco'], 'korelativo')
+        self.assertEqual(ast.get('korelativo_prefikso'), 'ti')
+        self.assertEqual(ast.get('korelativo_sufikso'), 'u')
+        self.assertEqual(ast.get('korelativo_signifo'), 'montra')  # demonstrative
+
+    def test_correlative_decomposition_ie(self):
+        """Test correlative ie = i + e (some-place)."""
+        ast = parse_word("ie")
+        self.assertEqual(ast['vortspeco'], 'korelativo')
+        self.assertEqual(ast.get('korelativo_prefikso'), 'i')
+        self.assertEqual(ast.get('korelativo_sufikso'), 'e')
+        self.assertEqual(ast.get('korelativo_signifo'), 'nedefinita')  # indefinite
+
+    def test_correlative_decomposition_chiam(self):
+        """Test correlative ĉiam = ĉi + am (every-time/always)."""
+        ast = parse_word("ĉiam")
+        self.assertEqual(ast['vortspeco'], 'korelativo')
+        self.assertEqual(ast.get('korelativo_prefikso'), 'ĉi')
+        self.assertEqual(ast.get('korelativo_sufikso'), 'am')
+        self.assertEqual(ast.get('korelativo_signifo'), 'universala')  # universal
+
+    def test_correlative_decomposition_nenio(self):
+        """Test correlative nenio = neni + o (no-thing/nothing)."""
+        ast = parse_word("nenio")
+        self.assertEqual(ast['vortspeco'], 'korelativo')
+        self.assertEqual(ast.get('korelativo_prefikso'), 'neni')
+        self.assertEqual(ast.get('korelativo_sufikso'), 'o')
+        self.assertEqual(ast.get('korelativo_signifo'), 'nea')  # negative
+
+    def test_correlative_with_accusative(self):
+        """Test correlative with accusative: kion."""
+        ast = parse_word("kion")
+        self.assertEqual(ast['vortspeco'], 'korelativo')
+        self.assertEqual(ast.get('korelativo_prefikso'), 'ki')
+        self.assertEqual(ast.get('korelativo_sufikso'), 'o')
+        self.assertEqual(ast['kazo'], 'akuzativo')
+
+    def test_all_correlative_prefixes(self):
+        """Test all 5 correlative prefixes are recognized."""
+        prefixes = {
+            'kio': 'ki',
+            'tio': 'ti',
+            'io': 'i',
+            'ĉio': 'ĉi',
+            'nenio': 'neni',
+        }
+        for word, expected_prefix in prefixes.items():
+            with self.subTest(word=word):
+                ast = parse_word(word)
+                self.assertEqual(ast.get('korelativo_prefikso'), expected_prefix)
+
+    def test_all_correlative_suffixes(self):
+        """Test all correlative suffixes are recognized."""
+        suffixes = {
+            'kio': 'o',    # thing
+            'kiu': 'u',    # person
+            'kia': 'a',    # quality
+            'kie': 'e',    # place
+            'kiam': 'am',  # time
+            'kiel': 'el',  # manner
+            'kiom': 'om',  # quantity
+            'kial': 'al',  # reason
+            'kies': 'es',  # possession
+        }
+        for word, expected_suffix in suffixes.items():
+            with self.subTest(word=word):
+                ast = parse_word(word)
+                self.assertEqual(ast.get('korelativo_sufikso'), expected_suffix)
+
+
+class TestParserArtifacts(unittest.TestCase):
+    """Test suite for parser artifact prevention (Issue #85).
+
+    The parser should not emit single-character artifacts or
+    function words as "roots".
+    """
+
+    def test_no_single_char_roots(self):
+        """Roots should be at least 2 characters."""
+        # Parse a sentence that previously produced 'l' as a root
+        ast = parse("de l' ringo")
+        # Collect all roots from the AST
+        roots = self._extract_roots(ast)
+        single_char_roots = [r for r in roots if len(r) == 1 and r != "'"]
+        self.assertEqual(single_char_roots, [],
+                        f"Found single-char roots: {single_char_roots}")
+
+    def test_no_apostrophe_as_root(self):
+        """Apostrophe should not be extracted as a root."""
+        ast = parse("de l' ringo")
+        roots = self._extract_roots(ast)
+        self.assertNotIn("'", roots)
+        self.assertNotIn("'", roots)
+
+    def test_prepositions_not_as_content_roots(self):
+        """Prepositions should be marked as prepozicio, not as roots."""
+        ast = parse("kun la hundo de la domo")
+        # Check that kun and de are marked as prepositions
+        aliaj = ast.get('aliaj', [])
+        for item in aliaj:
+            if isinstance(item, dict):
+                if item.get('radiko') in ['kun', 'de']:
+                    self.assertEqual(item.get('vortspeco'), 'prepozicio')
+
+    def _extract_roots(self, ast):
+        """Helper to extract all roots from an AST."""
+        roots = []
+        if isinstance(ast, dict):
+            if 'radiko' in ast and ast['radiko']:
+                roots.append(ast['radiko'])
+            for value in ast.values():
+                roots.extend(self._extract_roots(value))
+        elif isinstance(ast, list):
+            for item in ast:
+                roots.extend(self._extract_roots(item))
+        return roots
+
+
 if __name__ == '__main__':
     unittest.main()

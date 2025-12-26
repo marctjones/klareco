@@ -61,6 +61,37 @@ KNOWN_SUFFIXES = {
     "ot",   # future passive participle (about to be seen)
 }
 
+# Participle metadata for Issue #84
+PARTICIPLE_SUFFIXES = {
+    "ant": {"voĉo": "aktiva", "tempo": "prezenco"},
+    "int": {"voĉo": "aktiva", "tempo": "pasinteco"},
+    "ont": {"voĉo": "aktiva", "tempo": "futuro"},
+    "at": {"voĉo": "pasiva", "tempo": "prezenco"},
+    "it": {"voĉo": "pasiva", "tempo": "pasinteco"},
+    "ot": {"voĉo": "pasiva", "tempo": "futuro"},
+}
+
+# Correlative decomposition for Issue #76
+CORRELATIVE_PREFIXES = {
+    "ki": "demanda",      # interrogative/relative
+    "ti": "montra",       # demonstrative
+    "i": "nedefinita",    # indefinite
+    "ĉi": "universala",   # universal
+    "neni": "nea",        # negative
+}
+
+CORRELATIVE_SUFFIXES = {
+    "o": "aĵo",     # thing
+    "u": "persono", # person
+    "a": "eco",     # quality
+    "e": "loko",    # place
+    "am": "tempo",  # time
+    "el": "maniero",# manner
+    "om": "kvanto", # quantity
+    "al": "kaŭzo",  # reason
+    "es": "posedo", # possession
+}
+
 # The order of endings matters. Longer ones must be checked first.
 KNOWN_ENDINGS = {
     # Tense (indicative mood - 3 tenses)
@@ -147,6 +178,7 @@ KNOWN_CORRELATIVES = {
     "kial",    # why
     "kiam",    # when
     "kie",     # where
+    "kiel",    # how, as (manner)
     "kien",    # where to (direction)
     "kies",    # whose
     "kio",     # what
@@ -158,6 +190,7 @@ KNOWN_CORRELATIVES = {
     "tial",    # therefore
     "tiam",    # then (at that time)
     "tie",     # there
+    "tiel",    # thus, so (manner)
     "tien",    # there (direction)
     "ties",    # that one's
     "tio",     # that
@@ -169,6 +202,7 @@ KNOWN_CORRELATIVES = {
     "ĉial",    # for every reason
     "ĉiam",    # always
     "ĉie",     # everywhere
+    "ĉiel",    # in every manner
     "ĉien",    # in every direction
     "ĉies",    # everyone's
     "ĉio",     # everything
@@ -180,6 +214,7 @@ KNOWN_CORRELATIVES = {
     "nenial",  # for no reason
     "neniam",  # never
     "nenie",   # nowhere
+    "neniel",  # in no manner
     "nenien",  # in no direction
     "nenies",  # no one's
     "nenio",   # nothing
@@ -191,6 +226,7 @@ KNOWN_CORRELATIVES = {
     "ial",     # for some reason
     "iam",     # sometime
     "ie",      # somewhere
+    "iel",     # somehow (manner)
     "ien",     # somewhere (direction)
     "ies",     # someone's
     "io",      # something
@@ -520,6 +556,35 @@ def parse_word(word: str) -> dict:
         "sufiksoj": [],
     }
 
+    # --- Handle elision (Rule 16, Issue #88) ---
+    # In poetry, final -o can be elided: la → l', hundo → hund'
+    if lower_word.endswith("'") or lower_word.endswith("'"):
+        elided_word = lower_word.rstrip("'").rstrip("'")
+        ast['elidita'] = True
+
+        # Special case: l' = la (article)
+        if elided_word == 'l':
+            ast['vortspeco'] = 'artikolo'
+            ast['radiko'] = 'la'
+            return ast
+
+        # Check for prefix + root FIRST (prefer decomposition)
+        # This ensures malamik' → mal+amik rather than malamik as single root
+        for prefix in KNOWN_PREFIXES:
+            if elided_word.startswith(prefix):
+                potential_root = elided_word[len(prefix):]
+                if potential_root in KNOWN_ROOTS:
+                    ast['vortspeco'] = 'substantivo'
+                    ast['radiko'] = potential_root
+                    ast['prefikso'] = prefix
+                    return ast
+
+        # Fall back to full word as known root (noun with -o elided)
+        if elided_word in KNOWN_ROOTS:
+            ast['vortspeco'] = 'substantivo'
+            ast['radiko'] = elided_word
+            return ast
+
     # --- Handle foreign words and numbers ---
     # Skip numeric literals (years, etc.) - treat as foreign words
     if word.isdigit():
@@ -544,9 +609,32 @@ def parse_word(word: str) -> dict:
 
     # Skip capitalized non-Esperanto names (but allow Esperanto proper nouns)
     # If word is capitalized and doesn't end with Esperanto morphology, it's likely foreign
+    # BUT first check if it's a known particle (like Ĉu at sentence start)
     if word[0].isupper() and len(word) > 1:
+        # Check for particles BEFORE treating as proper name (Issue #87)
+        # Words like Ĉu can appear capitalized at sentence start
+        if lower_word in KNOWN_PARTICLES:
+            ast['vortspeco'] = 'partiklo'
+            ast['radiko'] = lower_word
+            return ast
+        # Check for correlatives (like Kiu, Kio at sentence start)
+        if lower_word in KNOWN_CORRELATIVES:
+            correl_check = lower_word
+            ast['vortspeco'] = 'korelativo'
+            ast['radiko'] = correl_check
+            # Decompose correlative into prefix + suffix
+            for prefix in sorted(CORRELATIVE_PREFIXES.keys(), key=len, reverse=True):
+                if correl_check.startswith(prefix):
+                    suffix = correl_check[len(prefix):]
+                    if suffix in CORRELATIVE_SUFFIXES:
+                        ast['korelativo_prefikso'] = prefix
+                        ast['korelativo_sufikso'] = suffix
+                        ast['korelativo_signifo'] = CORRELATIVE_PREFIXES[prefix]
+                        break
+            return ast
         # Check if it has Esperanto endings (could be proper noun: Mario, Johano, etc.)
-        if not any(word.endswith(ending) for ending in ['o', 'a', 'e', 'on', 'an', 'en', 'oj', 'aj']):
+        # Note: Include -u for imperatives (Venu!, Donu!) and -as/-is/-os/-us for verbs
+        if not any(word.endswith(ending) for ending in ['o', 'a', 'e', 'u', 'i', 'on', 'an', 'en', 'un', 'oj', 'aj', 'as', 'is', 'os', 'us']):
             # Likely foreign name
             ast['vortspeco'] = 'nomo'  # foreign name
             ast['radiko'] = word
@@ -571,10 +659,30 @@ def parse_word(word: str) -> dict:
         ast['radiko'] = lower_word
         return ast
 
-    # Check for correlatives - uninflected words
-    if lower_word in KNOWN_CORRELATIVES:
+    # Check for correlatives - uninflected words with compositional semantics (Issue #76)
+    # Correlatives can also take -n (accusative) for -o, -u types
+    correl_check = lower_word
+    correl_accusative = False
+    if correl_check.endswith('n'):
+        correl_check = correl_check[:-1]
+        correl_accusative = True
+
+    if correl_check in KNOWN_CORRELATIVES:
         ast['vortspeco'] = 'korelativo'
-        ast['radiko'] = lower_word
+        ast['radiko'] = correl_check
+        if correl_accusative:
+            ast['kazo'] = 'akuzativo'
+
+        # Decompose correlative into prefix + suffix (Issue #76)
+        # Try each prefix (longest first to handle "neni-" before "i-")
+        for prefix in sorted(CORRELATIVE_PREFIXES.keys(), key=len, reverse=True):
+            if correl_check.startswith(prefix):
+                suffix = correl_check[len(prefix):]
+                if suffix in CORRELATIVE_SUFFIXES:
+                    ast['korelativo_prefikso'] = prefix
+                    ast['korelativo_sufikso'] = suffix
+                    ast['korelativo_signifo'] = CORRELATIVE_PREFIXES[prefix]
+                    break
         return ast
 
     # Check for particles - uninflected adverbs and modifiers
@@ -711,7 +819,9 @@ def parse_word(word: str) -> dict:
                         suffix not in {'ul', 'in', 'et', 'eg', 'ar', 'ej', 'an',
                                        'ig', 'iĝ', 'ad', 'aĵ', 'ec', 'er', 'ebl',
                                        'em', 'end', 'ind', 'ing', 'ist', 'il', 'op',
-                                       'uj', 'um', 'obl', 'on'}):
+                                       'uj', 'um', 'obl', 'on',
+                                       # Participle suffixes (Issue #84)
+                                       'ant', 'int', 'ont', 'at', 'it', 'ot'}):
                         # This is likely a spurious suffix (like "id" in "rapid")
                         # Skip this decomposition
                         continue
@@ -744,16 +854,29 @@ def parse_word(word: str) -> dict:
         if not found_suffix:
             break
 
+    # --- Step 4b: Add participle metadata (Issue #84) ---
+    # If any participle suffix was found, add voice and tense info
+    for suffix in ast["sufiksoj"]:
+        if suffix in PARTICIPLE_SUFFIXES:
+            participle_info = PARTICIPLE_SUFFIXES[suffix]
+            ast['participo_voĉo'] = participle_info['voĉo']
+            ast['participo_tempo'] = participle_info['tempo']
+            break  # Only one participle suffix per word
+
     # --- Step 5: Identify Root (with compound word decomposition) ---
-    if stem in KNOWN_ROOTS:
+    # Strategy: Try compound decomposition for LONG stems that are also known roots
+    # Short stems (<=5 chars) that are known roots → use as-is (e.g., ŝton)
+    # Long stems (>5 chars) that are known roots → try compound decomposition first
+    compound_found = False
+
+    # Short stems that are known roots: use directly
+    if len(stem) <= 5 and stem in KNOWN_ROOTS:
         ast["radiko"] = stem
     elif stem in KNOWN_PARTICLES or stem in KNOWN_PREPOSITIONS:
         # It's a particle/preposition used as a root (e.g., "tre" in "treege")
         ast["radiko"] = stem
-    else:
-        # Try compound word decomposition
-        # Pattern 1: preposition/adverb + root (ekster+mond, tiu+punkt, tre+eg)
-        compound_found = False
+    # Long stems or unknown stems: try compound decomposition
+    elif len(stem) >= 4:  # Minimum for compound: 2-char root + 2-char root
 
         # Check if starts with a preposition
         for prep in KNOWN_PREPOSITIONS:
@@ -799,8 +922,39 @@ def parse_word(word: str) -> dict:
                         compound_found = True
                         break
 
-        # If still not found, raise error
-        if not compound_found and not ast["radiko"]:
+        # Issue #80: True compound word decomposition (root + root)
+        # Esperanto compounds often use linking vowel -o- between roots
+        # Examples: akvobird (akv+o+bird), vaporŝip (vapor+ŝip), sunflor (sun+flor)
+        if not compound_found:
+            # Try all possible split points
+            for i in range(2, len(stem) - 1):  # Root must be at least 2 chars
+                first_part = stem[:i]
+                remaining = stem[i:]
+
+                # Pattern 1: root1 + o + root2 (linking vowel)
+                if remaining.startswith('o') and len(remaining) > 2:
+                    second_part = remaining[1:]  # Skip the linking 'o'
+                    if first_part in KNOWN_ROOTS and second_part in KNOWN_ROOTS:
+                        ast["radiko"] = second_part  # Head root is typically the second
+                        ast["kunmetitaj_radikoj"] = [first_part, second_part]
+                        compound_found = True
+                        break
+
+                # Pattern 2: root1 + root2 (no linking vowel)
+                if first_part in KNOWN_ROOTS and remaining in KNOWN_ROOTS:
+                    ast["radiko"] = remaining
+                    ast["kunmetitaj_radikoj"] = [first_part, remaining]
+                    compound_found = True
+                    break
+
+    # If no compound found, try single root
+    if not compound_found and not ast["radiko"]:
+        if stem in KNOWN_ROOTS:
+            ast["radiko"] = stem
+        elif stem in KNOWN_PARTICLES or stem in KNOWN_PREPOSITIONS:
+            # It's a particle/preposition used as a root (e.g., "tre" in "treege")
+            ast["radiko"] = stem
+        else:
             raise ValueError(f"Ne povis trovi validan radikon en '{original_word}'. Restaĵo: '{stem}'")
 
     return ast
@@ -949,11 +1103,19 @@ def parse(text: str):
     # Preprocess: normalize punctuation
     text = preprocess_text(text)
 
-    # Simple tokenizer: split by space, remove all punctuation
-    # Remove common punctuation marks: . , ! ? : ; " ' ( ) [ ] { }
+    # Simple tokenizer: split by space, remove all punctuation EXCEPT apostrophes for elision
+    # Remove common punctuation marks: . , ! ? : ; " ( ) [ ] { }
+    # Keep apostrophes attached to preceding letter for elision: l', hund'
     import string
+    import re
+    # First, preserve elision apostrophes by converting "letter'" to a safe form
+    # Match: word character followed by apostrophe (straight or curly)
+    text = re.sub(r"(\w)([''])", r"\1ELISION_MARKER", text)
+    # Remove all punctuation
     for punct in string.punctuation:
         text = text.replace(punct, ' ')
+    # Restore elision apostrophes
+    text = text.replace("ELISION_MARKER", "'")
     words = text.split()
 
     if not words:
@@ -1047,6 +1209,47 @@ def parse(text: str):
     for ast in word_asts:
         if ast["vortspeco"] != 'artikolo' and ast not in placed_words:
             sentence_ast["aliaj"].append(ast)
+
+    # --- Issue #87: Sentence type detection ---
+    # Determine fraztipo (sentence type): demando, ordono, deklaro
+    fraztipo = 'deklaro'  # default: statement
+    demandotipo = None
+
+    # Check for question indicators
+    is_question = False
+
+    # 1. Check if sentence ends with '?'
+    if text.strip().endswith('?'):
+        is_question = True
+
+    # 2. Check for ĉu (yes/no question marker)
+    for ast in word_asts:
+        if ast.get("radiko") == "ĉu":
+            is_question = True
+            demandotipo = 'ĉu'
+            break
+
+    # 3. Check for ki- correlatives (question words: kio, kiu, kie, kiam, kiel, etc.)
+    if not demandotipo:
+        for ast in word_asts:
+            if ast.get("vortspeco") == "korelativo":
+                prefix = ast.get("korelativo_prefikso", "")
+                if prefix == "ki":
+                    is_question = True
+                    demandotipo = 'ki'
+                    break
+
+    if is_question:
+        fraztipo = 'demando'
+
+    # Check for command (imperative mood)
+    if not is_question and sentence_ast["verbo"]:
+        if sentence_ast["verbo"].get("modo") == "imperativo":
+            fraztipo = 'ordono'
+
+    sentence_ast["fraztipo"] = fraztipo
+    if demandotipo:
+        sentence_ast["demandotipo"] = demandotipo
 
     # Add parse statistics (word-level success metrics)
     total_words = len(word_asts)

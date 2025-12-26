@@ -1,0 +1,382 @@
+FUNDAMENTO DE ESPERANTO
+========================
+GRAMATIKO (GRAMMAR)
+
+Verkita de L. L. Zamenhof, 1905
+Fonto: Akademio de Esperanto (www.akademio-de-esperanto.org)
+
+================================================================
+
+Fundamento de Esperanto
+
+GRAMMAR
+
+============================================================
+
+A) THE ALPHABET
+
+Aa,
+a as in
+"last"
+
+Bb,
+b as in
+"be"
+
+Cc,
+ts as in
+"wits"
+
+Ĉĉ,
+ch as in
+"church"
+
+Dd,
+d as in
+"do"
+
+Ee,
+a as in
+"make"
+
+Ff,
+f as in
+"fly"
+
+Gg,
+g as in
+"gun"
+
+Ĝĝ,
+j as in
+"join"
+
+Hh,
+h as in
+"half"
+
+Ĥĥ,
+strongly
+aspirated
+h, "ch"
+in
+"loch"
+(scotch)
+
+Ii,
+i as in
+"marine"
+
+Jj,
+y as in
+"yoke"
+
+Ĵĵ,
+z as in
+"azure"
+
+Kk,
+k as in
+"key"
+
+Ll,
+l as in
+"line"
+
+Mm,
+m as in
+"make"
+
+Nn,
+n as in
+"now"
+
+Oo,
+o as in
+"not"
+
+Pp,
+p as in
+"pair"
+
+Rr,
+r as in
+"rare"
+
+Ss,
+s as in
+"see"
+
+Ŝŝ,
+sh as in
+"show"
+
+Tt,
+t as in
+"tea"
+
+Uu,
+u as in
+"bull"
+
+Ŭŭ,
+u as in
+"mount"
+(used
+in
+diphtongs)
+
+Vv,
+v as in
+"very"
+
+Zz,
+z as in
+"zeal"
+
+Remark. ― If it be found
+impraticable to print works with the
+diacritical signs (^,˘), the
+letter h may be
+substituted for the sign
+(^), and the sign (˘), may be altogether omitted.
+
+B) PARTS OF SPEECH
+
+1.
+There is no indefinite, and only one definite,
+article, la, for all genders, numbers, and cases.
+
+2.
+Substantives are formed by adding o to the root.
+For the plural, the letter j must be added to the singular.
+There are two cases: the nominative and the
+objective (accusative). The root with the added o is
+the nominative, the objective adds an n after the o.
+Other cases are formed by prepositions; thus, the
+possessive (genitive) by de,
+„of”; the dative by al,
+„to”, the instrumental (ablative) by
+kun, „with”, or
+other preposition as the sense demands. E. g. root
+patr, „father”;
+la patr'o, „the
+father”; la patr'o'n,
+„the father” (objective), de la patr'o, „of the
+father”;
+al la patr'o, „to the
+father”; kun la patr'o,
+„with the
+father”; la patr'o'j,
+„the fathers”; la
+patr'o'j'n, „the
+fathers” (obj.), por la
+patr'o'j, „for the fathers”.
+
+3.
+Adjectives are formed by adding a to the root.
+The numbers and cases are the same as in substantives.
+The comparative degree is formed by prefixing
+pli (more); the superlative by plej (most). The word
+„than” is rendered by ol, e. g. pli blanka ol
+neĝo,
+„whiter than snow”.
+
+4.
+The cardinal numerals do not change their forms
+for the different cases. They are:
+unu (1), du
+(2), tri (3),
+kvar (4), kvin
+(5), ses (6),
+sep (7), ok
+(8), naŭ (9), dek (10),
+cent (100), mil (1000).
+The tens and hundreds are formed by simple junction
+of the numerals, e. g. 533 = kvin'cent tri'dek tri.
+Ordinals are formed by adding the adjectival a to
+the cardinals, e. g. unu'a,
+„first”; du'a,
+„second”, etc.
+Multiplicatives (as „threefold”,
+„fourfold”, etc.) add
+obl, e. g. tri'obl'a, „threefold”.
+Fractionals add on, as du'on'o, „a half”;
+kvar'on'o,
+„a quarter”. Collective numerals add
+op, as kvar'op'e,
+„four together”.
+Distributive prefix po, e. g., po kvin, „five apiece”.
+Adverbials take e, e. g., unu'e, „firstly”, etc.
+
+5.
+The personal pronouns are: mi,
+„I”; vi,
+„thou”,
+„you”; li,
+„he”; ŝi,
+„she”; ĝi,
+„it”;
+si, „self”; ni, „we”; ili,
+„they”; oni,
+„one”, „people”,
+(French „on”).
+Possessive pronouns are formed by suffixing to
+the required personal, the adjectival termination. The
+declension of the pronouns is identical with that of
+substantives. E. g. mi,
+„I”; mi'n,
+„me” (obj.); mi'a,
+„my”, „mine”.
+
+6.
+The verb does not change its form for numbers
+or persons, e. g. mi far'as,
+„I do”; la patr'o
+far'as,
+„the father does”; ili
+far'as, „they do”.
+
+Forms of the Verb:
+
+a) The present tense ends in as, e. g. mi far'as,
+„I do”.
+
+b) The past tense ends in is,
+e. g. li far'is, „he
+did”.
+
+c) The future tense ends in os,
+e. g. ili far'os,
+„they will do”.
+
+ĉ) The subjunctive mood ends in us, e. g. ŝi far'us,
+„she may do”.
+
+d) The imperative mood ends in u, e. g. ni far'u,
+„let us do”.
+
+e) The infinitive mood ends in i, e. g. fari,
+„to do”.
+
+There are two forms of the participle in the international
+language, the changeable or adjectival, and
+the unchangeable or adverbial.
+
+f) The present participle active ends in ant, e. g.
+far'ant'a, „he who is
+doing”; far'ant'e,
+„doing”.
+
+g) The past participle active ends in int, e. g. far'int'a,
+„he who has done”; far'int'e, „having done”.
+
+ĝ) The future participle active ends in ont, e. g.
+far'ont'a, „he who will
+do”; far'ont'e,
+„about to do”.
+
+h) The present participle passive ends in at, e. g.
+far'at'e, „being
+done”.
+
+ĥ) The past participle passive ends in it, e. g. far'it'a,
+„that which has been done”; far'it'e, „having been
+done”.
+
+i) The future participle passive ends in ot, e. g.
+far'ot'a, „that which will be
+done”; far'ot'e,
+„about to be done”.
+
+All forms of the passive are rendered by the respective
+forms of the verb est (to be) and the participle passive
+of the required verb; the preposition
+used is de,
+„by”. E. g. ŝi est'as
+am'at'a de ĉiu'j, „she
+is loved by every one”.
+
+7.
+Adverbs are formed by adding e to the root. The
+degrees of comparison are the same as in adjectives,
+e. g., mi'a frat'o kant'as pli bon'e ol
+mi, „my brother
+sings better than I”.
+
+8.
+All prepositions govern the nominative case.
+
+C) GENERAL RULES
+
+9.
+Every word is to be read exactly as written,
+there are no silent letters.
+
+10.
+The accent falls on the last syllable but one,
+(penultimate).
+
+11.
+Compound words are formed by the simple
+junction of roots, (the principal word standing last),
+which are written as a single word, but, in elementary
+works, separated by a small line ('). Grammatical
+terminations are considered as independent words. E. g.
+vapor'ŝip'o,
+„steamboat” is composed of the roots
+vapor,
+„steam”, and ŝip, „a boat”, with
+the substantival
+termination o.
+
+12.
+If there be one negative in a clause, a second is
+not admissible.
+
+15.
+In phrases answering the question „where?”
+(meaning direction), the words take the termination
+of the objective case; e. g. kie'n vi
+ir'as?„where are
+you going?”; dom'o'n,
+„home”; London'o'n, „to
+London”,
+etc.
+
+14.
+Every preposition in the international language
+has a definite fixed meaning. If it be necessary to
+employ some preposition, and it is not quite evident
+from the sense which it should be, the word je is
+used, which has no definite meaning; for example,
+ĝoj'i je tio, „to rejoice
+over it”;
+rid'i je tio, „to laugh at
+it”; enu'o je la patr'uj'o,
+„a longing for one’s fatherland”.
+In every language different prepositions, sanctioned
+by usage, are employed in these dubious cases, in the
+international language, one word, je, suffices for all.
+Instead of je, the objective without a preposition may
+be used, when no confusion is to be feared.
+
+15.
+The so-called „foreign” words, i. e. words which
+the greater number of languages have derived from
+the same source, undergo no change in the international
+language, beyond conforming to its system of
+orthography. ― Such is the rule with regard to primary
+words, derivatives are better formed (from the primary word)
+according to the rules of the international
+grammar, e. g. teatr'o,
+„theatre”, but teatr'a,
+„theatrical”, (not teatrical'a), etc.
+
+16.
+The a of the article, and final o of substantives,
+may be sometimes dropped euphoniae gratia, e. g.
+de l’ mond'o for de la mond'o;
+Ŝiller’ for Ŝiller'o; in such
+cases an apostrophe should be substituted for the
+discarded vowel.

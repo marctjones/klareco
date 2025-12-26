@@ -19,6 +19,7 @@ venv.bak/
 # Data
 data/
 models/
+logs/
 *.log
 
 # Test outputs and temporary files

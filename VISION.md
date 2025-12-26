@@ -7,18 +7,18 @@
 ## The Core Insight
 
 Traditional LLMs waste enormous capacity learning:
-- **Grammar** - Esperanto grammar is regular and known
-- **Morphology** - We encode this in compositional embeddings
-- **Syntax** - Our parser already extracts this
-- **Token prediction** - "hund" + "o" is trivial in Esperanto
+- **Grammar** - Esperanto grammar is regular and known (0 params needed)
+- **Morphology** - Deterministic decomposition gives us roots/affixes for free
+- **Syntax** - Our parser extracts this deterministically (16 rules)
+- **Semantic Roles** - Accusative markers give us agent/patient for FREE
+- **Token prediction** - Grammar endings are 100% predictable
 
-**What if we factor these out?**
+**The MLM Experiment Proved This**: When we tried masked language modeling on Esperanto, loss *increased* (6.96 → 7.28) because the model fought against deterministic grammar patterns.
 
-The remaining "reasoning core" only needs to learn:
-- World knowledge (facts and relationships)
-- Reasoning patterns (cause/effect, counterfactuals, analogies)
-- Discourse structure (how ideas connect)
-- Pragmatics (what's relevant, what to emphasize)
+**What we actually need to learn** (see `SEMANTIC_LEARNING_STRATEGY.md`):
+- Root semantics (~5K roots × 64d = 320K params)
+- Affix transformations (~50 affixes × 64d = 3.2K params)
+- Reasoning patterns (AST-to-AST composition)
 
 ---
 
@@ -48,14 +48,14 @@ Input: "Kiu estas Frodo?"
          │
          ▼
 ┌──────────────────┐
-│ Parser (rules)   │  ← No learning, deterministic
-│ Text → AST       │
+│ Parser (rules)   │  ← 0 params: 16 deterministic rules
+│ Text → AST       │     + FREE semantic role labeling
 └──────────────────┘
          │
          ▼
 ┌──────────────────┐
-│ Compositional    │  ← Minimal learning (~500K params)
-│ Embeddings       │     Morpheme composition
+│ Root Embeddings  │  ← 320K params: semantic meaning only
+│ + Frozen Grammar │     Grammar features as register_buffer()
 └──────────────────┘
          │
          ▼
@@ -68,7 +68,7 @@ Input: "Kiu estas Frodo?"
 ┌──────────────────┐
 │ Reasoning Core   │  ← THE KEY INNOVATION
 │ (learned model)  │     Operates on ASTs, not tokens
-│ AST → AST        │     Maybe 100M-500M params?
+│ AST → AST        │     Target: 20-100M params
 └──────────────────┘
          │
          ▼
@@ -141,9 +141,16 @@ ASTs as graphs → Graph Transformer → New graph
 |-------|-----------|-----|
 | GPT-4 | ~1.7T | Learns everything from scratch |
 | Llama-7B | 7B | Still learns all grammar |
-| **Klareco Reasoning Core** | 100M-500M? | Only learns reasoning |
+| **Klareco** | 21-105M | Only learns semantics + reasoning |
 
-The hypothesis: **Clean structural input → fewer parameters needed**
+**Parameter breakdown** (from `SEMANTIC_LEARNING_STRATEGY.md`):
+- Root embeddings: 320K (5K roots × 64d)
+- Affix embeddings: 3.2K (50 affixes × 64d)
+- Grammatical features: 0 (frozen buffers)
+- AST encoder (GNN): 1-5M
+- Reasoning core: 20-100M
+
+The hypothesis: **Deterministic grammar + structured AST → 50-100x fewer parameters**
 
 ---
 
@@ -151,10 +158,11 @@ The hypothesis: **Clean structural input → fewer parameters needed**
 
 | Component | What It Knows | Learned? |
 |-----------|---------------|----------|
-| Parser | Esperanto grammar rules | No (rule-based) |
-| Compositional Embeddings | Word meanings, morpheme semantics | Yes (~500K params) |
-| RAG Retrieval | Which facts are relevant | Partially (index + embeddings) |
-| **Reasoning Core** | How to combine facts, answer questions | Yes (100M-500M params?) |
+| Parser | Esperanto grammar rules, semantic roles | No (16 rules) |
+| Root Embeddings | Semantic meaning of ~5K roots | Yes (320K params) |
+| Grammatical Features | Case, tense, number encoding | No (frozen buffers) |
+| RAG Retrieval | Which ASTs are semantically similar | Partially (contrastive) |
+| **Reasoning Core** | How to compose ASTs, reason over facts | Yes (20-100M params) |
 | Linearizer | How to express AST as text | No (rule-based) |
 
 ---
@@ -280,4 +288,11 @@ When ready to move beyond RAG:
 
 ---
 
-*This document captures the long-term vision. Current work is tracked in `IMPLEMENTATION_ROADMAP_V2.md`.*
+## Related Documentation
+
+- **`SEMANTIC_LEARNING_STRATEGY.md`** - Detailed training strategy for learning semantic embeddings
+- **`IMPLEMENTATION_ROADMAP_V2.md`** - Current development tasks and progress
+- **`DESIGN.md`** - Technical architecture details
+- **Wiki**: See [[Why-AST-Changes-Everything]] for the paradigm shift explanation
+
+*Last updated: December 2024*

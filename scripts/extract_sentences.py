@@ -302,24 +302,19 @@ def extract_sentences_streaming(
         with open(file_path, 'r', encoding='utf-8') as f:
             text = f.read()
 
-        # Calculate byte size for progress interpolation
-        text_bytes = len(text.encode('utf-8'))
-        chars_processed = 0
+        # Count total paragraphs for progress estimation
+        # Paragraphs are separated by blank lines
+        total_paragraphs = text.count('\n\n') + 1
 
-        # Add byte tracking to each entry with interpolated progress
+        # Add byte tracking to each entry with paragraph-based progress
         for entry in _process_text_streaming(
             text, min_words, max_words, with_ast, batch_size,
             start_para=1, source_file=source_file, parse_timeout=parse_timeout
         ):
-            # Interpolate byte position based on character position
-            sent_text = entry.get('text', '')
-            sent_end_pos = text.find(sent_text, chars_processed)
-            if sent_end_pos >= 0:
-                chars_processed = sent_end_pos + len(sent_text)
-                progress_ratio = chars_processed / len(text) if text else 0
-                entry['_byte_position'] = int(text_bytes * progress_ratio)
-            else:
-                entry['_byte_position'] = file_size
+            # Estimate progress based on paragraph number
+            para_num = entry.get('paragraph', 1)
+            progress_ratio = para_num / total_paragraphs if total_paragraphs > 0 else 0
+            entry['_byte_position'] = int(file_size * progress_ratio)
             entry['_file_size'] = file_size
             yield entry
 
@@ -494,32 +489,22 @@ def _extract_sentences_chunked(
                 complete_text = text[:last_para_boundary]
                 overlap_buffer = text[last_para_boundary:].lstrip()
 
-                # Count paragraphs before processing
+                # Count paragraphs in this chunk for interpolation
+                paragraphs_in_chunk = complete_text.count('\n\n') + 1
+                chunk_start_byte = bytes_read - len(chunk.encode('utf-8'))
+                chunk_byte_size = bytes_read - chunk_start_byte
                 para_count_before = para_num
 
-                # Calculate byte position at start of this chunk's text
-                # bytes_read is position after reading chunk, so subtract chunk size
-                chunk_start_byte = bytes_read - len(chunk.encode('utf-8'))
-                complete_text_bytes = len(complete_text.encode('utf-8'))
-
                 # Process this chunk
-                chars_processed = 0
                 for entry in _process_text_streaming(
                     complete_text, min_words, max_words, with_ast, batch_size, para_num,
                     source_file=source_file, parse_timeout=parse_timeout
                 ):
-                    # Interpolate byte position based on character position in text
-                    # Find where this sentence ends in complete_text
-                    sent_text = entry.get('text', '')
-                    sent_end_pos = complete_text.find(sent_text, chars_processed)
-                    if sent_end_pos >= 0:
-                        chars_processed = sent_end_pos + len(sent_text)
-                        # Estimate byte position (assuming roughly 1 byte per char for ASCII,
-                        # but this is approximate for UTF-8)
-                        progress_ratio = chars_processed / len(complete_text) if complete_text else 0
-                        entry['_byte_position'] = chunk_start_byte + int(complete_text_bytes * progress_ratio)
-                    else:
-                        entry['_byte_position'] = bytes_read
+                    # Interpolate within chunk based on paragraph position
+                    current_para = entry.get('paragraph', para_num)
+                    para_offset = current_para - para_count_before
+                    para_progress = para_offset / paragraphs_in_chunk if paragraphs_in_chunk > 0 else 0
+                    entry['_byte_position'] = chunk_start_byte + int(chunk_byte_size * para_progress)
                     entry['_file_size'] = file_size
                     yield entry
                     # Track paragraph number from entries
@@ -528,7 +513,7 @@ def _extract_sentences_chunked(
 
                 # If no entries were yielded but we had text, still increment para counter
                 if para_num == para_count_before and complete_text.strip():
-                    para_num += complete_text.count('\n\n') + 1
+                    para_num += paragraphs_in_chunk
 
             else:
                 # No paragraph boundary found, keep entire text as overlap

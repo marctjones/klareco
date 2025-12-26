@@ -60,9 +60,14 @@ def _word_tokens(word: Word) -> List[str]:
     Ordering is deterministic to keep token streams stable.
     """
     tokens: List[str] = []
-    prefikso = word.get("prefikso")
-    if prefikso:
-        tokens.append(f"pref:{prefikso}")
+    # Handle both new 'prefiksoj' (list) and legacy 'prefikso' (string) formats
+    prefiksoj = word.get("prefiksoj", [])
+    if not prefiksoj:
+        # Backwards compatibility: check for old 'prefikso' field
+        old_prefikso = word.get("prefikso")
+        prefiksoj = [old_prefikso] if old_prefikso else []
+    for pref in prefiksoj:
+        tokens.append(f"pref:{pref}")
 
     root = word.get("radiko")
     if root:
@@ -224,9 +229,14 @@ def _slot_from_vortgrupo(vg: Optional[Dict[str, object]], role: str) -> SlotSign
         if not isinstance(adj, dict):
             continue
         radiko = adj.get("radiko")
-        pref = adj.get("prefikso") or ""
+        # Handle both new 'prefiksoj' (list) and legacy 'prefikso' (string) formats
+        prefiksoj = adj.get("prefiksoj", [])
+        if not prefiksoj:
+            old_pref = adj.get("prefikso")
+            prefiksoj = [old_pref] if old_pref else []
+        pref_str = "".join(prefiksoj)  # Join all prefixes
         if radiko:
-            modifiers.append(f"{pref}{radiko}")
+            modifiers.append(f"{pref_str}{radiko}")
 
     return SlotSignature(
         role=role,

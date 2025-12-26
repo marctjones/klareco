@@ -14,7 +14,13 @@ def _reconstruct_word(word_ast: dict) -> str:
         raise ValueError(f"Nevalida vorto-AST: {word_ast}")
 
     # --- Assemble the word stem ---
-    prefix = word_ast.get('prefikso') or ''
+    # Handle both new 'prefiksoj' (list) and legacy 'prefikso' (string) formats
+    prefiksoj = word_ast.get('prefiksoj', [])
+    if not prefiksoj:
+        # Backwards compatibility: check for old 'prefikso' field
+        old_prefix = word_ast.get('prefikso')
+        prefiksoj = [old_prefix] if old_prefix else []
+    prefix = "".join(prefiksoj)
     root = word_ast.get('radiko') or ''
     suffixes = "".join(word_ast.get('sufiksoj', []))
     stem = f"{prefix}{root}{suffixes}"

@@ -3,7 +3,7 @@ Compositional Embeddings for Esperanto Morphemes.
 
 Implements embeddings that compose word representations from:
 - Root (radiko) embedding
-- Prefix (prefikso) embedding (if present)
+- Prefixes (prefiksoj) embeddings - supports multiple prefixes per word
 - Suffix (sufiksoj) embeddings (if present)
 - Grammatical ending embedding
 
@@ -12,7 +12,11 @@ This approach:
 2. Enables handling of novel words through morpheme composition
 3. Captures Esperanto's regular morphological structure
 
-Word embedding = f(root, prefix, suffixes, ending)
+Word embedding = f(root, prefixes, suffixes, ending)
+
+Note: The parser outputs `prefiksoj` as a list to support multiple prefixes
+(e.g., "remalami" → ["re", "mal"]). This module averages multiple prefix
+embeddings when composing the word representation.
 """
 
 import json
@@ -207,6 +211,7 @@ class CompositionalEmbedding(nn.Module):
         self,
         root: str,
         prefix: Optional[str] = None,
+        prefixes: Optional[List[str]] = None,
         suffixes: Optional[List[str]] = None,
         ending: Optional[str] = None,
     ) -> torch.Tensor:
@@ -215,7 +220,8 @@ class CompositionalEmbedding(nn.Module):
 
         Args:
             root: Word root (radiko)
-            prefix: Optional prefix (prefikso)
+            prefix: Optional single prefix (legacy, for backwards compatibility)
+            prefixes: Optional list of prefixes (prefiksoj) - preferred
             suffixes: Optional list of suffixes (sufiksoj)
             ending: Grammatical ending
 
@@ -228,8 +234,17 @@ class CompositionalEmbedding(nn.Module):
         root_idx = torch.tensor([self.get_root_idx(root)], device=device)
         root_emb = self.root_embed(root_idx).squeeze(0)
 
-        prefix_idx = torch.tensor([self.get_prefix_idx(prefix)], device=device)
-        prefix_emb = self.prefix_embed(prefix_idx).squeeze(0)
+        # Handle prefixes (new list format preferred, fall back to legacy single prefix)
+        prefix_list = prefixes if prefixes else ([prefix] if prefix else [])
+        if prefix_list:
+            prefix_idxs = torch.tensor(
+                [self.get_prefix_idx(p) for p in prefix_list],
+                device=device
+            )
+            prefix_emb = self.prefix_embed(prefix_idxs).mean(dim=0)
+        else:
+            prefix_idx = torch.tensor([self.prefix_vocab.get('<NONE>', 0)], device=device)
+            prefix_emb = self.prefix_embed(prefix_idx).squeeze(0)
 
         # Average suffix embeddings if multiple
         if suffixes:
@@ -610,7 +625,7 @@ def main():
     # Test: hundeto (little dog)
     embedding = emb.encode_word(
         root='hund',
-        prefix=None,
+        prefixes=None,
         suffixes=['et'],
         ending='o'
     )
@@ -619,11 +634,20 @@ def main():
     # Test: malhundo (opposite-dog, nonsense but valid morphology)
     embedding = emb.encode_word(
         root='hund',
-        prefix='mal',
+        prefixes=['mal'],
         suffixes=None,
         ending='o'
     )
     print(f"  malhundo: shape={embedding.shape}, norm={embedding.norm().item():.4f}")
+
+    # Test: remalhundo (multi-prefix example)
+    embedding = emb.encode_word(
+        root='hund',
+        prefixes=['re', 'mal'],
+        suffixes=None,
+        ending='o'
+    )
+    print(f"  remalhundo (multi-prefix): shape={embedding.shape}, norm={embedding.norm().item():.4f}")
 
     # Test: katidoj (kittens)
     if 'kat' in emb.root_vocab or '<UNK>' in emb.root_vocab:

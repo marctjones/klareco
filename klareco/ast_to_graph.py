@@ -9,6 +9,10 @@ Graph Structure:
 - Edges: Syntactic and morphological relationships
 - Node features: Compositional morpheme embeddings or raw morpheme indices
 - Edge types: has_subject, has_verb, has_object, modifies, etc.
+
+Note: Supports both legacy 'prefikso' (string) and new 'prefiksoj' (list)
+formats from the parser. Multi-prefix words like "remalami" are handled
+by averaging prefix embeddings.
 """
 
 import torch
@@ -174,7 +178,12 @@ class ASTToGraphConverter:
         """
         # Extract morpheme components
         root = node.get('radiko', '')
-        prefix = node.get('prefikso', '')
+        # Handle both old 'prefikso' (string) and new 'prefiksoj' (list) formats
+        prefixes = node.get('prefiksoj', [])
+        if not prefixes:
+            # Backwards compatibility: check for old 'prefikso' field
+            old_prefix = node.get('prefikso', '')
+            prefixes = [old_prefix] if old_prefix else []
         suffixes = node.get('sufiksoj', [])
         ending = self.extract_ending(node)
 
@@ -183,7 +192,7 @@ class ASTToGraphConverter:
             with torch.no_grad():
                 word_emb = self.compositional_embedding.encode_word(
                     root=root if root else '<UNK>',
-                    prefix=prefix if prefix else None,
+                    prefixes=prefixes if prefixes else None,
                     suffixes=suffixes if suffixes else None,
                     ending=ending,
                 )
@@ -218,9 +227,13 @@ class ASTToGraphConverter:
         case_onehot[CASE_TAGS.get(case, 0)] = 1.0
         features.extend(case_onehot)
 
-        # Prefix ID
-        prefix_id = self.get_morpheme_id(prefix) if prefix else 0
-        features.append(float(prefix_id))
+        # Prefix IDs (mean of prefix IDs for multi-prefix support)
+        if prefixes:
+            prefix_ids = [self.get_morpheme_id(p) for p in prefixes]
+            prefix_mean = np.mean(prefix_ids)
+        else:
+            prefix_mean = 0.0
+        features.append(float(prefix_mean))
 
         # Suffixes (mean of suffix IDs)
         if suffixes:

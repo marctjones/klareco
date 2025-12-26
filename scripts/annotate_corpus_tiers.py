@@ -5,10 +5,20 @@ Annotate existing corpus with source tiers and weights.
 This script reads an existing corpus (corpus_with_sources_v2.jsonl) and adds
 proper tier, weight, and citation annotations based on the source field.
 
+Features:
+- Checkpoint support for resumable processing
+- Progress logging every 100K entries
+
 Usage:
     python scripts/annotate_corpus_tiers.py \
         --input data/corpus_with_sources_v2.jsonl \
         --output data/corpus/tiered_corpus.jsonl
+
+    # Resume from checkpoint
+    python scripts/annotate_corpus_tiers.py \
+        --input data/corpus_with_sources_v2.jsonl \
+        --output data/corpus/tiered_corpus.jsonl \
+        --resume
 """
 
 import argparse
@@ -17,6 +27,7 @@ import logging
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import Optional, Dict, Any
 
 logging.basicConfig(
     level=logging.INFO,
@@ -162,6 +173,38 @@ DEFAULT_TIER = {
     'type': 'unknown'
 }
 
+CHECKPOINT_INTERVAL = 50000  # Save checkpoint every 50K entries
+
+
+def load_checkpoint(checkpoint_path: Path) -> Optional[Dict[str, Any]]:
+    """Load checkpoint if exists."""
+    if checkpoint_path.exists():
+        try:
+            with open(checkpoint_path, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
+
+
+def save_checkpoint(checkpoint_path: Path, line_number: int, stats: Dict[str, Any]):
+    """Save checkpoint atomically."""
+    temp_path = checkpoint_path.with_suffix('.tmp')
+    try:
+        with open(temp_path, 'w') as f:
+            json.dump({
+                'line_number': line_number,
+                'tier_counts': stats['tier_counts'],
+                'source_counts': stats['source_counts'],
+                'total': stats['total'],
+                'timestamp': datetime.now().isoformat()
+            }, f, indent=2)
+        temp_path.rename(checkpoint_path)
+    except Exception as e:
+        logger.warning(f"Failed to save checkpoint: {e}")
+        if temp_path.exists():
+            temp_path.unlink()
+
 
 def normalize_source_name(source: str) -> str:
     """Normalize source name for matching."""
@@ -227,6 +270,10 @@ def main():
                         help='Output annotated corpus JSONL file')
     parser.add_argument('--sample', type=int, default=0,
                         help='Only process first N entries (0 = all)')
+    parser.add_argument('--resume', action='store_true',
+                        help='Resume from checkpoint if available')
+    parser.add_argument('--fresh', action='store_true',
+                        help='Start fresh, ignoring any existing checkpoint')
 
     args = parser.parse_args()
 
@@ -235,22 +282,50 @@ def main():
         sys.exit(1)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = args.output.with_suffix('.checkpoint.json')
+
+    # Handle checkpoint
+    checkpoint = None
+    start_line = 0
+    if args.fresh:
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
+            logger.info("🗑️  Removed existing checkpoint (--fresh)")
+    elif args.resume or checkpoint_path.exists():
+        checkpoint = load_checkpoint(checkpoint_path)
+        if checkpoint:
+            start_line = checkpoint['line_number']
+            logger.info(f"📂 Resuming from checkpoint at line {start_line:,}")
 
     logger.info("=" * 60)
     logger.info("Annotating Corpus with Source Tiers")
     logger.info("=" * 60)
     logger.info(f"Input: {args.input}")
     logger.info(f"Output: {args.output}")
+    if start_line > 0:
+        logger.info(f"Resuming from line: {start_line:,}")
 
-    # Statistics
-    tier_counts = {i: 0 for i in range(1, 8)}
-    source_counts = {}
-    total = 0
+    # Statistics - restore from checkpoint or initialize
+    if checkpoint:
+        tier_counts = {int(k): v for k, v in checkpoint.get('tier_counts', {}).items()}
+        source_counts = checkpoint.get('source_counts', {})
+        total = checkpoint.get('total', 0)
+    else:
+        tier_counts = {i: 0 for i in range(1, 8)}
+        source_counts = {}
+        total = 0
+
+    # Open in append mode if resuming, otherwise write mode
+    write_mode = 'a' if start_line > 0 else 'w'
 
     with open(args.input, 'r', encoding='utf-8') as infile, \
-         open(args.output, 'w', encoding='utf-8') as outfile:
+         open(args.output, write_mode, encoding='utf-8') as outfile:
 
         for line_number, line in enumerate(infile, 1):
+            # Skip already processed lines
+            if line_number <= start_line:
+                continue
+
             if args.sample and line_number > args.sample:
                 break
 
@@ -260,7 +335,7 @@ def main():
 
                 # Track statistics
                 tier = annotated['source']['tier']
-                tier_counts[tier] += 1
+                tier_counts[tier] = tier_counts.get(tier, 0) + 1
 
                 source_name = annotated['source']['name']
                 source_counts[source_name] = source_counts.get(source_name, 0) + 1
@@ -268,13 +343,27 @@ def main():
                 outfile.write(json.dumps(annotated, ensure_ascii=False) + '\n')
                 total += 1
 
+                # Progress and checkpoint
                 if line_number % 100000 == 0:
                     logger.info(f"Processed {line_number:,} entries...")
+
+                if line_number % CHECKPOINT_INTERVAL == 0:
+                    outfile.flush()
+                    save_checkpoint(checkpoint_path, line_number, {
+                        'tier_counts': tier_counts,
+                        'source_counts': source_counts,
+                        'total': total
+                    })
 
             except json.JSONDecodeError as e:
                 logger.warning(f"Line {line_number}: JSON error: {e}")
             except Exception as e:
                 logger.warning(f"Line {line_number}: Error: {e}")
+
+    # Clean up checkpoint on successful completion
+    if checkpoint_path.exists():
+        checkpoint_path.unlink()
+        logger.info("✅ Removed checkpoint (processing complete)")
 
     # Report
     logger.info("=" * 60)

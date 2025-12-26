@@ -4,11 +4,26 @@ This parser is built on the 16 rules of Esperanto and does not use any
 external parsing libraries like Lark. It performs morphological and syntactic
 analysis to produce a detailed, Esperanto-native Abstract Syntax Tree (AST)."""
 import re
+import json
+from pathlib import Path
+
 try:
     from data.merged_vocabulary import MERGED_ROOTS as DICTIONARY_ROOTS
 except ImportError:
     # Fallback to Gutenberg dictionary if merged vocabulary not available
     from data.extracted_vocabulary import DICTIONARY_ROOTS
+
+# Load Fundamento roots (authoritative, tier 1 vocabulary)
+# These are used to disambiguate prefix/suffix conflicts
+_FUNDAMENTO_ROOTS = set()
+try:
+    _fundamento_path = Path(__file__).parent.parent / "data" / "vocabularies" / "fundamento_roots.json"
+    if _fundamento_path.exists():
+        with open(_fundamento_path, 'r', encoding='utf-8') as f:
+            _fundamento_data = json.load(f)
+            _FUNDAMENTO_ROOTS = set(_fundamento_data.get('roots', {}).keys())
+except Exception:
+    pass  # Silently fall back to empty set if file not found
 
 # -----------------------------------------------------------------------------
 # --- Hardcoded Vocabulary (Lexicon)
@@ -24,6 +39,11 @@ KNOWN_PREFIXES = {
     "ek",   # sudden action, beginning
     "pra",  # primordial, great- (as in great-grandfather)
     "for",  # away, completely
+    "dis",  # dispersal, separation
+    "mis",  # wrongly, mis-
+    "bo",   # in-law (bopatro = father-in-law)
+    "fi",   # shameful, morally bad
+    "vic",  # vice-, deputy
 }
 
 KNOWN_SUFFIXES = {
@@ -552,7 +572,7 @@ def parse_word(word: str) -> dict:
         "vortspeco": "nekonata", # unknown
         "nombro": "singularo",
         "kazo": "nominativo",
-        "prefikso": None,
+        "prefiksoj": [],  # Changed from prefikso (single) to prefiksoj (list) for multiple prefixes
         "sufiksoj": [],
     }
 
@@ -576,7 +596,7 @@ def parse_word(word: str) -> dict:
                 if potential_root in KNOWN_ROOTS:
                     ast['vortspeco'] = 'substantivo'
                     ast['radiko'] = potential_root
-                    ast['prefikso'] = prefix
+                    ast['prefiksoj'].append(prefix)
                     return ast
 
         # Fall back to full word as known root (noun with -o elided)
@@ -753,27 +773,225 @@ def parse_word(word: str) -> dict:
     # Check for decomposable prefixes FIRST, even if the compound form exists
     # This is linguistically correct for Esperanto (compositional semantics)
     # e.g., "malgrand" should be "mal-" + "grand", not a standalone root
+    # Support multiple stacked prefixes (e.g., "remalbona" = re- + mal- + bona)
     prefix_stripped = False
-    for prefix in KNOWN_PREFIXES:
-        if stem.startswith(prefix):
-            remaining_after_prefix = stem[len(prefix):]
-            # Prefer prefix decomposition if what remains is a known root
-            if remaining_after_prefix in KNOWN_ROOTS:
-                ast["prefikso"] = prefix
+    max_prefix_depth = 3  # Limit prefix stacking to prevent infinite loops
+    # Sort prefixes and suffixes by length (longest first) to match greedily
+    sorted_prefixes = sorted(KNOWN_PREFIXES, key=len, reverse=True)
+    sorted_suffixes = sorted(KNOWN_SUFFIXES, key=len, reverse=True)
+
+    def is_true_base_root(word):
+        """Check if word is a base root (not a prefixed compound).
+
+        For Klareco's compositional thesis, 'malbon' should NOT be treated as
+        a base root because it's decomposable as mal+bon. Only words that
+        don't start with a known prefix (where the remainder is valid) count.
+
+        However, we need to be careful: 'boneg' starts with 'bo' and 'neg' is
+        a valid root, but 'boneg' is really 'bon+eg', not 'bo+neg'. So we
+        also check if suffix stripping gives a longer/equal root than the
+        prefix interpretation. If so, it's NOT a prefixed compound.
+
+        DISAMBIGUATION with Fundamento:
+        When prefix and suffix interpretations give equal root lengths, prefer
+        the interpretation that uses a Fundamento (authoritative) root.
+        Example: 'refar' - both 're+far' and 'ref+ar' give length 3, but 'far'
+        is in Fundamento while 'ref' is not, so prefer 're+far'.
+        """
+        if word not in KNOWN_ROOTS:
+            return False
+
+        # First, find the root we can get via suffix stripping
+        suffix_root = None
+        suffix_root_len = 0
+        for s in sorted_suffixes:
+            if word.endswith(s) and len(word) > len(s):
+                potential = word[:-len(s)]
+                if potential in KNOWN_ROOTS:
+                    suffix_root = potential
+                    suffix_root_len = len(potential)
+                    break
+
+        # Check if it starts with a prefix whose remainder is valid
+        for p in sorted_prefixes:
+            if word.startswith(p):
+                remainder = word[len(p):]
+                prefix_root = None
+                prefix_root_len = 0
+                if remainder in KNOWN_ROOTS:
+                    prefix_root = remainder
+                    prefix_root_len = len(remainder)
+                else:
+                    # Check if remainder becomes valid after suffix stripping
+                    for s in sorted_suffixes:
+                        if remainder.endswith(s) and len(remainder) > len(s):
+                            pot = remainder[:-len(s)]
+                            if pot in KNOWN_ROOTS:
+                                prefix_root = pot
+                                prefix_root_len = len(pot)
+                                break
+
+                if prefix_root_len > 0:
+                    # Compare root lengths
+                    if suffix_root_len > prefix_root_len:
+                        continue  # Suffix gives longer root, this prefix doesn't apply
+
+                    if suffix_root_len == prefix_root_len:
+                        # TIE-BREAKER: Use Fundamento roots to disambiguate
+                        # Prefer the interpretation that uses an authoritative root
+                        prefix_in_fund = prefix_root in _FUNDAMENTO_ROOTS
+                        suffix_in_fund = suffix_root in _FUNDAMENTO_ROOTS if suffix_root else False
+
+                        if suffix_in_fund and not prefix_in_fund:
+                            continue  # Suffix root is authoritative, skip this prefix
+                        elif prefix_in_fund and not suffix_in_fund:
+                            return False  # Prefix root is authoritative, it's a compound
+                        else:
+                            # Both or neither in Fundamento - prefer suffix (conservative)
+                            continue
+
+                    # prefix_root_len > suffix_root_len
+                    return False  # Prefix gives longer root, it's a compound
+
+        return True
+
+    for _ in range(max_prefix_depth):
+        found_prefix = False
+        for prefix in sorted_prefixes:
+            if stem.startswith(prefix):
+                remaining_after_prefix = stem[len(prefix):]
+
+                # KEY PRINCIPLE for Klareco: PREFER compositional parse, but
+                # prefer LONGER roots when there's ambiguity.
+                #
+                # Example: "bonega" (stem "boneg")
+                # - Option A: bo + neg (prefix + 3-char root)
+                # - Option B: bon + eg (3-char root + suffix)
+                # Both give 3-char roots, but Option B is semantically correct.
+                # Rule: If stripping suffixes from stem gives a root >= length of
+                # the prefix-remainder root, prefer suffix stripping (no prefix).
+
+                # Get the root length we'd get from prefix extraction
+                remainder_root_len = 0
+                if remaining_after_prefix in KNOWN_ROOTS:
+                    remainder_root_len = len(remaining_after_prefix)
+                elif len(remaining_after_prefix) >= 2:
+                    for suffix in sorted_suffixes:
+                        if remaining_after_prefix.endswith(suffix) and len(remaining_after_prefix) > len(suffix):
+                            potential_root = remaining_after_prefix[:-len(suffix)]
+                            if potential_root in KNOWN_ROOTS:
+                                remainder_root_len = len(potential_root)
+                                break
+                            for suffix2 in sorted_suffixes:
+                                if potential_root.endswith(suffix2) and len(potential_root) > len(suffix2):
+                                    if potential_root[:-len(suffix2)] in KNOWN_ROOTS:
+                                        remainder_root_len = len(potential_root[:-len(suffix2)])
+                                        break
+                            if remainder_root_len > 0:
+                                break
+
+                if remainder_root_len == 0:
+                    continue  # This prefix doesn't yield a valid root path
+
+                # Get the root length we'd get from SUFFIX STRIPPING WITHOUT prefix.
+                # Important: Only count TRUE BASE roots (not prefixed compounds).
+                # "malbon" via suffix stripping shouldn't count because it's mal+bon.
+                # Use is_true_base_root() to filter out prefixed compounds.
+                stem_root_len = 0
+                for suffix in sorted_suffixes:
+                    if stem.endswith(suffix) and len(stem) > len(suffix):
+                        potential = stem[:-len(suffix)]
+                        if is_true_base_root(potential):
+                            stem_root_len = len(potential)
+                            break
+                        for suffix2 in sorted_suffixes:
+                            if potential.endswith(suffix2) and len(potential) > len(suffix2):
+                                deeper = potential[:-len(suffix2)]
+                                if is_true_base_root(deeper):
+                                    stem_root_len = len(deeper)
+                                    break
+                        if stem_root_len > 0:
+                            break
+
+                # KEY DECISION: Extract prefix UNLESS suffix stripping gives a better parse.
+                #
+                # Case 1: "malbon" is in KNOWN_ROOTS but contains prefix "mal".
+                #   → Extract prefix (mal+bon is more compositional)
+                #   → stem_root_len = 0 (no suffix to strip), so we extract.
+                #
+                # Case 2: "boneg" is in KNOWN_ROOTS but ends with suffix "eg".
+                #   → Prefer suffix stripping (bon+eg is correct semantics)
+                #   → stem_root_len = 3 (from bon), remainder_root_len = 3 (neg)
+                #   → Equal, so skip prefix.
+                #
+                # Case 3: "malbonel" is in KNOWN_ROOTS with prefix AND suffix.
+                #   → Check: suffix gives root? If so, prefer that path.
+                #
+                # Rule: Skip prefix if suffix stripping gives >= root length.
+                # The "stem in KNOWN_ROOTS" exception only applies if the stem
+                # does NOT end with a known suffix (i.e., is truly a base compound).
+                stem_ends_with_suffix = False
+                for suffix in sorted_suffixes:
+                    if stem.endswith(suffix) and len(stem) > len(suffix):
+                        # Use is_true_base_root to filter out prefixed compounds
+                        if is_true_base_root(stem[:-len(suffix)]):
+                            stem_ends_with_suffix = True
+                            break
+
+                # Skip prefix if:
+                # 1. Suffix stripping gives > root length, OR
+                # 2. Equal lengths BUT suffix root is in Fundamento and remainder is not, OR
+                # 3. Stem is a TRUE base root and ends with a suffix (prefer suffix path)
+
+                # Find the actual roots for Fundamento comparison
+                stem_suffix_root = None
+                for suffix in sorted_suffixes:
+                    if stem.endswith(suffix) and len(stem) > len(suffix):
+                        pot = stem[:-len(suffix)]
+                        if pot in KNOWN_ROOTS:
+                            stem_suffix_root = pot
+                            break
+
+                remainder_root = remaining_after_prefix if remaining_after_prefix in KNOWN_ROOTS else None
+                if remainder_root is None:
+                    for suffix in sorted_suffixes:
+                        if remaining_after_prefix.endswith(suffix) and len(remaining_after_prefix) > len(suffix):
+                            pot = remaining_after_prefix[:-len(suffix)]
+                            if pot in KNOWN_ROOTS:
+                                remainder_root = pot
+                                break
+
+                if stem_root_len > remainder_root_len:
+                    continue  # Suffix path gives strictly longer root, skip prefix
+
+                if stem_root_len == remainder_root_len:
+                    # TIE-BREAKER: Use Fundamento roots to disambiguate
+                    stem_in_fund = stem_suffix_root in _FUNDAMENTO_ROOTS if stem_suffix_root else False
+                    remainder_in_fund = remainder_root in _FUNDAMENTO_ROOTS if remainder_root else False
+
+                    if stem_in_fund and not remainder_in_fund:
+                        continue  # Suffix root is authoritative, skip prefix
+                    elif remainder_in_fund and not stem_in_fund:
+                        pass  # Remainder is authoritative, proceed to extract prefix
+                    else:
+                        # Both or neither in Fundamento - prefer suffix path (conservative)
+                        continue
+
+                if is_true_base_root(stem) and stem_ends_with_suffix:
+                    continue  # Stem is derived form with true base, prefer suffix
+
+                # Extract the prefix
+                ast["prefiksoj"].append(prefix)
                 stem = remaining_after_prefix
                 prefix_stripped = True
-                break # Assume only one prefix for now
-            # Also accept if what remains is long enough to potentially have suffixes
-            elif stem not in KNOWN_ROOTS and len(remaining_after_prefix) >= 3:
-                ast["prefikso"] = prefix
-                stem = remaining_after_prefix
-                prefix_stripped = True
+                found_prefix = True
                 break
+        if not found_prefix:
+            break  # No more prefixes found
 
     # Suffixes (middle) - improved matching logic
     # Only match suffixes if they leave behind a valid root
-    # Sort suffixes by length (longest first) to match greedily
-    sorted_suffixes = sorted(KNOWN_SUFFIXES, key=len, reverse=True)
+    # (sorted_suffixes already defined above for prefix lookahead)
 
     # FIX for Issue #90: Prefer longer roots over shorter roots with spurious suffixes.
     # Example: "rapide" should parse as "rapid" + e, NOT "rap" + "id" + e
@@ -885,7 +1103,7 @@ def parse_word(word: str) -> dict:
                 if remaining in KNOWN_ROOTS:
                     # It's a compound: preposition + root
                     ast["radiko"] = remaining
-                    ast["prefikso"] = prep  # Use prefix field for compound marker
+                    ast["prefiksoj"].append(prep)  # Use prefiksoj for compound marker
                     compound_found = True
                     break
 
@@ -896,7 +1114,7 @@ def parse_word(word: str) -> dict:
                     remaining = stem[len(corr):]
                     if remaining in KNOWN_ROOTS:
                         ast["radiko"] = remaining
-                        ast["prefikso"] = corr
+                        ast["prefiksoj"].append(corr)
                         compound_found = True
                         break
 
@@ -907,7 +1125,7 @@ def parse_word(word: str) -> dict:
                     remaining = stem[len(adv):]
                     if remaining in KNOWN_ROOTS:
                         ast["radiko"] = remaining
-                        ast["prefikso"] = adv
+                        ast["prefiksoj"].append(adv)
                         compound_found = True
                         break
 
@@ -918,7 +1136,7 @@ def parse_word(word: str) -> dict:
                     remaining = stem[len(compound_prep):]
                     if remaining in KNOWN_ROOTS:
                         ast["radiko"] = remaining
-                        ast["prefikso"] = compound_prep
+                        ast["prefiksoj"].append(compound_prep)
                         compound_found = True
                         break
 
@@ -981,7 +1199,7 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
         "category": "unknown",
         "nombro": "singularo",
         "kazo": "nominativo",
-        "prefikso": None,
+        "prefiksoj": [],
         "sufiksoj": [],
     }
 

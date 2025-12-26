@@ -145,6 +145,85 @@ All training scripts now include:
 - Atomic checkpoint saves (write to .tmp then rename to avoid corruption)
 - Checkpoint rotation (keeps last 2: `best_model.pt` and `best_model.prev.pt`)
 
+## Long-Running Scripts Policy
+
+**IMPORTANT: Claude should NEVER run long-running scripts directly.**
+
+Long-running scripts include:
+- Training scripts (any model training)
+- Corpus building/parsing scripts
+- Dataset cleaning/processing scripts
+- Index building scripts
+- Any script that takes more than ~30 seconds
+
+### What Claude Should Do Instead
+
+1. **Create/update shell wrapper scripts** in `scripts/` that:
+   - Activate the Python venv automatically
+   - Have checkpoint support for restartability
+   - Log output to `logs/` directory
+   - Support `--fresh` flag to start over and `--resume` to continue
+
+2. **Tell the user to run it** in a separate terminal:
+   ```bash
+   ./scripts/run_corpus_rebuild.sh --fresh   # Example
+   ```
+
+3. **Monitor progress** only if asked, by reading log files
+
+### Script Requirements for Restartability
+
+All long-running Python scripts must have:
+```python
+# Checkpoint support
+parser.add_argument('--resume', action='store_true', help='Resume from checkpoint')
+parser.add_argument('--fresh', action='store_true', help='Start fresh, ignore checkpoint')
+
+# Atomic checkpoint saves
+def save_checkpoint(path, state):
+    temp_path = path.with_suffix('.tmp')
+    with open(temp_path, 'w') as f:
+        json.dump(state, f)
+    temp_path.rename(path)  # Atomic rename
+```
+
+### Shell Wrapper Template
+
+```bash
+#!/bin/bash
+set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
+# Activate venv
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+elif [ -d "venv" ]; then
+    source venv/bin/activate
+else
+    echo "No venv found"; exit 1
+fi
+
+# Parse --fresh flag
+FRESH_FLAG=""
+[[ "$1" == "--fresh" ]] && FRESH_FLAG="--fresh"
+
+# Run with logging
+LOG_FILE="logs/script_$(date +%Y%m%d_%H%M%S).log"
+mkdir -p logs
+python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
+```
+
+### Available Long-Running Scripts
+
+| Task | Shell Script | Description |
+|------|--------------|-------------|
+| Corpus rebuild | `./scripts/run_corpus_rebuild.sh` | Full corpus rebuild pipeline |
+| Semantic training | `./scripts/run_semantic_training.sh` | Train semantic similarity model |
+| Fundamento training | `./scripts/run_fundamento_training.sh` | Train on Fundamento data |
+| Full training | `./scripts/run_full_training.sh` | Complete training pipeline |
+
 ### Semantic Similarity Training
 **Approach**: Uses English as a "similarity oracle" while training only on Esperanto ASTs.
 - Tatoeba EN-EO parallel corpus (271K pairs) → paraphrases detected via English embeddings

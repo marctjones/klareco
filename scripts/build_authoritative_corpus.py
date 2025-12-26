@@ -33,7 +33,7 @@ import re
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -49,6 +49,33 @@ logger = logging.getLogger(__name__)
 
 # Base path for authoritative texts
 TEXTS_BASE = Path(__file__).parent.parent / 'texts' / 'authoritative'
+
+# Checkpoint support
+CHECKPOINT_INTERVAL = 500  # Save checkpoint every 500 entries
+
+
+def load_checkpoint(checkpoint_path: Path) -> Optional[Dict[str, Any]]:
+    """Load checkpoint if exists."""
+    if checkpoint_path.exists():
+        try:
+            with open(checkpoint_path, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
+
+
+def save_checkpoint(checkpoint_path: Path, state: Dict[str, Any]):
+    """Save checkpoint atomically."""
+    temp_path = checkpoint_path.with_suffix('.tmp')
+    try:
+        with open(temp_path, 'w') as f:
+            json.dump(state, f, indent=2)
+        temp_path.rename(checkpoint_path)
+    except Exception as e:
+        logger.warning(f"Failed to save checkpoint: {e}")
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 def load_metadata(text_dir: Path) -> Dict:
@@ -370,40 +397,91 @@ def main():
                         default=['fundamento', 'krestomatio', 'gerda'],
                         choices=['fundamento', 'krestomatio', 'gerda'],
                         help='Which sources to include')
+    parser.add_argument('--resume', action='store_true',
+                        help='Resume from checkpoint if available')
+    parser.add_argument('--fresh', action='store_true',
+                        help='Start fresh, ignoring any existing checkpoint')
 
     args = parser.parse_args()
 
     # Ensure output directory exists
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = args.output.with_suffix('.checkpoint.json')
+
+    # Handle checkpoint
+    checkpoint = None
+    completed_sources = set()
+    total_sentences = 0
+
+    if args.fresh:
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
+            logger.info("Removed existing checkpoint (--fresh)")
+        if args.output.exists():
+            args.output.unlink()
+            logger.info("Removed existing output (--fresh)")
+    elif args.resume or checkpoint_path.exists():
+        checkpoint = load_checkpoint(checkpoint_path)
+        if checkpoint:
+            completed_sources = set(checkpoint.get('completed_sources', []))
+            total_sentences = checkpoint.get('total_sentences', 0)
+            logger.info(f"Resuming from checkpoint: {len(completed_sources)} sources done, {total_sentences} sentences")
 
     logger.info("=" * 60)
     logger.info("Building Authoritative Corpus")
     logger.info("=" * 60)
 
-    total_sentences = 0
+    # Determine write mode
+    write_mode = 'a' if checkpoint else 'w'
 
-    with open(args.output, 'w', encoding='utf-8') as output_file:
+    with open(args.output, write_mode, encoding='utf-8') as output_file:
 
-        if 'fundamento' in args.sources:
+        if 'fundamento' in args.sources and 'fundamento' not in completed_sources:
             metadata = load_metadata(TEXTS_BASE / 'fundamento')
             logger.info(f"Processing Fundamento Ekzercaro (tier {metadata.get('tier', 1)}, weight {metadata.get('weight', 10.0)})")
             count = process_fundamento_ekzercaro(output_file, metadata)
             logger.info(f"  → {count} sentences")
             total_sentences += count
+            completed_sources.add('fundamento')
+            output_file.flush()
+            save_checkpoint(checkpoint_path, {
+                'completed_sources': list(completed_sources),
+                'total_sentences': total_sentences,
+                'timestamp': datetime.now().isoformat()
+            })
+        elif 'fundamento' in completed_sources:
+            logger.info("Skipping Fundamento (already done)")
 
-        if 'krestomatio' in args.sources:
+        if 'krestomatio' in args.sources and 'krestomatio' not in completed_sources:
             metadata = load_metadata(TEXTS_BASE / 'krestomatio')
             logger.info(f"Processing Fundamenta Krestomatio (tier {metadata.get('tier', 2)}, weight {metadata.get('weight', 5.0)})")
             count = process_krestomatio(output_file, metadata)
             logger.info(f"  → {count} sentences")
             total_sentences += count
+            completed_sources.add('krestomatio')
+            output_file.flush()
+            save_checkpoint(checkpoint_path, {
+                'completed_sources': list(completed_sources),
+                'total_sentences': total_sentences,
+                'timestamp': datetime.now().isoformat()
+            })
+        elif 'krestomatio' in completed_sources:
+            logger.info("Skipping Krestomatio (already done)")
 
-        if 'gerda' in args.sources:
+        if 'gerda' in args.sources and 'gerda' not in completed_sources:
             metadata = load_metadata(TEXTS_BASE / 'gerda_malaperis')
             logger.info(f"Processing Gerda Malaperis (tier {metadata.get('tier', 3)}, weight {metadata.get('weight', 3.0)})")
             count = process_gerda(output_file, metadata)
             logger.info(f"  → {count} sentences")
             total_sentences += count
+            completed_sources.add('gerda')
+        elif 'gerda' in completed_sources:
+            logger.info("Skipping Gerda (already done)")
+
+    # Clean up checkpoint on successful completion
+    if checkpoint_path.exists():
+        checkpoint_path.unlink()
+        logger.info("Removed checkpoint (processing complete)")
 
     logger.info("=" * 60)
     logger.info(f"Total: {total_sentences} sentences written to {args.output}")

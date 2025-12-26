@@ -5,6 +5,26 @@
 
 ---
 
+## ⚠️ Parser Update Notice (December 2025)
+
+Recent parser changes require reviewing all training stages before proceeding:
+
+1. **Fundamento-Based Prefix Disambiguation**: Parser now uses Fundamento corpus statistics to correctly split prefixes (e.g., "malamiko" → "mal-amiko", not "mala-miko")
+2. **`prefiksoj` List Format**: Parser now outputs prefixes as a list, supporting multiple prefixes per word (e.g., "remalami" → `["re", "mal"]`)
+
+**Review Issues** (complete these before training):
+- #129 - Meta: Training Pipeline Review After Parser Changes
+- #123 - Review: Training Data and Corpus Generation
+- #124 - Review: Root Embedding Training
+- #125 - Review: Affix Embedding Training
+- #126 - Review: Semantic Similarity Training
+- #127 - Review: Sentence Encoding (TreeLSTM/AST-aware)
+- #128 - Review: FAISS Retrieval Index Building
+
+**Code Updated**: `compositional.py`, `ast_to_graph.py`, `deparser.py`, `canonicalizer.py` all support the new format.
+
+---
+
 ## Executive Summary
 
 This plan redesigns Klareco's training pipeline based on critical lessons learned:

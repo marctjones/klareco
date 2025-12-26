@@ -302,12 +302,24 @@ def extract_sentences_streaming(
         with open(file_path, 'r', encoding='utf-8') as f:
             text = f.read()
 
-        # Add byte tracking to each entry (for small files, we've read the whole file)
+        # Calculate byte size for progress interpolation
+        text_bytes = len(text.encode('utf-8'))
+        chars_processed = 0
+
+        # Add byte tracking to each entry with interpolated progress
         for entry in _process_text_streaming(
             text, min_words, max_words, with_ast, batch_size,
             start_para=1, source_file=source_file, parse_timeout=parse_timeout
         ):
-            entry['_byte_position'] = file_size  # Already read whole file
+            # Interpolate byte position based on character position
+            sent_text = entry.get('text', '')
+            sent_end_pos = text.find(sent_text, chars_processed)
+            if sent_end_pos >= 0:
+                chars_processed = sent_end_pos + len(sent_text)
+                progress_ratio = chars_processed / len(text) if text else 0
+                entry['_byte_position'] = int(text_bytes * progress_ratio)
+            else:
+                entry['_byte_position'] = file_size
             entry['_file_size'] = file_size
             yield entry
 
@@ -449,11 +461,22 @@ def _extract_sentences_chunked(
             if not chunk:
                 # Process any remaining buffer
                 if overlap_buffer.strip():
+                    buffer_bytes = len(overlap_buffer.encode('utf-8'))
+                    buffer_start_byte = file_size - buffer_bytes
+                    chars_processed = 0
                     for entry in _process_text_streaming(
                         overlap_buffer, min_words, max_words, with_ast, batch_size, para_num,
                         source_file=source_file, parse_timeout=parse_timeout
                     ):
-                        entry['_byte_position'] = bytes_read
+                        # Interpolate within the remaining buffer
+                        sent_text = entry.get('text', '')
+                        sent_end_pos = overlap_buffer.find(sent_text, chars_processed)
+                        if sent_end_pos >= 0:
+                            chars_processed = sent_end_pos + len(sent_text)
+                            progress_ratio = chars_processed / len(overlap_buffer) if overlap_buffer else 0
+                            entry['_byte_position'] = buffer_start_byte + int(buffer_bytes * progress_ratio)
+                        else:
+                            entry['_byte_position'] = file_size
                         entry['_file_size'] = file_size
                         yield entry
                 break

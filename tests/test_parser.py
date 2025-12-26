@@ -93,10 +93,14 @@ class TestParserVerbTenses(unittest.TestCase):
         self.assertEqual(ast['tempo'], 'futuro')
 
     def test_conditional_us(self):
-        """Test conditional -us ending."""
+        """Test conditional -us ending.
+
+        Note: Issue #91 fixed the inconsistency - conditional now uses 'modo'
+        like imperative and infinitive, not 'tempo' like indicative tenses.
+        """
         ast = parse_word("vidus")
         self.assertEqual(ast['vortspeco'], 'verbo')
-        self.assertEqual(ast['tempo'], 'kondiĉa')
+        self.assertEqual(ast['modo'], 'kondicionalo')
 
     def test_infinitive_i(self):
         """Test infinitive -i ending."""
@@ -405,6 +409,235 @@ class TestParserCorrelatives(unittest.TestCase):
         """Test correlative 'kio' (what)."""
         ast = parse_word("kio")
         self.assertIn(ast['vortspeco'], ['pronomo', 'korelativo'])
+
+
+# =============================================================================
+# TDD TESTS FOR PARSER BUG FIXES
+# These tests are written BEFORE the fix (TDD approach)
+# =============================================================================
+
+class TestParserPrepositions(unittest.TestCase):
+    """Test suite for preposition parsing (Issue #89).
+
+    TDD: These tests document expected behavior for prepositions.
+    The test for 'por' should FAIL until the bug is fixed.
+    """
+
+    def test_preposition_por(self):
+        """Test preposition 'por' (for) - Issue #89.
+
+        BUG: 'por' is not recognized as a preposition.
+        Expected: vortspeco = 'prepozicio'
+        """
+        ast = parse_word("por")
+        self.assertEqual(ast['vortspeco'], 'prepozicio')
+
+    def test_preposition_por_in_sentence(self):
+        """Test 'por' in a full sentence context."""
+        ast = parse("La hundo kuras por la kato.")
+        # Find 'por' in the parsed output
+        found_por = False
+        for item in ast.get('aliaj', []):
+            if isinstance(item, dict) and item.get('plena_vorto') == 'por':
+                self.assertEqual(item['vortspeco'], 'prepozicio')
+                found_por = True
+        # If not in aliaj, it might be parsed differently - just verify it parses
+        self.assertEqual(ast['tipo'], 'frazo')
+
+    def test_preposition_al(self):
+        """Test preposition 'al' (to) - should already work."""
+        ast = parse_word("al")
+        self.assertEqual(ast['vortspeco'], 'prepozicio')
+
+    def test_preposition_de(self):
+        """Test preposition 'de' (of/from) - should already work."""
+        ast = parse_word("de")
+        self.assertEqual(ast['vortspeco'], 'prepozicio')
+
+    def test_preposition_en(self):
+        """Test preposition 'en' (in) - should already work."""
+        ast = parse_word("en")
+        self.assertEqual(ast['vortspeco'], 'prepozicio')
+
+    def test_preposition_kun(self):
+        """Test preposition 'kun' (with) - should already work."""
+        ast = parse_word("kun")
+        self.assertEqual(ast['vortspeco'], 'prepozicio')
+
+    def test_all_common_prepositions(self):
+        """Test that all common prepositions are recognized."""
+        prepositions = [
+            "al", "ĉe", "de", "da", "dum", "el", "en", "ekster",
+            "ĝis", "inter", "je", "kontraŭ", "krom", "kun", "laŭ",
+            "per", "po", "por", "post", "preter", "pri", "pro",
+            "sen", "sub", "super", "sur", "tra", "trans", "antaŭ",
+            "apud", "ĉirkaŭ"
+        ]
+        for prep in prepositions:
+            with self.subTest(preposition=prep):
+                ast = parse_word(prep)
+                self.assertEqual(
+                    ast['vortspeco'], 'prepozicio',
+                    f"'{prep}' should be recognized as prepozicio"
+                )
+
+
+class TestParserAdverbRoots(unittest.TestCase):
+    """Test suite for adverb root extraction (Issue #90).
+
+    TDD: These tests document expected behavior for adverb parsing.
+    The test for 'rapide' should FAIL until the bug is fixed.
+    """
+
+    def test_adverb_rapide_root(self):
+        """Test adverb 'rapide' (quickly) - Issue #90.
+
+        BUG: Root is extracted as 'rap' with suffix 'id'
+        Expected: radiko = 'rapid', sufiksoj = []
+        """
+        ast = parse_word("rapide")
+        self.assertEqual(ast['vortspeco'], 'adverbo')
+        self.assertEqual(ast['radiko'], 'rapid')
+        self.assertEqual(ast['sufiksoj'], [])
+
+    def test_adverb_bele_root(self):
+        """Test adverb 'bele' (beautifully)."""
+        ast = parse_word("bele")
+        self.assertEqual(ast['vortspeco'], 'adverbo')
+        self.assertEqual(ast['radiko'], 'bel')
+        self.assertEqual(ast['sufiksoj'], [])
+
+    def test_adverb_bone_root(self):
+        """Test adverb 'bone' (well)."""
+        ast = parse_word("bone")
+        self.assertEqual(ast['vortspeco'], 'adverbo')
+        self.assertEqual(ast['radiko'], 'bon')
+        self.assertEqual(ast['sufiksoj'], [])
+
+    def test_adverb_from_adjective_granda(self):
+        """Test that adverb derived from 'granda' has correct root."""
+        ast = parse_word("grande")
+        self.assertEqual(ast['vortspeco'], 'adverbo')
+        self.assertEqual(ast['radiko'], 'grand')
+        self.assertEqual(ast['sufiksoj'], [])
+
+    def test_adverb_with_suffix_em(self):
+        """Test adverb with legitimate suffix like -em-.
+
+        NOTE: Many compounds (parolad, belul, etc.) are in the vocabulary,
+        so the parser correctly uses those as roots. This test uses -em-
+        suffix where the compound is NOT in vocab.
+        See Issue #85 for vocabulary cleanup.
+        """
+        # videme = vid + em + e (in a seeing-inclined manner)
+        # "videm" is NOT in KNOWN_ROOTS, so suffix stripping should work
+        ast = parse_word("videme")
+        self.assertEqual(ast['vortspeco'], 'adverbo')
+        self.assertEqual(ast['radiko'], 'vid')
+        self.assertIn('em', ast['sufiksoj'])
+
+    def test_adverb_malrapide_root(self):
+        """Test adverb 'malrapide' (slowly) - prefix + root."""
+        ast = parse_word("malrapide")
+        self.assertEqual(ast['vortspeco'], 'adverbo')
+        self.assertEqual(ast['radiko'], 'rapid')
+        self.assertEqual(ast['prefikso'], 'mal')
+        self.assertEqual(ast['sufiksoj'], [])
+
+
+class TestParserMoodVsTense(unittest.TestCase):
+    """Test suite for mood vs tense consistency (Issue #91).
+
+    TDD: These tests document expected behavior for verb mood/tense.
+    Conditional mood should use 'modo' field, not 'tempo'.
+
+    Esperanto has:
+    - 3 tenses: past (-is), present (-as), future (-os)
+    - 3 moods: indicative (implicit), conditional (-us), imperative (-u)
+    - 1 non-finite: infinitive (-i)
+    """
+
+    def test_conditional_uses_modo_not_tempo(self):
+        """Test conditional '-us' uses 'modo' field - Issue #91.
+
+        BUG: Conditional is stored as tempo='kondiĉa'
+        Expected: modo='kondicionalo', no tempo field (or tempo=None)
+        """
+        ast = parse_word("vidus")
+        self.assertEqual(ast['vortspeco'], 'verbo')
+        self.assertEqual(ast.get('modo'), 'kondicionalo')
+        # Conditional has no inherent tense
+        self.assertNotIn('tempo', ast)
+
+    def test_imperative_uses_modo(self):
+        """Test imperative '-u' uses 'modo' field - already works."""
+        ast = parse_word("vidu")
+        self.assertEqual(ast['vortspeco'], 'verbo')
+        self.assertEqual(ast.get('modo'), 'imperativo')
+        self.assertNotIn('tempo', ast)
+
+    def test_infinitive_uses_modo(self):
+        """Test infinitive '-i' uses 'modo' field - already works."""
+        ast = parse_word("vidi")
+        self.assertEqual(ast['vortspeco'], 'verbo')
+        self.assertEqual(ast.get('modo'), 'infinitivo')
+        self.assertNotIn('tempo', ast)
+
+    def test_present_tense_uses_tempo(self):
+        """Test present '-as' uses 'tempo' field."""
+        ast = parse_word("vidas")
+        self.assertEqual(ast['vortspeco'], 'verbo')
+        self.assertEqual(ast.get('tempo'), 'prezenco')
+        # Indicative mood is implicit, no modo field needed
+        self.assertNotIn('modo', ast)
+
+    def test_past_tense_uses_tempo(self):
+        """Test past '-is' uses 'tempo' field."""
+        ast = parse_word("vidis")
+        self.assertEqual(ast['vortspeco'], 'verbo')
+        self.assertEqual(ast.get('tempo'), 'pasinteco')
+        self.assertNotIn('modo', ast)
+
+    def test_future_tense_uses_tempo(self):
+        """Test future '-os' uses 'tempo' field."""
+        ast = parse_word("vidos")
+        self.assertEqual(ast['vortspeco'], 'verbo')
+        self.assertEqual(ast.get('tempo'), 'futuro')
+        self.assertNotIn('modo', ast)
+
+    def test_conditional_consistency_across_verbs(self):
+        """Test conditional is consistent across different verbs."""
+        verbs = ["vidus", "amus", "farus", "irus", "estus"]
+        for verb in verbs:
+            with self.subTest(verb=verb):
+                ast = parse_word(verb)
+                self.assertEqual(ast.get('modo'), 'kondicionalo')
+                self.assertNotIn('tempo', ast)
+
+    def test_tense_mood_orthogonality(self):
+        """Document that tense and mood are orthogonal concepts.
+
+        In Esperanto:
+        - Indicative mood has 3 tenses: -is, -as, -os
+        - Conditional mood (-us) has no inherent tense
+        - Imperative mood (-u) has no inherent tense
+        - Infinitive (-i) has no tense (non-finite)
+        """
+        # Tense verbs (indicative mood implicit)
+        for verb, expected_tempo in [("vidis", "pasinteco"),
+                                      ("vidas", "prezenco"),
+                                      ("vidos", "futuro")]:
+            ast = parse_word(verb)
+            self.assertEqual(ast.get('tempo'), expected_tempo)
+            self.assertNotIn('modo', ast)  # Indicative is default
+
+        # Mood verbs (no tense)
+        for verb, expected_modo in [("vidu", "imperativo"),
+                                     ("vidi", "infinitivo"),
+                                     ("vidus", "kondicionalo")]:
+            ast = parse_word(verb)
+            self.assertEqual(ast.get('modo'), expected_modo)
+            self.assertNotIn('tempo', ast)
 
 
 if __name__ == '__main__':

@@ -25,9 +25,16 @@ Text → Parser (rules) → AST → Compositional Embeddings → Retrieval/Reaso
 ```
 
 **What's Deterministic vs Learned**:
-- **100% Deterministic**: Parser, deparser, morphology analyzer, grammar checker, symbolic reasoner, prefix/suffix/ending features
-- **Minimal Learned**: Root embeddings only (320K params), AST Reasoning Core (target 20-100M params), retrieval reranking
+- **100% Deterministic**: Parser, deparser, morphology analyzer, grammar checker, symbolic reasoner, prefix/suffix/ending features, **function word handling**
+- **Minimal Learned**: Root embeddings for content words only (320K params), AST Reasoning Core (target 20-100M params), retrieval reranking
 - **Goal**: Maximum deterministic processing. Learn reasoning patterns, NOT grammar rules.
+
+**Function Word Exclusion Principle** (see Wiki for details):
+- **Function words** (kaj, de, en, la, mi, etc.) are grammatical, not semantic
+- They are handled by the **deterministic AST layer**, not learned embeddings
+- Including them in embedding training causes **embedding collapse** (all words become similar)
+- Only **content words** (hundo, tablo, legi, bela) get learned embeddings
+- This is a core architectural decision, not a workaround
 
 **The Big Idea** (see `VISION.md`): Traditional LLMs waste capacity learning grammar. By making grammar explicit through ASTs, we hypothesize a 100M-500M param "reasoning core" could match larger models on structured tasks.
 
@@ -250,11 +257,85 @@ Monitor with: `tail -f models/semantic_similarity/training.log`
 
 ## Testing Philosophy
 
-- Parser tests must cover all 16 grammar rules
-- Property-based testing (hypothesis) for morphology
-- Integration tests for full pipeline (parse → retrieve → answer)
-- Model tests can be skipped if torch-geometric/faiss not installed
-- Target: >90% coverage on core modules (parser, embeddings, retriever)
+Klareco uses a **four-category testing strategy** aligned with the staged pipeline architecture.
+
+### Test Categories
+
+| Category | Purpose | Location |
+|----------|---------|----------|
+| **Code Tests** | Verify implementation correctness | `tests/test_*.py` |
+| **Data Quality Tests** | Validate training data quality | `tests/test_data_quality.py` |
+| **Model Quality Tests** | Measure trained model performance | `tests/test_model_quality.py` |
+| **Regression Tests** | Prevent quality degradation | `tests/test_regression.py` |
+
+### TDD Workflow
+
+For each stage implementation:
+1. **Write failing tests FIRST** (red)
+2. **Implement minimal code to pass** (green)
+3. **Refactor while tests pass** (refactor)
+4. **Verify coverage** (`pytest --cov`)
+
+### Stage-Specific Tests
+
+**Stage 0 (Parser)**: #115
+- All 16 grammar rules tested
+- Edge cases: compound words, correlatives, numerals
+- Parse rate tracking (target: >90%)
+- Coverage target: 90%+
+
+**Stage 0 (Data Quality)**: #116
+- Corpus quality: parse rate, duplicates, source diversity
+- Vocabulary coverage: Fundamento roots, affix completeness
+- Training pair quality: function word exclusion, balance
+
+**Stage 1 (Semantic Model)**: #117
+- Root similarity accuracy: >85%
+- No embedding collapse: mean_sim < 0.5
+- Cluster separation: gap > 0.03
+- Fundamento coverage: 100%
+- Affix consistency: mal- vector similarity > 0.7
+
+**Stage 2 (Grammatical Model)**: #118
+- Negation polarity reversal
+- Tense temporal ordering
+- Mood discrimination: >80%
+- Sentence type classification: >95%
+
+**Stage 3 (Discourse Model)**: #119
+- Coreference chain coherence: >0.7
+- Cross-document discrimination: <0.3
+- Discourse relation classification
+
+### Running Tests
+
+```bash
+# All tests
+python -m pytest
+
+# With coverage
+python -m pytest --cov=klareco --cov-report=html
+
+# Code tests only (fast)
+python -m pytest tests/test_parser.py tests/test_deparser.py -v
+
+# Model quality tests (requires trained models)
+python -m pytest tests/test_model_quality.py -v
+
+# Skip slow tests
+python -m pytest -m "not slow"
+```
+
+### Coverage Targets
+
+| Module | Current | Target |
+|--------|---------|--------|
+| Parser | 61% | 90%+ |
+| Deparser | TBD | 85%+ |
+| Embeddings | TBD | 85%+ |
+| Retriever | TBD | 80%+ |
+
+See wiki: **Testing-Strategy.md** for comprehensive documentation.
 
 ## Knowledge Management Strategy
 

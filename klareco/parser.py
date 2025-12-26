@@ -63,13 +63,14 @@ KNOWN_SUFFIXES = {
 
 # The order of endings matters. Longer ones must be checked first.
 KNOWN_ENDINGS = {
-    # Tense/Mood
+    # Tense (indicative mood - 3 tenses)
     "as": {"vortspeco": "verbo", "tempo": "prezenco"},
     "is": {"vortspeco": "verbo", "tempo": "pasinteco"},
     "os": {"vortspeco": "verbo", "tempo": "futuro"},
-    "us": {"vortspeco": "verbo", "tempo": "kondiĉa"},  # Conditional uses 'tempo' for consistency
-    "u": {"vortspeco": "verbo", "modo": "imperativo"},  # Imperative/volitional
-    "i": {"vortspeco": "verbo", "modo": "infinitivo"},
+    # Mood (non-indicative - no inherent tense) - Issue #91 fix
+    "us": {"vortspeco": "verbo", "modo": "kondicionalo"},  # Conditional mood (not tense!)
+    "u": {"vortspeco": "verbo", "modo": "imperativo"},     # Imperative/volitional
+    "i": {"vortspeco": "verbo", "modo": "infinitivo"},     # Infinitive (non-finite)
     # Part of Speech
     "o": {"vortspeco": "substantivo"},
     "a": {"vortspeco": "adjektivo"},
@@ -122,6 +123,7 @@ KNOWN_PREPOSITIONS = {
     "laŭ",     # according to, along
     "per",     # by means of, with
     "po",      # at (distributive)
+    "por",     # for (purpose, benefit) - Issue #89
     "post",    # after, behind
     "preter",  # past, by
     "pri",     # about, concerning
@@ -665,6 +667,17 @@ def parse_word(word: str) -> dict:
     # Sort suffixes by length (longest first) to match greedily
     sorted_suffixes = sorted(KNOWN_SUFFIXES, key=len, reverse=True)
 
+    # FIX for Issue #90: Prefer longer roots over shorter roots with spurious suffixes.
+    # Example: "rapide" should parse as "rapid" + e, NOT "rap" + "id" + e
+    # Even though both "rap" and "rapid" are known roots.
+    #
+    # Strategy: If the current stem is already a known root, only strip suffixes
+    # if the remaining part is ALSO a known root. This prefers the longer
+    # indivisible root ("rapid") over spurious decomposition ("rap" + "id").
+    #
+    # BUT: For genuine compositional words like "belulo" (bel + ul + o), we DO
+    # want to strip the suffix because "bel" is the semantic base.
+
     # Extract suffixes from right to left (innermost last, outermost first in final list)
     # Be conservative - only remove suffix if it leads to a known root eventually
     max_suffix_depth = 3  # Limit suffix chaining to prevent over-matching
@@ -684,6 +697,25 @@ def parse_word(word: str) -> dict:
                 if (potential_root in KNOWN_ROOTS or
                     potential_root in KNOWN_PARTICLES or
                     potential_root in KNOWN_PREPOSITIONS):
+
+                    # Issue #90 fix: Check if this is a spurious decomposition.
+                    # If the current stem is a known root AND the potential_root
+                    # is shorter, prefer the current stem IF the suffix is not
+                    # a standard Esperanto derivational suffix for this context.
+                    #
+                    # Heuristic: If stem is already a known root and potential_root
+                    # is ALSO a known root, prefer the SHORTER one (more derivation)
+                    # because Esperanto is compositional. This handles "belulo" → "bel".
+                    # BUT if the suffix is "id" (not common), and stem is known, skip.
+                    if (stem in KNOWN_ROOTS and
+                        suffix not in {'ul', 'in', 'et', 'eg', 'ar', 'ej', 'an',
+                                       'ig', 'iĝ', 'ad', 'aĵ', 'ec', 'er', 'ebl',
+                                       'em', 'end', 'ind', 'ing', 'ist', 'il', 'op',
+                                       'uj', 'um', 'obl', 'on'}):
+                        # This is likely a spurious suffix (like "id" in "rapid")
+                        # Skip this decomposition
+                        continue
+
                     ast["sufiksoj"].append(suffix)
                     stem = potential_root
                     found_suffix = True
@@ -956,9 +988,13 @@ def parse(text: str):
     # Find the main components (verb, subject noun, object noun)
     # Rule 6: Case determines grammatical function (nominative=subject, accusative=object)
     # Pronouns (pronomoj) function exactly like nouns (substantivoj) grammatically
-    for ast in word_asts:
+    for i, ast in enumerate(word_asts):
         if ast["vortspeco"] == "verbo" and not sentence_ast["verbo"]:
             sentence_ast["verbo"] = ast
+            # Check for negation: 'ne' immediately preceding the verb (Issue #78)
+            # In Esperanto, 'ne' typically directly precedes the word it negates
+            if i > 0 and word_asts[i-1].get("radiko") == "ne":
+                ast["negita"] = True
         # Object: any noun or pronoun in accusative case (-n)
         elif ast["vortspeco"] in ["substantivo", "pronomo"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"]:
             sentence_ast["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
@@ -1031,6 +1067,16 @@ def parse(text: str):
         "success_rate": successful_words / total_words if total_words > 0 else 0.0,
         "categories": categories
     }
+
+    # Add sentence-level negation flag (Issue #78)
+    # Check for explicit 'ne' or negative correlatives (neni- words)
+    # Note: correlatives may be parsed as 'korelativo' or 'nomo' depending on context
+    has_ne = any(ast.get("radiko", "").lower() == "ne" for ast in word_asts)
+    has_negative_correlative = any(
+        ast.get("radiko", "").lower().startswith("neni")
+        for ast in word_asts
+    )
+    sentence_ast["negita"] = has_ne or has_negative_correlative
 
     return sentence_ast
 

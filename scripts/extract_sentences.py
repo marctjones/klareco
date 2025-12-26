@@ -474,12 +474,29 @@ def _extract_sentences_chunked(
                 # Count paragraphs before processing
                 para_count_before = para_num
 
+                # Calculate byte position at start of this chunk's text
+                # bytes_read is position after reading chunk, so subtract chunk size
+                chunk_start_byte = bytes_read - len(chunk.encode('utf-8'))
+                complete_text_bytes = len(complete_text.encode('utf-8'))
+
                 # Process this chunk
+                chars_processed = 0
                 for entry in _process_text_streaming(
                     complete_text, min_words, max_words, with_ast, batch_size, para_num,
                     source_file=source_file, parse_timeout=parse_timeout
                 ):
-                    entry['_byte_position'] = bytes_read
+                    # Interpolate byte position based on character position in text
+                    # Find where this sentence ends in complete_text
+                    sent_text = entry.get('text', '')
+                    sent_end_pos = complete_text.find(sent_text, chars_processed)
+                    if sent_end_pos >= 0:
+                        chars_processed = sent_end_pos + len(sent_text)
+                        # Estimate byte position (assuming roughly 1 byte per char for ASCII,
+                        # but this is approximate for UTF-8)
+                        progress_ratio = chars_processed / len(complete_text) if complete_text else 0
+                        entry['_byte_position'] = chunk_start_byte + int(complete_text_bytes * progress_ratio)
+                    else:
+                        entry['_byte_position'] = bytes_read
                     entry['_file_size'] = file_size
                     yield entry
                     # Track paragraph number from entries

@@ -1,0 +1,49 @@
+{
+  "title": "Fundamenta Krestomatio",
+  "author": "L. L. Zamenhof",
+  "year": 1903,
+  "edition": "Second Edition (1905)",
+  "tier": 2,
+  "weight": 5.0,
+  "description": "Zamenhof's curated reading anthology providing canonical examples of Esperanto prose and poetry. Establishes stylistic norms and demonstrates proper usage patterns.",
+  "source_url": "https://www.gutenberg.org/ebooks/8224",
+  "gutenberg_id": 8224,
+  "retrieved_date": "2024-12-26",
+  "verified_by": "Claude Code",
+  "encoding": "UTF-8",
+  "character_set": "Esperanto (ĉĝĥĵŝŭ)",
+  "conversion_notes": "Converted from x-system (cx, gx, etc.) to proper Unicode",
+  "license": "Public Domain",
+  "files": {
+    "fundamenta_krestomatio.txt": {
+      "description": "Complete anthology with prose, poetry, and translations",
+      "lines": 16389,
+      "characters": 815953,
+      "sections": ["antaŭparolo", "prozo", "poezio", "tradukoj", "tabelo_de_enhavo"]
+    }
+  },
+  "citation_format": "krestomatio:{section}:{page_or_line}",
+  "citation_examples": [
+    "krestomatio:antaŭparolo:line1",
+    "krestomatio:prozo:p42",
+    "krestomatio:poezio:grabowski"
+  ],
+  "contributors": [
+    {"name": "L. L. Zamenhof", "role": "editor, author"},
+    {"name": "Antoni Grabowski", "role": "poetry"},
+    {"name": "Henri Vallienne", "role": "translations"}
+  ],
+  "training_notes": {
+    "priority": "HIGH - canonical style and usage",
+    "use_cases": [
+      "Sentence embedding training",
+      "Style and register examples",
+      "Literary vocabulary"
+    ],
+    "special_handling": [
+      "Distinguish Zamenhof's original writing from curated translations",
+      "Track section (prozo, poezio, tradukoj)",
+      "Higher weight for Zamenhof-authored sections"
+    ]
+  }
+}

@@ -2,6 +2,8 @@
 
 This directory contains authoritative Esperanto texts that are checked into git. These are the gold standard texts for Esperanto grammar, style, and learning.
 
+**See also**: Wiki [[Training-Data-Strategy]] for complete corpus annotation and weighting specification.
+
 ## Directory Structure
 
 ```
@@ -9,10 +11,25 @@ texts/
 ├── README.md                 # This file
 ├── authoritative/            # Gold standard texts (checked into git)
 │   ├── fundamento/           # Fundamento de Esperanto (Zamenhof, 1905)
+│   │   ├── gramatiko.txt     # 16 grammar rules
+│   │   ├── ekzercaro.txt     # 42 exercises
+│   │   └── metadata.json     # Source annotation
 │   ├── krestomatio/          # Fundamenta Krestomatio (Zamenhof, 1903)
+│   │   ├── fundamenta_krestomatio.txt
+│   │   └── metadata.json
 │   └── gerda_malaperis/      # Gerda Malaperis (Piron, 1983)
+│       ├── gerda_malaperis.txt
+│       └── metadata.json
 └── supplementary/            # Other quality texts (checked into git)
 ```
+
+## Metadata Files
+
+Each text directory includes a `metadata.json` with:
+- **tier**: Authority level (1=highest)
+- **weight**: Training weight multiplier
+- **citation_format**: How to cite this source in corpus entries
+- **training_notes**: Special handling instructions
 
 ## What Goes in `texts/` (Git-Tracked)
 

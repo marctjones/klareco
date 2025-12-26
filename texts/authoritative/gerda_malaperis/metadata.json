@@ -1,0 +1,69 @@
+{
+  "title": "Gerda Malaperis!",
+  "author": "Claude Piron",
+  "year": 1983,
+  "tier": 3,
+  "weight": 3.0,
+  "description": "The premier modern pedagogical text for Esperanto learning. A mystery novel with graduated vocabulary introduction across 25 chapters.",
+  "source_notes": "Converted from HTML source files (EoDktA collection)",
+  "retrieved_date": "2024-12-26",
+  "verified_by": "Claude Code",
+  "encoding": "UTF-8",
+  "character_set": "Esperanto (ĉĝĥĵŝŭ)",
+  "license": "Educational use (verify for commercial use)",
+  "files": {
+    "gerda_malaperis.txt": {
+      "description": "Complete novel, 25 chapters",
+      "chapters": 25,
+      "lines": 1602,
+      "characters": 60618
+    }
+  },
+  "citation_format": "gerda:{chapter}:{line_or_speaker}",
+  "citation_examples": [
+    "gerda:1:opening",
+    "gerda:12:Linda",
+    "gerda:25:resolution"
+  ],
+  "pedagogical_structure": {
+    "chapters_1_5": {
+      "vocabulary_level": "beginner",
+      "approx_roots": 200,
+      "grammar_focus": ["present_tense", "basic_nouns_adjectives"]
+    },
+    "chapters_6_10": {
+      "vocabulary_level": "beginner-intermediate",
+      "approx_roots": 350,
+      "grammar_focus": ["past_tense", "accusative", "questions"]
+    },
+    "chapters_11_15": {
+      "vocabulary_level": "intermediate",
+      "approx_roots": 500,
+      "grammar_focus": ["future_tense", "relative_clauses"]
+    },
+    "chapters_16_20": {
+      "vocabulary_level": "intermediate-advanced",
+      "approx_roots": 650,
+      "grammar_focus": ["conditional", "participles"]
+    },
+    "chapters_21_25": {
+      "vocabulary_level": "advanced",
+      "approx_roots": 800,
+      "grammar_focus": ["full_grammatical_range"]
+    }
+  },
+  "training_notes": {
+    "priority": "HIGH - modern colloquial usage",
+    "use_cases": [
+      "Dialogue training for Q&A systems",
+      "Modern vocabulary and idioms",
+      "Graduated curriculum for staged training"
+    ],
+    "special_handling": [
+      "Track graduated vocabulary level by chapter",
+      "Flag dialogue vs. narration",
+      "Speaker attribution for dialogue lines",
+      "Useful for question formation patterns"
+    ]
+  }
+}

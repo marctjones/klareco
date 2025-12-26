@@ -1,0 +1,50 @@
+{
+  "title": "Fundamento de Esperanto",
+  "author": "L. L. Zamenhof",
+  "year": 1905,
+  "tier": 1,
+  "weight": 10.0,
+  "description": "The constitutional document of Esperanto. Contains the 16 grammar rules (Gramatiko), 42 graduated exercises (Ekzercaro), and ~2,600 root definitions (Universala Vortaro).",
+  "source_urls": [
+    "https://www.akademio-de-esperanto.org/fundamento/gramatiko_angla.html",
+    "https://www.akademio-de-esperanto.org/fundamento/ekzercaro.html"
+  ],
+  "retrieved_date": "2024-12-26",
+  "verified_by": "Claude Code",
+  "encoding": "UTF-8",
+  "character_set": "Esperanto (ĉĝĥĵŝŭ)",
+  "license": "Public Domain",
+  "files": {
+    "gramatiko.txt": {
+      "description": "The 16 grammar rules in English translation",
+      "sections": ["alphabet", "parts_of_speech", "general_rules"],
+      "rules": 16,
+      "characters": 7327
+    },
+    "ekzercaro.txt": {
+      "description": "42 graduated exercises demonstrating grammar and vocabulary",
+      "exercises": 42,
+      "sentences_approx": 500,
+      "vocabulary_introduced": "~800 roots",
+      "characters": 99454
+    }
+  },
+  "citation_format": "fundamento:{section}:{reference}",
+  "citation_examples": [
+    "fundamento:gramatiko:rule2",
+    "fundamento:ekzercaro:§5:sentence3"
+  ],
+  "training_notes": {
+    "priority": "HIGHEST - canonical semantic grounding",
+    "use_cases": [
+      "Root embedding initialization",
+      "Grammar rule validation",
+      "Gold standard sentence examples"
+    ],
+    "special_handling": [
+      "Cross-reference vocabulary with UV definitions",
+      "Track which exercise introduces each root",
+      "Flag sentences demonstrating specific grammar rules"
+    ]
+  }
+}

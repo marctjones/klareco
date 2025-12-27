@@ -92,15 +92,11 @@ python scripts/index_corpus.py \
 
 ### Training Models
 ```bash
-# Train semantic similarity model (uses Tatoeba parallel corpus)
-./scripts/run_semantic_training.sh
+# Train root embeddings (Stage 1)
+./scripts/run_fundamento_training.sh
 
-# Evaluate model
-python scripts/evaluate_semantic_model.py
-python scripts/evaluate_semantic_model.py --interactive
-
-# Monitor training (logs to models/semantic_similarity/training.log)
-tail -f models/semantic_similarity/training.log
+# Full training pipeline
+./scripts/run_full_training.sh
 ```
 
 ### RAG Demo
@@ -220,17 +216,8 @@ python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
 | Task | Shell Script | Description |
 |------|--------------|-------------|
 | Corpus rebuild | `./scripts/run_corpus_rebuild.sh` | Full corpus rebuild pipeline |
-| Semantic training | `./scripts/run_semantic_training.sh` | Train semantic similarity model |
 | Fundamento training | `./scripts/run_fundamento_training.sh` | Train on Fundamento data |
 | Full training | `./scripts/run_full_training.sh` | Complete training pipeline |
-
-### Semantic Similarity Training
-**Approach**: Uses English as a "similarity oracle" while training only on Esperanto ASTs.
-- Tatoeba EN-EO parallel corpus (271K pairs) → paraphrases detected via English embeddings
-- Model trains on Esperanto AST pairs, never sees English
-- Preserves linguistic purity while leveraging cross-lingual resources
-- Training data: `data/similarity_pairs_{train,val,test}.jsonl`
-- Metric: Pearson correlation (target >0.6 good, >0.8 excellent)
 
 ## Code Organization
 
@@ -251,10 +238,8 @@ klareco/
 └── orchestrator.py         # Intent routing and pipeline coordination
 
 scripts/
-├── train_semantic_similarity.py  # Train embedding model
-├── evaluate_semantic_model.py    # Eval on held-out test set
-├── integrate_semantic_similarity.py  # Integration demo
 ├── build_corpus_v2.py      # Corpus builder with quality filtering
+├── create_training_corpus.py  # Filter corpus for training
 └── index_corpus.py         # Build FAISS retrieval index
 ```
 
@@ -262,21 +247,21 @@ scripts/
 
 ```
 data/
-├── corpus_with_sources_v2.jsonl  # Main corpus with ASTs
+├── corpus/                       # Parsed corpus files
+│   ├── unified_corpus.jsonl     # Main unified corpus with ASTs
+│   └── authoritative_corpus.jsonl  # Tier 1-3 authoritative sources
+├── training/                     # Training-ready filtered data
+│   ├── authoritative_training.jsonl  # High-quality Fundamento/Krestomatio
+│   ├── literature_training.jsonl     # Tier 5 literature
+│   └── general_training.jsonl        # Tier 6 Wikipedia (filtered)
 ├── corpus_index_v3/              # FAISS index + metadata
-├── similarity_pairs_{train,val,test}.jsonl  # Semantic similarity training data
-├── vocabularies/                 # Root/prefix/suffix vocabularies
-│   ├── root_vocab.json          # 953K roots from corpus
-│   ├── prefix_vocab.json        # 61 Esperanto prefixes
-│   └── suffix_vocab.json        # 38 Esperanto suffixes
-└── tatoeba/                      # Tatoeba EN-EO parallel corpus
+└── vocabularies/                 # Root/prefix/suffix vocabularies
+    ├── root_vocab.json          # Roots from corpus
+    ├── prefix_vocab.json        # Esperanto prefixes
+    └── suffix_vocab.json        # Esperanto suffixes
 
 models/
-├── semantic_similarity/
-│   ├── best_model.pt            # Current best checkpoint
-│   ├── best_model.prev.pt       # Previous best (backup)
-│   └── training.log             # Training progress
-└── tree_lstm/                    # Legacy whole-word model
+└── root_embeddings/              # Stage 1 root embedding model
 ```
 
 ## Important Patterns

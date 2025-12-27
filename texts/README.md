@@ -69,7 +69,7 @@ For training, texts should be weighted by authority:
 | 1 | Fundamento Ekzercaro | 10.0 | `texts/authoritative/fundamento/` |
 | 2 | Fundamenta Krestomatio | 5.0 | `texts/authoritative/krestomatio/` |
 | 3 | Gerda Malaperis | 3.0 | `texts/authoritative/gerda_malaperis/` |
-| 4 | Plena Vortaro definitions | 2.0 | `data/grammar/` |
+| 4 | Reta Vortaro (ReVo) | 5.0 | `data/revo/` |
 | 5 | Gutenberg translations | 1.5 | `data/clean_corpus/` |
 | 6 | Wikipedia | 1.0 | `data/cleaned/` |
 

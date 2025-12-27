@@ -4,7 +4,7 @@
 
 Klareco leverages Esperanto's regular grammar to replace most traditional LLM components with programmatic structure:
 - **100% deterministic**: Parser, deparser, morphology, grammar checker, symbolic reasoner
-- **Minimal learned**: Root embeddings (320K params) + AST Reasoning Core (20-100M params)
+- **Minimal learned**: Root embeddings (320K params) + Reasoning Core (20-100M params)
 - **The thesis**: By making grammar explicit through ASTs, a small reasoning core can match larger models while being fully explainable and grammatically perfect.
 
 ## Vision & Purpose
@@ -19,159 +19,147 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 **Why Esperanto Enables This**:
 - Fully regular morphology → 100% programmatic parsing (no learned POS/NER needed)
 - Fixed endings for case/tense → deterministic role detection (no attention needed)
-- Compositional lexicon → root embeddings only (prefix/suffix as features, not embeddings)
+- Compositional lexicon → root embeddings only (prefix/suffix as transformation vectors)
 - 16 explicit grammar rules → symbolic reasoning over AST structures
 
-## Current state (Updated Nov 2025)
-✅ **Production Ready** - Two-stage hybrid retrieval with complete sentence corpus
+## Current State (December 2025)
 
-- ✅ **Deterministic parser/deparser** (`parser.py`, `deparser.py`) with AST-to-graph converter
-- ✅ **Two-stage hybrid retrieval** - Structural filtering (0 params, ~2ms) + neural reranking (15M params, ~15ms)
-- ✅ **Canonical slot signatures** (`canonicalizer.py`) - SUBJ/VERB/OBJ extraction for structural search
-- ✅ **Extractive responders** (`experts/extractive.py`, `experts/summarizer.py`) - Template-based answers from AST contexts
-- ✅ **AST-first orchestrator** (`orchestrator.py`) - Intent routing with structural retrieval integration
-- ✅ **High-quality corpus** - 26,725 complete sentences (Corpus V2) with 88-94% parse quality
-- ✅ **Production index** (`data/corpus_index_v3`) - Complete sentences with structural metadata
-- ✅ **Compositional embeddings** (`klareco/embeddings/compositional.py`) - Morpheme-aware embeddings (320K vs 1.28M params)
-- ✅ **Semantic similarity training** - Using Tatoeba EN-EO parallel corpus (271K pairs) as similarity oracle
-- Language ID + translation front door with graceful fallback (`lang_id.py`, `front_door.py`)
-- Tracing/logging and symbolic intent gating (`trace.py`, `logging_config.py`, `gating_network.py`)
-- Comprehensive test coverage (11 new tests for structural components, all passing)
+### Production Ready
+- **Deterministic parser/deparser** (`parser.py`, `deparser.py`) - 16 Esperanto grammar rules, 91.8% parse rate
+- **Two-stage hybrid retrieval** - Structural filtering (0 params) + neural reranking
+- **Canonical slot signatures** (`canonicalizer.py`) - SUBJ/VERB/OBJ extraction
+- **Extractive responders** (`experts/extractive.py`, `experts/summarizer.py`)
+- **Production corpus index** (`data/corpus_index_v3`)
 
-## Key Achievements
-- **7x smaller models** - 15M params vs 110M+ for traditional LLMs
-- **30-40% faster retrieval** - Two-stage hybrid vs neural-only
-- **Zero-parameter Stage 1** - Deterministic structural filtering
-- **Production corpus** - Complete sentences vs hard-wrapped fragments (+37% better relevance scores)
+### Training Data Ready
+- **Unified corpus**: 4.2M parsed sentences with ASTs
+- **Training corpus**: 2M high-quality sentences (90%+ parse rate)
+  - Authoritative (Tier 1-3): 16,557 sentences (Fundamento, Krestomatio, Gerda)
+  - Literature (Tier 5): 19,796 sentences
+  - General (Tier 6): 1.9M sentences (Wikipedia)
+- **ReVo dictionary**: 10,766 entries for semantic training
+- **Fundamento roots**: Extracted from Universala Vortaro
+
+### Ready to Train
+- Root embedding training script ready (`scripts/training/train_root_embeddings.py`)
+- Affix embedding training ready (`scripts/training/train_affix_embeddings.py`)
+- See `TRAINING_QUICKSTART.md` for instructions
+
+## Architecture
+
+```
+Text → Parser (16 rules) → AST → Compositional Embeddings → Retrieval/Reasoning → Linearizer → Text
+       └─ deterministic        └─ learned (~333K params)                          └─ deterministic
+```
+
+See `VISION.md` for the full architecture and `DESIGN.md` for technical details.
 
 ## Setup
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# Optional for RAG/graphs:
+
+# Optional for neural components:
 pip install torch-geometric faiss-cpu
 ```
-Place required local assets (not in git):
-- `data/corpus_index/{faiss_index.bin,metadata.jsonl,embeddings.npy}`
-- `models/tree_lstm/checkpoint_epoch_12.pt` (or your own checkpoint)
 
-## Usage (current)
-### Parse / translate
+## Usage
+
+### Parse Esperanto
 ```bash
 python -m klareco parse "Mi amas la hundon."
-python -m klareco translate "The dog sees the cat." --to eo  # downloads MarianMT on first run
+python -m klareco translate "The dog sees the cat." --to eo
 ```
 
-### Corpus management (V2 - Complete Sentences)
+### RAG Query
 ```bash
-# Validate or register texts
-python -m klareco corpus validate data/raw/book.txt
-python -m klareco corpus add data/raw/book.txt --title "My Book" --type literature
-python -m klareco corpus list
-
-# Build Corpus V2 with proper sentence extraction
-python scripts/build_corpus_v2.py \
-  --cleaned-dir data/cleaned \
-  --output data/corpus_with_sources_v2.jsonl \
-  --min-parse-rate 0.5  # Filter low-quality sentences
-
-# Build Index V3 from Corpus V2
-python scripts/index_corpus.py \
-  --corpus data/corpus_with_sources_v2.jsonl \
-  --output data/corpus_index_v3 \
-  --batch-size 32
-```
-
-### RAG Query Demo
-```bash
-# Run interactive demo with Index V3
 python scripts/demo_rag.py --interactive
-
-# Or run demo queries
-python scripts/demo_rag.py
-
-# Single query
-python scripts/demo_rag.py "Kio estas la Unu Ringo?"
+python scripts/demo_rag.py "Kio estas Esperanto?"
 ```
 
-### Retrieval (Programmatic)
-```python
-from klareco.rag.retriever import create_retriever
-from klareco.experts.extractive import create_extractive_responder
-from klareco.parser import parse
+### Train Models
+```bash
+# Run training pipeline (in separate terminal)
+./scripts/run_fundamento_training.sh
 
-# Create retriever with Index V3
-retriever = create_retriever(
-    index_dir="data/corpus_index_v3",
-    model_path="models/tree_lstm/best_model.pt"
-)
-
-# Create extractive responder
-responder = create_extractive_responder(retriever, top_k=3)
-
-# Query
-query = "Kio estas Esperanto?"
-query_ast = parse(query)
-result = responder.execute(query_ast, query)
-
-print(f"Answer: {result['answer']}")
-print(f"Confidence: {result['confidence']:.3f}")
-for src in result['sources']:
-    print(f"  - {src['text'][:100]}...")
+# Monitor progress
+tail -f logs/training/fundamento_training_*.log
 ```
 
-### Pipeline Status
-✅ **Production Ready**
-- Two-stage hybrid retrieval operational
-- Extractive responders integrated
-- AST-first orchestrator with intent routing
-- See `RAG_STATUS.md` and `CORPUS_V2_RESULTS.md` for details
+See `TRAINING_QUICKSTART.md` for the complete training guide.
+
+## Training Pipeline (TRAINING_PLAN_V3)
+
+The training follows a staged approach where each stage is frozen before the next begins:
+
+```
+STAGE 0: PARSER/DETERMINISTIC (complete)
+├── 16 grammar rules
+├── Morpheme decomposition
+├── Role detection (S/V/O)
+└── Negation/question type marking
+
+STAGE 1: SEMANTIC MODEL (~333K params) ← CURRENT
+├── Phase 1: Root embeddings (5K roots × 64d)
+├── Phase 2: Affix embeddings (50 affixes × 64d)
+└── Phase 3: Corpus integration
+
+STAGE 2: GRAMMATICAL MODEL (~52K params)
+├── Negation transform
+├── Tense/mood transforms
+└── Sentence type transforms
+
+STAGE 3: DISCOURSE MODEL (~100K params)
+├── Coreference resolution
+└── Discourse relations
+
+STAGE 4: REASONING CORE (20-100M params) - FUTURE
+└── AST-to-AST reasoning
+```
+
+## Key Design Principles
+
+1. **Function Word Exclusion**: Function words (la, kaj, de, en, mi...) are handled by the AST layer, not learned. Including them causes embedding collapse.
+
+2. **Fundamento-Centered Training**: Zamenhof's original works have 100x weight vs Wikipedia. Authoritative sources define correct Esperanto.
+
+3. **Compositional Morphology**: Words are decomposed into root + affixes. Embeddings compose: `malgrandega = mal- + grand + -eg-`
+
+4. **Staged Training**: Each stage frozen before the next. No catastrophic forgetting, clear checkpoints.
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| `TRAINING_PLAN_V3.md` | Definitive training pipeline design |
+| `TRAINING_QUICKSTART.md` | Quick start guide for training |
+| `VISION.md` | Long-term architecture vision |
+| `DESIGN.md` | Technical architecture details |
+| `CLAUDE.md` | Development guide for Claude Code |
+| `DATA_INVENTORY.md` | Data sources and status |
 
 ## Tests
-- Fast checks: `python -m pytest tests/test_parser.py -k basic`, `python -m pytest tests/test_gating_network.py -k classify`.
-- RAG/generator tests are skipped or fail if `torch-geometric`, `faiss`, and local indexes/models are missing.
 
-## Roadmap
+```bash
+python -m pytest                           # All tests
+python -m pytest tests/test_parser.py -v   # Parser tests
+python -m pytest --cov=klareco             # With coverage
+```
 
-See `ESPERANTO_FIRST_IMPLEMENTATION_PLAN.md` for the complete implementation plan with epics, milestones, and GitHub issues.
+## Project Status
 
-### ✅ Phase 0: Foundation (Completed Nov 2025)
-- ✅ Parser with 16 grammar rules (91.8% parse rate)
-- ✅ Compositional embeddings (320K params)
-- ✅ Two-stage hybrid retrieval (structural + neural)
-- ✅ Extractive answering from AST contexts
-- ✅ Semantic similarity training (val_corr=0.84)
+| Component | Status |
+|-----------|--------|
+| Parser (16 rules) | Production |
+| Training corpus | Ready (2M sentences) |
+| Root embeddings | Ready to train |
+| Affix embeddings | Ready to train |
+| Grammatical model | Designed |
+| Discourse model | Designed |
+| Reasoning core | Future |
 
-### 🎯 Phase 1: Deterministic Baseline (Month 1-2)
-**Goal**: Answer 50 questions using ONLY deterministic + retrieval (zero learned reasoning)
+## License
 
-Priority tasks:
-- Expand parser to handle all edge cases (100% coverage)
-- Build full deparser (AST → text)
-- Implement symbolic reasoner (temporal, spatial, causal, quantifier logic)
-- Create grammar checker with error detection/correction
-- Convert prefix/suffix/ending from embeddings to features
-
-### 🎯 Phase 2: Minimal Reasoning Core (Month 3-4)
-**Goal**: Add 20M param Graph-to-Graph Transformer, achieve 70%+ accuracy
-
-Priority tasks:
-- Design and implement Graph-to-Graph Transformer architecture
-- Keep only root embeddings as learned (320K params)
-- Train on paraphrase pairs, synthetic QA, reasoning chains
-- Achieve 70%+ accuracy on multi-hop questions
-
-### 🎯 Phase 3: Proof of Concept (Month 5-6)
-**Goal**: 80%+ accuracy, fully explainable, grammatically perfect
-
-Priority tasks:
-- Scale to 500K training examples
-- Rigorous evaluation (grammar, reasoning, conversation)
-- Performance optimization
-- Production deployment preparation
-
-See `DESIGN.md`, `VISION.md`, and `ESPERANTO_FIRST_IMPLEMENTATION_PLAN.md` for details.
-
-## Data & Licensing
-`data/` and `logs/` stay local and untracked; do not commit corpora, checkpoints, or generated logs. Add your own texts under `data/raw/` and build indexes locally. Include your preferred license in this file when ready.
+Data and logs stay local and untracked. Add your own texts under `data/raw/` and build indexes locally.

@@ -12,10 +12,9 @@
 | Fundamento Ekzercaro | **READY** | 1 | Yes | Yes |
 | Fundamenta Krestomatio | **READY** | 2 | Yes | Yes |
 | Gerda Malaperis | **READY** | 3 | Yes | Yes |
-| Plena Vortaro | Partial | 4 | No | Yes |
+| Reta Vortaro (ReVo) | **READY** | 4 | Yes | Yes |
 | Gutenberg Books | Available | 5 | No | Partial |
 | Wikipedia | Available | 6 | No | Partial |
-| Tatoeba (EN-EO) | Available | - | No | Yes |
 
 ---
 
@@ -74,20 +73,23 @@
 
 ---
 
-## Tier 4: Plena Vortaro (PARTIAL)
+## Tier 4: Reta Vortaro / ReVo (READY)
 
-**Location**: `data/grammar/plena_vortaro.txt`
-**Status**: Raw, needs parsing
+**Location**: `data/revo/`
+**Status**: Clean, integrated into training pipeline
 
 | File | Content | Size | Status |
 |------|---------|------|--------|
-| `plena_vortaro.txt` | 1980 edition with supplement | 2.3MB | Raw text |
-| `pv_definitions.json` | Parsed definitions | 2.0MB | Extracted |
+| `revo_definitions_with_roots.json` | 10,766 dictionary entries | 11MB | Complete |
+| `revo.db` | SQLite database | 151MB | Complete |
 
-**TODO**:
-- [ ] Verify pv_definitions.json completeness
-- [ ] Add source annotations (tier=4, weight=2.0)
-- [ ] Extract example sentences from definitions
+**Features**:
+- Clean JSON with definitions, definition_roots, and all_roots
+- GPL-licensed from [Reta Vortaro](https://reta-vortaro.de)
+- Already integrated into `train_root_embeddings.py`
+- Used for Jaccard-similarity pairs in training
+
+**Note**: Replaces old Plena Vortaro (which had OCR artifacts)
 
 ---
 
@@ -139,23 +141,6 @@
 - [ ] Add source annotations (tier=6, weight=1.0)
 - [ ] Preserve article titles for citations
 - [ ] Track extraction date
-
----
-
-## Parallel Corpora
-
-### Tatoeba EN-EO
-
-**Location**: `data/tatoeba/`
-**Status**: Clean, ready for use
-
-| File | Content | Size |
-|------|---------|------|
-| `Tatoeba.en-eo.en` | English sentences | 9.9MB |
-| `Tatoeba.en-eo.eo` | Esperanto sentences | 11MB |
-
-**Use**: Cross-lingual semantic training (English as similarity oracle)
-**Note**: Already used for `similarity_pairs_{train,val,test}.jsonl`
 
 ---
 
@@ -224,14 +209,14 @@
 
 ## Vocabulary Files
 
-**Location**: `data/vocabularies/`
+**Location**: `data/vocabularies/` and `data/revo/`
 
 | File | Content | Size | Status |
 |------|---------|------|--------|
 | `fundamento_roots.json` | UV extracted roots | 475KB | Complete |
-| `pv_definitions.json` | Plena Vortaro definitions | 2.0MB | Complete |
 | `root_vocabulary.json` | All corpus roots | 21MB | Complete |
 | `affix_vocabulary.json` | Affixes | 1.5KB | Complete |
+| `revo_definitions_with_roots.json` | ReVo dictionary (Tier 4) | 11MB | Complete |
 
 ---
 

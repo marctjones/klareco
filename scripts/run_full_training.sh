@@ -102,7 +102,7 @@ if should_run_phase 0; then
     # Check if data exists
     UV_FILE="data/vocabularies/fundamento_roots.json"
     EKZ_FILE="data/training/ekzercaro_sentences.jsonl"
-    PV_FILE="data/vocabularies/pv_definitions.json"
+    REVO_FILE="data/revo/revo_definitions_with_roots.json"
 
     if [[ "$FRESH" == "true" ]] || [[ ! -f "$UV_FILE" ]]; then
         log "  Extracting Fundamento UV..."
@@ -118,11 +118,11 @@ if should_run_phase 0; then
         log "  Ekzercaro exists, skipping"
     fi
 
-    if [[ "$FRESH" == "true" ]] || [[ ! -f "$PV_FILE" ]]; then
-        log "  Parsing PV definitions..."
-        python scripts/training/parse_pv_definitions.py 2>&1 | tee -a "$MASTER_LOG"
+    if [[ ! -f "$REVO_FILE" ]]; then
+        log "  WARNING: ReVo definitions not found at $REVO_FILE"
+        log "  Download from: https://github.com/open-esperanto/revo-archive"
     else
-        log "  PV definitions exist, skipping"
+        log "  ReVo definitions exist: $REVO_FILE"
     fi
 
     log "Phase 0 complete!"

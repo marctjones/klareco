@@ -14,13 +14,11 @@
 # Phases:
 #   0.1 - Extract Fundamento Universala Vortaro (UV)
 #   0.2 - Extract Ekzercaro sentences
-#   1   - Parse Plena Vortaro definitions
-#   2   - Train root embeddings
+#   1   - Train root embeddings (uses ReVo definitions from data/revo/)
 #
 # Outputs:
 #   data/vocabularies/fundamento_roots.json
 #   data/training/ekzercaro_sentences.jsonl
-#   data/vocabularies/pv_definitions.json
 #   models/root_embeddings/best_model.pt
 #
 # Logs:
@@ -174,34 +172,9 @@ if should_run_phase "0.2" || should_run_phase "0"; then
     fi
 fi
 
-# Phase 1: Parse PV Definitions
+# Phase 1: Train Root Embeddings (uses ReVo from data/revo/)
 if should_run_phase "1"; then
-    log_section "Phase 1: Plena Vortaro Definition Parsing"
-
-    OUTPUT="$PROJECT_DIR/data/vocabularies/pv_definitions.json"
-
-    if check_output "$OUTPUT"; then
-        log "Running: python scripts/training/parse_pv_definitions.py $DRY_RUN"
-
-        python scripts/training/parse_pv_definitions.py \
-            --input data/grammar/plena_vortaro.txt \
-            --output "$OUTPUT" \
-            --log-dir "$LOG_DIR" \
-            $DRY_RUN \
-            2>&1 | tee -a "$MASTER_LOG"
-
-        if [[ $? -eq 0 ]]; then
-            log "Phase 1 completed successfully"
-        else
-            log "ERROR: Phase 1 failed"
-            exit 1
-        fi
-    fi
-fi
-
-# Phase 2: Train Root Embeddings
-if should_run_phase "2"; then
-    log_section "Phase 2: Root Embedding Training"
+    log_section "Phase 1: Root Embedding Training"
 
     OUTPUT_DIR="$PROJECT_DIR/models/root_embeddings"
 
@@ -220,7 +193,7 @@ if should_run_phase "2"; then
 
     python scripts/training/train_root_embeddings.py \
         --fundamento-roots data/vocabularies/fundamento_roots.json \
-        --pv-definitions data/vocabularies/pv_definitions.json \
+        --revo-definitions data/revo/revo_definitions_with_roots.json \
         --ekzercaro data/training/ekzercaro_sentences.jsonl \
         --output-dir "$OUTPUT_DIR" \
         --log-dir "$LOG_DIR" \
@@ -233,9 +206,9 @@ if should_run_phase "2"; then
         2>&1 | tee -a "$MASTER_LOG"
 
     if [[ $? -eq 0 ]]; then
-        log "Phase 2 completed successfully"
+        log "Phase 1 completed successfully"
     else
-        log "ERROR: Phase 2 failed"
+        log "ERROR: Phase 1 failed"
         exit 1
     fi
 fi
@@ -254,9 +227,9 @@ if [[ -f "$PROJECT_DIR/data/training/ekzercaro_sentences.jsonl" ]]; then
     LINES=$(wc -l < "$PROJECT_DIR/data/training/ekzercaro_sentences.jsonl")
     log "  - ekzercaro_sentences.jsonl: ${LINES} sentences"
 fi
-if [[ -f "$PROJECT_DIR/data/vocabularies/pv_definitions.json" ]]; then
-    SIZE=$(wc -c < "$PROJECT_DIR/data/vocabularies/pv_definitions.json")
-    log "  - pv_definitions.json: ${SIZE} bytes"
+if [[ -f "$PROJECT_DIR/data/revo/revo_definitions_with_roots.json" ]]; then
+    SIZE=$(wc -c < "$PROJECT_DIR/data/revo/revo_definitions_with_roots.json")
+    log "  - revo_definitions_with_roots.json: ${SIZE} bytes"
 fi
 if [[ -f "$PROJECT_DIR/models/root_embeddings/best_model.pt" ]]; then
     SIZE=$(wc -c < "$PROJECT_DIR/models/root_embeddings/best_model.pt")

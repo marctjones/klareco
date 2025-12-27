@@ -256,26 +256,75 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
     logger.info(f"Created {ekz_pair_count} Ekzercaro pairs (graded 0.3-0.9)")
 
     # =========================================================================
-    # 2. ReVo curated semantic relations (synonyms, antonyms, hypernyms)
+    # 2. ReVo definition Jaccard similarity (baseline - this worked well)
+    # =========================================================================
+    revo_jaccard_count = 0
+    if use_revo:
+        logger.info("Building ReVo definition similarity pairs (Jaccard-graded)...")
+
+        # Build definition root sets for each headword, FILTERING function words
+        headword_def_roots = {}
+        for headword, data in revo_entries.items():
+            if headword not in root_to_idx:
+                continue
+            if headword in FUNCTION_WORDS:
+                continue
+            # Filter function words from definition roots
+            def_roots = set(r for r in data.get('definition_roots', []) if r not in FUNCTION_WORDS)
+            if len(def_roots) >= 3:
+                headword_def_roots[headword] = def_roots
+                root_freq[headword] += 1
+                for r in def_roots:
+                    root_freq[r] += 1
+
+        headwords = list(headword_def_roots.keys())
+        logger.info(f"  Processing {len(headwords)} headwords with definition roots...")
+
+        for i, h1 in enumerate(headwords):
+            def1 = headword_def_roots[h1]
+            for h2 in headwords[i+1:]:
+                def2 = headword_def_roots[h2]
+
+                # Compute Jaccard similarity of definition roots
+                jaccard = compute_jaccard(def1, def2)
+
+                # Only create pair if significant overlap
+                if jaccard >= 0.20:  # At least 20% overlap
+                    idx1, idx2 = root_to_idx[h1], root_to_idx[h2]
+                    pair_key = (min(idx1, idx2), max(idx1, idx2))
+
+                    # Scale Jaccard to target range 0.4-0.8
+                    target = 0.4 + 0.4 * jaccard
+
+                    if pair_key not in pair_targets or target > pair_targets[pair_key]:
+                        pair_targets[pair_key] = target
+                        pairs.append((idx1, idx2, target))
+                        weights.append(2.0 + 3.0 * jaccard)
+                        revo_jaccard_count += 1
+
+        logger.info(f"Created {revo_jaccard_count} ReVo Jaccard pairs (graded 0.4-0.8)")
+
+    # =========================================================================
+    # 2b. ReVo curated semantic relations (BONUS - high-weight refinement)
     # =========================================================================
     revo_relation_count = 0
     revo_antonym_count = 0
 
     if use_revo and revo_relations_path and revo_relations_path.exists():
-        logger.info("Loading ReVo curated semantic relations...")
+        logger.info("Adding ReVo curated semantic relations (bonus)...")
 
         with open(revo_relations_path) as f:
             revo_rels = json.load(f)
 
-        # Relation type -> (target_similarity, weight)
-        # These are human-curated by Esperanto lexicographers
+        # Curated relations get BONUS weight on top of Jaccard
+        # Targets are moderate (not too high) to work with MSE loss
         RELATION_TARGETS = {
-            'synonym': (0.90, 10.0),     # Very similar
-            'hypernym': (0.65, 6.0),     # X is-a Y (hundo→besto)
-            'hyponym': (0.65, 6.0),      # Y is-a X (besto→hundo)
-            'part_of': (0.55, 5.0),      # X is-part-of Y (fingro→mano)
-            'has_part': (0.55, 5.0),     # Y has-part X (mano→fingro)
-            'antonym': (0.10, 8.0),      # Opposites - low similarity
+            'synonym': (0.75, 8.0),      # Similar - bonus weight
+            'hypernym': (0.60, 5.0),     # X is-a Y (hundo→besto)
+            'hyponym': (0.60, 5.0),      # Y is-a X (besto→hundo)
+            'part_of': (0.55, 4.0),      # X is-part-of Y (fingro→mano)
+            'has_part': (0.55, 4.0),     # Y has-part X (mano→fingro)
+            'antonym': (0.10, 6.0),      # Opposites - low similarity
         }
 
         for rel_type, (target, weight) in RELATION_TARGETS.items():
@@ -310,12 +359,10 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
 
             logger.info(f"  {rel_type}: {count} pairs (target={target:.2f})")
 
-        logger.info(f"Created {revo_relation_count} ReVo positive pairs, {revo_antonym_count} antonym pairs")
+        logger.info(f"Created {revo_relation_count} ReVo curated pairs, {revo_antonym_count} antonym pairs")
 
-    elif use_revo:
-        logger.warning("ReVo relations file not found - run scripts/extract_revo_relations.py first")
-    else:
-        logger.info("Skipping ReVo relations (use_revo=False)")
+    elif use_revo and revo_relations_path:
+        logger.info("ReVo relations file not found - using Jaccard only")
 
     # =========================================================================
     # 3. Fundamento translation overlap (graded)
@@ -348,7 +395,7 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
                 if pair_key not in pair_targets or target > pair_targets[pair_key]:
                     pair_targets[pair_key] = target
                     pairs.append((idx1, idx2, target))
-                    weights.append(5.0)
+                    weights.append(5.0)  # Fundamento weight
                     fund_pair_count += 1
 
     logger.info(f"Created {fund_pair_count} Fundamento translation pairs")

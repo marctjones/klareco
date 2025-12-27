@@ -195,6 +195,12 @@ if should_run_phase "1"; then
         python scripts/clean_revo_vocabulary.py 2>&1 | tee -a "$MASTER_LOG"
     fi
 
+    # Extract ReVo semantic relations (synonyms, antonyms, hypernyms)
+    if [[ ! -f "data/revo/revo_semantic_relations.json" ]]; then
+        log "Extracting ReVo semantic relations..."
+        python scripts/extract_revo_relations.py 2>&1 | tee -a "$MASTER_LOG"
+    fi
+
     log "Running: python scripts/training/train_root_embeddings.py $DRY_RUN $FRESH_FLAG"
 
     python scripts/training/train_root_embeddings.py \
@@ -202,6 +208,7 @@ if should_run_phase "1"; then
         --revo-definitions data/revo/revo_definitions_with_roots.json \
         --ekzercaro data/training/ekzercaro_sentences.jsonl \
         --clean-vocab data/vocabularies/clean_roots.json \
+        --revo-relations data/revo/revo_semantic_relations.json \
         --output-dir "$OUTPUT_DIR" \
         --log-dir "$LOG_DIR" \
         --epochs 100 \

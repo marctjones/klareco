@@ -166,16 +166,21 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
                            ekzercaro: List[dict], root_to_idx: dict,
                            negative_ratio: int = 3,
                            use_revo: bool = True,
-                           use_hard_negatives: bool = False) -> Tuple[List, List]:
+                           use_hard_negatives: bool = False,
+                           revo_relations_path: Optional[Path] = None) -> Tuple[List, List]:
     """
     Build training pairs with GRADED similarity targets.
 
-    Key improvements:
-    1. Graded targets (0.0-1.0) based on semantic overlap, not binary
-    2. Hard negatives - pairs that are somewhat related but should be distinct
-    3. Higher negative:positive ratio (3:1) for better separation
-    4. Filter function words to prevent high-frequency collapse
-    5. Inverse-frequency weighting to balance common vs rare roots
+    Uses curated semantic relations from authoritative Esperanto sources:
+    1. ReVo synonyms, antonyms, hypernyms (human-curated by lexicographers)
+    2. Fundamento translation equivalence (Zamenhof's original definitions)
+    3. Ekzercaro co-occurrence (Zamenhof's curated examples)
+
+    Key design:
+    - Curated relations > weak Jaccard overlap
+    - Graded targets (0.0-1.0) based on relation type
+    - Function words filtered to prevent collapse
+    - Negative sampling for separation
 
     Returns: (pairs, weights) where pairs = [(idx1, idx2, target_sim), ...]
     """
@@ -251,57 +256,66 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
     logger.info(f"Created {ekz_pair_count} Ekzercaro pairs (graded 0.3-0.9)")
 
     # =========================================================================
-    # 2. ReVo definition sharing with Jaccard similarity (optional)
+    # 2. ReVo curated semantic relations (synonyms, antonyms, hypernyms)
     # =========================================================================
-    revo_pair_count = 0
-    if use_revo:
-        logger.info("Building ReVo definition similarity pairs (Jaccard-graded)...")
+    revo_relation_count = 0
+    revo_antonym_count = 0
 
-        # Build definition root sets for each headword, FILTERING function words
-        headword_def_roots = {}
-        for headword, data in revo_entries.items():
-            if headword not in root_to_idx:
-                continue
-            if headword in FUNCTION_WORDS:
-                continue  # Don't create pairs for function word headwords
-            # Filter function words from definition roots
-            def_roots = set(r for r in data.get('definition_roots', []) if r not in FUNCTION_WORDS)
-            if len(def_roots) >= 3:  # Need at least 3 content words for meaningful comparison
-                headword_def_roots[headword] = def_roots
-                # Track frequency
-                root_freq[headword] += 1
-                for r in def_roots:
-                    root_freq[r] += 1
+    if use_revo and revo_relations_path and revo_relations_path.exists():
+        logger.info("Loading ReVo curated semantic relations...")
 
-        headwords = list(headword_def_roots.keys())
-        logger.info(f"  Processing {len(headwords)} headwords with definition roots (after filtering function words)...")
+        with open(revo_relations_path) as f:
+            revo_rels = json.load(f)
 
-        for i, h1 in enumerate(headwords):
-            def1 = headword_def_roots[h1]
-            for h2 in headwords[i+1:]:
-                def2 = headword_def_roots[h2]
+        # Relation type -> (target_similarity, weight)
+        # These are human-curated by Esperanto lexicographers
+        RELATION_TARGETS = {
+            'synonym': (0.90, 10.0),     # Very similar
+            'hypernym': (0.65, 6.0),     # X is-a Y (hundo→besto)
+            'hyponym': (0.65, 6.0),      # Y is-a X (besto→hundo)
+            'part_of': (0.55, 5.0),      # X is-part-of Y (fingro→mano)
+            'has_part': (0.55, 5.0),     # Y has-part X (mano→fingro)
+            'antonym': (0.10, 8.0),      # Opposites - low similarity
+        }
 
-                # Compute Jaccard similarity of definition roots
-                jaccard = compute_jaccard(def1, def2)
+        for rel_type, (target, weight) in RELATION_TARGETS.items():
+            rel_pairs = revo_rels.get('relations', {}).get(rel_type, [])
+            count = 0
 
-                # Only create pair if significant overlap
-                # Higher threshold to reduce pair count (1.3M is too many)
-                if jaccard >= 0.25:  # At least 25% overlap
-                    idx1, idx2 = root_to_idx[h1], root_to_idx[h2]
-                    pair_key = (min(idx1, idx2), max(idx1, idx2))
+            for r1, r2 in rel_pairs:
+                if r1 not in root_to_idx or r2 not in root_to_idx:
+                    continue
+                if r1 in FUNCTION_WORDS or r2 in FUNCTION_WORDS:
+                    continue
 
-                    # Scale Jaccard to target range 0.4-0.9
-                    target = 0.4 + 0.5 * jaccard
+                idx1, idx2 = root_to_idx[r1], root_to_idx[r2]
+                pair_key = (min(idx1, idx2), max(idx1, idx2))
 
+                # For antonyms, we want low similarity (don't override with higher)
+                if rel_type == 'antonym':
+                    if pair_key not in pair_targets:
+                        pair_targets[pair_key] = target
+                        pairs.append((idx1, idx2, target))
+                        weights.append(weight)
+                        count += 1
+                        revo_antonym_count += 1
+                else:
+                    # For positive relations, take max target
                     if pair_key not in pair_targets or target > pair_targets[pair_key]:
                         pair_targets[pair_key] = target
                         pairs.append((idx1, idx2, target))
-                        weights.append(2.0 + 3.0 * jaccard)
-                        revo_pair_count += 1
+                        weights.append(weight)
+                        count += 1
+                        revo_relation_count += 1
 
-        logger.info(f"Created {revo_pair_count} ReVo definition pairs (Jaccard-graded)")
+            logger.info(f"  {rel_type}: {count} pairs (target={target:.2f})")
+
+        logger.info(f"Created {revo_relation_count} ReVo positive pairs, {revo_antonym_count} antonym pairs")
+
+    elif use_revo:
+        logger.warning("ReVo relations file not found - run scripts/extract_revo_relations.py first")
     else:
-        logger.info("Skipping ReVo definition pairs (use_revo=False)")
+        logger.info("Skipping ReVo relations (use_revo=False)")
 
     # =========================================================================
     # 3. Fundamento translation overlap (graded)
@@ -735,6 +749,9 @@ def main():
     parser.add_argument('--clean-vocab', type=Path,
                         default=Path('data/vocabularies/clean_roots.json'),
                         help='Clean vocabulary file (RECOMMENDED)')
+    parser.add_argument('--revo-relations', type=Path,
+                        default=Path('data/revo/revo_semantic_relations.json'),
+                        help='ReVo curated semantic relations (synonyms, antonyms, hypernyms)')
 
     args = parser.parse_args()
 
@@ -794,8 +811,9 @@ def main():
     logger.info("\nBuilding training pairs...")
     pairs, weights = build_similarity_pairs(
         fundamento_roots, revo_entries, ekzercaro, root_to_idx,
-        use_revo=not args.no_pv,  # Reuse flag for now
-        use_hard_negatives=args.hard_negatives
+        use_revo=not args.no_pv,
+        use_hard_negatives=args.hard_negatives,
+        revo_relations_path=args.revo_relations
     )
 
     if args.dry_run:

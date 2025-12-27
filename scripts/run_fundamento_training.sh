@@ -189,12 +189,19 @@ if should_run_phase "1"; then
         log "No checkpoint found, starting fresh"
     fi
 
+    # First, ensure clean vocabulary exists
+    if [[ ! -f "data/vocabularies/clean_roots.json" ]]; then
+        log "Generating clean vocabulary..."
+        python scripts/clean_revo_vocabulary.py 2>&1 | tee -a "$MASTER_LOG"
+    fi
+
     log "Running: python scripts/training/train_root_embeddings.py $DRY_RUN $FRESH_FLAG"
 
     python scripts/training/train_root_embeddings.py \
         --fundamento-roots data/vocabularies/fundamento_roots.json \
         --revo-definitions data/revo/revo_definitions_with_roots.json \
         --ekzercaro data/training/ekzercaro_sentences.jsonl \
+        --clean-vocab data/vocabularies/clean_roots.json \
         --output-dir "$OUTPUT_DIR" \
         --log-dir "$LOG_DIR" \
         --epochs 100 \

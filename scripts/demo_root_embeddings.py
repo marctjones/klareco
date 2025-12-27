@@ -2,12 +2,14 @@
 """
 Demo: Root Embeddings from Fundamento-Centered Training
 
-This script demonstrates what we've accomplished in Phases 0-1:
-- Trained 64-dimensional embeddings for ~17,000 Esperanto roots
-- Using pure Esperanto sources (Fundamento UV, Ekzercaro, PV definitions)
+This script demonstrates what we've accomplished in Stage 1 Phase 1:
+- Trained 64-dimensional embeddings for Esperanto roots
+- Using pure Esperanto sources (Fundamento UV, Ekzercaro, ReVo definitions)
 - No cross-lingual contamination
 
-Run: python scripts/demo_root_embeddings.py
+Run:
+    python scripts/demo_root_embeddings.py           # Run all demos
+    python scripts/demo_root_embeddings.py -i       # Interactive mode
 """
 
 import sys
@@ -177,8 +179,86 @@ def demo_analogy(model):
             print(f"  Average intra-cluster similarity: {avg_sim:.3f}")
 
 
+
+
+def interactive_mode(model):
+    """Interactive exploration of root embeddings."""
+    print("\n" + "=" * 60)
+    print("INTERACTIVE MODE")
+    print("=" * 60)
+    print("Commands:")
+    print("  <root>           - Find similar roots")
+    print("  <root1> <root2>  - Compute similarity between two roots")
+    print("  list             - Show sample roots")
+    print("  quit             - Exit")
+    print()
+
+    while True:
+        try:
+            query = input(">>> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nGoodbye!")
+            break
+
+        if not query:
+            continue
+
+        if query.lower() == 'quit':
+            print("Goodbye!")
+            break
+
+        if query.lower() == 'list':
+            # Show sample roots
+            sample = list(model['root_to_idx'].keys())[:50]
+            print("Sample roots:", ", ".join(sample))
+            continue
+
+        parts = query.split()
+
+        if len(parts) == 1:
+            # Find similar roots
+            root = parts[0]
+            if root not in model['root_to_idx']:
+                print(f"  '{root}' not in vocabulary")
+                # Suggest similar
+                suggestions = [r for r in model['root_to_idx'] if root in r][:5]
+                if suggestions:
+                    print(f"  Did you mean: {', '.join(suggestions)}?")
+                continue
+
+            neighbors = find_similar(model, root, top_k=10)
+            print(f"  Most similar to '{root}':")
+            for neighbor, sim in neighbors:
+                bar = "█" * int(sim * 20)
+                print(f"    {neighbor:12} {sim:.3f} {bar}")
+
+        elif len(parts) == 2:
+            # Compare two roots
+            root1, root2 = parts
+            sim = similarity(model, root1, root2)
+            if sim is None:
+                missing = [r for r in [root1, root2] if r not in model['root_to_idx']]
+                print(f"  Not in vocabulary: {', '.join(missing)}")
+            else:
+                bar = "█" * int(abs(sim) * 20)
+                print(f"  {root1} ↔ {root2} = {sim:+.3f} {bar}")
+
+        else:
+            print("  Usage: <root> or <root1> <root2>")
+
+
 def main():
-    model_path = Path("models/root_embeddings/best_model.pt")
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Demo root embeddings')
+    parser.add_argument('-i', '--interactive', action='store_true',
+                        help='Run in interactive mode')
+    parser.add_argument('--model', type=Path,
+                        default=Path('models/root_embeddings/best_model.pt'),
+                        help='Path to model checkpoint')
+    args = parser.parse_args()
+
+    model_path = args.model
 
     if not model_path.exists():
         print(f"Error: Model not found at {model_path}")
@@ -192,32 +272,34 @@ def main():
     print(f"  Vocabulary size: {model['vocab_size']:,} roots")
     print(f"  Embedding dimension: {model['embedding_dim']}")
     print(f"  Training epoch: {model['epoch']}")
-    print(f"  Best accuracy: {model['accuracy']:.4f}" if isinstance(model['accuracy'], float) else f"  Best accuracy: {model['accuracy']}")
+    print(f"  Correlation: {model['accuracy']:.4f}" if isinstance(model['accuracy'], float) else f"  Correlation: {model['accuracy']}")
 
-    # Run demos
-    demo_semantic_relationships(model)
-    demo_nearest_neighbors(model)
-    demo_analogy(model)
+    if args.interactive:
+        interactive_mode(model)
+    else:
+        # Run demos
+        demo_semantic_relationships(model)
+        demo_nearest_neighbors(model)
+        demo_analogy(model)
 
-    print("\n" + "=" * 60)
-    print("SUMMARY")
-    print("=" * 60)
-    print("""
-What we've accomplished (Phases 0-1):
+        print("\n" + "=" * 60)
+        print("SUMMARY")
+        print("=" * 60)
+        corr_str = f"{model['accuracy']:.4f}" if isinstance(model['accuracy'], float) else str(model['accuracy'])
+        print(f"""
+Root Embedding Model Statistics:
+  - Vocabulary: {model['vocab_size']:,} roots
+  - Dimensions: {model['embedding_dim']}d
+  - Correlation: {corr_str}
 
-  1. Extracted 2,067 roots from Fundamento's Universala Vortaro
-  2. Parsed 3,019 authoritative sentences from Ekzercaro
-  3. Parsed 2,103 PV definitions with semantic relationships
-  4. Trained 64d embeddings for 17,066 roots
+Training Data (TRAINING_PLAN_V3):
+  - Fundamento Universala Vortaro (roots)
+  - Fundamento Ekzercaro (sentences)
+  - Reta Vortaro (ReVo) definitions
 
-Training approach:
-  - Ekzercaro co-occurrence (weight 10x) - highest authority
-  - Fundamento translation overlap (weight 5x)
-  - PV definition sharing (weight 2x)
-  - Contrastive negatives (weight 1x)
-
-No cross-lingual contamination - pure Esperanto semantics!
+Pure Esperanto semantics - no cross-lingual contamination!
 """)
+        print("Try interactive mode: python scripts/demo_root_embeddings.py -i")
 
 
 if __name__ == '__main__':

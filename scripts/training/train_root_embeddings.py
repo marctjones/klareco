@@ -108,24 +108,43 @@ class DefinitionSimilarityDataset(Dataset):
 
 
 def build_vocabulary(fundamento_roots: dict, revo_entries: dict,
-                     ekzercaro: List[dict]) -> Tuple[Dict[str, int], Dict[int, str]]:
-    """Build root vocabulary from all sources."""
-    all_roots = set()
+                     ekzercaro: List[dict],
+                     clean_vocab_path: Optional[Path] = None) -> Tuple[Dict[str, int], Dict[int, str]]:
+    """Build root vocabulary from all sources.
 
-    # Fundamento roots (highest priority)
-    all_roots.update(fundamento_roots.keys())
-    logger.info(f"Fundamento roots: {len(fundamento_roots)}")
+    If clean_vocab_path is provided, use only roots from that file (recommended).
+    Otherwise, build from sources (may include junk from Ekzercaro extraction).
+    """
+    # Use clean vocabulary if provided (RECOMMENDED)
+    if clean_vocab_path and clean_vocab_path.exists():
+        logger.info(f"Using clean vocabulary from {clean_vocab_path}")
+        with open(clean_vocab_path) as f:
+            clean_data = json.load(f)
 
-    # ReVo headwords and definition roots
-    for headword, data in revo_entries.items():
-        all_roots.add(headword)
-        all_roots.update(data.get('definition_roots', []))
-    logger.info(f"After ReVo: {len(all_roots)} unique roots")
+        all_roots = set(clean_data['roots'].keys())
+        logger.info(f"Clean vocabulary: {len(all_roots)} validated roots")
+        logger.info(f"  Tier 1 (Fundamento): {clean_data['metadata']['tiers'].get('1', clean_data['metadata']['tiers'].get(1, 0))}")
+        logger.info(f"  Tier 2 (Core): {clean_data['metadata']['tiers'].get('2', clean_data['metadata']['tiers'].get(2, 0))}")
+        logger.info(f"  Tier 3 (Extended): {clean_data['metadata']['tiers'].get('3', clean_data['metadata']['tiers'].get(3, 0))}")
+    else:
+        # Legacy mode: build from sources (may include junk)
+        logger.warning("No clean vocabulary provided - building from sources (may include junk)")
+        all_roots = set()
 
-    # Ekzercaro roots
-    for sent in ekzercaro:
-        all_roots.update(sent.get('roots', []))
-    logger.info(f"After Ekzercaro: {len(all_roots)} unique roots")
+        # Fundamento roots (highest priority)
+        all_roots.update(fundamento_roots.keys())
+        logger.info(f"Fundamento roots: {len(fundamento_roots)}")
+
+        # ReVo headwords and definition roots
+        for headword, data in revo_entries.items():
+            all_roots.add(headword)
+            all_roots.update(data.get('definition_roots', []))
+        logger.info(f"After ReVo: {len(all_roots)} unique roots")
+
+        # Ekzercaro roots - SKIP to avoid junk
+        # for sent in ekzercaro:
+        #     all_roots.update(sent.get('roots', []))
+        logger.info(f"Skipping Ekzercaro roots (use --clean-vocab instead)")
 
     # Build vocab
     root_to_idx = {root: idx for idx, root in enumerate(sorted(all_roots))}
@@ -713,6 +732,9 @@ def main():
                         help='Skip PV definition pairs (for debugging)')
     parser.add_argument('--hard-negatives', action='store_true',
                         help='Include hard negative pairs')
+    parser.add_argument('--clean-vocab', type=Path,
+                        default=Path('data/vocabularies/clean_roots.json'),
+                        help='Clean vocabulary file (RECOMMENDED)')
 
     args = parser.parse_args()
 
@@ -762,7 +784,10 @@ def main():
 
     # Build vocabulary
     logger.info("\nBuilding vocabulary...")
-    root_to_idx, idx_to_root = build_vocabulary(fundamento_roots, revo_entries, ekzercaro)
+    root_to_idx, idx_to_root = build_vocabulary(
+        fundamento_roots, revo_entries, ekzercaro,
+        clean_vocab_path=args.clean_vocab
+    )
     logger.info(f"Total vocabulary: {len(root_to_idx)} roots")
 
     # Build training pairs

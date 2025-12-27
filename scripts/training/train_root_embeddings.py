@@ -450,10 +450,12 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
         logger.info("Skipping hard negatives (use_hard_negatives=False)")
 
     # =========================================================================
-    # 5. SEMANTIC CLUSTER NEGATIVES - pairs from different semantic categories
+    # 5. SEMANTIC CLUSTER PAIRS - both positive (within) and negative (between)
     # =========================================================================
-    # These ensure that content words from different domains are pushed apart
-    # This is critical to prevent the "frequent content word collapse" problem
+    # Key insight: We need POSITIVE pairs within clusters to pull related words together
+    # AND negative pairs between clusters to push unrelated words apart.
+    # Without intra-cluster positives, animals won't cluster even if they're all
+    # pushed away from non-animals - they have no attraction to each other.
 
     SEMANTIC_CLUSTERS = {
         'family': ['patr', 'matr', 'fil', 'frat', 'edz', 'av', 'nev', 'onkl', 'kuzo', 'nep'],
@@ -466,11 +468,50 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
         'abstract': ['am', 'ide', 'pens', 'sci', 'sent', 'vol', 'kred', 'esper', 'tim', 'ĝoj'],
         'objects': ['tabl', 'seĝ', 'lit', 'libr', 'paper', 'krajpn', 'teler', 'glaso', 'kuler'],
         'qualities': ['bon', 'bel', 'grand', 'jun', 'nov', 'alt', 'larg', 'long', 'fort', 'rapid'],
+        # Additional semantic groups for better coverage
+        'communication': ['parol', 'dir', 'skrib', 'leg', 'aŭd', 'demand', 'respond', 'kri', 'kant'],
+        'colors': ['blank', 'nigr', 'ruĝ', 'blu', 'verd', 'flav', 'brun', 'griz', 'oranĝ', 'violet'],
+        'nature': ['sun', 'lun', 'stel', 'ĉiel', 'nub', 'pluv', 'neĝ', 'vent', 'ter', 'fajr'],
+        'containers': ['sak', 'skatol', 'barel', 'botel', 'kruĉ', 'poŝ', 'kest', 'ujo'],
     }
 
+    # -------------------------------------------------------------------------
+    # 5a. INTRA-CLUSTER POSITIVES - pull same-category words together
+    # -------------------------------------------------------------------------
+    semantic_pos_count = 0
+    logger.info("Building semantic cluster POSITIVE pairs (intra-cluster)...")
+
+    for cluster_name, roots in SEMANTIC_CLUSTERS.items():
+        valid_roots = [r for r in roots if r in root_to_idx and r not in FUNCTION_WORDS]
+        if len(valid_roots) < 2:
+            continue
+
+        # Create positive pairs for all combinations within the cluster
+        for i, r1 in enumerate(valid_roots):
+            idx1 = root_to_idx[r1]
+            for r2 in valid_roots[i+1:]:
+                idx2 = root_to_idx[r2]
+                pair_key = (min(idx1, idx2), max(idx1, idx2))
+
+                # Same-category words should have moderate-high similarity
+                # Not 0.9 (they're not synonyms) but definitely related
+                target = 0.45  # Moderate positive - "related but not identical"
+
+                if pair_key not in pair_targets or target > pair_targets[pair_key]:
+                    pair_targets[pair_key] = target
+                    pairs.append((idx1, idx2, target))
+                    weights.append(6.0)  # High weight to ensure clustering
+                    positive_pairs_set.add(pair_key)
+                    semantic_pos_count += 1
+
+    logger.info(f"Created {semantic_pos_count} semantic cluster POSITIVE pairs (target=0.45)")
+
+    # -------------------------------------------------------------------------
+    # 5b. INTER-CLUSTER NEGATIVES - push different-category words apart
+    # -------------------------------------------------------------------------
     semantic_neg_count = 0
     cluster_names = list(SEMANTIC_CLUSTERS.keys())
-    logger.info("Building semantic cluster negative pairs...")
+    logger.info("Building semantic cluster NEGATIVE pairs (inter-cluster)...")
 
     # Create negative pairs between different semantic clusters
     # This ensures semantically unrelated content words are pushed apart

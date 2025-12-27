@@ -31,19 +31,26 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - **Extractive responders** (`experts/extractive.py`, `experts/summarizer.py`)
 - **Production corpus index** (`data/corpus_index_v3`)
 
-### Training Data Ready
-- **Unified corpus**: 4.2M parsed sentences with ASTs
-- **Training corpus**: 2M high-quality sentences (90%+ parse rate)
-  - Authoritative (Tier 1-3): 16,557 sentences (Fundamento, Krestomatio, Gerda)
-  - Literature (Tier 5): 19,796 sentences
-  - General (Tier 6): 1.9M sentences (Wikipedia)
-- **ReVo dictionary**: 10,766 entries for semantic training
-- **Fundamento roots**: Extracted from Universala Vortaro
+### Stage 1: Root Embeddings ✓ COMPLETE
+- **Model**: 11,121 roots × 64 dimensions = 712K parameters
+- **Correlation**: 0.8732 | **Accuracy**: 97.98%
+- **Comprehensive evaluation** (100% coverage, all tests PASS):
+  - Synonyms: 93.1% (1,943 pairs)
+  - Antonyms: 82.7% (173 pairs)
+  - Hierarchy: 98.6% (7,187 pairs)
+  - Clusters: 43.6% separation (14 clusters)
+- **Run demo**: `python scripts/demo_root_embeddings.py -i`
 
-### Ready to Train
-- Root embedding training script ready (`scripts/training/train_root_embeddings.py`)
-- Affix embedding training ready (`scripts/training/train_affix_embeddings.py`)
-- See `TRAINING_QUICKSTART.md` for instructions
+### Training Data
+- **Clean vocabulary**: 11,121 validated roots (Fundamento + ReVo)
+- **ReVo dictionary**: 10,766 entries with semantic relations
+- **Training pairs**: 234K (58K positive + 176K negative)
+- **Fundamento roots**: 2,067 from Universala Vortaro
+
+### Next Steps
+- Affix embedding training (`scripts/training/train_affix_embeddings.py`)
+- FAISS index rebuild with new embeddings
+- Stage 2: Grammatical transforms
 
 ## Architecture
 
@@ -150,15 +157,15 @@ python -m pytest --cov=klareco             # With coverage
 
 ## Project Status
 
-| Component | Status |
-|-----------|--------|
-| Parser (16 rules) | Production |
-| Training corpus | Ready (2M sentences) |
-| Root embeddings | Ready to train |
-| Affix embeddings | Ready to train |
-| Grammatical model | Designed |
-| Discourse model | Designed |
-| Reasoning core | Future |
+| Component | Status | Details |
+|-----------|--------|---------|
+| Parser (16 rules) | ✅ Production | 91.8% parse rate |
+| Root embeddings | ✅ **Complete** | 0.87 correlation, 93% synonym accuracy |
+| Clean vocabulary | ✅ Complete | 11,121 validated roots |
+| Affix embeddings | 🔲 Ready | Script ready, blocked on root training |
+| Grammatical model | 🔲 Designed | Stage 2 |
+| Discourse model | 🔲 Designed | Stage 3 |
+| Reasoning core | 🔲 Future | Stage 4 (20-100M params) |
 
 ## License
 

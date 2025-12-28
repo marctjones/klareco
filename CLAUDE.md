@@ -460,7 +460,7 @@ gh issue list --label "priority: high"           # Filter by label
 gh issue view 5                                  # View issue details
 gh issue create --title "Title" --body "Desc"   # Create new issue
 gh issue close 14 --comment "Fixed in abc123"   # Close with comment
-gh issue list --search "parser"                  # Search issues
+gh issue comment 5 --body "Added validation results"  # Add comment to issue
 
 # Pull Requests
 gh pr list                                       # List open PRs
@@ -473,7 +473,31 @@ gh pr merge 3                                    # Merge PR
 gh repo view                                     # View repo info
 gh browse                                        # Open repo in browser
 gh label list                                    # List labels
+
+# Discussions (via API - no direct gh command)
+gh api repos/marctjones/klareco --jq '.has_discussions'  # Check if enabled
+# Create discussions via web UI or API
 ```
+
+### Wiki Access
+
+The wiki is a **separate git repository**. It cannot be accessed via `gh` CLI.
+
+```bash
+# Clone the wiki
+git clone https://github.com/marctjones/klareco.wiki.git
+cd klareco.wiki
+
+# Edit markdown files (e.g., Home.md, Stage-1-Embeddings.md)
+# Wiki pages are plain markdown files
+
+# Push changes
+git add .
+git commit -m "Update wiki"
+git push origin master
+```
+
+**Important**: Always `git pull` before editing to avoid merge conflicts if others edited via web UI.
 
 ### Content Migration Guidelines
 

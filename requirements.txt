@@ -1,70 +1,54 @@
 # ============================================================================
 # Klareco Requirements
 # ============================================================================
-# See CLAUDE.md for development environment setup
+# Pure Esperanto AI with minimal learned parameters
+# See CLAUDE.md for architecture overview
 
 # ----------------------------------------------------------------------------
-# Phase 1-2: Core Pipeline (CURRENTLY ACTIVE)
+# Core Dependencies (Required)
 # ----------------------------------------------------------------------------
 
-# Language identification
-# Pure Python, in-process, most accurate option
-lingua-language-detector  # Supports Esperanto, 99.9% accuracy
-# Alternative (C++ bindings, slightly faster but less maintainable):
-# fasttext-numpy2
+# Deep learning
+torch  # CPU version: pip install torch --index-url https://download.pytorch.org/whl/cpu
+numpy
 
-# Translation (Front Door)
-transformers
-torch  # NOTE: GPU version installed by default. For CPU-only: torch-cpu
-
-# HTTP requests (model downloads)
-requests
-
-# Testing and coverage
-pytest  # Better than unittest
-pytest-cov  # Coverage integration
-hypothesis  # Property-based testing for parser
-coverage
+# Vector search for RAG retrieval
+faiss-cpu  # Use faiss-gpu if you have CUDA
 
 # Progress bars
 tqdm
 
-# Wikipedia/MediaWiki parsing (corpus building)
-mwparserfromhell  # Clean Wikipedia markup
+# Testing
+pytest
+pytest-cov
 
 # ----------------------------------------------------------------------------
-# Phase 3+: Future Components (NOT YET USED)
+# Corpus Building (Optional - only needed for rebuilding corpus)
 # ----------------------------------------------------------------------------
 
-# Lisp environment for eHy vision (Phase 3+)
-# hy
+# Wikipedia parsing
+mwparserfromhell
 
-# Graph Neural Networks (Phase 3: GNN Encoder)
-# torch-geometric
-# pyg_lib
-# torch-scatter
-# torch-sparse
+# Language detection (for corpus cleaning)
+lingua-language-detector  # Heavy dependency, only if rebuilding corpus
 
-# Vector search for RAG (Phase 3)
-# faiss-cpu  # or faiss-gpu
-
-# Graph visualization (Phase 3: AST debugging)
-# networkx
-# matplotlib
-
-# Database (Phase 6: LTM)
-# Embedded, pure Python option (RECOMMENDED):
-# sqlalchemy  # Works with stdlib sqlite3, no external server needed
-# External server option (more powerful, more complex):
-# psycopg2-binary  # PostgreSQL - only if you need advanced features
-
-# Symbolic reasoning (Phase 8: Tool Integration)
-# pyDatalog  # Pure Python Datalog engine (alternative to external Prolog)
-# RestrictedPython  # Safe code execution in-process (alternative to external sandbox)
+# HTTP requests
+requests
 
 # ----------------------------------------------------------------------------
-# Notes:
-# - sentencepiece, sacremoses: Auto-installed as transformers dependencies
-# - CUDA packages: Auto-installed with torch if GPU detected
-# - For CPU-only (smaller): pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Development Tools (Optional)
 # ----------------------------------------------------------------------------
+
+# Property-based testing
+# hypothesis
+
+# Coverage reporting
+coverage
+
+# ----------------------------------------------------------------------------
+# NOT USED (Legacy/Future)
+# ----------------------------------------------------------------------------
+# transformers  # Was for translation, now using deterministic approach
+# torch-geometric  # Was for GNN, now using simpler compositional embeddings
+# networkx  # Graph visualization
+# matplotlib  # Plotting

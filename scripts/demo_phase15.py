@@ -591,11 +591,120 @@ def demo_translation():
             print(f"    → Detected: {source.upper()}, No translation needed")
 
 
+def demo_grammatical_adjuster():
+    """Demonstrate deterministic GrammaticalAdjuster (Stage 2)."""
+    from klareco import SemanticPipeline, GrammaticalAdjuster
+
+    print_header("7. GrammaticalAdjuster: Deterministic Grammatical Similarity")
+
+    print("""
+The GrammaticalAdjuster adjusts Stage 1 semantic similarity based on
+grammatical features already present in the AST:
+
+  - negita: negation (flips polarity)
+  - tempo: tense (past/present/future)
+  - fraztipo: sentence type (statement/question/command)
+  - modo: mood (indicative/conditional)
+
+This is Stage 2 with ZERO learned parameters - pure deterministic rules.
+""")
+
+    # Load pipeline
+    try:
+        pipeline = SemanticPipeline.load()
+    except Exception as e:
+        print(f"  Pipeline error: {e}")
+        return
+
+    adjuster = GrammaticalAdjuster()
+
+    print_subheader("Negation Detection")
+    text1 = "La kato dormas."
+    text2 = "La kato ne dormas."
+    en1 = translate_to_english(text1) if get_translator("eo-en") else "(The cat sleeps.)"
+    en2 = translate_to_english(text2) if get_translator("eo-en") else "(The cat doesn't sleep.)"
+
+    print(f"\n  Sentence 1: {text1} ({en1})")
+    print(f"  Sentence 2: {text2} ({en2})")
+
+    enriched1 = pipeline.for_retrieval(text1)
+    enriched2 = pipeline.for_retrieval(text2)
+
+    # Calculate Stage 1 similarity
+    import torch.nn.functional as F
+    if enriched1.sentence_embedding is not None and enriched2.sentence_embedding is not None:
+        semantic_sim = F.cosine_similarity(
+            enriched1.sentence_embedding.unsqueeze(0),
+            enriched2.sentence_embedding.unsqueeze(0)
+        ).item()
+
+        # Apply grammatical adjustment
+        result = adjuster.adjust_with_explanation(enriched1, enriched2, semantic_sim)
+
+        print(f"\n  Stage 1 (semantic): {semantic_sim:.3f}")
+        print(f"  Stage 2 (adjusted): {result.adjusted_similarity:.3f}")
+        print(f"  Adjustments: {result.adjustments}")
+        print(f"\n  Interpretation: Same roots (kato, dorm-) but opposite meaning!")
+
+    print_subheader("Tense Comparison")
+    text3 = "Mi manĝas."  # I eat (present)
+    text4 = "Mi manĝis."  # I ate (past)
+    en3 = translate_to_english(text3) if get_translator("eo-en") else "(I eat.)"
+    en4 = translate_to_english(text4) if get_translator("eo-en") else "(I ate.)"
+
+    print(f"\n  Present: {text3} ({en3})")
+    print(f"  Past: {text4} ({en4})")
+
+    enriched3 = pipeline.for_retrieval(text3)
+    enriched4 = pipeline.for_retrieval(text4)
+
+    if enriched3.sentence_embedding is not None and enriched4.sentence_embedding is not None:
+        semantic_sim = F.cosine_similarity(
+            enriched3.sentence_embedding.unsqueeze(0),
+            enriched4.sentence_embedding.unsqueeze(0)
+        ).item()
+
+        result = adjuster.adjust_with_explanation(enriched3, enriched4, semantic_sim)
+
+        print(f"\n  Stage 1 (semantic): {semantic_sim:.3f}")
+        print(f"  Stage 2 (adjusted): {result.adjusted_similarity:.3f}")
+        print(f"  Adjustments: {result.adjustments}")
+
+    print_subheader("Sentence Type (Statement vs Question)")
+    text5 = "Vi parolas Esperanton."  # You speak Esperanto.
+    text6 = "Ĉu vi parolas Esperanton?"  # Do you speak Esperanto?
+    en5 = translate_to_english(text5) if get_translator("eo-en") else "(You speak Esperanto.)"
+    en6 = translate_to_english(text6) if get_translator("eo-en") else "(Do you speak Esperanto?)"
+
+    print(f"\n  Statement: {text5} ({en5})")
+    print(f"  Question: {text6} ({en6})")
+
+    enriched5 = pipeline.for_retrieval(text5)
+    enriched6 = pipeline.for_retrieval(text6)
+
+    if enriched5.sentence_embedding is not None and enriched6.sentence_embedding is not None:
+        semantic_sim = F.cosine_similarity(
+            enriched5.sentence_embedding.unsqueeze(0),
+            enriched6.sentence_embedding.unsqueeze(0)
+        ).item()
+
+        result = adjuster.adjust_with_explanation(enriched5, enriched6, semantic_sim)
+
+        print(f"\n  Stage 1 (semantic): {semantic_sim:.3f}")
+        print(f"  Stage 2 (adjusted): {result.adjusted_similarity:.3f}")
+        print(f"  Adjustments: {result.adjustments}")
+
+    print_subheader("Default Adjustment Factors")
+    print("\n  The adjuster uses these configurable factors:")
+    for name, value in adjuster.adjustments.items():
+        print(f"    {name}: {value}")
+
+
 def demo_thought_decoder():
     """Demonstrate ThoughtDecoder for explainable AI."""
     from klareco import SemanticPipeline, ThoughtDecoder
 
-    print_header("7. ThoughtDecoder: Making AI Thoughts Explainable")
+    print_header("8. ThoughtDecoder: Making AI Thoughts Explainable")
 
     # Load pipeline
     try:
@@ -883,6 +992,7 @@ def main():
 
         if not args.skip_translation_demo:
             demo_translation()
+            demo_grammatical_adjuster()
             demo_thought_decoder()
 
         print_header("Summary")
@@ -895,7 +1005,7 @@ Phase 1.5 Components:
    - Fully serializable for storage
 
 2. SemanticPipeline
-   - Chains Stage 0 (parser) → Stage 1 (semantic) → Stage 2+ (future)
+   - Chains Stage 0 (parser) → Stage 1 (semantic) → Stage 2 (grammatical)
    - Convenience methods: for_retrieval(), for_qa(), for_analysis()
    - Supports hooks for debugging/visualization
 
@@ -909,14 +1019,21 @@ Phase 1.5 Components:
    - Language detection for auto-translation
    - English speakers can query Esperanto corpus seamlessly
 
-5. ThoughtDecoder (NEW)
+5. GrammaticalAdjuster (Stage 2 - DETERMINISTIC)
+   - Adjusts semantic similarity using AST grammatical annotations
+   - Zero learned parameters - pure rules from parsed grammar
+   - Handles: negation, tense, mood, sentence type
+   - Example: "La kato dormas" vs "La kato ne dormas" → 1.0 → -0.8
+
+6. ThoughtDecoder
    - Decodes EnrichedAST into human-readable explanations
    - Explains syntactic structure and semantic content
    - Compares sentences for similarity analysis
    - JSON output for API integration
 
 Usage:
-  from klareco import EnrichedAST, SemanticPipeline, Retriever, ThoughtDecoder
+  from klareco import (EnrichedAST, SemanticPipeline, Retriever,
+                       ThoughtDecoder, GrammaticalAdjuster)
 
   # Quick embedding
   pipeline = SemanticPipeline.load()
@@ -926,6 +1043,10 @@ Usage:
   # Search (works with English too via auto-translation)
   retriever = Retriever.load()
   results = retriever.search("Kio estas Esperanto?", top_k=10)
+
+  # Grammatical adjustment (Stage 2)
+  adjuster = GrammaticalAdjuster()
+  adjusted_sim = adjuster.adjust(enriched1, enriched2, semantic_sim)
 
   # Decode thoughts (explainable AI)
   decoder = ThoughtDecoder(pipeline=pipeline)

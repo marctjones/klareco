@@ -1,13 +1,21 @@
 # Klareco Training Plan v3
 
-**Version**: 3.2 (December 2025)
-**Status**: Stage 1 COMPLETE - Stage 2 NEXT
+**Version**: 3.3 (December 2025)
+**Status**: Stage 1 COMPLETE - M1 (Q&A Evaluation) NEXT
 
 ---
 
 ## Executive Summary
 
-This document describes Klareco's staged training pipeline. Each stage is trained independently and frozen before the next begins.
+This document describes Klareco's staged training pipeline and milestone-based development approach. We target progressive capability milestones, comparing against reference LLMs.
+
+### Development Milestones
+
+| Milestone | Target | Reference Model | Klareco Params | Efficiency |
+|-----------|--------|----------------|----------------|------------|
+| **M1: Single-Turn QA** | Match OLMo-1B | OLMo 1B Instruct (1.18B) | 20-50M | 20-40× |
+| **M2: Multi-Turn Chat** | Match Llama 3.1 8B | Llama 3.1 8B Instruct | 50-100M | 75× |
+| **M3: Complex Reasoning** | GPT-4-level (Esperanto) | GPT-4 | 100-200M | 10-85× |
 
 ### Key Principles (Lessons Learned)
 
@@ -21,6 +29,8 @@ This document describes Klareco's staged training pipeline. Each stage is traine
 
 5. **Staged Freezing**: Each stage is frozen before the next begins. No catastrophic forgetting.
 
+6. **Grammar is Deterministic**: Stage 2 (GrammaticalAdjuster) was removed - AST already carries grammar labels (negita, tempo, fraztipo, modo). No need to learn what we already know.
+
 ---
 
 ## Architecture Overview
@@ -29,7 +39,7 @@ This document describes Klareco's staged training pipeline. Each stage is traine
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         DETERMINISTIC LAYER (Stage 0)                        │
 │  Parser (16 rules) → AST with roles, morphemes, negation flags              │
-│  Parse rate: 91.8% | Handles: S/V/O roles, tense, negation, correlatives    │
+│  Parse rate: 91.8% | Grammar labels: negita, tempo, fraztipo, modo          │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -44,26 +54,23 @@ This document describes Klareco's staged training pipeline. Each stage is traine
 │  └─────────────────────────────────────────────────────────────┘            │
 │                                    │                                         │
 │                                    ▼ (frozen)                                │
-│  Stage 2: GRAMMATICAL MODEL (~52K params) ← NEXT                            │
-│  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Negation, tense, mood, sentence type transforms            │            │
-│  │  Minimal pairs training approach                            │            │
-│  └─────────────────────────────────────────────────────────────┘            │
+│  Stage 2: REMOVED - Grammar handled by AST labels (0 params)                │
 │                                    │                                         │
-│                                    ▼ (frozen)                                │
-│  Stage 3: DISCOURSE MODEL (~100K params)                                    │
+│                                    ▼                                         │
+│  Stage 3: DISCOURSE MODEL (~100K params) - FUTURE                           │
 │  ┌─────────────────────────────────────────────────────────────┐            │
 │  │  Coreference chains, discourse relations                    │            │
 │  └─────────────────────────────────────────────────────────────┘            │
 │                                    │                                         │
 │                                    ▼ (frozen)                                │
-│  Stage 4: REASONING CORE (20-100M params) - FUTURE                          │
+│  Stage 4: REASONING CORE (20-100M params) ← M1 TARGET                       │
 │  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  AST-to-AST reasoning transformer                           │            │
+│  │  Q&A Pipeline: Reranker + Answer Extractor + Synthesizer    │            │
+│  │  Target: Match OLMo 1B on single-turn Esperanto Q&A         │            │
 │  └─────────────────────────────────────────────────────────────┘            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-Total pre-reasoning: ~885K params
+Total current: ~733K params | M1 Target: 20-50M params
 ```
 
 ---
@@ -183,60 +190,47 @@ FUNCTION_WORDS = {
 
 ---
 
-## Stage 2: Grammatical Model ← NEXT
+## Stage 2: Grammatical Model ✓ REMOVED (Deterministic)
 
-**Target params**: ~52K
-**Status**: Not started
+**Params**: 0 (handled by AST labels)
+**Status**: REMOVED - December 2025
 
-### Goal
+### Why Stage 2 Was Removed
 
-Learn semantic effects of grammatical features that are detected deterministically but have semantic content.
+The parser already extracts grammatical features into the AST:
+- `negita`: Boolean flag for negation
+- `tempo`: pasinteco/prezenco/futuro (tense)
+- `fraztipo`: deklaro/demando/ordono (sentence type)
+- `modo`: indikativo/kondiĉa/vola (mood)
 
-### Grammatical Transforms
+**Key insight**: Why learn what we already know? The GrammaticalAdjuster approach tried to learn transformations for features that are already deterministically extracted. This is redundant.
 
-| Feature | Params | Training Approach |
-|---------|--------|-------------------|
-| Negation | 4K | Minimal pairs: "Mi amas" vs "Mi ne amas" |
-| Tense | 8K | Temporal ordering: past < present < future |
-| Mood | 8K | Factual vs hypothetical discrimination |
-| Sentence type | 8K | Statement vs question vs command |
-| Direction | 4K | Motion vs location (accusative) |
-| Comparison | 4K | pli/plej/ol scalar ordering |
-| Aspect | 4K | ek- (inchoative), -ad- (continuative) |
-| Focus particles | 8K | nur, eĉ, ankaŭ, ja |
-| Evidentiality | 4K | verŝajne, certe, eble |
+### How Grammar Is Handled Now
 
-### Training Data Required
+Instead of learned transforms, the Q&A pipeline can:
+1. **Direct AST comparison**: Check if negita flags match
+2. **Feature filtering**: Only retrieve sentences with matching tense
+3. **Explicit rules**: Apply deterministic adjustments if needed
 
-Minimal pairs for each grammatical feature:
-
+Example (deterministic):
 ```python
-# Negation - context-dependent, not simple flip
-("Mi amas vin", "Mi ne amas vin", similarity=-0.8)
-("Estas bone", "Ne estas malbone", similarity=0.6)  # Litotes
+# Instead of learning this...
+# ("Mi amas", "Mi ne amas") → learned similarity
 
-# Tense - temporal ordering
-("Li venas", "Li venis", similarity=0.7)
-("Li venis", "Li venos", similarity=0.4)
-
-# Mood - factual vs hypothetical
-("Li venas", "Li venus", similarity=0.3)  # Very different!
-
-# Sentence type
-("Li venas", "Ĉu li venas?", similarity=0.5)
+# We can compute directly:
+if ast1.negita != ast2.negita:
+    similarity *= -0.8  # Deterministic rule
 ```
 
-### Open Issues for Stage 2
+This aligns with Klareco's core philosophy: **maximize deterministic processing**.
 
-| Issue | Description |
-|-------|-------------|
-| #104 | Sentence type semantic effects |
-| #105 | Accusative direction semantics |
-| #108 | Comparison semantics (pli/plej/ol) |
-| #109 | Aspect semantics (ek-, -ad-) |
-| #110 | Focus particle semantics |
-| #111 | Evidentiality markers |
-| #112 | Possessive semantics |
+### Related Issues (Now Closed/Archived)
+
+| Issue | Description | Resolution |
+|-------|-------------|------------|
+| #104 | Sentence type semantics | Use fraztipo AST label |
+| #105 | Accusative direction | Use kazo AST label |
+| #108-112 | Various grammar features | Handle in AST layer |
 
 ---
 
@@ -309,6 +303,88 @@ Then the core thesis is proven: traditional LLMs waste capacity on grammar.
 
 ---
 
+## M1 Roadmap: Single-Turn Q&A
+
+**Target**: Match OLMo 1B Instruct on single-turn Esperanto Q&A
+**Reference**: OLMo 1B (1.18B params) → Klareco 20-50M params (20-40× efficiency)
+
+### What We Have (Foundation Complete)
+
+| Component | Status | Params |
+|-----------|--------|--------|
+| Parser (Stage 0) | ✓ 91.8% parse rate | 0 |
+| Root Embeddings | ✓ 11,121 roots | 712K |
+| Affix Transforms | ✓ 41 affixes | 21K |
+| FAISS Index | ✓ 4.38M sentences | 0 |
+| Retriever | ✓ Semantic search | 0 |
+| **Total Foundation** | | **733K** |
+
+### What We Need (M1 Components)
+
+| Component | Purpose | Estimated Params |
+|-----------|---------|------------------|
+| **Q&A Benchmark** | 50 questions with gold answers | 0 |
+| **Reranker** | Score relevance of retrieved docs | 1-5M |
+| **Answer Extractor** | Identify answer spans in context | 2-10M |
+| **Answer Synthesizer** | Combine evidence into answer | 5-20M |
+| **Evaluation Harness** | Compare against OLMo 1B | 0 |
+| **Total M1** | | **8-35M** |
+
+### M1 Implementation Phases
+
+**Phase 1: Baseline Evaluation (No New Models)**
+1. Create 50-question Esperanto Q&A benchmark
+2. Test current retrieval: What works with pure RAG?
+3. Compare against OLMo 1B on same questions
+4. Establish baseline accuracy metrics
+
+**Phase 2: Deterministic Improvements**
+1. AST-based reranking (use grammar labels)
+2. Extractive answer selection (no ML, just heuristics)
+3. Template-based answer synthesis
+4. Re-evaluate: How much can we do with 0 new params?
+
+**Phase 3: Minimal Learning (If Needed)**
+1. Train lightweight reranker (cross-encoder, ~2M params)
+2. Train answer span predictor (~5M params)
+3. Evaluate: Did learning help significantly?
+
+**Phase 4: Integration & Evaluation**
+1. End-to-end pipeline integration
+2. Full benchmark evaluation
+3. A/B comparison with OLMo 1B
+4. Document results, lessons learned
+
+### M1 Success Criteria
+
+| Metric | Target | Notes |
+|--------|--------|-------|
+| Q&A Accuracy | ≥ OLMo 1B | On Esperanto benchmark |
+| Grammar Correctness | 100% | Deterministic deparser |
+| Explainability | Full AST trace | Every answer explainable |
+| Parameters | <50M | vs OLMo's 1.18B |
+| Latency | <2s | Per question |
+
+### M1 vs OLMo 1B Comparison Plan
+
+```
+Klareco M1 Pipeline:
+Question → Parser → AST → Retriever → Reranker → Extractor → Deparser → Answer
+          ├──────── deterministic ────────┤├── learned ──┤├─ deterministic ─┤
+
+OLMo 1B Pipeline:
+Question → Tokenizer → 16 Transformer Layers → LM Head → Answer
+          ├───────────── all learned ──────────────────┤
+```
+
+Key comparison points:
+- **Accuracy**: Does Klareco match OLMo on Esperanto Q&A?
+- **Efficiency**: 20-50M vs 1.18B params (20-40× smaller)
+- **Explainability**: Klareco shows AST trace; OLMo is opaque
+- **Grammar**: Klareco 100% correct; OLMo ~92%
+
+---
+
 ## Mistakes to Avoid (Lessons Learned)
 
 ### 1. Function Word Collapse
@@ -372,23 +448,29 @@ data/corpus_index_compositional/
 
 ## Current Open Issues
 
-### Stage 1 Gaps
+### M1 Priority (Q&A Pipeline)
+- Create Q&A benchmark (50 Esperanto questions)
+- Build evaluation harness for OLMo 1B comparison
+- Implement deterministic reranker
+- Implement answer extractor
+
+### Stage 1 Gaps (Lower Priority)
 - #151 - Missing suffixes (-ism, -ing, -estr, -uj, -aĉ)
 - #153 - Missing prefixes (bo, dis, fi, mis, vic)
 
-### Stage 2 Design
-- #104, #105, #108-#112 - Grammatical feature semantics
+### Stage 2 (Closed - Grammar Deterministic)
+- ~~#104, #105, #108-#112~~ - Closed: Grammar handled by AST labels
 
 ### Architecture
 - #106 - AST Enrichment Pipeline
 - #107 - Thought Visualizer Demo
 - #133 - Refactor Stage 1 for enriched ASTs
 
-### Parser Improvements
+### Parser Improvements (Deferred)
 - #141 - Parser v2 clean rewrite
 - #145 - Numeral suffix detection
 - #152 - Preposition/prefix confusion
 
 ---
 
-*Last updated: December 2025*
+*Last updated: December 31, 2025*

@@ -14,17 +14,19 @@ This is the definitive guide to training Klareco models. For full details, see `
 | Stage 1: Root embeddings | **COMPLETE** | `scripts/training/train_root_embeddings.py` |
 | Stage 1: Affix transforms V2 | **COMPLETE** | `scripts/training/train_affix_transforms_v2.py` |
 | Stage 1: Corpus index | **COMPLETE** | `scripts/index_corpus_compositional.py` |
-| Stage 2+: Grammatical/Discourse | Next | - |
+| Stage 2: Grammatical model | **NEXT** | (not yet implemented) |
 
 ### Stage 1 Results
 
 - **Root embeddings**: 11,121 roots × 64d = 712K params
   - Correlation: 0.8871 | Accuracy: 97.98%
-  - Model: `models/root_embeddings/best_model.pt`
+  - Model: `models/root_embeddings/best_model.pt` (git-tracked)
 
-- **Affix transforms V2**: 12 prefixes + 29 suffixes (~21K params)
+- **Affix transforms V2**: 7 prefixes + 29 suffixes (~21K params)
+  - Low-rank transformations (rank=8)
   - Anti-collapse: mal_mean_sim = -0.03 (target < 0.5)
-  - Model: `models/affix_transforms_v2/best_model.pt`
+  - Model: `models/affix_transforms_v2/best_model.pt` (git-tracked)
+  - Note: 5 prefixes have no training data (bo, dis, fi, mis, vic) - see #153
 
 - **Corpus index**: 4.38M sentences
   - Index: `data/corpus_index_compositional/`
@@ -83,7 +85,7 @@ python scripts/training/evaluate_embeddings.py \
 │  └── Model: models/root_embeddings/best_model.pt            │
 │                                                             │
 │  Phase 2: AFFIX TRANSFORMS V2 ✓                             │
-│  ├── 12 prefixes + 29 suffixes (~21K params)                │
+│  ├── 7 trained prefixes + 29 suffixes (~21K params)         │
 │  ├── Low-rank transformations (rank=8)                      │
 │  ├── Anti-collapse: mal_mean_sim = -0.03                    │
 │  └── Model: models/affix_transforms_v2/best_model.pt        │

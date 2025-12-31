@@ -1,256 +1,96 @@
 # Klareco Training Plan v3
 
-**Version**: 3.1 (December 2025)
-**Status**: Stage 1 COMPLETE - Root embeddings + Affix transforms trained
-
----
-
-## ⚠️ Parser Update Notice (December 2025)
-
-Recent parser changes require reviewing all training stages before proceeding:
-
-1. **Fundamento-Based Prefix Disambiguation**: Parser now uses Fundamento corpus statistics to correctly split prefixes (e.g., "malamiko" → "mal-amiko", not "mala-miko")
-2. **`prefiksoj` List Format**: Parser now outputs prefixes as a list, supporting multiple prefixes per word (e.g., "remalami" → `["re", "mal"]`)
-
-**Review Issues** (complete these before training):
-- #129 - Meta: Training Pipeline Review After Parser Changes
-- #123 - Review: Training Data and Corpus Generation
-- #124 - Review: Root Embedding Training
-- #125 - Review: Affix Embedding Training
-- #126 - Review: Semantic Similarity Training
-- #127 - Review: Sentence Encoding (TreeLSTM/AST-aware)
-- #128 - Review: FAISS Retrieval Index Building
-
-**Code Updated**: `compositional.py`, `ast_to_graph.py`, `deparser.py`, `canonicalizer.py` all support the new format.
+**Version**: 3.2 (December 2025)
+**Status**: Stage 1 COMPLETE - Stage 2 NEXT
 
 ---
 
 ## Executive Summary
 
-This plan redesigns Klareco's training pipeline based on critical lessons learned:
+This document describes Klareco's staged training pipeline. Each stage is trained independently and frozen before the next begins.
 
-1. **Function Word Collapse**: High-frequency function words caused all embeddings to collapse
-2. **Language Layers**: Semantics alone is insufficient - we need discourse and pragmatics
-3. **Parser Gaps**: AST must capture more linguistic phenomena before training
-4. **Deterministic First**: Maximize what's handled by rules before any learning
+### Key Principles (Lessons Learned)
 
-### Key Changes from v2
+1. **Function Word Exclusion**: Function words (kaj, de, la, mi, etc.) are handled by the deterministic AST layer, NOT learned embeddings. Including them causes embedding collapse.
 
-| Aspect | v2 Approach | v3 Approach |
-|--------|-------------|-------------|
-| Function words | Included in training | **Excluded** - handled by AST |
-| Negation | Ignored | **Detected** deterministically, **effect learned** |
-| Grammatical features | Frozen one-hot | **Detected** deterministically, **semantic effect learned** |
-| Sentence scope | Individual sentences | **Discourse-aware** multi-sentence |
-| Coreference | Not handled | **Hybrid** - rules + learned ranking |
-| Compound words | Treated as single root | **Decomposed** when possible |
-| Training phases | Linear | **Prerequisites enforced** |
+2. **Correlatives are Function Words**: Correlative words (kiu, tio, ĉie, etc.) are excluded from embedding training. They're grammatical, not semantic.
 
-### Critical Insight: Grammatical Features Have Semantics
+3. **Low-Rank Affix Transforms**: Affixes are learned as matrix transformations (rank=8), not additive vectors. This prevents collapse and captures semantic effects correctly.
 
-We previously conflated "can be detected by rules" with "has no semantic content."
+4. **Parser Sufficient at 91.8%**: Stage 1 training succeeded with current parser. Full parser completion is not a strict prerequisite.
 
-**Wrong**: Freeze tense/mood/sentence-type as one-hot features
-**Right**: Detect deterministically, but LEARN their semantic effect
-
-See Issue #101 and Wiki [[Grammatical-Features-Semantic-Audit]] for details.
+5. **Staged Freezing**: Each stage is frozen before the next begins. No catastrophic forgetting.
 
 ---
 
-## Architecture Overview: AST Enrichment Pipeline (#106)
-
-The key architectural insight is that AST serves as "thought" that passes between models, accumulating semantic meaning at each stage. Each model reads AST annotations and writes new ones.
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         DETERMINISTIC LAYER (Phase 0)                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │   Parser    │  │  Negation   │  │ Coreference │  │  Discourse  │        │
-│  │  (16 rules) │  │   Marker    │  │   (rules)   │  │ Connectives │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
-│         │                │                │                │                │
-│         └────────────────┴────────────────┴────────────────┘                │
-│                                    │                                         │
-│                                    ▼                                         │
-│                        ┌─────────────────────┐                              │
-│                        │    ENHANCED AST     │ ← Deterministic annotations   │
-│                        │  - Roles (S/V/O)    │                              │
-│                        │  - Negation flags   │                              │
-│                        │  - Coref chains     │                              │
-│                        │  - Discourse rels   │                              │
-│                        │  - Sentence type    │                              │
-│                        └─────────────────────┘                              │
+│                         DETERMINISTIC LAYER (Stage 0)                        │
+│  Parser (16 rules) → AST with roles, morphemes, negation flags              │
+│  Parse rate: 91.8% | Handles: S/V/O roles, tense, negation, correlatives    │
 └─────────────────────────────────────────────────────────────────────────────┘
-                                     │
-                                     ▼
+                                    │
+                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                 STAGED LEARNED PIPELINE (AST as "Thought")                   │
+│                 STAGED LEARNED PIPELINE                                      │
 │                                                                              │
-│  Each model: reads AST → learns semantic effects → writes to AST slots      │
-│  Models trained independently, then frozen, then composed                   │
-│                                                                              │
-│  Stage 1: SEMANTIC MODEL (~733K params) ✓ COMPLETE                         │
+│  Stage 1: SEMANTIC MODEL (~733K params) ✓ COMPLETE                          │
 │  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Root Embeddings (11K×64d=712K) + Affix Transforms V2 (21K) │            │
-│  │  → Writes: word_embedding, sentence_embedding               │            │
+│  │  Root Embeddings: 11,121 roots × 64d = 712K params          │            │
+│  │  Affix Transforms V2: 7 prefixes + 29 suffixes (~21K params)│            │
+│  │  Corpus Index: 4.38M sentences with FAISS                   │            │
 │  └─────────────────────────────────────────────────────────────┘            │
 │                                    │                                         │
-│                                    ▼ (freeze, pass AST)                      │
-│  Stage 2: GRAMMATICAL MODEL (~52K params)                                   │
+│                                    ▼ (frozen)                                │
+│  Stage 2: GRAMMATICAL MODEL (~52K params) ← NEXT                            │
 │  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Dedicated transforms per feature (see Phase 4):            │            │
-│  │  - Negation: 4K, Tense: 8K, Mood: 8K, Sentence type: 8K    │            │
-│  │  - Direction: 4K, Comparison: 4K, Aspect: 4K               │            │
-│  │  - Focus particles: 8K, Evidentiality: 4K, Possessive: 4K  │            │
-│  │  → Writes: transformed_embedding + interpretable labels     │            │
+│  │  Negation, tense, mood, sentence type transforms            │            │
+│  │  Minimal pairs training approach                            │            │
 │  └─────────────────────────────────────────────────────────────┘            │
 │                                    │                                         │
-│                                    ▼ (freeze, pass AST)                      │
+│                                    ▼ (frozen)                                │
 │  Stage 3: DISCOURSE MODEL (~100K params)                                    │
 │  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Cross-sentence attention, coreference chain scoring        │            │
-│  │  → Writes: discourse_context, coref_scores                  │            │
+│  │  Coreference chains, discourse relations                    │            │
 │  └─────────────────────────────────────────────────────────────┘            │
 │                                    │                                         │
-│                                    ▼ (freeze, pass AST)                      │
-│  Stage 4: REASONING CORE (20-100M params)                                   │
+│                                    ▼ (frozen)                                │
+│  Stage 4: REASONING CORE (20-100M params) - FUTURE                          │
 │  ┌─────────────────────────────────────────────────────────────┐            │
 │  │  AST-to-AST reasoning transformer                           │            │
-│  │  → Writes: answer_ast, reasoning_chain                      │            │
 │  └─────────────────────────────────────────────────────────────┘            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-Total pre-reasoning: ~885K params (vs 110M BERT)
-With reasoning core: 20-100M params
-
-### Stage 1 Training Results (December 2025)
-
-**Phase 1: Root Embeddings** ✓
-- 11,121 roots × 64d = 712K params
-- Correlation: 0.8871 | Accuracy: 97.98%
-- Synonyms: 93.1% | Antonyms: 82.7% | Hierarchy: 98.6%
-
-**Phase 2: Affix Transforms V2** ✓
-- 12 prefixes + 29 suffixes = 41 affixes (~21K params)
-- Low-rank transformations (rank=8), not additive vectors
-- Anti-collapse: mal_mean_sim = -0.03 (target < 0.5) ✓
-- Embedding diversity: 1.17 (healthy spread)
-- Key insight: Affixes are *transformations* that modify meaning:
-  - `mal-` flips polarity: bon → malbon (sim=0.25, distinct)
-  - `re-` preserves meaning: fari → refari (sim=0.97, similar)
-
-**Phase 3: Corpus Index** ✓
-- 4.38M sentences indexed with compositional embeddings
-- FAISS index rebuilt with V2 affix model
+Total pre-reasoning: ~885K params
 ```
-
-### AST Slot Architecture
-
-Each model reads from and writes to designated AST slots:
-
-```python
-# AST "thought" structure with semantic slots
-{
-    # Deterministic (from parser)
-    'tipo': 'frazo',
-    'subjekto': {...},
-    'verbo': {...},
-    'objekto': {...},
-    'negita': True,
-    'fraztipo': 'demando',
-
-    # Semantic Model output (Stage 1)
-    'semantic': {
-        'word_embeddings': [...],      # Per-word vectors
-        'sentence_embedding': [...],    # Pooled sentence vector
-    },
-
-    # Grammatical Model output (Stage 2)
-    'grammatical': {
-        'transformed_embedding': [...], # After applying feature transforms
-        'negation_effect': 'reversal',  # Interpretable label
-        'tense_effect': 'past_reference',
-    },
-
-    # Discourse Model output (Stage 3)
-    'discourse': {
-        'context_embedding': [...],     # With discourse context
-        'coref_chain_id': 3,            # Which entity chain
-        'discourse_role': 'evidence',   # Role in argument
-    },
-
-    # Reasoning Core output (Stage 4)
-    'reasoning': {
-        'answer_confidence': 0.85,
-        'reasoning_chain': [...],       # Steps taken
-        'retrieved_evidence': [...],    # Supporting ASTs
-    },
-}
-```
-
-### Why Staged Pipeline?
-
-1. **Independent Training**: Each model trained separately with clear objectives
-2. **Interpretability**: Can inspect "thought" at each stage (#107)
-3. **Modularity**: Can improve one stage without retraining others
-4. **Debugging**: Easy to identify where understanding breaks down
-5. **Tiny Models**: Each stage stays small because AST handles structure
 
 ---
 
-## Phase 0: Parser & AST Completion (PREREQUISITE)
+## Stage 0: Parser & Deterministic Layer ✓ SUFFICIENT
 
-**Goal**: Complete all deterministic AST features before any training.
+**Status**: Parser at 91.8% parse rate - sufficient for Stage 1 training.
 
-**Why First**: Training on incomplete ASTs wastes compute and requires retraining when AST changes.
+The parser handles:
+- 16 Esperanto grammar rules
+- Morpheme decomposition (root + affixes + ending)
+- Role detection (subjekto, verbo, objekto, aliaj)
+- Negation marking (`negita` flag)
+- Tense/mood extraction
+- Fundamento-based prefix disambiguation
 
-### 0.1 Parser Bug Fixes (High Priority)
+### Known Limitations (tracked in issues)
 
-| Issue | Fix | Status |
-|-------|-----|--------|
-| #89 | Preposition 'por' not recognized | Pending |
-| #90 | Adverb root extraction incorrect | Pending |
-| #91 | Mood/tense structure inconsistent | Pending |
-| #85 | Parser artifacts in morpheme analysis | Pending |
+| Issue | Description | Impact |
+|-------|-------------|--------|
+| #141 | Parser v2 clean rewrite | Future improvement |
+| #145 | Numeral suffix detection (-obl, -on, -op) | Minor |
+| #152 | Preposition/prefix confusion | Minor |
 
-### 0.2 AST Enhancements (High Priority)
+### Function Word Exclusion (CRITICAL)
 
-| Issue | Feature | Deterministic? |
-|-------|---------|----------------|
-| #78 | Negation marking (`negita` flag) | **Yes** - implemented |
-| #87 | Sentence type (question/command/statement) | **Yes** |
-| #76 | Correlative decomposition (ki-/ti-/ĉi-/neni-/i-) | **Yes** |
-| #80 | Compound word decomposition | **Mostly** - some learning for rare cases |
-| #84 | Participle tense/voice structure | **Yes** |
-| #88 | Elision handling (l', hund') | **Yes** |
-
-### 0.3 Discourse Features (Medium Priority)
-
-| Issue | Feature | Approach |
-|-------|---------|----------|
-| #93 | Discourse connectives (tamen, do, ĉar) | **100% Deterministic** |
-| #92 | Coreference resolution | **60% Deterministic** (gender/number/proximity) + **40% Learned** (ranking) |
-| #94 | Deixis marking (mi, nun, ĉi tie) | **100% Deterministic** |
-
-### 0.4 Corpus Reparsing (#86)
-
-**Blocked by**: All Phase 0 issues above
-
-After all parser changes:
-1. Reparse entire corpus with enhanced parser
-2. Generate new ASTs with all features
-3. Validate parse rates remain high (>90%)
-4. Archive old corpus, use new for training
-
----
-
-## Phase 1: Root Embedding Training
-
-**Goal**: Learn semantic meaning of content word roots only.
-
-### 1.1 Function Word Exclusion (CRITICAL)
-
-**The Function Word Exclusion Principle**: Function words are handled by the deterministic AST layer, not learned embeddings.
+These words are handled by AST, not learned:
 
 ```python
 FUNCTION_WORDS = {
@@ -258,604 +98,296 @@ FUNCTION_WORDS = {
     'kaj', 'aŭ', 'sed', 'nek', 'do', 'tamen', 'ĉar', 'ke', 'se',
     # Prepositions
     'al', 'de', 'en', 'el', 'kun', 'per', 'por', 'pri', 'sen', 'sur', 'sub', 'ĉe', 'tra', 'ĉirkaŭ',
-    # Pronouns (handled by coreference)
+    # Pronouns
     'mi', 'vi', 'li', 'ŝi', 'ĝi', 'ni', 'ili', 'si', 'oni',
-    # Correlatives (handled by decomposition)
+    # Correlatives (ALL - they are grammatical, not semantic)
     'kiu', 'kio', 'kia', 'kie', 'kiel', 'kiam', 'kiom', 'kial',
     'tiu', 'tio', 'tia', 'tie', 'tiel', 'tiam', 'tiom', 'tial',
     'ĉiu', 'ĉio', 'ĉia', 'ĉie', 'ĉiel', 'ĉiam', 'ĉiom', 'ĉial',
     'neniu', 'nenio', 'nenia', 'nenie', 'neniel', 'neniam', 'neniom', 'nenial',
     'iu', 'io', 'ia', 'ie', 'iel', 'iam', 'iom', 'ial',
-    # Copula/common verbs
-    'est', 'far', 'hav', 'pov', 'dev', 'vol', 'deb',
     # Particles
     'la', 'ne', 'tre', 'nur', 'ankaŭ', 'eĉ', 'ja', 'jen', 'jes', 'plej', 'pli', 'tro',
-
-    # NOTE: Numbers (unu, du, tri, etc.) are NOT excluded - they carry semantic content
-}
-```
-
-**Why This Matters**: Including function words caused embedding collapse where all content words became similar (0.99+ cosine similarity).
-
-### 1.2 Training Data Sources
-
-| Source | Weight | Pairs Type |
-|--------|--------|------------|
-| Ekzercaro (Fundamento) | 10.0 | Co-occurrence in Zamenhof's examples |
-| ReVo definitions | 5.0 | Definition overlap similarity |
-| Corpus co-occurrence | 1.0 | Same-sentence co-occurrence |
-
-### 1.3 Semantic Cluster Negatives
-
-Explicitly push apart unrelated semantic categories:
-
-```python
-SEMANTIC_CLUSTERS = {
-    'family': ['patr', 'matr', 'fil', 'frat', 'edz', 'av', 'nev', 'onkl', 'nep'],
-    'animals': ['hund', 'kat', 'bird', 'fiŝ', 'ĉeval', 'bov', 'ŝaf', 'kok', 'leon'],
-    'body': ['kap', 'man', 'brak', 'okul', 'buŝ', 'nas', 'orel', 'kor', 'pied', 'fingr'],
-    'time': ['tag', 'nokt', 'hor', 'jar', 'monat', 'semajn', 'minut', 'sekund'],
-    'places': ['dom', 'urb', 'land', 'lok', 'ĉambr', 'strat', 'vilaĝ', 'mont', 'mar'],
-    'food': ['pan', 'lakt', 'viand', 'frukt', 'legom', 'suk', 'vin', 'kaĉ'],
-    'nature': ['arb', 'flor', 'herb', 'sun', 'lun', 'stel', 'nub', 'pluv', 'vent'],
-}
-
-# Cross-cluster pairs are negative with weight=3.0
-```
-
-### 1.4 Graded Similarity Targets
-
-Not binary (similar/not similar) but graded:
-
-```python
-# Based on co-occurrence frequency
-target = min(0.5 + 0.1 * cooccurrence_count, 0.9)
-
-# Based on definition overlap
-target = jaccard_similarity(def_roots_a, def_roots_b)
-```
-
-### 1.5 Monitoring Metrics (Prevent Collapse)
-
-| Metric | Target | Alarm |
-|--------|--------|-------|
-| Mean embedding norm | 0.05-0.15 | >0.20 = collapse |
-| Cluster separation | >0.0 | <0.0 = collapse |
-| Negative pair similarity | ~0.0 | >0.5 = collapse |
-| patr↔tabl similarity | <0.1 | >0.5 = collapse |
-
----
-
-## Phase 2: Affix Embedding Training
-
-**Goal**: Learn semantic transformation vectors for affixes.
-
-### 2.1 Affix Types
-
-| Type | Examples | Training Approach |
-|------|----------|-------------------|
-| Semantic transformers | mal-, -et-, -eg-, -ej-, -ul-, -il- | Learn transformation vectors |
-| Grammatical markers | -o, -a, -e, -as, -is, -n, -j | **Frozen** - one-hot features |
-
-### 2.2 Training by Semantic Function (#79)
-
-Group affixes by what they do, not by shared roots:
-
-```python
-AFFIX_SEMANTIC_GROUPS = {
-    'opposite': ['mal-'],
-    'degree': ['-et-', '-eg-'],
-    'person': ['-ul-', '-ist-', '-an-'],
-    'place': ['-ej-', '-uj-'],
-    'tool': ['-il-'],
-    'abstract': ['-ec-', '-aĵ-'],
-    'action': ['-ad-', 'ek-', 're-'],
-    'possibility': ['-ebl-', '-ind-', '-end-'],
-    'causative': ['-ig-', '-iĝ-'],
-}
-```
-
-### 2.3 Antonym Handling (#82)
-
-Special case for `mal-`:
-- `mal-X` should be in opposite direction from `X`
-- Train with explicit antonym pairs
-- Verify: `cos(bona, malbona) < -0.5`
-
----
-
-## Phase 3: Corpus Integration
-
-**Goal**: Refine embeddings with usage patterns (low weight).
-
-### 3.1 Prerequisites
-- Phase 0 complete (AST enhancements)
-- Phase 1 complete (root embeddings)
-- Corpus reparsed with new AST (#86)
-
-### 3.2 Function Word Filter (CRITICAL)
-
-```python
-def extract_roots_from_ast(ast):
-    """Extract only content word roots."""
-    roots = []
-    for word in ast.words:
-        if word.root not in FUNCTION_WORDS:
-            roots.append(word.root)
-    return roots
-```
-
-### 3.3 Negation-Aware Pairs
-
-Sentences with negation should NOT be similar to non-negated versions:
-
-```python
-# "Mi amas vin" and "Mi ne amas vin" should be DISSIMILAR
-# Use AST negita flag to detect and weight accordingly
-
-if ast1.negita != ast2.negita:
-    # Penalize similarity
-    target = 0.0  # or negative
-```
-
-### 3.4 Source Weighting
-
-```python
-source_weights = {
-    'fundamento': 10.0,
-    'revo': 5.0,
-    'wikipedia': 1.0,
-    'gutenberg': 1.5,
 }
 ```
 
 ---
 
-## Phase 4: Sentence Encoding
+## Stage 1: Semantic Model ✓ COMPLETE
 
-**Goal**: Build sentence embeddings from enhanced ASTs.
+**Total params**: ~733K
+**Models**: `models/root_embeddings/best_model.pt`, `models/affix_transforms_v2/best_model.pt`
+**Index**: `data/corpus_index_compositional/`
 
-### 4.1 Content Words Only
+### Phase 1: Root Embeddings ✓
+
+**Results**:
+- 11,121 roots × 64 dimensions = 712K parameters
+- Pearson correlation: 0.8871
+- Accuracy: 97.98%
+- Synonym accuracy: 93.1%
+- Antonym accuracy: 82.7%
+- Hierarchy accuracy: 98.6%
+
+**Training approach**:
+- Function word exclusion (CRITICAL)
+- Semantic cluster negatives (family vs animals vs body parts)
+- Graded similarity targets (not binary)
+- Fundamento-weighted sources (10x for Ekzercaro)
+
+### Phase 2: Affix Transforms V2 ✓
+
+**Results**:
+- 7 prefixes with training data + 29 suffixes (~21K params)
+- Low-rank transformations (rank=8)
+- Anti-collapse metric: mal_mean_sim = -0.03 (target < 0.5) ✓
+- Embedding diversity: 1.17 (healthy spread)
+
+**Key insight**: Affixes are *matrix transformations*, not additive vectors:
+- `mal-` flips polarity: bon → malbon (similarity 0.25-0.50, distinct)
+- `re-` preserves meaning: fari → refari (similarity 0.82-0.97, similar)
+
+**Prefix coverage** (from training data):
+
+| Prefix | Count | Status |
+|--------|-------|--------|
+| mal | 356,587 | ✓ Trained |
+| re | 223,477 | ✓ Trained |
+| ek | 89,822 | ✓ Trained |
+| for | 67,333 | ✓ Trained |
+| ge | 38,769 | ✓ Trained |
+| eks | 13,324 | ✓ Trained |
+| pra | 7,495 | ✓ Trained |
+| bo | 0 | ❌ No data (see #153) |
+| dis | 0 | ❌ No data (see #153) |
+| fi | 0 | ❌ No data (see #153) |
+| mis | 0 | ❌ No data (see #153) |
+| vic | 0 | ❌ No data (see #153) |
+
+**Suffix coverage**: 29 suffixes trained with good coverage. Missing: -ism, -ing, -estr, -uj, -aĉ (see #151).
+
+### Phase 3: Corpus Index ✓
+
+**Results**:
+- 4.38M sentences indexed
+- Compositional embeddings (root + affix transforms)
+- FAISS index for fast retrieval
+
+**Process**:
+1. Parse sentence → AST
+2. Extract content words (exclude function words)
+3. Look up root embeddings
+4. Apply affix transforms
+5. Pool to sentence embedding (mean)
+6. Index with FAISS
+
+---
+
+## Stage 2: Grammatical Model ← NEXT
+
+**Target params**: ~52K
+**Status**: Not started
+
+### Goal
+
+Learn semantic effects of grammatical features that are detected deterministically but have semantic content.
+
+### Grammatical Transforms
+
+| Feature | Params | Training Approach |
+|---------|--------|-------------------|
+| Negation | 4K | Minimal pairs: "Mi amas" vs "Mi ne amas" |
+| Tense | 8K | Temporal ordering: past < present < future |
+| Mood | 8K | Factual vs hypothetical discrimination |
+| Sentence type | 8K | Statement vs question vs command |
+| Direction | 4K | Motion vs location (accusative) |
+| Comparison | 4K | pli/plej/ol scalar ordering |
+| Aspect | 4K | ek- (inchoative), -ad- (continuative) |
+| Focus particles | 8K | nur, eĉ, ankaŭ, ja |
+| Evidentiality | 4K | verŝajne, certe, eble |
+
+### Training Data Required
+
+Minimal pairs for each grammatical feature:
 
 ```python
-def extract_content_words(ast):
-    """Extract words for embedding, excluding function words."""
-    words = []
-    for word in ast.words:
-        if word.root not in FUNCTION_WORDS:
-            words.append(word)
-    return words
-```
-
-### 4.2 Grammatical Feature Transformations (NEW - #101)
-
-**Key Insight**: Grammatical features have semantic content that should be LEARNED, not frozen.
-
-```python
-class GrammaticalTransformers(nn.Module):
-    """Learn semantic effect of grammatical features."""
-
-    def __init__(self, dim):
-        # Negation (#78) - context-dependent, not simple flip
-        self.negation = nn.Linear(dim, dim)
-
-        # Tense (#102) - temporal semantics
-        self.tense = nn.ModuleDict({
-            'pasinteco': nn.Linear(dim, dim),
-            'prezenco': nn.Identity(),  # Baseline
-            'futuro': nn.Linear(dim, dim),
-        })
-
-        # Mood (#103) - modality
-        self.mood = nn.ModuleDict({
-            'indikativo': nn.Identity(),  # Baseline
-            'kondicionalo': nn.Linear(dim, dim),  # Hypothetical
-            'imperativo': nn.Linear(dim, dim),    # Command
-        })
-
-        # Sentence type (#104)
-        self.sentence_type = nn.ModuleDict({
-            'aserto': nn.Identity(),    # Statement baseline
-            'demando': nn.Linear(dim, dim),  # Question
-            'ordono': nn.Linear(dim, dim),   # Command
-        })
-
-    def forward(self, embedding, ast):
-        # Apply transformations based on AST features
-        if ast.get('negita'):
-            embedding = self.negation(embedding)
-
-        if tense := ast.get('verbo', {}).get('tempo'):
-            if tense in self.tense:
-                embedding = self.tense[tense](embedding)
-
-        if mood := ast.get('verbo', {}).get('modo'):
-            if mood in self.mood:
-                embedding = self.mood[mood](embedding)
-
-        if sent_type := ast.get('fraztipo'):
-            if sent_type in self.sentence_type:
-                embedding = self.sentence_type[sent_type](embedding)
-
-        return embedding
-```
-
-### 4.3 Training Pairs for Grammatical Semantics
-
-```python
-# Negation pairs - context-dependent similarity
+# Negation - context-dependent, not simple flip
 ("Mi amas vin", "Mi ne amas vin", similarity=-0.8)
 ("Estas bone", "Ne estas malbone", similarity=0.6)  # Litotes
 
-# Tense pairs - temporal ordering
+# Tense - temporal ordering
 ("Li venas", "Li venis", similarity=0.7)
 ("Li venis", "Li venos", similarity=0.4)
 
-# Mood pairs - factual vs hypothetical
+# Mood - factual vs hypothetical
 ("Li venas", "Li venus", similarity=0.3)  # Very different!
 
-# Sentence type pairs
+# Sentence type
 ("Li venas", "Ĉu li venas?", similarity=0.5)
-("Venu!", "Li venas", similarity=0.3)
 ```
 
-### 4.4 Role-Aware Attention
+### Open Issues for Stage 2
 
-Use AST roles (subjekto, verbo, objekto) for attention weights:
-
-```python
-ROLE_WEIGHTS = {
-    'subjekto': 1.0,
-    'verbo': 1.5,      # Verbs are semantically central
-    'objekto': 1.0,
-    'aliaj': 0.5,      # Modifiers less important
-}
-```
-
-### 4.5 Correlative Prefix Embeddings (#76)
-
-Decompose correlatives and learn prefix embeddings:
-
-```python
-CORRELATIVE_PREFIXES = {
-    'ki': 'question',      # Who, what, where (seeks info)
-    'ti': 'demonstrative', # That, there, then (points)
-    'ĉi': 'universal',     # Every, all, always (quantifies all)
-    'neni': 'negative',    # No one, nothing, never (empty set)
-    'i': 'indefinite',     # Some, somewhere, sometime
-}
-
-# Learn embeddings for prefixes
-prefix_embeddings = nn.Embedding(5, prefix_dim)
-
-# Correlative = prefix + suffix
-correlative_emb = prefix_embeddings[prefix] + suffix_embeddings[suffix]
-```
-
-### 4.6 Accusative Direction (#105)
-
-Learn motion vs location semantics:
-
-```python
-class DirectionTransformer(nn.Module):
-    def forward(self, prep_emb, noun_emb, is_direction):
-        combined = prep_emb + noun_emb
-        if is_direction:  # Accusative with preposition
-            return self.motion_transform(combined)
-        return combined  # Static location
-```
+| Issue | Description |
+|-------|-------------|
+| #104 | Sentence type semantic effects |
+| #105 | Accusative direction semantics |
+| #108 | Comparison semantics (pli/plej/ol) |
+| #109 | Aspect semantics (ek-, -ad-) |
+| #110 | Focus particle semantics |
+| #111 | Evidentiality markers |
+| #112 | Possessive semantics |
 
 ---
 
-## Phase 5: Discourse Integration (NEW)
+## Stage 3: Discourse Model
 
-**Goal**: Handle multi-sentence understanding.
+**Target params**: ~100K
+**Status**: Future
 
-### 5.1 Coreference Chain Training (#92)
+### Goal
 
-After deterministic coreference resolution:
+Handle multi-sentence understanding:
+- Coreference chains (li → Zamenhof)
+- Discourse relations (cause, contrast, elaboration)
+- Paragraph-level coherence
 
-```python
-# Sentences in same coreference chain should be similar
-# "Zamenhof kreis Esperanton. Li naskiĝis en 1859."
-# → li=Zamenhof, so sentences are about same entity
+### Approach
 
-if share_coreference_chain(ast1, ast2):
-    target_similarity = 0.7  # Related but not identical
-```
-
-### 5.2 Discourse Relation Features (#93)
-
-Use connective-marked relations:
-
-```python
-DISCOURSE_RELATIONS = {
-    'contrast': ['tamen', 'sed', 'malgraŭ'],    # A but B
-    'cause': ['ĉar', 'pro tio ke'],              # A because B
-    'result': ['do', 'tial', 'sekve'],           # A therefore B
-    'addition': ['kaj', 'ankaŭ', 'krome'],       # A and B
-}
-
-# Sentences with cause/result relation should embed close
-# Sentences with contrast relation should embed differently
-```
+1. Deterministic: Gender/number agreement, proximity
+2. Learned: Ranking candidates when rules are insufficient
+3. Discourse connectives: tamen (contrast), ĉar (cause), do (result)
 
 ---
 
-## Phase 6: Reasoning Core (Future)
+## Stage 4: Reasoning Core
 
-**Goal**: Learn AST-to-AST transformations for Q&A.
+**Target params**: 20-100M
+**Status**: Future
 
-### 6.1 Prerequisites
-- Phases 0-5 complete
-- Evaluation metrics passing
-- Retrieval quality validated
+### Goal
 
-### 6.2 Architecture Options
+AST-to-AST reasoning for Q&A.
 
-1. **Graph Transformer**: ASTs as graphs, learn transformations
-2. **Seq2Seq on Linearized ASTs**: Smaller vocabulary, explicit structure
-3. **Neuro-Symbolic Hybrid**: Neural selection + symbolic composition
+### The Thesis Test
 
-### 6.3 Training Data
-- AST pairs from parallel sentences
-- Synthetic reasoning examples
-- Human-annotated reasoning chains
+If a 50-100M param reasoning core achieves 80%+ accuracy on Esperanto Q&A while being:
+- Fully explainable (reasoning chain visible)
+- Grammatically perfect (deterministic deparser)
+- Built on only ~1M params of language understanding
+
+Then the core thesis is proven: traditional LLMs waste capacity on grammar.
 
 ---
 
 ## Evaluation Criteria
 
-### Phase 1 Success (Root Embeddings)
+### Stage 1 Success ✓ ACHIEVED
 
-| Metric | Target | How to Measure |
-|--------|--------|----------------|
-| Root similarity accuracy | >85% | Test pairs (patr↔matr similar, patr↔tabl dissimilar) |
-| Cluster separation | >0.03 | Mean intra-cluster - mean inter-cluster |
-| Negative similarity | <0.1 | Mean similarity of random pairs |
-| Antonym direction | <-0.5 | cos(X, malX) for known antonyms |
+| Metric | Target | Actual |
+|--------|--------|--------|
+| Root similarity correlation | >0.80 | 0.8871 ✓ |
+| Synonym accuracy | >85% | 93.1% ✓ |
+| Antonym direction | <-0.5 | ✓ (mal- works) |
+| Embedding collapse | mean_sim < 0.5 | -0.03 ✓ |
 
-### Phase 4 Success (Sentence Encoding + Grammatical Semantics)
+### Stage 2 Success Criteria
 
-| Metric | Target | How to Measure |
-|--------|--------|----------------|
-| Retrieval MRR@10 | >0.6 | Held-out Q&A pairs |
-| **Negation discrimination** | Context-appropriate | Graded test pairs |
-| **Tense ordering** | Preserved | Past < Present < Future similarity |
-| **Mood discrimination** | >80% | Indicative vs conditional accuracy |
-| **Sentence type** | >95% | Classification + embedding effect |
-| **Correlative quantification** | Logical consistency | Reasoning test set |
-| **Direction vs location** | >80% | Motion phrase discrimination |
+| Metric | Target |
+|--------|--------|
+| Negation discrimination | Context-appropriate |
+| Tense temporal ordering | Preserved |
+| Mood discrimination | >80% accuracy |
+| Sentence type classification | >95% |
 
-### Phase 5 Success (Discourse)
+### Stage 3 Success Criteria
 
-| Metric | Target | How to Measure |
-|--------|--------|----------------|
-| Coreference chain coherence | >0.7 | Same-chain similarity |
-| Cross-document discrimination | <0.3 | Different-doc similarity |
-
----
-
-## Implementation Order (Staged Pipeline)
-
-The pipeline is trained in stages, with each stage frozen before the next begins.
-This aligns with the AST Enrichment Pipeline architecture (#106).
-
-```
-PHASE 0: PARSER COMPLETION (BLOCKER FOR ALL)
-├── Fix parser bugs (#89, #90, #91, #85)
-├── Add AST features (#78✓, #87, #76, #80, #84, #88)
-├── Add grammatical features for semantic learning:
-│   ├── tempo (tense) - already present
-│   ├── modo (mood) - fix inconsistency (#91)
-│   ├── fraztipo (sentence type) - add (#87)
-│   ├── korelativo_prefikso (correlative prefix) - add (#76)
-│   └── direkto (direction) - add (#105)
-├── Add discourse features (#93, #92-rules, #94)
-├── Reparse corpus (#86)
-└── Build Thought Visualizer Demo (#107) - develop alongside
-
-═══════════════════════════════════════════════════════════════
-STAGE 1: SEMANTIC MODEL (~733K params) ✓ COMPLETE (December 2025)
-═══════════════════════════════════════════════════════════════
-
-PHASE 1: ROOT EMBEDDINGS ✓
-├── Applied FUNCTION_WORDS filter ✓
-├── Added SEMANTIC_CLUSTERS negatives ✓
-├── Used graded similarity targets ✓
-├── Monitored for collapse ✓
-├── Validated: 0.8871 correlation, 97.98% accuracy
-└── 11,121 roots × 64d = 712K params
-
-PHASE 2: AFFIX TRANSFORMS V2 ✓
-├── Low-rank transformations (rank=8) ✓
-├── 12 prefixes + 29 suffixes = 41 affixes ✓
-├── Anti-collapse: mal_mean_sim = -0.03 ✓
-├── mal- creates distinct embeddings (sim=0.25-0.50) ✓
-└── re- preserves meaning (sim=0.82-0.97) ✓
-
-PHASE 3: CORPUS INDEX ✓
-├── 4.38M sentences indexed ✓
-├── Compositional embeddings with V2 affixes ✓
-└── FAISS index built ✓
-
-→ FROZEN: Stage 1 models complete
-→ Models: models/root_embeddings/best_model.pt
-→ Models: models/affix_transforms_v2/best_model.pt
-→ Index: data/corpus_index_compositional/
-
-═══════════════════════════════════════════════════════════════
-STAGE 2: GRAMMATICAL MODEL (~52K params)
-═══════════════════════════════════════════════════════════════
-
-PHASE 4: GRAMMATICAL FEATURE TRANSFORMS
-├── Requires: Stage 1 frozen
-├── Read embeddings from AST 'semantic' slot
-├── Train dedicated transforms for each feature (#101):
-│   ├── Negation transformation (learned, not flip) (#78) - 4K params
-│   ├── Tense transformation (#102) - 8K params
-│   ├── Mood transformation (#103) - 8K params
-│   ├── Sentence type transformation (#104) - 8K params
-│   ├── Direction transformation (#105) - 4K params
-│   ├── Comparison transformation (#108) - 4K params
-│   ├── Aspect transformation (#109) - 4K params
-│   ├── Focus particle transformation (#110) - 8K params
-│   ├── Evidentiality transformation (#111) - 4K params
-│   └── Possessive transformation (#112) - 4K params
-│   Total Stage 2: ~52K params (was ~32K)
-├── Correlative prefix embeddings (#76) - included in Stage 1
-├── Create minimal pairs for each grammatical feature
-├── Joint training with separate loss terms per feature
-├── Write to AST 'grammatical' slot
-└── Evaluation metrics for each feature
-
-→ FREEZE Stage 2 model
-→ Verify with Thought Visualizer: AST now has 'grammatical' slot
-
-═══════════════════════════════════════════════════════════════
-STAGE 3: DISCOURSE MODEL (~100K params)
-═══════════════════════════════════════════════════════════════
-
-PHASE 5: DISCOURSE INTEGRATION
-├── Requires: Stage 2 frozen
-├── Read from AST 'semantic' + 'grammatical' slots
-├── Coreference chain training (#92)
-├── Discourse relation features (#93)
-├── Multi-sentence coherence
-├── Write to AST 'discourse' slot
-└── Paragraph-level retrieval validation
-
-→ FREEZE Stage 3 model
-→ Verify with Thought Visualizer: AST now has 'discourse' slot
-
-═══════════════════════════════════════════════════════════════
-STAGE 4: REASONING CORE (20-100M params) - FUTURE
-═══════════════════════════════════════════════════════════════
-
-PHASE 6: REASONING
-├── Requires: Stages 1-3 frozen
-├── Read from all AST slots
-├── AST-to-AST architecture
-├── Q&A training data
-├── Write to AST 'reasoning' slot
-└── Evaluation benchmark
-
-→ Verify with Thought Visualizer: Complete pipeline traceable
-```
-
-### Staged Training Benefits
-
-1. **Clear Checkpoints**: Each stage has definable success criteria
-2. **No Catastrophic Forgetting**: Frozen stages don't degrade
-3. **Interpretable Progress**: Thought Visualizer shows what each stage adds
-4. **Efficient Debugging**: If Stage 3 fails, Stages 1-2 are known-good
-5. **Parameter Efficiency**: Total ~485K params before reasoning core
+| Metric | Target |
+|--------|--------|
+| Coreference chain coherence | >0.7 similarity |
+| Cross-document discrimination | <0.3 similarity |
 
 ---
 
 ## Mistakes to Avoid (Lessons Learned)
 
 ### 1. Function Word Collapse
-
 **Symptom**: All embeddings become similar (>0.99 cosine)
 **Cause**: Function words appear in every sentence
-**Prevention**: FUNCTION_WORDS filter in ALL training phases
+**Prevention**: FUNCTION_WORDS filter in ALL training
 
-### 2. Binary Similarity Targets
+### 2. Correlative Embeddings
+**Symptom**: Correlatives cluster together incorrectly
+**Cause**: Tried to learn embeddings for grammatical words
+**Prevention**: Exclude correlatives - they're function words
 
-**Symptom**: Poor discrimination between somewhat-similar and dissimilar
+### 3. Additive Affix Vectors
+**Symptom**: Affixes don't capture semantic transformation
+**Cause**: word = root + prefix + suffix (additive)
+**Fix**: Use low-rank matrix transformations instead
+
+### 4. Binary Similarity Targets
+**Symptom**: Poor discrimination between related and unrelated
 **Cause**: Binary 0/1 targets
-**Prevention**: Graded targets based on co-occurrence/overlap
+**Prevention**: Graded targets based on co-occurrence
 
-### 3. Missing Negative Sampling
+### 5. Missing Negative Sampling
+**Symptom**: All embeddings drift to center
+**Prevention**: Semantic cluster negatives with weight=3.0
 
-**Symptom**: All embeddings drift toward center
-**Cause**: No explicit push-apart signal
-**Prevention**: Semantic cluster negatives with high weight
-
-### 4. Training Before Parser Complete
-
-**Symptom**: Need to retrain after parser changes
-**Cause**: AST changes invalidate training data
-**Prevention**: Complete Phase 0 before any training
-
-### 5. Ignoring Negation
-
-**Symptom**: "X" and "ne X" have identical embeddings
-**Cause**: `ne` excluded as function word
-**Prevention**: Negita flag in AST, transformation in encoder
-
-### 6. Numbers as Function Words (#83)
-
-**Symptom**: Quantity lost in embeddings
-**Cause**: Numbers incorrectly excluded
-**Prevention**: Numbers are content words, keep in training
-
-### 7. Compound Word Literalism (#80)
-
-**Symptom**: vaporŝipo = vapor + ŝipo exactly
-**Cause**: Naive additive composition
-**Prevention**: Compounds get emergent embeddings, composition is initialization only
-
-### 8. Freezing Grammatical Features (#101) - NEW
-
-**Symptom**: Tense, mood, sentence type have no effect on embeddings
-**Cause**: Treated as frozen one-hot features
-**Wrong assumption**: "Detectable by rules" = "no semantic content"
-**Prevention**: Detect deterministically, but LEARN semantic effect
-
-### 9. Simple Negation Flip (#78) - UPDATE
-
-**Symptom**: "ne malbone" treated as opposite of "malbone"
-**Cause**: Deterministic sign flip ignores context
-**Prevention**: Learn negation transformation, use graded training pairs
+### 6. Parser Perfectionism
+**Symptom**: Never start training because parser isn't "complete"
+**Reality**: 91.8% was sufficient for excellent Stage 1 results
 
 ---
 
-## Related Documentation
+## Files Reference
 
-- [[Function-Word-Exclusion-Principle]] - Why function words are excluded
-- [[Root-Embedding-Training-Lessons-Learned]] - Detailed lessons from v2
-- [[Fundamento-Centered-Training]] - Authority hierarchy
-- [[Grammatical-Features-Semantic-Audit]] - Which grammar features have semantics
-- Wiki meta-issues: #95 (Semantics), #96 (Pragmatics), #97 (Discourse), #98 (Morphology), #99 (Syntax)
+### Models (git-tracked)
+```
+models/
+├── root_embeddings/
+│   └── best_model.pt          # 11,121 roots × 64d (8.4MB)
+└── affix_transforms_v2/
+    └── best_model.pt          # 41 affixes, low-rank (328KB)
+```
+
+### Training Scripts
+```
+scripts/training/
+├── train_root_embeddings.py    # Stage 1 Phase 1
+├── train_affix_transforms_v2.py # Stage 1 Phase 2
+└── evaluate_embeddings.py      # Evaluation
+```
+
+### Index (local only)
+```
+data/corpus_index_compositional/
+├── embeddings.npy              # 4.38M × 64d
+├── sentences.jsonl             # Metadata
+└── faiss.index                 # FAISS index
+```
 
 ---
 
-## GitHub Issues
+## Current Open Issues
+
+### Stage 1 Gaps
+- #151 - Missing suffixes (-ism, -ing, -estr, -uj, -aĉ)
+- #153 - Missing prefixes (bo, dis, fi, mis, vic)
+
+### Stage 2 Design
+- #104, #105, #108-#112 - Grammatical feature semantics
 
 ### Architecture
-#106 (AST Enrichment Pipeline) - Models as thought accumulators
-#107 (Thought Visualizer Demo) - Show AST state after each stage
+- #106 - AST Enrichment Pipeline
+- #107 - Thought Visualizer Demo
+- #133 - Refactor Stage 1 for enriched ASTs
 
-### Parser Prerequisites (Phase 0)
-#76, #80, #84, #85, #87, #88, #89, #90, #91
-
-### Training Infrastructure
-#78 (Negation) - detection in parser, needs learned transformation
-#79 (Affix semantics)
-#81 (Weak training signal)
-#82 (Antonyms)
-#83 (Numbers) - fixed
-
-### Grammatical Feature Semantics (#101 meta-issue)
-#102 (Tense semantics)
-#103 (Mood semantics)
-#104 (Sentence type semantics)
-#105 (Accusative direction semantics)
-#108 (Comparison semantics - pli/plej/ol)
-#109 (Aspect semantics - ek-, -ad-)
-#110 (Focus particle semantics - nur, eĉ, ankaŭ, ja)
-#111 (Evidentiality markers)
-#112 (Possessive semantics)
-
-### Discourse Layer
-#92 (Coreference)
-#93 (Discourse connectives)
-#94 (Deixis)
-
-### Blocked
-#86 (Reparse corpus) - blocked by all Phase 0 issues
+### Parser Improvements
+- #141 - Parser v2 clean rewrite
+- #145 - Numeral suffix detection
+- #152 - Preposition/prefix confusion
 
 ---
 

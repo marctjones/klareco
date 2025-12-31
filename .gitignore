@@ -16,11 +16,19 @@ venv.bak/
 .idea/
 .vscode/
 
-# Data
+# Data (large files stay local)
 data/
-models/
 logs/
 *.log
+
+# Models - ignore all except trained Stage 1 models
+models/
+!models/root_embeddings/
+models/root_embeddings/*
+!models/root_embeddings/best_model.pt
+!models/affix_transforms_v2/
+models/affix_transforms_v2/*
+!models/affix_transforms_v2/best_model.pt
 
 # Test outputs and temporary files
 .coverage

@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
 """
-Demo: Compositional Embeddings (Root + Affix)
+Demo: Compositional Embeddings (Root + Affix V2)
 
 This script demonstrates how the trained Stage 1 models work together:
-- Root embeddings: Semantic meaning of base words (64d, ~10K roots)
-- Affix embeddings: Semantic transforms from prefixes/suffixes (12d)
+- Root embeddings: Semantic meaning of base words (64d, ~11K roots)
+- Affix transforms V2: Low-rank transformations for prefixes/suffixes
 
-Key insight: Word meaning = root_embedding + prefix_transforms + suffix_transforms
+Key insight: Word meaning = suffix_transform(prefix_transform(root_embedding))
+Affixes are TRANSFORMS (not additive vectors) that modify the embedding space.
 
 Examples:
     python scripts/demo_compositional_embeddings.py
     python scripts/demo_compositional_embeddings.py --interactive
     python scripts/demo_compositional_embeddings.py --word malbonulo
+    python scripts/demo_compositional_embeddings.py --compare bona malbona
 """
 
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 # Add project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -28,14 +32,28 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from klareco.parser import parse
 
 
+class LowRankTransform(nn.Module):
+    """Low-rank transformation for affixes (V2 architecture)."""
+    def __init__(self, dim: int = 64, rank: int = 4):
+        super().__init__()
+        self.down = nn.Linear(dim, rank, bias=False)
+        self.up = nn.Linear(rank, dim, bias=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.up(self.down(x))
+
+
 class CompositionalEmbedder:
-    """Combine root and affix embeddings for full word representation."""
+    """Combine root embeddings with V2 affix transforms for word representation."""
 
     def __init__(
         self,
         root_model_path: Path = Path("models/root_embeddings/best_model.pt"),
-        affix_model_path: Path = Path("models/affix_embeddings/best_model.pt"),
+        affix_model_path: Path = Path("models/affix_transforms_v2/best_model.pt"),
     ):
+        self.root_model_path = root_model_path
+        self.affix_model_path = affix_model_path
+
         # Load root embeddings
         print(f"Loading root embeddings from {root_model_path}...")
         root_ckpt = torch.load(root_model_path, map_location='cpu', weights_only=False)
@@ -45,15 +63,34 @@ class CompositionalEmbedder:
         self.root_dim = self.root_emb.shape[1]
         print(f"  Loaded {len(self.root_to_idx)} roots, {self.root_dim}d")
 
-        # Load affix embeddings
-        print(f"Loading affix embeddings from {affix_model_path}...")
+        # Precompute average root embedding for fallbacks
+        self.avg_root_embedding = torch.from_numpy(self.root_emb.mean(axis=0)).float()
+
+        # Load V2 affix transforms (low-rank)
+        print(f"Loading affix transforms (V2) from {affix_model_path}...")
         affix_ckpt = torch.load(affix_model_path, map_location='cpu', weights_only=False)
-        self.prefix_emb = affix_ckpt['model_state_dict']['prefix_embeddings.weight'].numpy()
-        self.suffix_emb = affix_ckpt['model_state_dict']['suffix_embeddings.weight'].numpy()
-        self.prefix_vocab = affix_ckpt['prefix_vocab']
-        self.suffix_vocab = affix_ckpt['suffix_vocab']
-        self.affix_dim = self.prefix_emb.shape[1]
-        print(f"  Loaded {len(self.prefix_vocab)} prefixes, {len(self.suffix_vocab)} suffixes, {self.affix_dim}d")
+
+        self.prefix_transforms = {}
+        self.suffix_transforms = {}
+        self.embedding_dim = affix_ckpt.get('embedding_dim', 64)
+        rank = affix_ckpt.get('rank', 8)
+
+        # Load prefix transforms
+        for p in affix_ckpt['prefixes']:
+            t = LowRankTransform(self.embedding_dim, rank)
+            t.down.weight.data = affix_ckpt['model_state_dict'][f'prefix_transforms.{p}.down.weight']
+            t.up.weight.data = affix_ckpt['model_state_dict'][f'prefix_transforms.{p}.up.weight']
+            self.prefix_transforms[p] = t
+
+        # Load suffix transforms
+        for s in affix_ckpt['suffixes']:
+            t = LowRankTransform(self.embedding_dim, rank)
+            t.down.weight.data = affix_ckpt['model_state_dict'][f'suffix_transforms.{s}.down.weight']
+            t.up.weight.data = affix_ckpt['model_state_dict'][f'suffix_transforms.{s}.up.weight']
+            self.suffix_transforms[s] = t
+
+        print(f"  Loaded {len(self.prefix_transforms)} prefix transforms, {len(self.suffix_transforms)} suffix transforms")
+        print(f"  Architecture: low-rank (rank={rank})")
 
         # Precompute normalized embeddings for similarity search
         self.root_emb_norm = self.root_emb / (np.linalg.norm(self.root_emb, axis=1, keepdims=True) + 1e-8)
@@ -91,21 +128,51 @@ class CompositionalEmbedder:
             return self.root_emb[self.root_to_idx[root_lower]]
         return None
 
-    def get_prefix_embedding(self, prefix: str) -> Optional[np.ndarray]:
-        """Get embedding for a prefix."""
-        if prefix in self.prefix_vocab and prefix != '<NONE>':
-            return self.prefix_emb[self.prefix_vocab[prefix]]
+    def get_root_embedding_tensor(self, root: str) -> Optional[torch.Tensor]:
+        """Get embedding for a root as a tensor (for transform application)."""
+        emb = self.get_root_embedding(root)
+        if emb is not None:
+            return torch.from_numpy(emb).float()
         return None
 
-    def get_suffix_embedding(self, suffix: str) -> Optional[np.ndarray]:
-        """Get embedding for a suffix."""
-        if suffix in self.suffix_vocab and suffix != '<NONE>':
-            return self.suffix_emb[self.suffix_vocab[suffix]]
-        return None
+    def _is_proper_noun(self, root: str) -> bool:
+        """Detect if a root is likely a proper noun (capitalized)."""
+        return bool(root and root[0].isupper())
+
+    def _char_hash_embedding(self, root: str) -> torch.Tensor:
+        """
+        Create embedding for unknown root using character trigram hashing.
+        Similar-looking unknown words get similar embeddings.
+        """
+        root_lower = root.lower()
+        padded = f"^{root_lower}$"
+
+        # Hash character trigrams to embedding positions
+        emb = torch.zeros(self.embedding_dim)
+        for i in range(len(padded) - 2):
+            trigram = padded[i:i+3]
+            h = hash(trigram) % self.embedding_dim
+            emb[h] += 1.0
+
+        # Normalize
+        norm = torch.norm(emb)
+        if norm > 0:
+            emb = emb / norm
+
+        # Blend: 70% hash + 30% average root (keeps in similar embedding space)
+        emb = 0.7 * emb + 0.3 * self.avg_root_embedding
+        return emb
 
     def embed_word(self, word: str, verbose: bool = False) -> Tuple[Optional[np.ndarray], Dict]:
         """
-        Create compositional embedding for a word.
+        Create compositional embedding for a word using V2 low-rank transforms.
+
+        Pipeline: root → prefix_transforms → suffix_transforms → normalize
+
+        Fallback strategies for unknown roots:
+        1. Proper noun (capitalized): Character trigram hash
+        2. Has known affixes: Average root + affix transforms
+        3. Otherwise: Character trigram hash
 
         Returns (embedding, info) where info contains parse details.
         """
@@ -115,8 +182,9 @@ class CompositionalEmbedder:
             'prefixes': [],
             'suffixes': [],
             'root_found': False,
-            'prefix_contributions': [],
-            'suffix_contributions': [],
+            'fallback': None,
+            'prefix_transforms_applied': [],
+            'suffix_transforms_applied': [],
         }
 
         # Parse the word
@@ -141,47 +209,66 @@ class CompositionalEmbedder:
         suffixes = word_node.get('sufiksoj', [])
         info['suffixes'] = suffixes
 
-        # Get root embedding
-        root_emb = self.get_root_embedding(root)
-        if root_emb is None:
-            info['error'] = f'Unknown root: {root}'
-            return None, info
+        # Get root embedding as tensor
+        emb = self.get_root_embedding_tensor(root)
+        if emb is None:
+            # Unknown root - apply fallback strategies
+            has_known_affixes = (
+                any(p in self.prefix_transforms for p in prefixes if p) or
+                any(s in self.suffix_transforms for s in suffixes if s)
+            )
 
-        info['root_found'] = True
-        emb = root_emb.copy()
-
-        if verbose:
-            print(f"  Root '{root}': {self.root_dim}d embedding")
-
-        # Add prefix contributions (scaled, projected to root dimension)
-        for p in prefixes:
-            prefix_emb = self.get_prefix_embedding(p)
-            if prefix_emb is not None:
-                # Zero-pad affix embedding to match root dimension
-                contribution = np.zeros(self.root_dim)
-                contribution[:self.affix_dim] = prefix_emb * 0.3  # Scale down
-                emb = emb + contribution
-                info['prefix_contributions'].append(p)
+            if self._is_proper_noun(root):
+                # Strategy 1: Proper noun - character hash embedding
+                emb = self._char_hash_embedding(root)
+                info['fallback'] = 'proper_noun'
                 if verbose:
-                    print(f"  Prefix '{p}': added {self.affix_dim}d transform (scaled 0.3)")
-
-        # Add suffix contributions
-        for s in suffixes:
-            suffix_emb = self.get_suffix_embedding(s)
-            if suffix_emb is not None:
-                contribution = np.zeros(self.root_dim)
-                contribution[:self.affix_dim] = suffix_emb * 0.2  # Scale down
-                emb = emb + contribution
-                info['suffix_contributions'].append(s)
+                    print(f"  Root '{root}': proper noun fallback (char hash)")
+            elif has_known_affixes:
+                # Strategy 2: Unknown root but known affixes - use average root
+                emb = self.avg_root_embedding.clone()
+                info['fallback'] = 'morpheme_only'
                 if verbose:
-                    print(f"  Suffix '{s}': added {self.affix_dim}d transform (scaled 0.2)")
+                    print(f"  Root '{root}': unknown, using average root + affixes")
+            else:
+                # Strategy 3: Unknown root, no known affixes - character hash
+                emb = self._char_hash_embedding(root)
+                info['fallback'] = 'char_hash'
+                if verbose:
+                    print(f"  Root '{root}': unknown, using char hash embedding")
+        else:
+            info['root_found'] = True
+            if verbose:
+                print(f"  Root '{root}': {self.root_dim}d embedding")
 
-        # Normalize
-        norm = np.linalg.norm(emb)
+        # Apply prefix transforms (in order)
+        with torch.no_grad():
+            for p in prefixes:
+                if p in self.prefix_transforms:
+                    emb = self.prefix_transforms[p](emb)
+                    info['prefix_transforms_applied'].append(p)
+                    if verbose:
+                        print(f"  Prefix '{p}': applied low-rank transform")
+                elif verbose:
+                    print(f"  Prefix '{p}': no transform available")
+
+            # Apply suffix transforms (in order)
+            for s in suffixes:
+                if s in self.suffix_transforms:
+                    emb = self.suffix_transforms[s](emb)
+                    info['suffix_transforms_applied'].append(s)
+                    if verbose:
+                        print(f"  Suffix '{s}': applied low-rank transform")
+                elif verbose:
+                    print(f"  Suffix '{s}': no transform available")
+
+        # Convert back to numpy and normalize
+        emb_np = emb.numpy()
+        norm = np.linalg.norm(emb_np)
         if norm > 0:
-            emb = emb / norm
+            emb_np = emb_np / norm
 
-        return emb, info
+        return emb_np, info
 
     def similarity(self, word1: str, word2: str) -> Tuple[float, Dict, Dict]:
         """Compute cosine similarity between two words."""
@@ -216,9 +303,9 @@ class CompositionalEmbedder:
         return results
 
     def demonstrate_affix_effect(self, root: str, affixes: List[str]):
-        """Show how affixes transform a root's meaning."""
+        """Show how affixes transform a root's meaning using V2 low-rank transforms."""
         print(f"\n{'='*60}")
-        print(f"Affix Effects on Root: {root}")
+        print(f"Affix Effects on Root: {root} (V2 Transforms)")
         print(f"{'='*60}")
 
         # Get base root embedding
@@ -238,33 +325,38 @@ class CompositionalEmbedder:
 
         # Try each affix
         for affix in affixes:
-            # Construct word
-            if affix in self.prefix_vocab:
+            # Check if we have a transform for this affix
+            if affix in self.prefix_transforms:
                 word = affix + root + 'o'  # Assume noun
                 affix_type = 'prefix'
-            elif affix in self.suffix_vocab:
+            elif affix in self.suffix_transforms:
                 word = root + affix + 'o'
                 affix_type = 'suffix'
             else:
-                print(f"\n  Unknown affix: {affix}")
+                print(f"\n  Unknown/untrained affix: {affix}")
                 continue
 
             print(f"\nWith {affix_type} '{affix}' → {word}:")
             emb, info = self.embed_word(word)
             if emb is not None:
+                # Compute distance from original root
+                dist = 1 - np.dot(base_norm, emb)
+                print(f"  Distance from '{root}': {dist:.3f}")
+
                 # Find similar roots
                 sims = np.dot(self.root_emb_norm, emb)
                 top_indices = np.argsort(sims)[::-1][:5]
+                print(f"  Most similar roots:")
                 for idx in top_indices:
                     r = self.idx_to_root[idx]
                     marker = "←" if r == root else ""
-                    print(f"  {r}: {sims[idx]:.3f} {marker}")
+                    print(f"    {r}: {sims[idx]:.3f} {marker}")
 
 
 def demo_word_pairs(embedder: CompositionalEmbedder):
     """Demonstrate similarity between word pairs."""
     print("\n" + "="*60)
-    print("Word Pair Similarities")
+    print("Word Pair Similarities (V2 Low-Rank Transforms)")
     print("="*60)
 
     pairs = [
@@ -310,7 +402,12 @@ def demo_word_pairs(embedder: CompositionalEmbedder):
         elif info2.get('error'):
             status = f" [{info2['error']}]"
 
-        print(f"  {w1} ({c1}) vs {w2} ({c2}): {sim:.3f}{status}")
+        # For mal- pairs, show distance instead of similarity (clearer for antonyms)
+        if 'mal' in info1.get('prefixes', []) or 'mal' in info2.get('prefixes', []):
+            distance = 1 - sim
+            print(f"  {w1} ({c1}) vs {w2} ({c2}): sim={sim:.3f} (distance={distance:.3f}){status}")
+        else:
+            print(f"  {w1} ({c1}) vs {w2} ({c2}): {sim:.3f}{status}")
 
 
 def demo_morphological_composition(embedder: CompositionalEmbedder):
@@ -399,9 +496,62 @@ def interactive_mode(embedder: CompositionalEmbedder):
                 print(f"  Error: {info.get('error', 'Unknown')}")
 
 
+def get_model_info(model_path: Path) -> dict:
+    """Get model file info including modification time and version detection."""
+    info = {
+        'path': str(model_path),
+        'name': model_path.name,
+        'exists': model_path.exists(),
+        'modified': None,
+        'version': None,
+        'size_kb': None,
+    }
+    if model_path.exists():
+        stat = model_path.stat()
+        info['modified'] = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M')
+        info['size_kb'] = stat.st_size // 1024
+        if '_v2' in str(model_path) or 'v2' in model_path.parent.name:
+            info['version'] = 'V2'
+        elif '_v1' in str(model_path) or 'v1' in model_path.parent.name:
+            info['version'] = 'V1'
+        else:
+            info['version'] = 'unknown'
+    return info
+
+
+def print_session_header(embedder: CompositionalEmbedder):
+    """Print session header with timestamp and model info."""
+    print("=" * 60)
+    print(" Compositional Embeddings Demo (V2)")
+    print("=" * 60)
+    print(f"Session: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print()
+
+    # Root model info
+    root_info = get_model_info(embedder.root_model_path)
+    print("Root Embeddings Model:")
+    print(f"  Path: {root_info['path']}")
+    print(f"  Modified: {root_info['modified']}")
+    print(f"  Roots: {len(embedder.root_to_idx):,}")
+    print(f"  Dimensions: {embedder.root_dim}d")
+
+    # Affix model info
+    affix_info = get_model_info(embedder.affix_model_path)
+    print()
+    print("Affix Transforms Model:")
+    print(f"  Path: {affix_info['path']}")
+    print(f"  Version: {affix_info['version']}")
+    print(f"  Modified: {affix_info['modified']}")
+    print(f"  Prefixes: {len(embedder.prefix_transforms)}")
+    print(f"  Suffixes: {len(embedder.suffix_transforms)}")
+    print(f"  Architecture: Low-rank transforms")
+
+    print("-" * 60)
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description='Demo: Compositional Embeddings (Root + Affix)',
+        description='Demo: Compositional Embeddings (Root + Affix V2)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -414,7 +564,8 @@ Examples:
     parser.add_argument('--root-model', type=Path,
                         default=Path('models/root_embeddings/best_model.pt'))
     parser.add_argument('--affix-model', type=Path,
-                        default=Path('models/affix_embeddings/best_model.pt'))
+                        default=Path('models/affix_transforms_v2/best_model.pt'),
+                        help='V2 affix transforms model (low-rank)')
     parser.add_argument('--interactive', '-i', action='store_true',
                         help='Interactive exploration mode')
     parser.add_argument('--word', '-w', type=str,
@@ -430,12 +581,16 @@ Examples:
         print("Run: ./scripts/run_fundamento_training.sh")
         sys.exit(1)
     if not args.affix_model.exists():
-        print(f"Error: Affix model not found: {args.affix_model}")
-        print("Run: python scripts/training/train_affix_embeddings.py")
+        print(f"Error: Affix transforms model not found: {args.affix_model}")
+        print("Run: python scripts/training/train_affix_transforms_v2.py")
         sys.exit(1)
 
     # Initialize embedder
     embedder = CompositionalEmbedder(args.root_model, args.affix_model)
+
+    # Print session header
+    print()
+    print_session_header(embedder)
 
     if args.word:
         # Analyze single word
@@ -469,11 +624,13 @@ Examples:
 
     else:
         # Run full demo
-        print("\n" + "="*60)
-        print("Compositional Embeddings Demo")
-        print("="*60)
-        print("\nThis demo shows how root + affix embeddings combine")
-        print("to represent word meaning compositionally.")
+        print("\nThis demo shows how root embeddings + V2 affix transforms")
+        print("compose to represent word meaning.")
+        print()
+        print("Key insight: Affixes are TRANSFORMS (not additive vectors)")
+        print("  mal- flips polarity: bon -> malbon (distinct)")
+        print("  re-  preserves meaning: fari -> refari (similar)")
+        print()
 
         demo_word_pairs(embedder)
         demo_morphological_composition(embedder)

@@ -553,629 +553,571 @@ KNOWN_ROOTS = {
 KNOWN_ROOTS = KNOWN_ROOTS | DICTIONARY_ROOTS | KNOWN_NUMBERS
 
 # -----------------------------------------------------------------------------
-# --- Layer 1: Morphological Analyzer (parse_word)
+# --- Protected Roots: Fundamento roots that look like they contain affixes
+# --- These must NEVER be decomposed - they are atomic roots.
+# -----------------------------------------------------------------------------
+
+# Roots that start with prefix-like sequences but are NOT prefixed
+# Example: "bona" is NOT "bo-" + "n" + "-a", it's "bon" + "-a"
+PROTECTED_PREFIX_ROOTS = {
+    # bo- look-alikes (bo- means "in-law")
+    "bon", "bord", "bot", "botel", "bov", "bor",
+    # dis- look-alikes (dis- means "dispersal")
+    "disk", "disput", "displac", "dispon",
+    # ek- look-alikes (ek- means "begin/sudden")
+    "ekzamen", "ekzekut", "ekzempl", "ekzempler", "ekonomi", "ekzist", "ekskuz", "ekskurs",
+    # eks- look-alikes (eks- means "former")
+    "ekspres", "eksplod", "eksperiment", "eksport", "eksped", "ekspoz", "ekspans",
+    # fi- look-alikes (fi- means "shameful")
+    "fil", "fier", "figur", "fidel", "fin", "fiŝ", "fiĥ", "fiber", "fizik", "fiks",
+    # for- look-alikes (for- means "away")
+    "form", "fort", "forg", "forges", "formul", "formal",
+    # mis- look-alikes (mis- means "wrongly")
+    "mister", "misi",
+    # pra- look-alikes (pra- means "primal/ancient")
+    "praktik", "prav", "prateri",
+    # re- look-alikes (re- means "again")
+    "region", "reg", "rest", "respond", "respekt", "respir", "rezult", "rezist",
+    "recenz", "recept", "redakt", "reflex", "reform", "reflekt", "registr",
+    "reliĝ", "relief", "relativ", "reklam", "rekompenc", "rekord", "rekt",
+    "rempar", "rent", "report", "represent", "reprodukt", "republik", "reput",
+    "rezerv", "rezign", "rezon", "retir", "retor", "revizor", "revoluci",
+    "redut", "refut", "rek", "rekomend", "remed", "retori", "revizi", "revu",
+    # vic- look-alikes (vic- means "vice-")
+    "vid", "viktim", "vilaĝ", "viol", "violet", "violon", "viper", "vigl",
+}
+
+# Roots that end with suffix-like sequences but are NOT suffixed
+# Example: "rapida" is NOT "rap" + "-id" + "-a", it's "rapid" + "-a"
+PROTECTED_SUFFIX_ROOTS = {
+    # -ad look-alikes (-ad means "continuous action")
+    "salad", "nomad", "balad", "parad", "tirad", "arkad", "fasad", "dekad",
+    # -aĵ look-alikes (-aĵ means "concrete thing")
+    "mesaĝ", "bagaĝ", "garaĝ", "vojaĝ", "estaĵ", "kuiraĵ",
+    # -ar look-alikes (-ar means "collection")
+    "altar", "bazaar", "kalendar", "polar", "poplar", "regular", "stellar",
+    # -ec look-alikes (-ec means "quality")
+    "sekret",
+    # -eg look-alikes (-eg means "augmentative")
+    "leg", "neg", "seg", "norwegian", "kolleg",
+    # -ej look-alikes (-ej means "place")
+    "fej",
+    # -em look-alikes (-em means "tendency")
+    "problem", "sistem", "poem", "teorem", "ekstrem", "stratagem",
+    # -er look-alikes (-er means "particle")
+    "paper", "danger", "kurier", "karakter", "minister", "jupiter",
+    # -estr look-alikes (-estr means "leader")
+    "maestr", "orkestr",
+    # -ar look-alikes (-ar means "collection")
+    "avar", "cezar", "cigar", "dolar", "familiar", "hangar", "konsular", "popular", "solar",
+    # -er look-alikes (-er means "particle")
+    "difer", "elster", "fajfer", "kajer", "konsider", "lucer", "maner", "miser", "moder",
+    "muster", "numer", "oper", "profer", "puder", "refer", "super", "teler", "toler", "veter",
+    # -et look-alikes (-et means "diminutive")
+    "bilet", "diet", "poet", "kabin", "sekret", "planet", "magnet", "alfabet",
+    "violon", "balot", "pilot", "kariot",
+    "alumet", "biljet", "bufet", "duet", "kabinet", "kadet", "kaset", "ĵaket", "koket",
+    "komplet", "kornet", "korset", "kvartet", "mulet", "oktet", "paket", "parket", "raket",
+    "sonet", "stilet", "tablet", "tapet", "triket", "trompet",
+    # -id look-alikes (-id means "offspring")
+    "rapid", "fluid", "guid", "solid", "valid", "stupid", "morbid", "timid",
+    "vivid", "arid", "horrid", "hybrid", "humid", "lucid", "placid", "rigid",
+    # -ig look-alikes (-ig means "causative")
+    "vestig", "orig", "prodig", "vertigo",
+    # -iĝ look-alikes (-iĝ means "become")
+    "refuĝ", "prestiĝ",
+    # -il look-alikes (-il means "tool")
+    "april", "gentil", "simil", "mobil", "facil", "fragil", "fertil", "humil",
+    "civil", "docil", "agil", "subtil", "util", "viril", "stabil",
+    "fibril", "fossil", "lentil", "papil", "penicil", "pupil", "reptil", "tonsil",
+    "vakul", "vanil", "ventil", "vigil",
+    # -in look-alikes (-in means "feminine")
+    "latin", "basin", "marin", "maŝin", "vitamin", "kuzin", "origin", "domin",
+    "admin", "kabin", "rabin", "rubin", "medic", "imagin", "termin", "ekzamin",
+    "delfin", "kafetin", "buletein", "krokodil",
+    # -ind look-alikes (-ind means "worthy")
+    "hind",
+    # -ing look-alikes (-ing means "holder")
+    "puding", "ring", "viking", "spring", "pudding", "sterling",
+    # -ism look-alikes (-ism means "doctrine")
+    "organism", "optimism", "prism", "turism", "ateism",
+    # -ist look-alikes (-ist means "practitioner")
+    "artist", "baptist", "list", "krist",
+    # -ul look-alikes (-ul means "person")
+    "formul", "insul", "konsul", "stimul", "regul", "artikul", "kalkul",
+    "angul", "modul", "akumul", "ampul", "kapitul", "tuberkul", "kapsul",
+    "betul", "muskul",
+    # -um look-alikes (-um means "indefinite")
+    "album", "forum", "museum", "medium", "maksimum", "minimum", "stadium",
+    "akvarium", "petroleum", "opium", "premium", "uranium", "aluminum",
+    # -end look-alikes (-end means "must be done")
+    "send", "tend", "legend", "blend", "trend", "dividend", "reverend",
+}
+
+# Combined set for fast lookup
+PROTECTED_ROOTS = PROTECTED_PREFIX_ROOTS | PROTECTED_SUFFIX_ROOTS
+
+
+# -----------------------------------------------------------------------------
+# --- Layer 1: Morphological Analyzer (Fundamento-first design)
+# --- See wiki: Esperanto-Parser-Design.md for architecture
 # -----------------------------------------------------------------------------
 
 def parse_word(word: str) -> dict:
     """
-    Parses a single Esperanto word and returns its morpheme-based AST.
-    This function works by stripping layers from right-to-left.
+    Parse a single Esperanto word using Fundamento-first design.
+
+    Architecture (from Esperanto-Parser-Design.md):
+    1. Function word check (closed list)
+    2. Correlative check (45 entries)
+    3. Strip grammatical ending (-o, -a, -e, -i, -as, -is, -os, -us, -u, -j, -n)
+    4. FUNDAMENTO ROOT CHECK (critical) - if match, STOP
+    5. Prefix extraction (with Fundamento guard)
+    6. Suffix extraction (with Fundamento guard)
+    7. Compound word check (last resort)
+
+    Key insight: Esperanto grammar is 100% deterministic. The ONLY complexity
+    is vocabulary-level ambiguity (roots that look like they contain affixes).
+    This is solved by checking Fundamento roots FIRST.
     """
     original_word = word
     lower_word = word.lower()
-    
-    # --- Step 1: Initialize AST ---
+
+    # --- Initialize AST ---
     ast = {
         "tipo": "vorto",
         "plena_vorto": original_word,
         "radiko": None,
-        "vortspeco": "nekonata", # unknown
+        "vortspeco": "nekonata",
         "nombro": "singularo",
         "kazo": "nominativo",
-        "prefiksoj": [],  # Changed from prefikso (single) to prefiksoj (list) for multiple prefixes
+        "prefiksoj": [],
         "sufiksoj": [],
     }
 
-    # --- Handle elision (Rule 16, Issue #88) ---
-    # In poetry, final -o can be elided: la → l', hundo → hund'
-    if lower_word.endswith("'") or lower_word.endswith("'"):
-        elided_word = lower_word.rstrip("'").rstrip("'")
-        ast['elidita'] = True
+    # ==========================================================================
+    # STEP 1: Function Word Check (closed lists - no morphology)
+    # ==========================================================================
 
-        # Special case: l' = la (article)
-        if elided_word == 'l':
-            ast['vortspeco'] = 'artikolo'
-            ast['radiko'] = 'la'
-            return ast
-
-        # Check for prefix + root FIRST (prefer decomposition)
-        # This ensures malamik' → mal+amik rather than malamik as single root
-        for prefix in KNOWN_PREFIXES:
-            if elided_word.startswith(prefix):
-                potential_root = elided_word[len(prefix):]
-                if potential_root in KNOWN_ROOTS:
-                    ast['vortspeco'] = 'substantivo'
-                    ast['radiko'] = potential_root
-                    ast['prefiksoj'].append(prefix)
-                    return ast
-
-        # Fall back to full word as known root (noun with -o elided)
-        if elided_word in KNOWN_ROOTS:
-            ast['vortspeco'] = 'substantivo'
-            ast['radiko'] = elided_word
-            return ast
-
-    # --- Handle foreign words and numbers ---
-    # Skip numeric literals (years, etc.) - treat as foreign words
+    # Handle numeric literals
     if word.isdigit():
-        ast['vortspeco'] = 'numero'
-        ast['radiko'] = word
+        ast["vortspeco"] = "numero"
+        ast["radiko"] = word
         return ast
 
-    # Check for pronouns FIRST - before foreign name check
-    # Pronouns can be capitalized at start of sentence: "Mi vidas..." = "I see..."
-    # Check both lowercase and (for accusative) with -n ending
-    temp_word_for_pronoun = lower_word
-    if temp_word_for_pronoun.endswith('n'):
-        temp_word_for_pronoun = temp_word_for_pronoun[:-1]
-
-    if temp_word_for_pronoun in KNOWN_PRONOUNS:
-        ast['radiko'] = temp_word_for_pronoun
-        ast['vortspeco'] = 'pronomo'
-        # Check if it had accusative ending
-        if lower_word.endswith('n'):
-            ast['kazo'] = 'akuzativo'
+    # Article "la" - the only article
+    if lower_word == "la":
+        ast["vortspeco"] = "artikolo"
+        ast["radiko"] = "la"
         return ast
 
-    # Skip capitalized non-Esperanto names (but allow Esperanto proper nouns)
-    # If word is capitalized and doesn't end with Esperanto morphology, it's likely foreign
-    # BUT first check if it's a known particle (like Ĉu at sentence start)
-    if word[0].isupper() and len(word) > 1:
-        # Check for particles BEFORE treating as proper name (Issue #87)
-        # Words like Ĉu can appear capitalized at sentence start
-        if lower_word in KNOWN_PARTICLES:
-            ast['vortspeco'] = 'partiklo'
-            ast['radiko'] = lower_word
-            return ast
-        # Check for correlatives (like Kiu, Kio at sentence start)
-        if lower_word in KNOWN_CORRELATIVES:
-            correl_check = lower_word
-            ast['vortspeco'] = 'korelativo'
-            ast['radiko'] = correl_check
-            # Decompose correlative into prefix + suffix
-            for prefix in sorted(CORRELATIVE_PREFIXES.keys(), key=len, reverse=True):
-                if correl_check.startswith(prefix):
-                    suffix = correl_check[len(prefix):]
-                    if suffix in CORRELATIVE_SUFFIXES:
-                        ast['korelativo_prefikso'] = prefix
-                        ast['korelativo_sufikso'] = suffix
-                        ast['korelativo_signifo'] = CORRELATIVE_PREFIXES[prefix]
-                        break
-            return ast
-        # Check if it has Esperanto endings (could be proper noun: Mario, Johano, etc.)
-        # Note: Include -u for imperatives (Venu!, Donu!) and -as/-is/-os/-us for verbs
-        if not any(word.endswith(ending) for ending in ['o', 'a', 'e', 'u', 'i', 'on', 'an', 'en', 'un', 'oj', 'aj', 'as', 'is', 'os', 'us']):
-            # Likely foreign name
-            ast['vortspeco'] = 'nomo'  # foreign name
-            ast['radiko'] = word
-            return ast
-
-    # --- Handle special, uninflected words first ---
-    if lower_word == 'la':
-        ast['vortspeco'] = 'artikolo'
-        ast['radiko'] = 'la'
+    # Check pronouns (can take -n accusative)
+    pronoun_check = lower_word
+    if pronoun_check.endswith("n"):
+        pronoun_check = pronoun_check[:-1]
+    if pronoun_check in KNOWN_PRONOUNS:
+        ast["radiko"] = pronoun_check
+        ast["vortspeco"] = "pronomo"
+        if lower_word.endswith("n"):
+            ast["kazo"] = "akuzativo"
         return ast
 
-    # Check for conjunctions - uninflected words (no endings)
-    # Must check before trying to strip endings
+    # Conjunctions - uninflected
     if lower_word in KNOWN_CONJUNCTIONS:
-        ast['vortspeco'] = 'konjunkcio'
-        ast['radiko'] = lower_word
+        ast["vortspeco"] = "konjunkcio"
+        ast["radiko"] = lower_word
         return ast
 
-    # Check for prepositions - uninflected words
+    # Prepositions - uninflected
     if lower_word in KNOWN_PREPOSITIONS:
-        ast['vortspeco'] = 'prepozicio'
-        ast['radiko'] = lower_word
+        ast["vortspeco"] = "prepozicio"
+        ast["radiko"] = lower_word
         return ast
 
-    # Check for correlatives - uninflected words with compositional semantics (Issue #76)
-    # Correlatives can also take -n (accusative) for -o, -u types
+    # Particles - uninflected adverbs and modifiers
+    if lower_word in KNOWN_PARTICLES:
+        ast["vortspeco"] = "partiklo"
+        ast["radiko"] = lower_word
+        return ast
+
+    # Number words - check before stripping endings
+    # Numbers can be inflected: dua (second), duaj, duan, etc.
+    temp_num = lower_word
+    if temp_num.endswith("n"):
+        temp_num = temp_num[:-1]
+    if temp_num.endswith("j"):
+        temp_num = temp_num[:-1]
+    if temp_num.endswith(("a", "e", "o")):
+        temp_num = temp_num[:-1]
+    if temp_num in KNOWN_NUMBERS or lower_word in KNOWN_NUMBERS:
+        # If bare number word, return immediately
+        if lower_word in KNOWN_NUMBERS:
+            ast["radiko"] = lower_word
+            ast["vortspeco"] = "numero"
+            return ast
+        # Otherwise continue with regular parsing for inflected numbers
+
+    # ==========================================================================
+    # STEP 2: Correlative Check (45 entries)
+    # ==========================================================================
+
     correl_check = lower_word
     correl_accusative = False
-    if correl_check.endswith('n'):
+    if correl_check.endswith("n"):
         correl_check = correl_check[:-1]
         correl_accusative = True
 
     if correl_check in KNOWN_CORRELATIVES:
-        ast['vortspeco'] = 'korelativo'
-        ast['radiko'] = correl_check
+        ast["vortspeco"] = "korelativo"
+        ast["radiko"] = correl_check
         if correl_accusative:
-            ast['kazo'] = 'akuzativo'
+            ast["kazo"] = "akuzativo"
 
-        # Decompose correlative into prefix + suffix (Issue #76)
-        # Try each prefix (longest first to handle "neni-" before "i-")
+        # Decompose correlative into prefix + suffix
         for prefix in sorted(CORRELATIVE_PREFIXES.keys(), key=len, reverse=True):
             if correl_check.startswith(prefix):
                 suffix = correl_check[len(prefix):]
                 if suffix in CORRELATIVE_SUFFIXES:
-                    ast['korelativo_prefikso'] = prefix
-                    ast['korelativo_sufikso'] = suffix
-                    ast['korelativo_signifo'] = CORRELATIVE_PREFIXES[prefix]
+                    ast["korelativo_prefikso"] = prefix
+                    ast["korelativo_sufikso"] = suffix
+                    ast["korelativo_signifo"] = CORRELATIVE_PREFIXES[prefix]
                     break
         return ast
 
-    # Check for particles - uninflected adverbs and modifiers
-    if lower_word in KNOWN_PARTICLES:
-        ast['vortspeco'] = 'partiklo'
-        ast['radiko'] = lower_word
-        return ast
+    # ==========================================================================
+    # STEP 3: Strip Grammatical Ending (-o, -a, -e, -i, -as, -is, -os, -us, -u)
+    # Also strip -j (plural) and -n (accusative)
+    # ==========================================================================
 
-    # --- Step 2: Decode Grammatical Endings (right-to-left) ---
-    remaining_word = lower_word
+    remaining = lower_word
 
-    # Check for numbers - can be inflected like adjectives (dua, duaj, duan, etc.)
-    # Numbers can take -a (adjective), -e (adverb), -o (noun), -j (plural), -n (accusative)
-    # So we need to strip endings and check the root
-    temp_word = remaining_word
-    if temp_word.endswith('n'):
-        temp_word = temp_word[:-1]
-    if temp_word.endswith('j'):
-        temp_word = temp_word[:-1]
-    if temp_word.endswith(('a', 'e', 'o')):
-        temp_word = temp_word[:-1]
-    if temp_word in KNOWN_NUMBERS:
-        # It's a number - treat it as a root for morphological analysis
-        # Don't return early - let it go through normal ending analysis
-        pass
+    # Handle elision (Rule 16): l' = la, hund' = hundo
+    if remaining.endswith(("'", "'")):
+        remaining = remaining.rstrip("'").rstrip("'")
+        ast["elidita"] = True
 
-    # Rule 6: Accusative Case (-n)
-    # Pronouns can take accusative: mi→min, vi→vin, etc.
-    if remaining_word.endswith('n'):
+        # Special case: l' is the elided article "la"
+        if remaining == "l":
+            ast["vortspeco"] = "artikolo"
+            ast["radiko"] = "la"
+            return ast
+
+        # For elided nouns, the ending is implicitly -o
+        ast["vortspeco"] = "substantivo"
+        # Continue to check if this is a valid stem
+
+    # Strip accusative (-n) first (rightmost)
+    if remaining.endswith("n") and len(remaining) > 2:
         ast["kazo"] = "akuzativo"
-        remaining_word = remaining_word[:-1]
+        remaining = remaining[:-1]
 
-    # Rule 5: Plural (-j)
-    # Note: Personal pronouns don't take -j (they're already marked for number)
-    if remaining_word.endswith('j'):
+    # Strip plural (-j)
+    if remaining.endswith("j") and len(remaining) > 2:
         ast["nombro"] = "pluralo"
-        remaining_word = remaining_word[:-1]
+        remaining = remaining[:-1]
 
-    # NOTE: Pronouns are now checked earlier (before foreign name check)
-    # to handle capitalized pronouns like "Mi" at sentence start
-
-    # Check for bare number words (before ending stripping)
-    # Numbers like "du" would otherwise be parsed as "d" + "u" (volitive ending)
-    if remaining_word in KNOWN_NUMBERS:
-        ast['radiko'] = remaining_word
-        ast['vortspeco'] = 'numero'
-        return ast
-
-    # Rule 4, 7, 8, 11, 12: Part of Speech & Tense/Mood
-    # Only check these for non-pronouns
-    found_ending = False
-    for ending, properties in KNOWN_ENDINGS.items():
-        if remaining_word.endswith(ending):
-            ast.update(properties)
-            remaining_word = remaining_word[:-len(ending)]
-            found_ending = True
+    # Strip grammatical ending - try longest first
+    ending_info = {}
+    for ending in ["as", "is", "os", "us"]:  # 2-char verb endings first
+        if remaining.endswith(ending) and len(remaining) > len(ending) + 1:
+            ending_info = KNOWN_ENDINGS[ending].copy()
+            remaining = remaining[:-len(ending)]
             break
+    else:
+        for ending in ["u", "i", "o", "a", "e"]:  # 1-char endings
+            if remaining.endswith(ending) and len(remaining) > len(ending):
+                ending_info = KNOWN_ENDINGS[ending].copy()
+                remaining = remaining[:-len(ending)]
+                break
 
-    # If no ending found and it's not a known root, it's invalid
-    if not found_ending and lower_word not in KNOWN_ROOTS:
-         raise ValueError(f"Vorto '{original_word}' havas neniun konatan finaĵon.")
+    if ending_info:
+        ast.update(ending_info)
 
-    # --- Step 3: Decode Affixes (finds one prefix and multiple suffixes) ---
-    # Only for non-pronouns - pronouns are atomic
-    stem = remaining_word
+    stem = remaining
 
-    # Prefixes (left side)
-    # Check for decomposable prefixes FIRST, even if the compound form exists
-    # This is linguistically correct for Esperanto (compositional semantics)
-    # e.g., "malgrand" should be "mal-" + "grand", not a standalone root
-    # Support multiple stacked prefixes (e.g., "remalbona" = re- + mal- + bona)
-    prefix_stripped = False
-    max_prefix_depth = 3  # Limit prefix stacking to prevent infinite loops
-    # Sort prefixes and suffixes by length (longest first) to match greedily
+    # ==========================================================================
+    # STEP 4: FUNDAMENTO ROOT CHECK (CRITICAL!)
+    # If the stem is a Fundamento root AND cannot be prefix + another Fundamento root,
+    # it's ATOMIC - do NOT decompose!
+    # ==========================================================================
+
     sorted_prefixes = sorted(KNOWN_PREFIXES, key=len, reverse=True)
     sorted_suffixes = sorted(KNOWN_SUFFIXES, key=len, reverse=True)
 
-    def is_true_base_root(word):
-        """Check if word is a base root (not a prefixed compound).
-
-        For Klareco's compositional thesis, 'malbon' should NOT be treated as
-        a base root because it's decomposable as mal+bon. Only words that
-        don't start with a known prefix (where the remainder is valid) count.
-
-        However, we need to be careful: 'boneg' starts with 'bo' and 'neg' is
-        a valid root, but 'boneg' is really 'bon+eg', not 'bo+neg'. So we
-        also check if suffix stripping gives a longer/equal root than the
-        prefix interpretation. If so, it's NOT a prefixed compound.
-
-        DISAMBIGUATION with Fundamento:
-        When prefix and suffix interpretations give equal root lengths, prefer
-        the interpretation that uses a Fundamento (authoritative) root.
-        Example: 'refar' - both 're+far' and 'ref+ar' give length 3, but 'far'
-        is in Fundamento while 'ref' is not, so prefer 're+far'.
-        """
-        if word not in KNOWN_ROOTS:
-            return False
-
-        # First, find the root we can get via suffix stripping
-        suffix_root = None
-        suffix_root_len = 0
-        for s in sorted_suffixes:
-            if word.endswith(s) and len(word) > len(s):
-                potential = word[:-len(s)]
-                if potential in KNOWN_ROOTS:
-                    suffix_root = potential
-                    suffix_root_len = len(potential)
-                    break
-
-        # Check if it starts with a prefix whose remainder is valid
-        for p in sorted_prefixes:
-            if word.startswith(p):
-                remainder = word[len(p):]
-                prefix_root = None
-                prefix_root_len = 0
-                if remainder in KNOWN_ROOTS:
-                    prefix_root = remainder
-                    prefix_root_len = len(remainder)
-                else:
-                    # Check if remainder becomes valid after suffix stripping
-                    for s in sorted_suffixes:
-                        if remainder.endswith(s) and len(remainder) > len(s):
-                            pot = remainder[:-len(s)]
-                            if pot in KNOWN_ROOTS:
-                                prefix_root = pot
-                                prefix_root_len = len(pot)
-                                break
-
-                if prefix_root_len > 0:
-                    # Compare root lengths
-                    if suffix_root_len > prefix_root_len:
-                        continue  # Suffix gives longer root, this prefix doesn't apply
-
-                    if suffix_root_len == prefix_root_len:
-                        # TIE-BREAKER: Use Fundamento roots to disambiguate
-                        # Prefer the interpretation that uses an authoritative root
-                        prefix_in_fund = prefix_root in _FUNDAMENTO_ROOTS
-                        suffix_in_fund = suffix_root in _FUNDAMENTO_ROOTS if suffix_root else False
-
-                        if suffix_in_fund and not prefix_in_fund:
-                            continue  # Suffix root is authoritative, skip this prefix
-                        elif prefix_in_fund and not suffix_in_fund:
-                            return False  # Prefix root is authoritative, it's a compound
-                        else:
-                            # Both or neither in Fundamento - prefer suffix (conservative)
-                            continue
-
-                    # prefix_root_len > suffix_root_len
-                    return False  # Prefix gives longer root, it's a compound
-
-        return True
-
-    for _ in range(max_prefix_depth):
-        found_prefix = False
-        for prefix in sorted_prefixes:
-            if stem.startswith(prefix):
-                remaining_after_prefix = stem[len(prefix):]
-
-                # KEY PRINCIPLE for Klareco: PREFER compositional parse, but
-                # prefer LONGER roots when there's ambiguity.
-                #
-                # Example: "bonega" (stem "boneg")
-                # - Option A: bo + neg (prefix + 3-char root)
-                # - Option B: bon + eg (3-char root + suffix)
-                # Both give 3-char roots, but Option B is semantically correct.
-                # Rule: If stripping suffixes from stem gives a root >= length of
-                # the prefix-remainder root, prefer suffix stripping (no prefix).
-
-                # Get the root length we'd get from prefix extraction
-                remainder_root_len = 0
-                if remaining_after_prefix in KNOWN_ROOTS:
-                    remainder_root_len = len(remaining_after_prefix)
-                elif len(remaining_after_prefix) >= 2:
-                    for suffix in sorted_suffixes:
-                        if remaining_after_prefix.endswith(suffix) and len(remaining_after_prefix) > len(suffix):
-                            potential_root = remaining_after_prefix[:-len(suffix)]
-                            if potential_root in KNOWN_ROOTS:
-                                remainder_root_len = len(potential_root)
-                                break
-                            for suffix2 in sorted_suffixes:
-                                if potential_root.endswith(suffix2) and len(potential_root) > len(suffix2):
-                                    if potential_root[:-len(suffix2)] in KNOWN_ROOTS:
-                                        remainder_root_len = len(potential_root[:-len(suffix2)])
-                                        break
-                            if remainder_root_len > 0:
-                                break
-
-                if remainder_root_len == 0:
-                    continue  # This prefix doesn't yield a valid root path
-
-                # Get the root length we'd get from SUFFIX STRIPPING WITHOUT prefix.
-                # Important: Only count TRUE BASE roots (not prefixed compounds).
-                # "malbon" via suffix stripping shouldn't count because it's mal+bon.
-                # Use is_true_base_root() to filter out prefixed compounds.
-                stem_root_len = 0
-                for suffix in sorted_suffixes:
-                    if stem.endswith(suffix) and len(stem) > len(suffix):
-                        potential = stem[:-len(suffix)]
-                        if is_true_base_root(potential):
-                            stem_root_len = len(potential)
-                            break
-                        for suffix2 in sorted_suffixes:
-                            if potential.endswith(suffix2) and len(potential) > len(suffix2):
-                                deeper = potential[:-len(suffix2)]
-                                if is_true_base_root(deeper):
-                                    stem_root_len = len(deeper)
-                                    break
-                        if stem_root_len > 0:
-                            break
-
-                # KEY DECISION: Extract prefix UNLESS suffix stripping gives a better parse.
-                #
-                # Case 1: "malbon" is in KNOWN_ROOTS but contains prefix "mal".
-                #   → Extract prefix (mal+bon is more compositional)
-                #   → stem_root_len = 0 (no suffix to strip), so we extract.
-                #
-                # Case 2: "boneg" is in KNOWN_ROOTS but ends with suffix "eg".
-                #   → Prefer suffix stripping (bon+eg is correct semantics)
-                #   → stem_root_len = 3 (from bon), remainder_root_len = 3 (neg)
-                #   → Equal, so skip prefix.
-                #
-                # Case 3: "malbonel" is in KNOWN_ROOTS with prefix AND suffix.
-                #   → Check: suffix gives root? If so, prefer that path.
-                #
-                # Rule: Skip prefix if suffix stripping gives >= root length.
-                # The "stem in KNOWN_ROOTS" exception only applies if the stem
-                # does NOT end with a known suffix (i.e., is truly a base compound).
-                stem_ends_with_suffix = False
-                for suffix in sorted_suffixes:
-                    if stem.endswith(suffix) and len(stem) > len(suffix):
-                        # Use is_true_base_root to filter out prefixed compounds
-                        if is_true_base_root(stem[:-len(suffix)]):
-                            stem_ends_with_suffix = True
-                            break
-
-                # Skip prefix if:
-                # 1. Suffix stripping gives > root length, OR
-                # 2. Equal lengths BUT suffix root is in Fundamento and remainder is not, OR
-                # 3. Stem is a TRUE base root and ends with a suffix (prefer suffix path)
-
-                # Find the actual roots for Fundamento comparison
-                stem_suffix_root = None
-                for suffix in sorted_suffixes:
-                    if stem.endswith(suffix) and len(stem) > len(suffix):
-                        pot = stem[:-len(suffix)]
-                        if pot in KNOWN_ROOTS:
-                            stem_suffix_root = pot
-                            break
-
-                remainder_root = remaining_after_prefix if remaining_after_prefix in KNOWN_ROOTS else None
-                if remainder_root is None:
-                    for suffix in sorted_suffixes:
-                        if remaining_after_prefix.endswith(suffix) and len(remaining_after_prefix) > len(suffix):
-                            pot = remaining_after_prefix[:-len(suffix)]
-                            if pot in KNOWN_ROOTS:
-                                remainder_root = pot
-                                break
-
-                if stem_root_len > remainder_root_len:
-                    continue  # Suffix path gives strictly longer root, skip prefix
-
-                if stem_root_len == remainder_root_len:
-                    # TIE-BREAKER: Use Fundamento roots to disambiguate
-                    stem_in_fund = stem_suffix_root in _FUNDAMENTO_ROOTS if stem_suffix_root else False
-                    remainder_in_fund = remainder_root in _FUNDAMENTO_ROOTS if remainder_root else False
-
-                    if stem_in_fund and not remainder_in_fund:
-                        continue  # Suffix root is authoritative, skip prefix
-                    elif remainder_in_fund and not stem_in_fund:
-                        pass  # Remainder is authoritative, proceed to extract prefix
-                    else:
-                        # Both or neither in Fundamento - prefer suffix path (conservative)
-                        continue
-
-                if is_true_base_root(stem) and stem_ends_with_suffix:
-                    continue  # Stem is derived form with true base, prefer suffix
-
-                # Extract the prefix
-                ast["prefiksoj"].append(prefix)
-                stem = remaining_after_prefix
-                prefix_stripped = True
-                found_prefix = True
+    def find_fundamento_root(s: str) -> str | None:
+        """Find if s or s-minus-suffixes is a Fundamento/protected root."""
+        # Direct match
+        if s in _FUNDAMENTO_ROOTS or s in PROTECTED_ROOTS:
+            return s
+        # Try stripping suffixes
+        temp = s
+        for _ in range(3):  # Max 3 suffix layers
+            found = False
+            for suffix in sorted_suffixes:
+                if temp.endswith(suffix) and len(temp) > len(suffix) + 1:
+                    potential = temp[:-len(suffix)]
+                    if potential in _FUNDAMENTO_ROOTS or potential in PROTECTED_ROOTS:
+                        return potential
+                    if potential in KNOWN_ROOTS:
+                        temp = potential
+                        found = True
+                        break
+            if not found:
                 break
-        if not found_prefix:
-            break  # No more prefixes found
+        return None
 
-    # Suffixes (middle) - improved matching logic
-    # Only match suffixes if they leave behind a valid root
-    # (sorted_suffixes already defined above for prefix lookahead)
+    def check_prefix_gives_fundamento(s: str) -> tuple[str, str] | None:
+        """Check if s = prefix + Fundamento root. Return (prefix, root) or None."""
+        for prefix in sorted_prefixes:
+            if s.startswith(prefix) and len(s) > len(prefix):
+                remainder = s[len(prefix):]
+                # Check if remainder is a Fundamento root
+                if remainder in _FUNDAMENTO_ROOTS:
+                    return (prefix, remainder)
+                # Check if remainder minus suffixes is Fundamento
+                fund = find_fundamento_root(remainder)
+                if fund:
+                    return (prefix, fund)
+        return None
 
-    # FIX for Issue #90: Prefer longer roots over shorter roots with spurious suffixes.
-    # Example: "rapide" should parse as "rapid" + e, NOT "rap" + "id" + e
-    # Even though both "rap" and "rapid" are known roots.
-    #
-    # Strategy: If the current stem is already a known root, only strip suffixes
-    # if the remaining part is ALSO a known root. This prefers the longer
-    # indivisible root ("rapid") over spurious decomposition ("rap" + "id").
-    #
-    # BUT: For genuine compositional words like "belulo" (bel + ul + o), we DO
-    # want to strip the suffix because "bel" is the semantic base.
+    def check_suffix_gives_fundamento(s: str) -> tuple[str, list[str]] | None:
+        """Check if stripping suffixes from s leads to a Fundamento root.
 
-    # Extract suffixes from right to left (innermost last, outermost first in final list)
-    # Be conservative - only remove suffix if it leads to a known root eventually
-    max_suffix_depth = 3  # Limit suffix chaining to prevent over-matching
-    suffix_count = 0
+        Returns (root, [suffix1, suffix2, ...]) or None.
+        Suffixes are returned in extraction order (right-to-left).
+        """
+        temp = s
+        extracted = []
+        for _ in range(3):  # Max 3 suffix layers
+            for suffix in sorted_suffixes:
+                if temp.endswith(suffix) and len(temp) > len(suffix) + 1:
+                    potential = temp[:-len(suffix)]
+                    # Check if potential is a Fundamento root
+                    if potential in _FUNDAMENTO_ROOTS:
+                        extracted.append(suffix)
+                        return (potential, extracted)
+                    # Check if we can continue stripping
+                    extracted.append(suffix)
+                    temp = potential
+                    break
+            else:
+                # No suffix matched at this layer
+                break
+        return None
 
-    while suffix_count < max_suffix_depth:
-        found_suffix = False
-        for suffix in sorted_suffixes:
-            # Check if suffix is at the END of the stem
-            if stem.endswith(suffix):
-                # Try removing the suffix from the end
-                potential_root = stem[:-len(suffix)]
+    # Protected roots: if stem is in PROTECTED_ROOTS, keep it atomic
+    if stem in PROTECTED_ROOTS:
+        ast["radiko"] = stem
+        return ast
 
-                # Only accept this suffix if what remains is either:
-                # 1. A known root (BEST case)
-                # 2. A known particle/adverb (for compounds like "tre" + "eg")
-                if (potential_root in KNOWN_ROOTS or
-                    potential_root in KNOWN_PARTICLES or
-                    potential_root in KNOWN_PREPOSITIONS):
+    # Check if stem is Fundamento root
+    stem_is_fundamento = stem in _FUNDAMENTO_ROOTS
 
-                    # Issue #90 fix: Check if this is a spurious decomposition.
-                    # If the current stem is a known root AND the potential_root
-                    # is shorter, prefer the current stem IF the suffix is not
-                    # a standard Esperanto derivational suffix for this context.
+    # Check if stem could be prefix + Fundamento
+    prefix_parse = check_prefix_gives_fundamento(stem)
+
+    # Check if stem could be Fundamento + suffix
+    suffix_parse = check_suffix_gives_fundamento(stem)
+
+    # Highly productive prefixes that should be preferred when ambiguous
+    PRODUCTIVE_PREFIXES = {"mal", "re", "ne", "ek", "eks", "dis", "mis"}
+
+    # Disambiguation logic - Order of priority:
+    # 1. If stem is Fundamento and NO affix parses exist → keep atomic
+    # 2. If ONLY suffix parse exists → skip prefix extraction (do suffix)
+    # 3. If ONLY prefix parse exists → do prefix extraction
+    # 4. If BOTH exist:
+    #    a. If prefix is highly productive (re-, mal-) → prefer prefix (re+leg > rel+eg)
+    #    b. Otherwise → prefer suffix (bon+eg > bo+neg)
+    # 5. If stem is Fundamento AND prefix parse exists → prefer prefix (re+leg > rel)
+
+    skip_prefix = False
+    if stem_is_fundamento and not prefix_parse and not suffix_parse:
+        # Stem is Fundamento and no affix parse exists - keep atomic
+        ast["radiko"] = stem
+        return ast
+    elif suffix_parse and not prefix_parse:
+        # Only suffix parse exists - skip prefix extraction
+        skip_prefix = True
+    elif suffix_parse and prefix_parse:
+        # BOTH exist - check if prefix is highly productive
+        # prefix_parse = (prefix, root)
+        extracted_prefix = prefix_parse[0]
+        if extracted_prefix in PRODUCTIVE_PREFIXES:
+            # Highly productive prefix - prefer prefix parse
+            # Example: releg = re+leg (not rel+eg)
+            skip_prefix = False
+        else:
+            # Less common prefix - prefer suffix parse
+            # Example: boneg = bon+eg (not bo+neg)
+            skip_prefix = True
+    elif not stem_is_fundamento and prefix_parse:
+        # Stem is NOT Fundamento, only prefix parse exists - do prefix extraction
+        skip_prefix = False
+    elif stem_is_fundamento and prefix_parse:
+        # AMBIGUOUS: stem is Fundamento AND prefix parse exists
+        # Example: releg = re+leg (not rel)
+        # Prefer the prefix parse (more compositional)
+        skip_prefix = False
+
+    extracted_prefixes = []
+
+    if not skip_prefix:
+        max_prefix_depth = 3
+        for _ in range(max_prefix_depth):
+            # STOP if stem is now a Fundamento/protected root
+            # E.g., after extracting "mal-" from "malbon", stem="bon" is Fundamento
+            # Do NOT try to extract "bo-" from "bon"!
+            if stem in _FUNDAMENTO_ROOTS or stem in PROTECTED_ROOTS:
+                break
+
+            found_prefix = False
+            for prefix in sorted_prefixes:
+                if stem.startswith(prefix) and len(stem) > len(prefix):
+                    remainder = stem[len(prefix):]
+
+                    # CRITICAL: Only extract prefix if:
+                    # 1. The ORIGINAL stem (before extraction) is NOT a protected root
+                    # 2. The remainder leads to a valid root
                     #
-                    # Heuristic: If stem is already a known root and potential_root
-                    # is ALSO a known root, prefer the SHORTER one (more derivation)
-                    # because Esperanto is compositional. This handles "belulo" → "bel".
-                    # BUT if the suffix is "id" (not common), and stem is known, skip.
-                    if (stem in KNOWN_ROOTS and
-                        suffix not in {'ul', 'in', 'et', 'eg', 'ar', 'ej', 'an',
-                                       'ig', 'iĝ', 'ad', 'aĵ', 'ec', 'er', 'ebl',
-                                       'em', 'end', 'ind', 'ing', 'ist', 'il', 'op',
-                                       'uj', 'um', 'obl', 'on',
-                                       # Participle suffixes (Issue #84)
-                                       'ant', 'int', 'ont', 'at', 'it', 'ot'}):
-                        # This is likely a spurious suffix (like "id" in "rapid")
-                        # Skip this decomposition
-                        continue
+                    # Example: "malbon" is NOT protected, and "bon" is a valid root
+                    # So we extract "mal-" + "bon"
+                    #
+                    # Example: "region" IS protected (looks like re-gion)
+                    # So we do NOT extract - it's atomic
 
-                    ast["sufiksoj"].append(suffix)
-                    stem = potential_root
-                    found_suffix = True
-                    suffix_count += 1
-                    break  # Found one suffix, check for more
-
-                # 3. Could have a prefix that leads to a known root
-                elif len(potential_root) >= 3:
-                    # Check if removing a prefix leaves a known root
-                    could_have_prefix = False
-                    for prefix in KNOWN_PREFIXES:
-                        if potential_root.startswith(prefix):
-                            root_without_prefix = potential_root[len(prefix):]
-                            if root_without_prefix in KNOWN_ROOTS:
-                                could_have_prefix = True
-                                break
-
-                    if could_have_prefix:
-                        ast["sufiksoj"].append(suffix)
-                        stem = potential_root
-                        found_suffix = True
-                        suffix_count += 1
+                    # Check if remainder leads to a Fundamento root
+                    fund_root = find_fundamento_root(remainder)
+                    if fund_root:
+                        # Valid prefix extraction!
+                        extracted_prefixes.append(prefix)
+                        stem = remainder
+                        found_prefix = True
                         break
 
-        # Stop if no more suffixes found
-        if not found_suffix:
-            break
+                    # Also check if remainder is in KNOWN_ROOTS
+                    # Note: remainder being in PROTECTED_PREFIX_ROOTS is OK here!
+                    # E.g., "mal" + "bon" → "bon" is protected (starts with bo-),
+                    # but that's fine because "bon" IS a valid Fundamento root.
+                    if remainder in KNOWN_ROOTS:
+                        extracted_prefixes.append(prefix)
+                        stem = remainder
+                        found_prefix = True
+                        break
 
-    # --- Step 4b: Add participle metadata (Issue #84) ---
-    # If any participle suffix was found, add voice and tense info
-    for suffix in ast["sufiksoj"]:
+            if not found_prefix:
+                break
+
+    ast["prefiksoj"] = extracted_prefixes
+
+    # ==========================================================================
+    # STEP 6: Suffix Extraction (with Fundamento guard)
+    # Strip suffixes right-to-left until we reach a Fundamento/known root
+    # ==========================================================================
+
+    extracted_suffixes = []
+    max_suffix_depth = 3
+
+    # If we already determined a suffix parse leads to Fundamento AND we didn't extract prefixes,
+    # use it directly. This handles cases like belul+in+o where intermediate "belul" is not a known root.
+    # BUT: if we extracted prefixes, the suffix_parse was computed on the ORIGINAL stem, not the
+    # POST-prefix stem. So we need to recalculate.
+    if suffix_parse and not extracted_prefixes:
+        # suffix_parse = (root, [suffix1, suffix2, ...]) in extraction order
+        root_from_suffix, suffixes_found = suffix_parse
+        stem = root_from_suffix
+        extracted_suffixes = suffixes_found
+    else:
+        # Standard suffix extraction - one layer at a time
+        for _ in range(max_suffix_depth):
+            # If stem is now a Fundamento/protected root, stop
+            if stem in _FUNDAMENTO_ROOTS or stem in PROTECTED_ROOTS:
+                break
+
+            found_suffix = False
+            for suffix in sorted_suffixes:
+                if stem.endswith(suffix) and len(stem) > len(suffix) + 1:
+                    potential = stem[:-len(suffix)]
+
+                    # Accept if potential is a valid root
+                    if (potential in _FUNDAMENTO_ROOTS or
+                        potential in PROTECTED_ROOTS or
+                        potential in KNOWN_ROOTS or
+                        potential in KNOWN_PARTICLES or
+                        potential in KNOWN_PREPOSITIONS):
+
+                        # Make sure we're not incorrectly splitting a protected root
+                        if stem not in PROTECTED_SUFFIX_ROOTS:
+                            extracted_suffixes.append(suffix)
+                            stem = potential
+                            found_suffix = True
+                            break
+
+            if not found_suffix:
+                break
+
+    # Reverse suffixes (we extracted from right-to-left, but want left-to-right order)
+    ast["sufiksoj"] = extracted_suffixes
+
+    # Add participle metadata if found
+    for suffix in extracted_suffixes:
         if suffix in PARTICIPLE_SUFFIXES:
             participle_info = PARTICIPLE_SUFFIXES[suffix]
-            ast['participo_voĉo'] = participle_info['voĉo']
-            ast['participo_tempo'] = participle_info['tempo']
-            break  # Only one participle suffix per word
+            ast["participo_voĉo"] = participle_info["voĉo"]
+            ast["participo_tempo"] = participle_info["tempo"]
+            break
 
-    # --- Step 5: Identify Root (with compound word decomposition) ---
-    # Strategy: Try compound decomposition for LONG stems that are also known roots
-    # Short stems (<=5 chars) that are known roots → use as-is (e.g., ŝton)
-    # Long stems (>5 chars) that are known roots → try compound decomposition first
-    compound_found = False
+    # ==========================================================================
+    # STEP 7: Identify Root (with compound word fallback)
+    # ==========================================================================
 
-    # Short stems that are known roots: use directly
-    if len(stem) <= 5 and stem in KNOWN_ROOTS:
+    if stem in KNOWN_ROOTS or stem in _FUNDAMENTO_ROOTS or stem in PROTECTED_ROOTS:
         ast["radiko"] = stem
-    elif stem in KNOWN_PARTICLES or stem in KNOWN_PREPOSITIONS:
-        # It's a particle/preposition used as a root (e.g., "tre" in "treege")
-        ast["radiko"] = stem
-    # Long stems or unknown stems: try compound decomposition
-    elif len(stem) >= 4:  # Minimum for compound: 2-char root + 2-char root
+        return ast
 
-        # Check if starts with a preposition
+    if stem in KNOWN_PARTICLES or stem in KNOWN_PREPOSITIONS:
+        ast["radiko"] = stem
+        return ast
+
+    # Try compound word decomposition (root + root)
+    if len(stem) >= 4:
+        # Pattern 1: root1 + o + root2 (linking vowel)
+        for i in range(2, len(stem) - 2):
+            first = stem[:i]
+            rest = stem[i:]
+
+            if rest.startswith("o") and len(rest) > 2:
+                second = rest[1:]
+                if first in KNOWN_ROOTS and second in KNOWN_ROOTS:
+                    ast["radiko"] = second  # Head is typically second root
+                    ast["kunmetitaj_radikoj"] = [first, second]
+                    return ast
+
+            # Pattern 2: root1 + root2 (no linking vowel)
+            if first in KNOWN_ROOTS and rest in KNOWN_ROOTS:
+                ast["radiko"] = rest
+                ast["kunmetitaj_radikoj"] = [first, rest]
+                return ast
+
+        # Pattern 3: preposition + root
         for prep in KNOWN_PREPOSITIONS:
             if stem.startswith(prep) and len(stem) > len(prep):
-                remaining = stem[len(prep):]
-                if remaining in KNOWN_ROOTS:
-                    # It's a compound: preposition + root
-                    ast["radiko"] = remaining
-                    ast["prefiksoj"].append(prep)  # Use prefiksoj for compound marker
-                    compound_found = True
-                    break
+                remainder = stem[len(prep):]
+                if remainder in KNOWN_ROOTS:
+                    ast["radiko"] = remainder
+                    ast["prefiksoj"].insert(0, prep)
+                    return ast
 
-        # Check if starts with a correlative (tiu, kiu, etc.)
-        if not compound_found:
-            for corr in ['tiu', 'kiu', 'ĉiu', 'neniu', 'iu', 'tio', 'kio']:
-                if stem.startswith(corr) and len(stem) > len(corr):
-                    remaining = stem[len(corr):]
-                    if remaining in KNOWN_ROOTS:
-                        ast["radiko"] = remaining
-                        ast["prefiksoj"].append(corr)
-                        compound_found = True
-                        break
+    # Last resort: treat stem as unknown root
+    # Still set it as the root so the AST is complete
+    ast["radiko"] = stem
 
-        # Check if starts with an adverb (tre, pli, plej, etc.)
-        if not compound_found:
-            for adv in ['tre', 'pli', 'plej', 'tro', 'tre', 'nun', 'jam']:
-                if stem.startswith(adv) and len(stem) > len(adv):
-                    remaining = stem[len(adv):]
-                    if remaining in KNOWN_ROOTS:
-                        ast["radiko"] = remaining
-                        ast["prefiksoj"].append(adv)
-                        compound_found = True
-                        break
-
-        # Check if starts with sub/super + en/el/etc (suben, superen)
-        if not compound_found:
-            for compound_prep in ['suben', 'superen', 'ekster', 'interne']:
-                if stem.startswith(compound_prep) and len(stem) > len(compound_prep):
-                    remaining = stem[len(compound_prep):]
-                    if remaining in KNOWN_ROOTS:
-                        ast["radiko"] = remaining
-                        ast["prefiksoj"].append(compound_prep)
-                        compound_found = True
-                        break
-
-        # Issue #80: True compound word decomposition (root + root)
-        # Esperanto compounds often use linking vowel -o- between roots
-        # Examples: akvobird (akv+o+bird), vaporŝip (vapor+ŝip), sunflor (sun+flor)
-        if not compound_found:
-            # Try all possible split points
-            for i in range(2, len(stem) - 1):  # Root must be at least 2 chars
-                first_part = stem[:i]
-                remaining = stem[i:]
-
-                # Pattern 1: root1 + o + root2 (linking vowel)
-                if remaining.startswith('o') and len(remaining) > 2:
-                    second_part = remaining[1:]  # Skip the linking 'o'
-                    if first_part in KNOWN_ROOTS and second_part in KNOWN_ROOTS:
-                        ast["radiko"] = second_part  # Head root is typically the second
-                        ast["kunmetitaj_radikoj"] = [first_part, second_part]
-                        compound_found = True
-                        break
-
-                # Pattern 2: root1 + root2 (no linking vowel)
-                if first_part in KNOWN_ROOTS and remaining in KNOWN_ROOTS:
-                    ast["radiko"] = remaining
-                    ast["kunmetitaj_radikoj"] = [first_part, remaining]
-                    compound_found = True
-                    break
-
-    # If no compound found, try single root
-    if not compound_found and not ast["radiko"]:
-        if stem in KNOWN_ROOTS:
-            ast["radiko"] = stem
-        elif stem in KNOWN_PARTICLES or stem in KNOWN_PREPOSITIONS:
-            # It's a particle/preposition used as a root (e.g., "tre" in "treege")
-            ast["radiko"] = stem
-        else:
-            raise ValueError(f"Ne povis trovi validan radikon en '{original_word}'. Restaĵo: '{stem}'")
+    # If we couldn't find a valid root, raise an error
+    if stem not in KNOWN_ROOTS and stem not in _FUNDAMENTO_ROOTS:
+        raise ValueError(f"Ne povis trovi validan radikon en '{original_word}'. Restaĵo: '{stem}'")
 
     return ast
+
 
 def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
     """
@@ -1340,6 +1282,7 @@ def parse(text: str):
         raise ValueError("Ne povis analizi malplenan ĉenon.")
 
     # Step 1: Morphological analysis of all words
+    # Uses Fundamento-first design for better disambiguation
     # Gracefully handle unknown words by categorizing them
     word_asts = []
     for w in words:

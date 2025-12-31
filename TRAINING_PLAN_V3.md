@@ -1,7 +1,7 @@
 # Klareco Training Plan v3
 
-**Version**: 3.0 (December 2024)
-**Status**: Redesign incorporating lessons learned from v2 training
+**Version**: 3.1 (December 2025)
+**Status**: Stage 1 COMPLETE - Root embeddings + Affix transforms trained
 
 ---
 
@@ -89,9 +89,9 @@ The key architectural insight is that AST serves as "thought" that passes betwee
 │  Each model: reads AST → learns semantic effects → writes to AST slots      │
 │  Models trained independently, then frozen, then composed                   │
 │                                                                              │
-│  Stage 1: SEMANTIC MODEL (~333K params)                                     │
+│  Stage 1: SEMANTIC MODEL (~733K params) ✓ COMPLETE                         │
 │  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Root Embeddings (5K×64d) + Affix Embeddings (50×64d)       │            │
+│  │  Root Embeddings (11K×64d=712K) + Affix Transforms V2 (21K) │            │
 │  │  → Writes: word_embedding, sentence_embedding               │            │
 │  └─────────────────────────────────────────────────────────────┘            │
 │                                    │                                         │
@@ -120,8 +120,28 @@ The key architectural insight is that AST serves as "thought" that passes betwee
 │  └─────────────────────────────────────────────────────────────┘            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-Total pre-reasoning: ~485K params (vs 110M BERT)
+Total pre-reasoning: ~885K params (vs 110M BERT)
 With reasoning core: 20-100M params
+
+### Stage 1 Training Results (December 2025)
+
+**Phase 1: Root Embeddings** ✓
+- 11,121 roots × 64d = 712K params
+- Correlation: 0.8871 | Accuracy: 97.98%
+- Synonyms: 93.1% | Antonyms: 82.7% | Hierarchy: 98.6%
+
+**Phase 2: Affix Transforms V2** ✓
+- 12 prefixes + 29 suffixes = 41 affixes (~21K params)
+- Low-rank transformations (rank=8), not additive vectors
+- Anti-collapse: mal_mean_sim = -0.03 (target < 0.5) ✓
+- Embedding diversity: 1.17 (healthy spread)
+- Key insight: Affixes are *transformations* that modify meaning:
+  - `mal-` flips polarity: bon → malbon (sim=0.25, distinct)
+  - `re-` preserves meaning: fari → refari (sim=0.97, similar)
+
+**Phase 3: Corpus Index** ✓
+- 4.38M sentences indexed with compositional embeddings
+- FAISS index rebuilt with V2 affix model
 ```
 
 ### AST Slot Architecture
@@ -636,31 +656,33 @@ PHASE 0: PARSER COMPLETION (BLOCKER FOR ALL)
 └── Build Thought Visualizer Demo (#107) - develop alongside
 
 ═══════════════════════════════════════════════════════════════
-STAGE 1: SEMANTIC MODEL (~333K params)
+STAGE 1: SEMANTIC MODEL (~733K params) ✓ COMPLETE (December 2025)
 ═══════════════════════════════════════════════════════════════
 
-PHASE 1: ROOT EMBEDDINGS
-├── Apply FUNCTION_WORDS filter
-├── Add SEMANTIC_CLUSTERS negatives
-├── Use graded similarity targets
-├── Monitor for collapse
-└── Validate with test pairs
+PHASE 1: ROOT EMBEDDINGS ✓
+├── Applied FUNCTION_WORDS filter ✓
+├── Added SEMANTIC_CLUSTERS negatives ✓
+├── Used graded similarity targets ✓
+├── Monitored for collapse ✓
+├── Validated: 0.8871 correlation, 97.98% accuracy
+└── 11,121 roots × 64d = 712K params
 
-PHASE 2: AFFIX EMBEDDINGS
-├── Group by semantic function
-├── Train transformation vectors
-├── Handle mal- antonyms specially
-└── Freeze grammatical affixes
+PHASE 2: AFFIX TRANSFORMS V2 ✓
+├── Low-rank transformations (rank=8) ✓
+├── 12 prefixes + 29 suffixes = 41 affixes ✓
+├── Anti-collapse: mal_mean_sim = -0.03 ✓
+├── mal- creates distinct embeddings (sim=0.25-0.50) ✓
+└── re- preserves meaning (sim=0.82-0.97) ✓
 
-PHASE 3: CORPUS INTEGRATION
-├── Requires: Phase 0 + Phase 1 complete
-├── Apply function word filter
-├── Use negation-aware pairs
-├── Weight by source authority
-└── Monitor for collapse
+PHASE 3: CORPUS INDEX ✓
+├── 4.38M sentences indexed ✓
+├── Compositional embeddings with V2 affixes ✓
+└── FAISS index built ✓
 
-→ FREEZE Stage 1 models
-→ Verify with Thought Visualizer: AST now has 'semantic' slot
+→ FROZEN: Stage 1 models complete
+→ Models: models/root_embeddings/best_model.pt
+→ Models: models/affix_transforms_v2/best_model.pt
+→ Index: data/corpus_index_compositional/
 
 ═══════════════════════════════════════════════════════════════
 STAGE 2: GRAMMATICAL MODEL (~52K params)
@@ -837,4 +859,4 @@ PHASE 6: REASONING
 
 ---
 
-*Last updated: December 2024*
+*Last updated: December 2025*

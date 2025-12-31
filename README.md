@@ -29,28 +29,35 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - **Two-stage hybrid retrieval** - Structural filtering (0 params) + neural reranking
 - **Canonical slot signatures** (`canonicalizer.py`) - SUBJ/VERB/OBJ extraction
 - **Extractive responders** (`experts/extractive.py`, `experts/summarizer.py`)
-- **Production corpus index** (`data/corpus_index_v3`)
+- **Compositional corpus index** (`data/corpus_index_compositional`) - 4.38M sentences
 
-### Stage 1: Root Embeddings ✓ COMPLETE
+### Stage 1: Semantic Model ✓ COMPLETE
+
+**Phase 1: Root Embeddings** ✓
 - **Model**: 11,121 roots × 64 dimensions = 712K parameters
-- **Correlation**: 0.8732 | **Accuracy**: 97.98%
-- **Comprehensive evaluation** (100% coverage, all tests PASS):
-  - Synonyms: 93.1% (1,943 pairs)
-  - Antonyms: 82.7% (173 pairs)
-  - Hierarchy: 98.6% (7,187 pairs)
-  - Clusters: 43.6% separation (14 clusters)
-- **Run demo**: `python scripts/demo_root_embeddings.py -i`
+- **Correlation**: 0.8871 | **Accuracy**: 97.98%
+- Synonyms: 93.1% | Antonyms: 82.7% | Hierarchy: 98.6%
+- **Demo**: `python scripts/demo_root_embeddings.py -i`
+
+**Phase 2: Affix Transforms V2** ✓
+- **Model**: 12 prefixes + 29 suffixes as low-rank transformations (~21K params)
+- **Anti-collapse**: mal_mean_sim = -0.03 (target < 0.5)
+- **Embedding diversity**: 1.17 (healthy spread)
+- Key insight: Affixes are *transformations*, not additive vectors
+  - `mal-` flips polarity: bon → malbon (sim=0.25, distinct)
+  - `re-` preserves meaning: fari → refari (sim=0.97, similar)
+- **Test**: `python scripts/test_affix_v2.py`
 
 ### Training Data
 - **Clean vocabulary**: 11,121 validated roots (Fundamento + ReVo)
 - **ReVo dictionary**: 10,766 entries with semantic relations
-- **Training pairs**: 234K (58K positive + 176K negative)
+- **Training pairs**: 500K affix samples from corpus
 - **Fundamento roots**: 2,067 from Universala Vortaro
 
 ### Next Steps
-- Affix embedding training (`scripts/training/train_affix_embeddings.py`)
-- FAISS index rebuild with new embeddings
-- Stage 2: Grammatical transforms
+- Stage 2: Grammatical transforms (negation, tense, mood)
+- RAG evaluation with compositional embeddings
+- Reasoning core design (20-100M params)
 
 ## Architecture
 
@@ -102,18 +109,18 @@ See `TRAINING_QUICKSTART.md` for the complete training guide.
 The training follows a staged approach where each stage is frozen before the next begins:
 
 ```
-STAGE 0: PARSER/DETERMINISTIC (complete)
+STAGE 0: PARSER/DETERMINISTIC ✓ COMPLETE
 ├── 16 grammar rules
 ├── Morpheme decomposition
 ├── Role detection (S/V/O)
 └── Negation/question type marking
 
-STAGE 1: SEMANTIC MODEL (~333K params) ← CURRENT
-├── Phase 1: Root embeddings (5K roots × 64d)
-├── Phase 2: Affix embeddings (50 affixes × 64d)
-└── Phase 3: Corpus integration
+STAGE 1: SEMANTIC MODEL (~733K params) ✓ COMPLETE
+├── Phase 1: Root embeddings (11K roots × 64d) ✓
+├── Phase 2: Affix transforms V2 (41 affixes, low-rank) ✓
+└── Phase 3: Corpus index (4.38M sentences) ✓
 
-STAGE 2: GRAMMATICAL MODEL (~52K params)
+STAGE 2: GRAMMATICAL MODEL (~52K params) ← NEXT
 ├── Negation transform
 ├── Tense/mood transforms
 └── Sentence type transforms
@@ -160,10 +167,11 @@ python -m pytest --cov=klareco             # With coverage
 | Component | Status | Details |
 |-----------|--------|---------|
 | Parser (16 rules) | ✅ Production | 91.8% parse rate |
-| Root embeddings | ✅ **Complete** | 0.87 correlation, 93% synonym accuracy |
+| Root embeddings | ✅ Complete | 0.89 correlation, 93% synonym accuracy |
+| Affix transforms V2 | ✅ Complete | 41 affixes, no collapse (mal_sim=-0.03) |
+| Corpus index | ✅ Complete | 4.38M sentences with compositional embeddings |
 | Clean vocabulary | ✅ Complete | 11,121 validated roots |
-| Affix embeddings | 🔲 Ready | Script ready, blocked on root training |
-| Grammatical model | 🔲 Designed | Stage 2 |
+| Grammatical model | 🔲 Next | Stage 2: negation, tense, mood |
 | Discourse model | 🔲 Designed | Stage 3 |
 | Reasoning core | 🔲 Future | Stage 4 (20-100M params) |
 

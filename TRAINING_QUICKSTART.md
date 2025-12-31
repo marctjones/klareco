@@ -1,6 +1,6 @@
 # Training Quickstart
 
-**Last Updated**: December 2024
+**Last Updated**: December 2025
 
 This is the definitive guide to training Klareco models. For full details, see `TRAINING_PLAN_V3.md`.
 
@@ -10,10 +10,24 @@ This is the definitive guide to training Klareco models. For full details, see `
 
 | Stage | Status | Script |
 |-------|--------|--------|
-| Training corpus | **READY** | `scripts/create_training_corpus.py` |
-| Stage 1: Root embeddings | **READY TO RUN** | `scripts/training/train_root_embeddings.py` |
-| Stage 1: Affix embeddings | Ready | `scripts/training/train_affix_embeddings.py` |
-| Stage 2+: Grammatical/Discourse | Blocked by Stage 1 | - |
+| Training corpus | **COMPLETE** | `scripts/create_training_corpus.py` |
+| Stage 1: Root embeddings | **COMPLETE** | `scripts/training/train_root_embeddings.py` |
+| Stage 1: Affix transforms V2 | **COMPLETE** | `scripts/training/train_affix_transforms_v2.py` |
+| Stage 1: Corpus index | **COMPLETE** | `scripts/index_corpus_compositional.py` |
+| Stage 2+: Grammatical/Discourse | Next | - |
+
+### Stage 1 Results
+
+- **Root embeddings**: 11,121 roots × 64d = 712K params
+  - Correlation: 0.8871 | Accuracy: 97.98%
+  - Model: `models/root_embeddings/best_model.pt`
+
+- **Affix transforms V2**: 12 prefixes + 29 suffixes (~21K params)
+  - Anti-collapse: mal_mean_sim = -0.03 (target < 0.5)
+  - Model: `models/affix_transforms_v2/best_model.pt`
+
+- **Corpus index**: 4.38M sentences
+  - Index: `data/corpus_index_compositional/`
 
 ---
 
@@ -61,29 +75,27 @@ python scripts/training/evaluate_embeddings.py \
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ STAGE 1: SEMANTIC MODEL (~333K params)                      │
+│ STAGE 1: SEMANTIC MODEL (~733K params) ✓ COMPLETE           │
 │                                                             │
-│  Phase 1: ROOT EMBEDDINGS                                   │
-│  ├── Input: Fundamento roots + ReVo definitions + Ekzercaro │
-│  ├── Method: Contrastive learning with semantic clusters    │
-│  ├── Output: 64d embeddings for ~5K content word roots      │
-│  └── Script: train_root_embeddings.py                       │
+│  Phase 1: ROOT EMBEDDINGS ✓                                 │
+│  ├── 11,121 roots × 64d = 712K params                       │
+│  ├── Correlation: 0.8871 | Accuracy: 97.98%                 │
+│  └── Model: models/root_embeddings/best_model.pt            │
 │                                                             │
-│  Phase 2: AFFIX EMBEDDINGS                                  │
-│  ├── Input: Root embeddings (frozen) + affix pairs          │
-│  ├── Method: Learn transformation vectors (mal-, -et-, etc) │
-│  ├── Output: 64d transformation vectors for ~50 affixes     │
-│  └── Script: train_affix_embeddings.py                      │
+│  Phase 2: AFFIX TRANSFORMS V2 ✓                             │
+│  ├── 12 prefixes + 29 suffixes (~21K params)                │
+│  ├── Low-rank transformations (rank=8)                      │
+│  ├── Anti-collapse: mal_mean_sim = -0.03                    │
+│  └── Model: models/affix_transforms_v2/best_model.pt        │
 │                                                             │
-│  Phase 3: CORPUS INTEGRATION                                │
-│  ├── Input: Frozen root+affix embeddings + training corpus  │
-│  ├── Method: Fine-tune with corpus co-occurrence            │
-│  └── Script: train_sentence_encoder.py                      │
+│  Phase 3: CORPUS INDEX ✓                                    │
+│  ├── 4.38M sentences indexed                                │
+│  └── Index: data/corpus_index_compositional/                │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ STAGE 2: GRAMMATICAL MODEL (~52K params) - FUTURE           │
+│ STAGE 2: GRAMMATICAL MODEL (~52K params) ← NEXT             │
 │  Learn semantic effects of tense, mood, negation, etc.      │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -208,10 +220,18 @@ data/
 ### Model Outputs
 ```
 models/
-└── root_embeddings/
-    ├── best_model.pt              # Best checkpoint
-    ├── checkpoint.pt              # Latest checkpoint
+├── root_embeddings/
+│   ├── best_model.pt              # 11,121 roots × 64d
+│   └── training.log               # Training progress
+└── affix_transforms_v2/
+    ├── best_model.pt              # 41 affixes, low-rank transforms
     └── training.log               # Training progress
+
+data/
+└── corpus_index_compositional/
+    ├── embeddings.npy             # 4.38M sentence embeddings
+    ├── sentences.jsonl            # Sentence metadata
+    └── faiss.index                # FAISS index for retrieval
 ```
 
 ---
@@ -229,11 +249,26 @@ These approaches were tried and **removed**:
 
 ---
 
-## Next Steps After Training
+## Next Steps (Stage 2)
 
-1. **Evaluate** root embeddings with semantic tests
-2. **Train** affix embeddings (Stage 1 Phase 2)
-3. **Build** FAISS index with trained embeddings
-4. **Test** retrieval quality improvement
+Stage 1 is complete. Next steps:
+
+1. **Design** Stage 2 grammatical transforms (negation, tense, mood)
+2. **Create** minimal pairs training data for grammatical features
+3. **Train** grammatical transform models
+4. **Evaluate** impact on retrieval quality
 
 See `TRAINING_PLAN_V3.md` for the complete roadmap.
+
+## Testing Stage 1 Models
+
+```bash
+# Test affix transforms
+python scripts/test_affix_v2.py
+
+# Interactive root embedding demo
+python scripts/demo_root_embeddings.py -i
+
+# Test RAG with compositional index
+python scripts/demo_rag_compositional.py -i
+```

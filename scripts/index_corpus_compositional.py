@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """
-Index Esperanto corpus with compositional embeddings (root + affix) for RAG retrieval.
+Index Esperanto corpus with compositional embeddings for RAG retrieval.
 
 Uses the trained Stage 1 models:
 - Root embeddings: models/root_embeddings/best_model.pt
-- Affix embeddings: models/affix_embeddings/best_model.pt
+- Affix transforms: models/affix_transforms_v2/best_model.pt (low-rank transformation matrices)
+
+The key difference from static embeddings:
+- Affixes are TRANSFORMATIONS, not additive vectors
+- mal- flips polarity by transforming the embedding
+- -ej adds "place" semantics through transformation
+- Composition: prefixes → root → suffixes (each transform applied in order)
 
 Features:
-- Compositional word embeddings: root + prefix_transform + suffix_transforms
+- Compositional word embeddings: root → prefix_transform → suffix_transforms
 - Sentence embeddings via mean pooling of content words
 - Automatic checkpointing and resume
 - FAISS index building for efficient similarity search
 
 Usage:
     python scripts/index_corpus_compositional.py
-    python scripts/index_corpus_compositional.py --resume
     python scripts/index_corpus_compositional.py --fresh
 """
 
@@ -25,11 +30,10 @@ import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from collections import defaultdict
 
 import numpy as np
 import torch
-import torch.nn.functional as F
+import torch.nn as nn
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -37,7 +41,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from klareco.parser import parse
 
 # Function words (grammatical, not semantic) - excluded from embeddings
-# These are handled by the deterministic AST layer, not learned embeddings
 FUNCTION_WORDS = {
     # Articles
     'la',
@@ -71,8 +74,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class LowRankTransform(nn.Module):
+    """Low-rank transformation for affixes: x + up(down(x))"""
+
+    def __init__(self, dim: int, rank: int = 4):
+        super().__init__()
+        self.down = nn.Linear(dim, rank, bias=False)
+        self.up = nn.Linear(rank, dim, bias=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.up(self.down(x))
+
+
 class CompositionalIndexer:
-    """Index corpus using compositional root+affix embeddings."""
+    """Index corpus using compositional root+affix transform embeddings."""
 
     def __init__(
         self,
@@ -80,11 +95,13 @@ class CompositionalIndexer:
         affix_model_path: Path,
         output_dir: Path,
         batch_size: int = 100,
+        root_only: bool = False,
     ):
         self.root_model_path = root_model_path
         self.affix_model_path = affix_model_path
         self.output_dir = output_dir
         self.batch_size = batch_size
+        self.root_only = root_only
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -97,89 +114,186 @@ class CompositionalIndexer:
         self.log_path = self.output_dir / "indexing.log"
 
         # Load models
-        self.root_emb, self.root_to_idx, self.root_dim = self._load_root_model()
-        self.prefix_emb, self.suffix_emb, self.prefix_vocab, self.suffix_vocab, self.affix_dim = self._load_affix_model()
+        self.device = torch.device('cpu')
+        self.root_emb, self.root_to_idx, self.embedding_dim = self._load_root_model()
 
-        # Output dimension is root dimension (we project affixes to match)
-        self.embedding_dim = self.root_dim
+        # Load affix transforms unless root_only mode
+        if self.root_only:
+            logger.info("ROOT-ONLY MODE: Skipping affix transforms")
+            self.prefix_transforms = {}
+            self.suffix_transforms = {}
+        else:
+            self.prefix_transforms, self.suffix_transforms = self._load_affix_transforms()
+
+        # Compute average root embedding for morpheme-only fallback
+        self.avg_root_embedding = self.root_emb.mean(dim=0)
 
         # Stats
         self.stats = {
             "processed": 0,
             "successful": 0,
             "failed": 0,
+            "fallback_proper_noun": 0,
+            "fallback_char_hash": 0,
+            "fallback_morpheme_only": 0,
             "total_sentences": 0,
         }
 
-    def _load_root_model(self) -> Tuple[np.ndarray, Dict[str, int], int]:
+    def _load_root_model(self) -> Tuple[torch.Tensor, Dict[str, int], int]:
         """Load trained root embeddings."""
         logger.info(f"Loading root embeddings from {self.root_model_path}")
         checkpoint = torch.load(self.root_model_path, map_location='cpu', weights_only=False)
-        embeddings = checkpoint['model_state_dict']['embeddings.weight'].numpy()
+        embeddings = checkpoint['model_state_dict']['embeddings.weight']
         root_to_idx = checkpoint['root_to_idx']
         dim = embeddings.shape[1]
         logger.info(f"  Loaded {len(root_to_idx)} roots, {dim}d")
         return embeddings, root_to_idx, dim
 
-    def _load_affix_model(self) -> Tuple[np.ndarray, np.ndarray, Dict, Dict, int]:
-        """Load trained affix embeddings."""
-        logger.info(f"Loading affix embeddings from {self.affix_model_path}")
+    def _load_affix_transforms(self) -> Tuple[Dict[str, LowRankTransform], Dict[str, LowRankTransform]]:
+        """Load trained affix transformation matrices."""
+        logger.info(f"Loading affix transforms from {self.affix_model_path}")
         checkpoint = torch.load(self.affix_model_path, map_location='cpu', weights_only=False)
-        prefix_emb = checkpoint['model_state_dict']['prefix_embeddings.weight'].numpy()
-        suffix_emb = checkpoint['model_state_dict']['suffix_embeddings.weight'].numpy()
-        prefix_vocab = checkpoint['prefix_vocab']
-        suffix_vocab = checkpoint['suffix_vocab']
-        dim = prefix_emb.shape[1]
-        logger.info(f"  Loaded {len(prefix_vocab)} prefixes, {len(suffix_vocab)} suffixes, {dim}d")
-        return prefix_emb, suffix_emb, prefix_vocab, suffix_vocab, dim
 
-    def embed_word(self, root: str, prefixes: List[str], suffixes: List[str]) -> Optional[np.ndarray]:
-        """
-        Create compositional embedding for a word.
+        rank = checkpoint['rank']
+        prefixes = checkpoint['prefixes']
+        suffixes = checkpoint['suffixes']
+        state_dict = checkpoint['model_state_dict']
 
-        Approach: root embedding + scaled affix embeddings (projected to root dimension)
-        """
-        # Skip function words
-        if root.lower() in FUNCTION_WORDS:
-            return None
-
-        # Get root embedding
-        if root not in self.root_to_idx:
-            # Try lowercase
-            root_lower = root.lower()
-            if root_lower not in self.root_to_idx:
-                return None
-            root = root_lower
-
-        root_idx = self.root_to_idx[root]
-        emb = self.root_emb[root_idx].copy()
-
-        # Add prefix contributions (scaled and zero-padded to root dimension)
+        # Reconstruct prefix transforms
+        prefix_transforms = {}
         for p in prefixes:
-            if p and p in self.prefix_vocab and p != '<NONE>':
-                prefix_idx = self.prefix_vocab[p]
-                prefix_vec = self.prefix_emb[prefix_idx]
-                # Zero-pad or truncate to match root dimension
-                if self.affix_dim < self.root_dim:
-                    padded = np.zeros(self.root_dim)
-                    padded[:self.affix_dim] = prefix_vec * 0.3  # Scale down affix contribution
-                    emb = emb + padded
-                else:
-                    emb = emb + prefix_vec[:self.root_dim] * 0.3
+            transform = LowRankTransform(self.embedding_dim, rank)
+            transform.down.weight.data = state_dict[f'prefix_transforms.{p}.down.weight']
+            transform.up.weight.data = state_dict[f'prefix_transforms.{p}.up.weight']
+            transform.eval()
+            prefix_transforms[p] = transform
 
-        # Add suffix contributions
+        # Reconstruct suffix transforms
+        suffix_transforms = {}
         for s in suffixes:
-            if s and s in self.suffix_vocab and s != '<NONE>':
-                suffix_idx = self.suffix_vocab[s]
-                suffix_vec = self.suffix_emb[suffix_idx]
-                if self.affix_dim < self.root_dim:
-                    padded = np.zeros(self.root_dim)
-                    padded[:self.affix_dim] = suffix_vec * 0.2  # Scale down
-                    emb = emb + padded
-                else:
-                    emb = emb + suffix_vec[:self.root_dim] * 0.2
+            transform = LowRankTransform(self.embedding_dim, rank)
+            transform.down.weight.data = state_dict[f'suffix_transforms.{s}.down.weight']
+            transform.up.weight.data = state_dict[f'suffix_transforms.{s}.up.weight']
+            transform.eval()
+            suffix_transforms[s] = transform
+
+        logger.info(f"  Loaded {len(prefixes)} prefix transforms, {len(suffixes)} suffix transforms (rank={rank})")
+        return prefix_transforms, suffix_transforms
+
+    def _is_proper_noun(self, root: str) -> bool:
+        """
+        Detect if a root is likely a proper noun.
+
+        Proper nouns in Esperanto are typically:
+        - Capitalized (e.g., "Zamenhof", "Parizo")
+        - Not in our root vocabulary (since proper nouns aren't roots)
+        """
+        if not root:
+            return False
+        # Check if first letter is uppercase
+        return root[0].isupper()
+
+    def _char_hash_embedding(self, root: str) -> torch.Tensor:
+        """
+        Create embedding for unknown root using character trigram hashing.
+
+        This provides a deterministic embedding based on character patterns,
+        allowing similar-looking unknown words to have similar embeddings.
+        """
+        root_lower = root.lower()
+
+        # Pad with boundary markers
+        padded = f"^{root_lower}$"
+
+        # Extract character trigrams and hash them
+        trigram_hashes = []
+        for i in range(len(padded) - 2):
+            trigram = padded[i:i+3]
+            # Simple hash to bucket index
+            h = hash(trigram) % self.embedding_dim
+            trigram_hashes.append(h)
+
+        # Create embedding by accumulating at hash positions
+        emb = torch.zeros(self.embedding_dim)
+        for h in trigram_hashes:
+            emb[h] += 1.0
+
+        # Normalize to unit length
+        norm = torch.norm(emb)
+        if norm > 0:
+            emb = emb / norm
+
+        # Blend with average root embedding (70% hash, 30% average)
+        # This ensures unknown roots are in a similar space as known roots
+        emb = 0.7 * emb + 0.3 * self.avg_root_embedding
 
         return emb
+
+    def embed_word(self, root: str, prefixes: List[str], suffixes: List[str],
+                   fallback_type: Optional[str] = None) -> Tuple[Optional[np.ndarray], Optional[str]]:
+        """
+        Create compositional embedding for a word using transformation approach.
+
+        Order of operations: prefixes → root → suffixes
+        Each affix transforms the embedding rather than adding to it.
+
+        Returns:
+            Tuple of (embedding, fallback_type_used) where fallback_type is:
+            - None: used known root embedding
+            - "proper_noun": used proper noun fallback
+            - "char_hash": used character n-gram hashing
+            - "morpheme_only": used average root + affix transforms
+        """
+        used_fallback = None
+
+        # Skip function words
+        if root.lower() in FUNCTION_WORDS:
+            return None, None
+
+        # Get root embedding
+        root_lower = root.lower()
+        if root_lower not in self.root_to_idx:
+            if root not in self.root_to_idx:
+                # Unknown root - use fallback strategies
+                has_known_affixes = any(p in self.prefix_transforms for p in prefixes if p)
+                has_known_affixes = has_known_affixes or any(s in self.suffix_transforms for s in suffixes if s)
+
+                if self._is_proper_noun(root):
+                    # Strategy 1: Proper noun - use char hash embedding
+                    # Proper nouns should be somewhat unique based on their spelling
+                    emb = self._char_hash_embedding(root)
+                    used_fallback = "proper_noun"
+                elif has_known_affixes:
+                    # Strategy 3: Morpheme-only - use average root + apply transforms
+                    # The affixes give us semantic information even without the root
+                    emb = self.avg_root_embedding.clone()
+                    used_fallback = "morpheme_only"
+                else:
+                    # Strategy 2: Character n-gram hashing
+                    # Unknown root with no known affixes - hash the characters
+                    emb = self._char_hash_embedding(root)
+                    used_fallback = "char_hash"
+            else:
+                root_lower = root
+                root_idx = self.root_to_idx[root_lower]
+                emb = self.root_emb[root_idx].clone()
+        else:
+            root_idx = self.root_to_idx[root_lower]
+            emb = self.root_emb[root_idx].clone()
+
+        # Apply prefix transforms (in order)
+        for p in prefixes:
+            if p and p in self.prefix_transforms:
+                with torch.no_grad():
+                    emb = self.prefix_transforms[p](emb.unsqueeze(0)).squeeze(0)
+
+        # Apply suffix transforms (in order)
+        for s in suffixes:
+            if s and s in self.suffix_transforms:
+                with torch.no_grad():
+                    emb = self.suffix_transforms[s](emb.unsqueeze(0)).squeeze(0)
+
+        return emb.numpy(), used_fallback
 
     def embed_sentence(self, text: str) -> Tuple[Optional[np.ndarray], Dict]:
         """
@@ -192,6 +306,7 @@ class CompositionalIndexer:
             "words_total": 0,
             "words_embedded": 0,
             "roots_found": [],
+            "fallbacks_used": {"proper_noun": 0, "char_hash": 0, "morpheme_only": 0},
         }
 
         try:
@@ -209,7 +324,7 @@ class CompositionalIndexer:
                     metadata["words_total"] += 1
                     root = node.get('radiko', '')
 
-                    # Get prefixes
+                    # Get prefixes (handle both 'prefiksoj' list and 'prefikso' string)
                     prefixes = node.get('prefiksoj', [])
                     if not prefixes:
                         p = node.get('prefikso')
@@ -219,11 +334,14 @@ class CompositionalIndexer:
                     # Get suffixes
                     suffixes = node.get('sufiksoj', [])
 
-                    emb = self.embed_word(root, prefixes, suffixes)
+                    emb, fallback_type = self.embed_word(root, prefixes, suffixes)
                     if emb is not None:
                         word_embeddings.append(emb)
                         metadata["words_embedded"] += 1
                         metadata["roots_found"].append(root)
+                        # Track fallback usage
+                        if fallback_type:
+                            metadata["fallbacks_used"][fallback_type] += 1
 
                 for v in node.values():
                     extract_words(v)
@@ -268,12 +386,13 @@ class CompositionalIndexer:
         logger.addHandler(file_handler)
 
         logger.info("=" * 60)
-        logger.info("Compositional Corpus Indexing")
+        logger.info("Compositional Corpus Indexing (Transform-based)")
         logger.info("=" * 60)
         logger.info(f"Corpus: {corpus_path}")
         logger.info(f"Output: {self.output_dir}")
-        logger.info(f"Root embeddings: {self.root_dim}d, {len(self.root_to_idx)} roots")
-        logger.info(f"Affix embeddings: {self.affix_dim}d")
+        logger.info(f"Root embeddings: {self.embedding_dim}d, {len(self.root_to_idx)} roots")
+        logger.info(f"Prefix transforms: {len(self.prefix_transforms)}")
+        logger.info(f"Suffix transforms: {len(self.suffix_transforms)}")
 
         # Load corpus
         with open(corpus_path) as f:
@@ -301,7 +420,15 @@ class CompositionalIndexer:
         else:
             all_embeddings = []
             start_idx = 0
-            self.stats = {"processed": 0, "successful": 0, "failed": 0, "total_sentences": len(sentences)}
+            self.stats = {
+                "processed": 0,
+                "successful": 0,
+                "failed": 0,
+                "fallback_proper_noun": 0,
+                "fallback_char_hash": 0,
+                "fallback_morpheme_only": 0,
+                "total_sentences": len(sentences)
+            }
 
         # Open metadata and failed files
         metadata_mode = 'a' if start_idx > 0 else 'w'
@@ -310,6 +437,8 @@ class CompositionalIndexer:
 
         try:
             start_time = time.time()
+            last_scroll_pct = 0  # Track last percentage we scrolled at
+            last_scroll_time = start_time  # Track last time we scrolled
 
             for i in range(start_idx, len(sentences), self.batch_size):
                 batch = sentences[i:i + self.batch_size]
@@ -323,6 +452,11 @@ class CompositionalIndexer:
                         meta["index"] = len(all_embeddings) + len(batch_embeddings) - 1
                         metadata_file.write(json.dumps(meta, ensure_ascii=False) + '\n')
                         self.stats["successful"] += 1
+                        # Track fallback usage from metadata
+                        fallbacks = meta.get("fallbacks_used", {})
+                        self.stats["fallback_proper_noun"] += fallbacks.get("proper_noun", 0)
+                        self.stats["fallback_char_hash"] += fallbacks.get("char_hash", 0)
+                        self.stats["fallback_morpheme_only"] += fallbacks.get("morpheme_only", 0)
                     else:
                         failed_file.write(json.dumps(meta, ensure_ascii=False) + '\n')
                         self.stats["failed"] += 1
@@ -331,24 +465,44 @@ class CompositionalIndexer:
 
                 all_embeddings.extend(batch_embeddings)
 
-                # Progress update
+                # Progress update - in place on terminal, scroll at milestones
                 if (i + len(batch)) % 1000 == 0 or i + len(batch) == len(sentences):
                     elapsed = time.time() - start_time
-                    rate = self.stats["processed"] / elapsed if elapsed > 0 else 0
+                    rate = (self.stats["processed"] - start_idx) / elapsed if elapsed > 0 else 0
                     remaining = (len(sentences) - self.stats["processed"]) / rate if rate > 0 else 0
-                    logger.info(f"Progress: {self.stats['processed']}/{len(sentences)} "
-                               f"({self.stats['successful']} OK, {self.stats['failed']} failed) "
-                               f"| {rate:.1f} sent/s | ETA: {remaining/60:.1f}m")
+                    pct = 100 * self.stats["processed"] / len(sentences)
+                    current_time = time.time()
+
+                    progress_msg = (f"Progress: {self.stats['processed']:,}/{len(sentences):,} ({pct:.1f}%) "
+                                   f"| {self.stats['successful']:,} OK, {self.stats['failed']:,} failed "
+                                   f"| {rate:.0f}/s | ETA: {remaining/60:.1f}m")
+
+                    # Scroll (print with newline) at 10% milestones OR every 10 minutes
+                    current_pct_milestone = int(pct // 10) * 10  # 0, 10, 20, ... 100
+                    time_since_scroll = current_time - last_scroll_time
+
+                    if current_pct_milestone > last_scroll_pct or time_since_scroll >= 600:
+                        # Scroll: print with newline for history
+                        print(f"\r{progress_msg:<100}")
+                        last_scroll_pct = current_pct_milestone
+                        last_scroll_time = current_time
+                        logger.info(progress_msg)  # Also log to file
+                    else:
+                        # In-place update
+                        print(f"\r{progress_msg:<100}", end='', flush=True)
 
                 # Save checkpoint every 5000 sentences
                 if self.stats["processed"] % 5000 == 0:
                     self.save_checkpoint()
                     # Save embeddings incrementally
-                    np.save(self.embeddings_path, np.array(all_embeddings))
+                    np.save(self.embeddings_path, np.array(all_embeddings, dtype=np.float32))
 
         finally:
             metadata_file.close()
             failed_file.close()
+
+        # End progress line
+        print()  # Newline after in-place progress
 
         # Save final embeddings
         embeddings_array = np.array(all_embeddings, dtype=np.float32)
@@ -368,6 +522,15 @@ class CompositionalIndexer:
         logger.info(f"Total: {self.stats['total_sentences']}")
         logger.info(f"Successful: {self.stats['successful']} ({self.stats['successful']/self.stats['total_sentences']*100:.1f}%)")
         logger.info(f"Failed: {self.stats['failed']}")
+        # Report fallback usage
+        total_fallbacks = (self.stats.get('fallback_proper_noun', 0) +
+                          self.stats.get('fallback_char_hash', 0) +
+                          self.stats.get('fallback_morpheme_only', 0))
+        if total_fallbacks > 0:
+            logger.info(f"Fallback words embedded: {total_fallbacks}")
+            logger.info(f"  - Proper noun: {self.stats.get('fallback_proper_noun', 0)}")
+            logger.info(f"  - Char hash: {self.stats.get('fallback_char_hash', 0)}")
+            logger.info(f"  - Morpheme-only: {self.stats.get('fallback_morpheme_only', 0)}")
 
     def _build_faiss_index(self, embeddings: np.ndarray):
         """Build FAISS index for fast similarity search."""
@@ -395,12 +558,12 @@ class CompositionalIndexer:
 def main():
     parser = argparse.ArgumentParser(description='Index corpus with compositional embeddings')
     parser.add_argument('--corpus', type=Path,
-                        default=Path('data/training/combined_training.jsonl'),
+                        default=Path('data/corpus/unified_corpus.jsonl'),
                         help='Path to corpus file (.txt or .jsonl)')
     parser.add_argument('--root-model', type=Path,
                         default=Path('models/root_embeddings/best_model.pt'))
     parser.add_argument('--affix-model', type=Path,
-                        default=Path('models/affix_embeddings/best_model.pt'))
+                        default=Path('models/affix_transforms_v2/best_model.pt'))
     parser.add_argument('--output-dir', type=Path,
                         default=Path('data/corpus_index_compositional'))
     parser.add_argument('--batch-size', type=int, default=100)
@@ -408,6 +571,8 @@ def main():
                         help='Resume from checkpoint (default)')
     parser.add_argument('--fresh', action='store_true',
                         help='Start fresh, ignore checkpoint')
+    parser.add_argument('--root-only', action='store_true',
+                        help='Use only root embeddings, skip affix transforms (for testing)')
 
     args = parser.parse_args()
 
@@ -418,7 +583,7 @@ def main():
     if not args.root_model.exists():
         logger.error(f"Root model not found: {args.root_model}")
         sys.exit(1)
-    if not args.affix_model.exists():
+    if not args.root_only and not args.affix_model.exists():
         logger.error(f"Affix model not found: {args.affix_model}")
         sys.exit(1)
 
@@ -427,6 +592,7 @@ def main():
         affix_model_path=args.affix_model,
         output_dir=args.output_dir,
         batch_size=args.batch_size,
+        root_only=args.root_only,
     )
 
     indexer.index_corpus(args.corpus, resume=not args.fresh)

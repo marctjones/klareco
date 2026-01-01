@@ -32,8 +32,8 @@ class Stage1Validator:
 
     def __init__(
         self,
-        compositional_index: Path = Path("data/corpus_index_compositional"),
-        old_index: Path = Path("data/corpus_index_v3"),
+        compositional_index: Path = Path("data/indexes/compositional"),
+        old_index: Path = Path("data/indexes/v3"),
         root_model: Path = Path("models/root_embeddings/best_model.pt"),
         affix_model: Path = Path("models/affix_embeddings/best_model.pt"),
     ):
@@ -444,9 +444,9 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Verbose output")
     parser.add_argument("--compositional-index", type=Path,
-                        default=Path("data/corpus_index_compositional"))
+                        default=Path("data/indexes/compositional"))
     parser.add_argument("--old-index", type=Path,
-                        default=Path("data/corpus_index_v3"))
+                        default=Path("data/indexes/v3"))
 
     args = parser.parse_args()
 

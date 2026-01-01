@@ -146,7 +146,7 @@ def main():
     parser.add_argument(
         "--corpus-dir",
         type=Path,
-        default=Path("data/clean_corpus"),
+        default=Path("data/cleaned/eo"),
         help="Directory containing the cleaned Esperanto corpus files."
     )
     parser.add_argument(

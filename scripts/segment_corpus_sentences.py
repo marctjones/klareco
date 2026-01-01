@@ -11,7 +11,7 @@ sentences, resulting in fragmented text. It:
 5. Outputs JSONL with source metadata
 
 Usage:
-    python scripts/segment_corpus_sentences.py --input data/clean_corpus --output data/corpus_sentences.jsonl
+    python scripts/segment_corpus_sentences.py --input data/cleaned/eo --output data/extracted/corpus_sentences.jsonl
 """
 
 import argparse
@@ -237,13 +237,13 @@ def main():
     parser.add_argument(
         "--input",
         type=Path,
-        default=Path("data/clean_corpus"),
+        default=Path("data/cleaned/eo"),
         help="Directory with source text files"
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data/corpus_sentences.jsonl"),
+        default=Path("data/extracted/corpus_sentences.jsonl"),
         help="Output JSONL file"
     )
     parser.add_argument(

@@ -7,7 +7,7 @@
 # Prerequisites:
 #   - Unified corpus built: data/corpus/unified_corpus.jsonl
 #   - Clean vocabulary: data/vocabularies/clean_roots.json
-#   - ReVo definitions: data/revo/revo_definitions_with_roots.json
+#   - ReVo definitions: data/raw/eo/dictionaries/revo/revo_definitions_with_roots.json
 #
 # This script:
 #   1. Extracts Ekzercaro-style training data from Tier 1-3 sentences
@@ -68,7 +68,7 @@ CORPUS_FILE="$PROJECT_ROOT/data/corpus/unified_corpus.jsonl"
 EKZERCARO_FILE="$PROJECT_ROOT/data/training/ekzercaro_sentences.jsonl"
 CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/clean_roots.json"
 FUNDAMENTO_ROOTS="$PROJECT_ROOT/data/vocabularies/fundamento_roots.json"
-REVO_DEFINITIONS="$PROJECT_ROOT/data/revo/revo_definitions_with_roots.json"
+REVO_DEFINITIONS="$PROJECT_ROOT/data/raw/eo/dictionaries/revo/revo_definitions_with_roots.json"
 OUTPUT_DIR="$PROJECT_ROOT/models/root_embeddings"
 
 # Log file

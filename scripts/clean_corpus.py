@@ -133,7 +133,7 @@ def main():
     """
     Main function to run the cleaning process.
     """
-    corpus_dir = "data/corpora"
+    corpus_dir = "data/raw/eo"
     output_dir = "data/cleaned"
     os.makedirs(output_dir, exist_ok=True)
 

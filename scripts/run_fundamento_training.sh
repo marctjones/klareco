@@ -14,7 +14,7 @@
 # Phases:
 #   0.1 - Extract Fundamento Universala Vortaro (UV)
 #   0.2 - Extract Ekzercaro sentences
-#   1   - Train root embeddings (uses ReVo definitions from data/revo/)
+#   1   - Train root embeddings (uses ReVo definitions from data/raw/eo/dictionaries/revo/)
 #
 # Outputs:
 #   data/vocabularies/fundamento_roots.json
@@ -172,7 +172,7 @@ if should_run_phase "0.2" || should_run_phase "0"; then
     fi
 fi
 
-# Phase 1: Train Root Embeddings (uses ReVo from data/revo/)
+# Phase 1: Train Root Embeddings (uses ReVo from data/raw/eo/dictionaries/revo/)
 if should_run_phase "1"; then
     log_section "Phase 1: Root Embedding Training"
 
@@ -196,7 +196,7 @@ if should_run_phase "1"; then
     fi
 
     # Extract ReVo semantic relations (synonyms, antonyms, hypernyms)
-    if [[ ! -f "data/revo/revo_semantic_relations.json" ]]; then
+    if [[ ! -f "data/raw/eo/dictionaries/revo/revo_semantic_relations.json" ]]; then
         log "Extracting ReVo semantic relations..."
         python scripts/extract_revo_relations.py 2>&1 | tee -a "$MASTER_LOG"
     fi
@@ -205,10 +205,10 @@ if should_run_phase "1"; then
 
     python scripts/training/train_root_embeddings.py \
         --fundamento-roots data/vocabularies/fundamento_roots.json \
-        --revo-definitions data/revo/revo_definitions_with_roots.json \
+        --revo-definitions data/raw/eo/dictionaries/revo/revo_definitions_with_roots.json \
         --ekzercaro data/training/ekzercaro_sentences.jsonl \
         --clean-vocab data/vocabularies/clean_roots.json \
-        --revo-relations data/revo/revo_semantic_relations.json \
+        --revo-relations data/raw/eo/dictionaries/revo/revo_semantic_relations.json \
         --output-dir "$OUTPUT_DIR" \
         --log-dir "$LOG_DIR" \
         --epochs 100 \
@@ -241,8 +241,8 @@ if [[ -f "$PROJECT_DIR/data/training/ekzercaro_sentences.jsonl" ]]; then
     LINES=$(wc -l < "$PROJECT_DIR/data/training/ekzercaro_sentences.jsonl")
     log "  - ekzercaro_sentences.jsonl: ${LINES} sentences"
 fi
-if [[ -f "$PROJECT_DIR/data/revo/revo_definitions_with_roots.json" ]]; then
-    SIZE=$(wc -c < "$PROJECT_DIR/data/revo/revo_definitions_with_roots.json")
+if [[ -f "$PROJECT_DIR/data/raw/eo/dictionaries/revo/revo_definitions_with_roots.json" ]]; then
+    SIZE=$(wc -c < "$PROJECT_DIR/data/raw/eo/dictionaries/revo/revo_definitions_with_roots.json")
     log "  - revo_definitions_with_roots.json: ${SIZE} bytes"
 fi
 if [[ -f "$PROJECT_DIR/models/root_embeddings/best_model.pt" ]]; then

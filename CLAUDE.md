@@ -79,14 +79,14 @@ python -m klareco translate "The dog sees the cat." --to eo
 ```bash
 # Build corpus from cleaned texts
 python scripts/build_corpus_v2.py \
-  --cleaned-dir data/cleaned \
-  --output data/corpus_with_sources_v2.jsonl \
+  --cleaned-dir data/cleaned/eo \
+  --output data/corpus/corpus_with_sources.jsonl \
   --min-parse-rate 0.5
 
 # Build retrieval index
 python scripts/index_corpus.py \
-  --corpus data/corpus_with_sources_v2.jsonl \
-  --output data/corpus_index_v3 \
+  --corpus data/corpus/corpus_with_sources.jsonl \
+  --output data/indexes/v3 \
   --batch-size 32
 ```
 
@@ -247,16 +247,24 @@ scripts/
 
 ```
 data/
-├── corpus/                       # Parsed corpus files
-│   ├── unified_corpus.jsonl     # Main unified corpus with ASTs
-│   └── authoritative_corpus.jsonl  # Tier 1-3 authoritative sources
+├── raw/                          # Raw source files (not modified)
+│   ├── eo/                       # Esperanto raw data
+│   │   ├── wikipedia/            # Wikipedia dumps
+│   │   ├── gutenberg/            # Project Gutenberg texts
+│   │   ├── fundamento/           # Fundamento/Krestomatio
+│   │   └── dictionaries/         # ReVo, etc.
+│   └── en/                       # English reference data
+├── cleaned/                      # Cleaned text files
+│   └── eo/                       # Cleaned Esperanto texts
+├── extracted/                    # Extracted sentences with metadata
+├── corpus/                       # Parsed corpus files with ASTs
+│   └── unified_corpus.jsonl      # Main unified corpus
+├── indexes/                      # FAISS indexes + metadata
+│   ├── compositional/            # Compositional embeddings index
+│   └── merged/                   # Merged sources index
 ├── training/                     # Training-ready filtered data
-│   ├── authoritative_training.jsonl  # High-quality Fundamento/Krestomatio
-│   ├── literature_training.jsonl     # Tier 5 literature
-│   └── general_training.jsonl        # Tier 6 Wikipedia (filtered)
-├── corpus_index_v3/              # FAISS index + metadata
 └── vocabularies/                 # Root/prefix/suffix vocabularies
-    ├── root_vocab.json          # Roots from corpus
+    ├── root_vocab.json           # Roots from corpus
     ├── prefix_vocab.json        # Esperanto prefixes
     └── suffix_vocab.json        # Esperanto suffixes
 
@@ -588,3 +596,21 @@ Migrate when discussion crystallizes into:
 - `IMPLEMENTATION_ROADMAP_V2.md` - Detailed development plan
 - `README.md` - Usage examples and current status
 - `16RULES.MD` - Specification of Esperanto grammar rules
+
+## IdlerGear Usage
+
+**ALWAYS run at session start:**
+```bash
+idlergear context
+```
+
+**FORBIDDEN files:** `TODO.md`, `NOTES.md`, `SESSION_*.md`, `SCRATCH.md`
+**FORBIDDEN comments:** `// TODO:`, `# FIXME:`, `/* HACK: */`
+
+**Use instead:**
+- `idlergear task create "..."` - Create actionable tasks
+- `idlergear note create "..."` - Capture quick thoughts
+- `idlergear explore create "..."` - Research questions
+- `idlergear vision show` - Check project goals
+
+See AGENTS.md for full command reference.

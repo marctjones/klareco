@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./scripts/build_faiss_index.sh                    # Build compositional index
-#   ./scripts/build_faiss_index.sh data/corpus_index_v3  # Build specific index
+#   ./scripts/build_faiss_index.sh data/indexes/merged  # Build specific index
 #
 
 set -e
@@ -20,7 +20,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 # Default to compositional index
-INDEX_DIR="${1:-data/corpus_index_compositional}"
+INDEX_DIR="${1:-data/indexes/compositional}"
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Build FAISS Index${NC}"
@@ -61,7 +61,7 @@ except ImportError:
 
 import numpy as np
 
-index_dir = sys.argv[1] if len(sys.argv) > 1 else "data/corpus_index_compositional"
+index_dir = sys.argv[1] if len(sys.argv) > 1 else "data/indexes/compositional"
 embeddings_path = f"{index_dir}/embeddings.npy"
 output_path = f"{index_dir}/faiss_index.bin"
 

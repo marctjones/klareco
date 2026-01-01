@@ -155,13 +155,19 @@ def clean_mediawiki_markup(text: str) -> str:
     - HTML tags and comments
     - Wiki links converted to plain text
     - Bold/italic markup
+    - Table formatting remnants (wikitable, aligncenter, etc.)
     """
     import mwparserfromhell
     import re
 
     # Pre-process: remove MediaWiki tables before parsing (they often cause parse errors)
-    # MediaWiki table syntax: {| ... |}
-    text = re.sub(r'\{\|.*?\|\}', '', text, flags=re.DOTALL)
+    # MediaWiki table syntax: {| ... |} - use greedy matching for nested tables
+    text = re.sub(r'\{\|[\s\S]*?\|\}', '', text, flags=re.DOTALL)
+
+    # Remove table row/cell markup that may have escaped
+    text = re.sub(r'^\s*\|-.*$', '', text, flags=re.MULTILINE)  # Table row separators
+    text = re.sub(r'^\s*\|.*?=.*$', '', text, flags=re.MULTILINE)  # Table cell attributes
+    text = re.sub(r'^\s*!.*$', '', text, flags=re.MULTILINE)  # Table headers
 
     try:
         # Parse with mwparserfromhell
@@ -234,6 +240,41 @@ def clean_mediawiki_markup(text: str) -> str:
     # Remove external links [http://... text] -> text
     clean_text = re.sub(r'\[http[^\s]+ ([^\]]+)\]', r'\1', clean_text)
     clean_text = re.sub(r'\[http[^\s]+\]', '', clean_text)
+
+    # Remove table CSS class remnants and formatting artifacts
+    # These patterns catch common wiki table formatting that escaped earlier cleanup
+    clean_text = re.sub(r'\b(class)?wikitable\b', '', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\balign(center|left|right)\b', '', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\b-?aligncenter\b', '', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\bstyle\s*=?\s*["\'][^"\']*["\']', '', clean_text)
+    clean_text = re.sub(r'\bstyle\s+\w+', '', clean_text)
+    clean_text = re.sub(r'\bwidth\s*=?\s*[\d%]+', '', clean_text)
+    clean_text = re.sub(r'\bcolspan\s*=?\s*\d+', '', clean_text)
+    clean_text = re.sub(r'\browspan\s*=?\s*\d+', '', clean_text)
+    clean_text = re.sub(r'\bborder\s*=?\s*\d+', '', clean_text)
+    clean_text = re.sub(r'\bcellpadding\s*=?\s*\d+', '', clean_text)
+    clean_text = re.sub(r'\bcellspacing\s*=?\s*\d+', '', clean_text)
+
+    # Remove isolated "eta" fragments (common wiki artifact, likely from image sizing)
+    clean_text = re.sub(r'\beta\b', '', clean_text)
+
+    # Remove IPA phonetic notation remnants
+    clean_text = re.sub(r'[/\[\]]?[ɐɑəɛɜɪɔʊʌæːˈˌ]+[/\[\]]?', '', clean_text)
+
+    # Remove lines that are mostly formatting garbage (high ratio of special chars)
+    lines = clean_text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        # Count alphabetic vs non-alphabetic
+        alpha = sum(c.isalpha() for c in line)
+        total = len(line.replace(' ', ''))
+        # Keep line only if >40% alphabetic
+        if total > 0 and alpha / total > 0.4:
+            cleaned_lines.append(line)
+    clean_text = ' '.join(cleaned_lines)
 
     # Clean up whitespace
     clean_text = re.sub(r'\s+', ' ', clean_text)
@@ -348,6 +389,10 @@ def process_wikipedia_dump(
                 continue
 
             try:
+                # Skip articles without proper titles (likely redirects or special pages)
+                if not article_title or article_title.strip() == '':
+                    continue
+
                 # Extract sections BEFORE cleaning (to preserve section headers)
                 raw_text = article.get('text', '')
                 sections = extract_sections(raw_text)
@@ -437,7 +482,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Extract Wikipedia with metadata')
-    parser.add_argument('--xml', type=Path, default=Path('data/corpora/eo_wikipedia.xml.bz2'),
+    parser.add_argument('--xml', type=Path, default=Path('data/raw/eo/wikipedia/eo_wikipedia.xml.bz2'),
                         help='Path to Wikipedia XML dump')
     parser.add_argument('--output', type=Path, default=Path('data/extracted/wikipedia_sentences.jsonl'),
                         help='Output JSONL file')

@@ -103,14 +103,14 @@ def main():
     old_results = test_model(
         "OLD MODEL (5.5K pairs, 12 epochs)",
         "models/tree_lstm_old/checkpoint_epoch_12.pt",
-        "data/corpus_index_old"
+        "data/indexes/old"
     )
 
     # Test new model
     new_results = test_model(
         "NEW MODEL (58K pairs, 20 epochs)",
         "models/tree_lstm/checkpoint_epoch_20.pt",
-        "data/corpus_index"
+        "data/indexes"
     )
 
     # Compare

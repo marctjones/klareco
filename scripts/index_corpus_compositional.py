@@ -565,7 +565,7 @@ def main():
     parser.add_argument('--affix-model', type=Path,
                         default=Path('models/affix_transforms_v2/best_model.pt'))
     parser.add_argument('--output-dir', type=Path,
-                        default=Path('data/corpus_index_compositional'))
+                        default=Path('data/indexes/compositional'))
     parser.add_argument('--batch-size', type=int, default=100)
     parser.add_argument('--resume', action='store_true', default=True,
                         help='Resume from checkpoint (default)')

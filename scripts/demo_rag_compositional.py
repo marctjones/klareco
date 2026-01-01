@@ -793,7 +793,7 @@ def main():
     parser = argparse.ArgumentParser(description="RAG Demo with Compositional Embeddings")
     parser.add_argument(
         '--index-dir',
-        default='data/corpus_index_compositional',
+        default='data/indexes/compositional',
         help='Path to FAISS index directory'
     )
     parser.add_argument(

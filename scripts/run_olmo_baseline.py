@@ -5,26 +5,114 @@ OLMo 1B Baseline Evaluation Script (CP3)
 Evaluates OLMo 1B Instruct on the M1 Q&A benchmark for comparison with Klareco.
 Uses the same evaluation metrics as evaluate_qa.py.
 
+Now supports a translation gateway mode where:
+- Esperanto questions are translated to English
+- OLMo answers in English (its native language)
+- English answers are translated back to Esperanto
+- Comparison is done against Esperanto gold answers
+
 Usage:
     python scripts/run_olmo_baseline.py                    # Run full evaluation
+    python scripts/run_olmo_baseline.py --with-translation # Use translation gateway
     python scripts/run_olmo_baseline.py --dry-run          # Show questions only
     python scripts/run_olmo_baseline.py --limit 5          # Test with 5 questions
     python scripts/run_olmo_baseline.py --device cpu       # Force CPU mode
+    python scripts/run_olmo_baseline.py --log-file olmo.log  # Custom log file
+
+Logs are written to: logs/olmo_eval_YYYYMMDD_HHMMSS.log
 """
 
 import argparse
 import json
+import logging
 import re
 import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# Global logger
+logger = logging.getLogger('olmo_eval')
+
+
+def setup_logging(log_file: Optional[Path] = None, verbose: bool = False) -> Path:
+    """
+    Setup logging with both file and console handlers.
+
+    Returns:
+        Path to the log file
+    """
+    # Create logs directory
+    logs_dir = PROJECT_ROOT / 'logs'
+    logs_dir.mkdir(exist_ok=True)
+
+    # Generate log filename with timestamp if not specified
+    if log_file is None:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_file = logs_dir / f'olmo_eval_{timestamp}.log'
+    elif not log_file.is_absolute():
+        log_file = logs_dir / log_file
+
+    # Configure root logger
+    log_level = logging.DEBUG if verbose else logging.INFO
+
+    # Create formatters
+    file_formatter = logging.Formatter(
+        '%(asctime)s | %(levelname)-8s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    console_formatter = logging.Formatter(
+        '%(asctime)s | %(message)s',
+        datefmt='%H:%M:%S'
+    )
+
+    # File handler - always DEBUG level for full info
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(file_formatter)
+
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(console_formatter)
+
+    # Setup logger
+    logger.setLevel(logging.DEBUG)
+    logger.handlers.clear()
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return log_file
+
+
+def format_duration(seconds: float) -> str:
+    """Format duration as human-readable string."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    elif seconds < 3600:
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{mins}m {secs}s"
+    else:
+        hours = int(seconds // 3600)
+        mins = int((seconds % 3600) // 60)
+        return f"{hours}h {mins}m"
+
+
+def estimate_eta(elapsed: float, completed: int, total: int) -> str:
+    """Estimate time remaining."""
+    if completed == 0:
+        return "calculating..."
+    rate = elapsed / completed
+    remaining = (total - completed) * rate
+    return format_duration(remaining)
 
 
 @dataclass
@@ -42,6 +130,10 @@ class OLMoResult:
     latency_ms: float = 0.0
     tokens_generated: int = 0
     error: Optional[str] = None
+    # Translation gateway fields
+    translated_question: Optional[str] = None  # EO→EN question
+    raw_english_answer: Optional[str] = None   # OLMo's EN response
+    translation_time_ms: float = 0.0           # Time spent on translations
 
 
 @dataclass
@@ -130,6 +222,71 @@ def load_benchmark(benchmark_path: Path) -> List[Dict[str, Any]]:
     return questions
 
 
+class TranslationGateway:
+    """
+    Translation gateway for EO<->EN using Helsinki-NLP MarianMT models.
+
+    This allows OLMo to work in English (its native language) while
+    the benchmark remains in Esperanto.
+
+    Pipeline:
+    1. EO question → EN (opus-mt-eo-en)
+    2. OLMo answers in English
+    3. EN answer → EO (opus-mt-en-eo)
+    """
+
+    EO_TO_EN_MODEL = 'Helsinki-NLP/opus-mt-eo-en'
+    EN_TO_EO_MODEL = 'Helsinki-NLP/opus-mt-en-eo'
+
+    def __init__(self):
+        self.eo_en_model = None
+        self.eo_en_tokenizer = None
+        self.en_eo_model = None
+        self.en_eo_tokenizer = None
+        self._loaded = False
+
+    def load(self):
+        """Load both translation models."""
+        from transformers import MarianMTModel, MarianTokenizer
+
+        load_start = time.time()
+        logger.info("Loading translation models...")
+
+        # Load EO→EN
+        logger.debug(f"Loading {self.EO_TO_EN_MODEL}...")
+        self.eo_en_tokenizer = MarianTokenizer.from_pretrained(self.EO_TO_EN_MODEL)
+        self.eo_en_model = MarianMTModel.from_pretrained(self.EO_TO_EN_MODEL)
+        self.eo_en_model.eval()
+
+        # Load EN→EO
+        logger.debug(f"Loading {self.EN_TO_EO_MODEL}...")
+        self.en_eo_tokenizer = MarianTokenizer.from_pretrained(self.EN_TO_EO_MODEL)
+        self.en_eo_model = MarianMTModel.from_pretrained(self.EN_TO_EO_MODEL)
+        self.en_eo_model.eval()
+
+        self._loaded = True
+        load_time = time.time() - load_start
+        logger.info(f"Translation models loaded in {format_duration(load_time)}")
+
+    def translate_eo_to_en(self, text: str) -> str:
+        """Translate Esperanto to English."""
+        if not self._loaded:
+            raise RuntimeError("Translation models not loaded. Call load() first.")
+
+        inputs = self.eo_en_tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+        outputs = self.eo_en_model.generate(**inputs, max_new_tokens=150)
+        return self.eo_en_tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    def translate_en_to_eo(self, text: str) -> str:
+        """Translate English to Esperanto."""
+        if not self._loaded:
+            raise RuntimeError("Translation models not loaded. Call load() first.")
+
+        inputs = self.en_eo_tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+        outputs = self.en_eo_model.generate(**inputs, max_new_tokens=150)
+        return self.en_eo_tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+
 class OLMoRunner:
     """Wrapper for running OLMo inference."""
 
@@ -152,12 +309,16 @@ class OLMoRunner:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        print(f"Loading {self.model_name}...")
+        load_start = time.time()
+        logger.info(f"Loading model: {self.model_name}")
+        logger.debug(f"PyTorch version: {torch.__version__}")
+        logger.debug(f"CUDA available: {torch.cuda.is_available()}")
 
         # Track memory before loading
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
             self._memory_before = torch.cuda.memory_allocated()
+            logger.debug(f"CUDA device: {torch.cuda.get_device_name(0)}")
 
         # Determine device
         if self.device == "auto":
@@ -165,22 +326,30 @@ class OLMoRunner:
         else:
             device_map = self.device
 
+        logger.info(f"Device: {device_map}")
+
         # Load tokenizer
+        logger.debug("Loading tokenizer...")
+        tokenizer_start = time.time()
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name,
             trust_remote_code=True
         )
+        logger.debug(f"Tokenizer loaded in {time.time() - tokenizer_start:.1f}s")
 
         # Load model with appropriate settings
         dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        logger.info(f"Loading model with dtype={dtype}...")
 
+        model_start = time.time()
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_name,
-            torch_dtype=dtype,
+            dtype=dtype,
             device_map=device_map,
             trust_remote_code=True,
             low_cpu_mem_usage=True,
         )
+        logger.debug(f"Model loaded in {time.time() - model_start:.1f}s")
 
         self.model.eval()
 
@@ -188,7 +357,12 @@ class OLMoRunner:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        print(f"Model loaded on {device_map}")
+        load_time = time.time() - load_start
+        logger.info(f"Model ready on {device_map} (load time: {format_duration(load_time)})")
+
+        # Log model info
+        total_params = sum(p.numel() for p in self.model.parameters())
+        logger.info(f"Model parameters: {total_params:,} ({total_params/1e9:.2f}B)")
 
     def get_memory_usage(self) -> float:
         """Get peak GPU memory usage in GB."""
@@ -198,25 +372,37 @@ class OLMoRunner:
             return peak / (1024 ** 3)
         return 0.0
 
-    def format_prompt(self, question: str) -> str:
+    def format_prompt(self, question: str, language: str = "esperanto") -> str:
         """Format question as prompt for OLMo."""
-        # Simple Esperanto Q&A prompt
-        prompt = f"""Respondu la demandon koncize en Esperanto.
+        if language == "english":
+            # English Q&A prompt (for use with translation gateway)
+            prompt = f"""Answer the question concisely.
+
+Question: {question}
+Answer:"""
+        else:
+            # Esperanto Q&A prompt (original)
+            prompt = f"""Respondu la demandon koncize en Esperanto.
 
 Demando: {question}
 Respondo:"""
         return prompt
 
-    def generate(self, question: str, max_new_tokens: int = 100) -> tuple:
+    def generate(self, question: str, max_new_tokens: int = 100, language: str = "esperanto") -> tuple:
         """
         Generate answer for a question.
+
+        Args:
+            question: The question text
+            max_new_tokens: Maximum tokens to generate
+            language: "esperanto" or "english" for prompt format
 
         Returns:
             tuple: (answer_text, num_tokens_generated)
         """
         import torch
 
-        prompt = self.format_prompt(question)
+        prompt = self.format_prompt(question, language=language)
 
         inputs = self.tokenizer(
             prompt,
@@ -248,7 +434,8 @@ Respondo:"""
         # Clean up answer
         answer = answer.strip()
         # Stop at first newline or question mark (end of answer)
-        for stop in ['\n', '?', 'Demando:']:
+        stop_tokens = ['\n', '?', 'Demando:'] if language == "esperanto" else ['\n', '?', 'Question:']
+        for stop in stop_tokens:
             if stop in answer:
                 answer = answer.split(stop)[0].strip()
 
@@ -258,11 +445,24 @@ Respondo:"""
 def evaluate_with_olmo(
     questions: List[Dict[str, Any]],
     runner: OLMoRunner,
-    verbose: bool = False
+    verbose: bool = False,
+    translator: Optional[TranslationGateway] = None
 ) -> OLMoEvaluationResults:
-    """Evaluate all questions with OLMo."""
+    """
+    Evaluate all questions with OLMo.
+
+    Args:
+        questions: List of benchmark questions
+        runner: OLMoRunner instance
+        verbose: Show detailed progress
+        translator: Optional TranslationGateway for EO<->EN translation
+                   If provided, questions are translated to English,
+                   OLMo answers in English, then answers are translated back.
+    """
     results = OLMoEvaluationResults()
     results.model_name = runner.model_name
+    if translator:
+        results.model_name += " (with translation)"
     results.total_questions = len(questions)
 
     # Category accumulators
@@ -277,21 +477,52 @@ def evaluate_with_olmo(
     total_f1 = 0.0
     total_tokens = 0
 
-    for i, question in enumerate(questions):
-        if verbose:
-            print(f"\r[{i+1}/{len(questions)}] Evaluating: {question['id']}...", end='', flush=True)
+    eval_start_time = time.time()
+    logger.info(f"Starting evaluation of {len(questions)} questions")
+    logger.info("-" * 60)
 
+    for i, question in enumerate(questions):
         q_id = question['id']
         q_text = question['question']
         gold = question['gold_answer']
         acceptable = question.get('acceptable_answers', [])
         category = question['category']
 
-        # Time the generation
+        # Progress with ETA
+        elapsed = time.time() - eval_start_time
+        eta = estimate_eta(elapsed, i, len(questions))
+        progress_pct = (i + 1) / len(questions) * 100
+
+        # Time the generation (includes translation if enabled)
         start_time = time.time()
+        translated_q = None
+        raw_en_answer = None
+        translation_time = 0.0
+
         try:
-            predicted, tokens = runner.generate(q_text)
+            if translator:
+                # Translation mode: EO → EN → OLMo → EN → EO
+                trans_start = time.time()
+                translated_q = translator.translate_eo_to_en(q_text)
+                translation_time += (time.time() - trans_start) * 1000
+
+                # Generate in English
+                raw_en_answer, tokens = runner.generate(translated_q, language="english")
+
+                # Translate answer back to Esperanto
+                trans_start = time.time()
+                predicted = translator.translate_en_to_eo(raw_en_answer)
+                translation_time += (time.time() - trans_start) * 1000
+
+                logger.debug(f"  EO Q: {q_text}")
+                logger.debug(f"  EN Q: {translated_q}")
+                logger.debug(f"  EN A: {raw_en_answer}")
+                logger.debug(f"  EO A: {predicted}")
+            else:
+                # Direct Esperanto mode
+                predicted, tokens = runner.generate(q_text, language="esperanto")
         except Exception as e:
+            logger.error(f"[{q_id}] Generation error: {e}")
             result = OLMoResult(
                 question_id=q_id,
                 question=q_text,
@@ -322,7 +553,10 @@ def evaluate_with_olmo(
             partial_match=partial,
             f1_score=f1,
             latency_ms=latency_ms,
-            tokens_generated=tokens
+            tokens_generated=tokens,
+            translated_question=translated_q,
+            raw_english_answer=raw_en_answer,
+            translation_time_ms=translation_time
         )
         results.question_results.append(result)
 
@@ -340,8 +574,19 @@ def evaluate_with_olmo(
         total_latency += latency_ms
         total_tokens += tokens
 
-    if verbose:
-        print()  # Newline after progress
+        # Log progress
+        match_status = "EXACT" if exact else ("PARTIAL" if partial else "MISS")
+        logger.info(
+            f"[{i+1:3d}/{len(questions)}] {q_id} ({category[:8]:8s}) "
+            f"{match_status:7s} | {latency_ms:6.0f}ms | ETA: {eta}"
+        )
+        logger.debug(f"  Q: {q_text[:60]}...")
+        logger.debug(f"  A: {predicted[:60]}...")
+
+    # Log completion summary
+    total_time = time.time() - eval_start_time
+    logger.info("-" * 60)
+    logger.info(f"Evaluation complete in {format_duration(total_time)}")
 
     # Compute final metrics
     n = results.total_questions
@@ -438,6 +683,10 @@ def save_results(results: OLMoEvaluationResults, output_path: Path):
                 'latency_ms': r.latency_ms,
                 'tokens_generated': r.tokens_generated,
                 'error': r.error,
+                # Translation fields (None if not using translation)
+                'translated_question': r.translated_question,
+                'raw_english_answer': r.raw_english_answer,
+                'translation_time_ms': r.translation_time_ms,
             }
             for r in results.question_results
         ]
@@ -450,7 +699,23 @@ def save_results(results: OLMoEvaluationResults, output_path: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Evaluate OLMo 1B on Q&A benchmark')
+    parser = argparse.ArgumentParser(
+        description='Evaluate OLMo 1B on Q&A benchmark',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    # Full evaluation with logging
+    python scripts/run_olmo_baseline.py -v
+
+    # Test with 5 questions
+    python scripts/run_olmo_baseline.py --limit 5 -v
+
+    # Custom log file
+    python scripts/run_olmo_baseline.py --log-file my_eval.log -v
+
+Logs are saved to: logs/olmo_eval_YYYYMMDD_HHMMSS.log
+        """
+    )
     parser.add_argument('--benchmark', type=Path,
                         default=PROJECT_ROOT / 'data' / 'benchmarks' / 'qa_benchmark_v1.jsonl',
                         help='Path to benchmark JSONL file')
@@ -461,59 +726,84 @@ def main():
                         help='Device to run on')
     parser.add_argument('--output', type=Path, default=None,
                         help='Path to save results JSON')
+    parser.add_argument('--log-file', type=Path, default=None,
+                        help='Path to log file (default: logs/olmo_eval_TIMESTAMP.log)')
     parser.add_argument('--limit', type=int, default=None,
                         help='Limit number of questions (for testing)')
     parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Show progress during evaluation')
+                        help='Show detailed progress (DEBUG level logging)')
     parser.add_argument('--show-errors', action='store_true',
                         help='Show error details and sample answers')
     parser.add_argument('--dry-run', action='store_true',
                         help='Just show questions without evaluation')
     parser.add_argument('--category', type=str, default=None,
                         help='Only evaluate specific category')
+    parser.add_argument('--with-translation', action='store_true',
+                        help='Use translation gateway: EO→EN→OLMo→EN→EO')
 
     args = parser.parse_args()
 
+    # Setup logging first
+    log_file = setup_logging(args.log_file, verbose=args.verbose)
+
+    # Log session start
+    logger.info("=" * 60)
+    logger.info("OLMo 1B BASELINE EVALUATION (CP3)")
+    logger.info("=" * 60)
+    logger.info(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Log file: {log_file}")
+    logger.info(f"Model: {args.model}")
+    logger.info(f"Device: {args.device}")
+
     # Load benchmark
     if not args.benchmark.exists():
-        print(f"Error: Benchmark file not found: {args.benchmark}")
+        logger.error(f"Benchmark file not found: {args.benchmark}")
         sys.exit(1)
 
     questions = load_benchmark(args.benchmark)
-    print(f"Loaded {len(questions)} questions from {args.benchmark}")
+    logger.info(f"Loaded {len(questions)} questions from {args.benchmark.name}")
 
     # Filter by category if specified
     if args.category:
         questions = [q for q in questions if q['category'] == args.category]
-        print(f"Filtered to {len(questions)} questions in category '{args.category}'")
+        logger.info(f"Filtered to {len(questions)} questions in category '{args.category}'")
 
     # Limit questions if specified
     if args.limit:
         questions = questions[:args.limit]
-        print(f"Limited to {len(questions)} questions")
+        logger.info(f"Limited to {len(questions)} questions")
 
     # Dry run - just show questions
     if args.dry_run:
-        print("\n" + "=" * 60)
-        print("BENCHMARK QUESTIONS (Dry Run)")
-        print("=" * 60)
+        logger.info("DRY RUN - showing questions only")
         for q in questions:
-            print(f"\n[{q['id']}] ({q['category']}) {q['question']}")
-            print(f"  Gold: {q['gold_answer']}")
+            logger.info(f"[{q['id']}] ({q['category']}) {q['question']}")
+            logger.debug(f"  Gold: {q['gold_answer']}")
         return
+
+    # Load translation gateway if requested
+    translator = None
+    if args.with_translation:
+        logger.info("Translation mode enabled: EO→EN→OLMo→EN→EO")
+        translator = TranslationGateway()
+        try:
+            translator.load()
+        except Exception as e:
+            logger.error(f"Error loading translation models: {e}")
+            logger.error("Tip: Install transformers with: pip install transformers torch sentencepiece")
+            sys.exit(1)
 
     # Load model
     runner = OLMoRunner(model_name=args.model, device=args.device)
     try:
         runner.load()
     except Exception as e:
-        print(f"Error loading model: {e}")
-        print("\nTip: Install transformers with: pip install transformers torch")
+        logger.error(f"Error loading model: {e}")
+        logger.error("Tip: Install transformers with: pip install transformers torch accelerate")
         sys.exit(1)
 
     # Run evaluation
-    print(f"\nEvaluating {len(questions)} questions...")
-    results = evaluate_with_olmo(questions, runner, verbose=args.verbose)
+    results = evaluate_with_olmo(questions, runner, verbose=args.verbose, translator=translator)
 
     # Print results
     print_results(results, show_errors=args.show_errors)
@@ -522,8 +812,23 @@ def main():
     if args.output:
         save_results(results, args.output)
     else:
-        default_output = PROJECT_ROOT / 'data' / 'benchmarks' / 'results_olmo.json'
+        # Different output file for translation vs direct mode
+        if args.with_translation:
+            default_output = PROJECT_ROOT / 'data' / 'benchmarks' / 'results_olmo_translated.json'
+        else:
+            default_output = PROJECT_ROOT / 'data' / 'benchmarks' / 'results_olmo.json'
         save_results(results, default_output)
+
+    # Log final summary
+    logger.info("=" * 60)
+    logger.info("FINAL SUMMARY")
+    logger.info("=" * 60)
+    logger.info(f"Exact Match:   {results.exact_match:.1%}")
+    logger.info(f"Partial Match: {results.partial_match:.1%}")
+    logger.info(f"F1 Score:      {results.f1_score:.3f}")
+    logger.info(f"Avg Latency:   {results.avg_latency_ms:.0f}ms")
+    logger.info(f"Completed at:  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Log saved to:  {log_file}")
 
 
 if __name__ == '__main__':

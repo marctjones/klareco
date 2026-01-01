@@ -91,7 +91,7 @@ def benchmark_query(
 
 def main():
     parser = argparse.ArgumentParser(description="Benchmark structural vs neural retrieval")
-    parser.add_argument("--index-dir", default="data/corpus_index_v2", help="Index directory")
+    parser.add_argument("--index-dir", default="data/indexes/v2", help="Index directory")
     parser.add_argument("--model", default="models/tree_lstm/best_model.pt", help="Model checkpoint")
     parser.add_argument("--queries", type=int, default=20, help="Number of test queries")
     parser.add_argument("--k", type=int, default=10, help="Number of results to retrieve")

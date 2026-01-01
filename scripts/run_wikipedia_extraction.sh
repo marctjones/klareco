@@ -61,7 +61,7 @@ mkdir -p logs
 echo -e "${GREEN}✓${NC} Directories created"
 
 # Check if Wikipedia dump exists
-WIKI_DUMP="data/corpora/eo_wikipedia.xml.bz2"
+WIKI_DUMP="data/raw/eo/wikipedia/eo_wikipedia.xml.bz2"
 if [ ! -f "$WIKI_DUMP" ]; then
     echo -e "${RED}✗${NC} Wikipedia dump not found: $WIKI_DUMP"
     echo -e "${YELLOW}→${NC} Please download Wikipedia dump first"

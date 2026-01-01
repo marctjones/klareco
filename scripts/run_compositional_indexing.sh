@@ -17,7 +17,7 @@
 #   ./scripts/run_compositional_indexing.sh --fresh   # Start fresh
 #
 # Monitor progress in another terminal:
-#   tail -f data/corpus_index_compositional/indexing.log
+#   tail -f data/indexes/compositional/indexing.log
 #
 # =============================================================================
 
@@ -57,7 +57,7 @@ fi
 CORPUS="data/corpus/unified_corpus.jsonl"
 ROOT_MODEL="models/root_embeddings/best_model.pt"
 AFFIX_MODEL="models/affix_transforms_v2/best_model.pt"
-OUTPUT_DIR="data/corpus_index_compositional"
+OUTPUT_DIR="data/indexes/compositional"
 
 # Parse arguments
 FRESH_FLAG=""

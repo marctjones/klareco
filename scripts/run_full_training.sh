@@ -102,7 +102,7 @@ if should_run_phase 0; then
     # Check if data exists
     UV_FILE="data/vocabularies/fundamento_roots.json"
     EKZ_FILE="data/training/ekzercaro_sentences.jsonl"
-    REVO_FILE="data/revo/revo_definitions_with_roots.json"
+    REVO_FILE="data/raw/eo/dictionaries/revo/revo_definitions_with_roots.json"
 
     if [[ "$FRESH" == "true" ]] || [[ ! -f "$UV_FILE" ]]; then
         log "  Extracting Fundamento UV..."

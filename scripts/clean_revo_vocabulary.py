@@ -139,7 +139,7 @@ def main():
     print("=" * 60)
     
     # Paths
-    revo_db = Path('data/revo/revo.db')
+    revo_db = Path('data/raw/eo/dictionaries/revo/revo.db')
     fundamento_json = Path('data/vocabularies/fundamento_roots.json')
     vortlisto_json = Path('data/vocabularies/reference/vortlisto_words.json')
     output_path = Path('data/vocabularies/clean_roots.json')

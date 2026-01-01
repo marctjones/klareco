@@ -4,15 +4,15 @@
 #
 # This script:
 # - Indexes the full 74K-sentence Gutenberg Esperanto corpus
-# - Saves embeddings, metadata, and FAISS index to data/corpus_index/
+# - Saves embeddings, metadata, and FAISS index to data/indexes/
 # - Automatically resumes from checkpoint if interrupted
-# - Logs everything to data/corpus_index/indexing.log
+# - Logs everything to data/indexes/indexing.log
 #
 # Usage:
 #   ./scripts/run_corpus_indexing.sh
 #
 # Monitor progress in another terminal:
-#   tail -f data/corpus_index/indexing.log
+#   tail -f data/indexes/indexing.log
 #
 
 set -e  # Exit on error
@@ -29,8 +29,8 @@ echo -e "${BLUE}========================================${NC}"
 echo ""
 
 # Configuration
-CORPUS_FILE="data/gutenberg_sentences.txt"
-OUTPUT_DIR="data/corpus_index"
+CORPUS_FILE="data/extracted/gutenberg_sentences.txt"
+OUTPUT_DIR="data/indexes"
 BATCH_SIZE=32
 MODEL_PATH="models/tree_lstm/checkpoint_epoch_12.pt"
 

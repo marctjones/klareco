@@ -54,3 +54,7 @@ lib64/
 .gemini/
 gha-creds-*.json
 .model_backups/
+
+# IdlerGear daemon files (don't commit)
+.idlergear/daemon.sock
+.idlergear/daemon.pid

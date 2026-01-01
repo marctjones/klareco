@@ -11,8 +11,8 @@ This script processes raw Esperanto texts and produces cleaned versions:
 - Outputs one sentence per line (preserving paragraph breaks as empty lines)
 
 Usage:
-    python scripts/clean_corpus_texts.py --input data/clean_corpus/esperanto \
-                                          --output data/clean_corpus/cleaned
+    python scripts/clean_corpus_texts.py --input data/raw/eo/gutenberg \
+                                          --output data/cleaned/eo
 """
 
 import argparse

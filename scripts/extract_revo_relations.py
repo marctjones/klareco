@@ -10,7 +10,7 @@ This script extracts curated semantic relations from ReVo:
 - Part-of (prt) - "is part of"
 - Has-part (malprt) - "has as part"
 
-Output: data/revo/revo_semantic_relations.json
+Output: data/raw/eo/dictionaries/revo/revo_semantic_relations.json
 
 These are human-curated by Esperanto lexicographers and provide
 strong supervision for semantic similarity training.
@@ -85,8 +85,8 @@ def extract_root(mrk: str) -> str | None:
 
 
 def main():
-    db_path = Path('data/revo/revo.db')
-    output_path = Path('data/revo/revo_semantic_relations.json')
+    db_path = Path('data/raw/eo/dictionaries/revo/revo.db')
+    output_path = Path('data/raw/eo/dictionaries/revo/revo_semantic_relations.json')
 
     if not db_path.exists():
         print(f"Error: {db_path} not found")

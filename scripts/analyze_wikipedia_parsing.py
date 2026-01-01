@@ -16,7 +16,7 @@ from klareco.parser import parse
 
 def sample_wikipedia_sentences(num_samples=100):
     """Sample random sentences from Wikipedia."""
-    wiki_file = Path(__file__).parent.parent / 'data/clean_corpus/wikipedia.txt'
+    wiki_file = Path(__file__).parent.parent / 'data/cleaned/eo/wikipedia.txt'
 
     with open(wiki_file, 'r', encoding='utf-8') as f:
         text = f.read()

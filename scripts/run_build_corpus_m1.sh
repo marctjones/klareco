@@ -207,9 +207,9 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo -e "${YELLOW}Next steps:${NC}"
     echo "  1. Review logs for any issues"
     echo "  2. Build FAISS index:"
-    echo "     python scripts/index_corpus.py --corpus data/corpus_enhanced_m1.jsonl --output data/corpus_index_m1"
+    echo "     python scripts/index_corpus.py --corpus data/corpus/corpus_enhanced_m1.jsonl --output data/indexes/m1"
     echo "  3. Test retrieval:"
-    echo "     python scripts/demo_rag.py --index data/corpus_index_m1 --interactive"
+    echo "     python scripts/demo_rag.py --index data/indexes/m1 --interactive"
     echo ""
 
 else

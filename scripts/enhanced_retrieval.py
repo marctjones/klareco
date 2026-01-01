@@ -193,7 +193,7 @@ def demo():
     # Load retriever
     print("📚 Loading index...")
     retriever = create_retriever(
-        'data/corpus_index_v3',
+        'data/indexes/compositional',
         'models/tree_lstm/best_model.pt'
     )
     print("✅ Ready!")
@@ -257,7 +257,7 @@ def main():
         query = ' '.join(args.query)
 
         retriever = create_retriever(
-            'data/corpus_index_v3',
+            'data/indexes/compositional',
             'models/tree_lstm/best_model.pt'
         )
 

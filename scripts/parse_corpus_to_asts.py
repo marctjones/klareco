@@ -6,7 +6,7 @@ This script reads the clean corpus (547MB) and parses every sentence into
 a structured AST, saving them as JSONL for training the GNN encoder.
 
 Usage:
-    python scripts/parse_corpus_to_asts.py --input data/clean_corpus/ --output data/ast_corpus/
+    python scripts/parse_corpus_to_asts.py --input data/cleaned/eo/ --output data/corpus/asts/
 
 Output:
     - JSONL files (one AST per line)
@@ -153,9 +153,9 @@ def parse_corpus_file(
 def main():
     """Parse entire corpus into AST dataset."""
     parser = argparse.ArgumentParser(description='Parse Esperanto corpus to ASTs')
-    parser.add_argument('--input', type=str, default='data/clean_corpus',
+    parser.add_argument('--input', type=str, default='data/cleaned/eo',
                         help='Input corpus directory')
-    parser.add_argument('--output', type=str, default='data/ast_corpus',
+    parser.add_argument('--output', type=str, default='data/corpus/asts',
                         help='Output directory for AST JSONL files')
     parser.add_argument('--error-log', type=str, default='corpus_parsing_errors.log',
                         help='Error log file')

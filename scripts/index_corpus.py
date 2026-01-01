@@ -11,7 +11,7 @@ Features:
 - Graceful interrupt handling
 
 Usage:
-    python scripts/index_corpus.py --corpus data/gutenberg_sentences.txt --output data/corpus_index
+    python scripts/index_corpus.py --corpus data/extracted/gutenberg_sentences.txt --output data/indexes
     python scripts/index_corpus.py --resume  # Resume from last checkpoint
 """
 
@@ -418,7 +418,7 @@ def main():
     parser.add_argument(
         "--corpus",
         type=str,
-        default="data/gutenberg_sentences.txt",
+        default="data/extracted/gutenberg_sentences.txt",
         help="Path to corpus file (one sentence per line)",
     )
 
@@ -432,7 +432,7 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="data/corpus_index",
+        default="data/indexes",
         help="Output directory for index and metadata",
     )
 

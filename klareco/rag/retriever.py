@@ -176,10 +176,23 @@ class Retriever:
 
         return emb.astype(np.float32)
 
+    # Default tier boost factors (deterministic, 0 learned params)
+    # Lower tier = higher authority = more boost
+    DEFAULT_TIER_BOOSTS = {
+        0: 0.25,  # Curated facts: +25% boost (highest priority)
+        1: 0.15,  # Fundamento: +15% boost
+        2: 0.10,  # ReVo definitions: +10% boost
+        3: 0.05,  # Curated texts: +5% boost
+        5: 0.00,  # General Wikipedia/Gutenberg: no boost
+        6: 0.00,  # Other: no boost
+    }
+
     def search(
         self,
         query: str,
         top_k: int = 10,
+        tier_boost: bool = False,
+        tier_boost_factors: Optional[Dict[int, float]] = None,
     ) -> List[RetrievalResult]:
         """
         Search for similar sentences.
@@ -187,9 +200,11 @@ class Retriever:
         Args:
             query: Esperanto query text
             top_k: Number of results to return
+            tier_boost: Apply tier-based score boosting (default False)
+            tier_boost_factors: Custom tier boost factors (tier -> boost)
 
         Returns:
-            List of RetrievalResult objects
+            List of RetrievalResult objects, sorted by (boosted) score
         """
         query_emb = self.embed_query(query)
 
@@ -197,26 +212,41 @@ class Retriever:
             logger.warning(f"Could not embed query: {query[:50]}...")
             return []
 
-        # Search FAISS
+        # Search FAISS (get more candidates if boosting, to allow reranking)
+        search_k = top_k * 3 if tier_boost else top_k
         query_emb = query_emb.reshape(1, -1)
-        scores, indices = self.faiss_index.search(query_emb, top_k)
+        scores, indices = self.faiss_index.search(query_emb, search_k)
 
         # Build results
         results = []
+        boosts = tier_boost_factors or self.DEFAULT_TIER_BOOSTS
         for score, idx in zip(scores[0], indices[0]):
             if idx < 0 or idx >= len(self.metadata):
                 continue
 
             meta = self.metadata[idx]
+            tier = meta.get('tier')
+            raw_score = float(score)
+
+            # Apply tier boost if enabled
+            if tier_boost and tier is not None:
+                boost = boosts.get(tier, 0.0)
+                boosted_score = raw_score * (1 + boost)
+            else:
+                boosted_score = raw_score
+
             results.append(RetrievalResult(
                 text=meta.get('text', ''),
-                score=float(score),
+                score=boosted_score,
                 index=int(idx),
                 source=meta.get('source'),
-                tier=meta.get('tier'),
+                tier=tier,
             ))
 
-        return results
+        # Re-sort by boosted score and return top_k
+        if tier_boost:
+            results.sort(key=lambda r: r.score, reverse=True)
+        return results[:top_k]
 
     def search_and_enrich(
         self,

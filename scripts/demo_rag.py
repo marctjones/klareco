@@ -27,7 +27,7 @@ def demo_queries():
     # Create retriever with index v3
     print("📚 Loading index...")
     retriever = create_retriever(
-        'data/corpus_index_v3',
+        'data/indexes/compositional',
         'models/tree_lstm/best_model.pt'
     )
     print("✅ Index loaded: 26,725 sentences")
@@ -95,7 +95,7 @@ def interactive_mode():
     # Load system
     print("Loading index...")
     retriever = create_retriever(
-        'data/corpus_index_v3',
+        'data/indexes/compositional',
         'models/tree_lstm/best_model.pt'
     )
     responder = create_extractive_responder(retriever, top_k=3)
@@ -155,7 +155,7 @@ def main():
         print(f"Query: {query}\n")
 
         retriever = create_retriever(
-            'data/corpus_index_v3',
+            'data/indexes/compositional',
             'models/tree_lstm/best_model.pt'
         )
         responder = create_extractive_responder(retriever, top_k=3)

@@ -379,7 +379,7 @@ def demo_retriever():
     print_header("3. Retriever: Semantic Search with Lazy Enrichment")
 
     # Check if index exists
-    index_dir = Path("data/corpus_index_compositional")
+    index_dir = Path("data/indexes/compositional")
     if not index_dir.exists():
         print(f"\n  Index not found at {index_dir}")
         print("  Run: ./scripts/run_compositional_indexing.sh")

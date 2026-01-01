@@ -24,8 +24,8 @@ The enhanced corpus includes rich metadata for proper citations:
 
 ## Prerequisites
 
-1. **Wikipedia dump**: `data/corpora/eo_wikipedia.xml.bz2`
-2. **Cleaned books**: `data/cleaned/cleaned_*.txt`
+1. **Wikipedia dump**: `data/raw/eo/wikipedia/eo_wikipedia.xml.bz2`
+2. **Cleaned books**: `data/cleaned/eo/*.txt`
 3. **Python environment**: `.venv` with klareco installed
 4. **Disk space**: ~50GB free (Wikipedia is large!)
 5. **Time**: 4-6 hours total processing time
@@ -269,7 +269,7 @@ chmod +x scripts/run_corpus_builder.sh
 **Solution**:
 ```bash
 # Check if file exists
-ls -lh data/corpora/eo_wikipedia.xml.bz2
+ls -lh data/raw/eo/wikipedia/eo_wikipedia.xml.bz2
 
 # If missing, you need to download it
 # Wikipedia dumps: https://dumps.wikimedia.org/eowiki/
@@ -352,8 +352,8 @@ After building the enhanced corpus:
 1. **Index for retrieval**:
    ```bash
    python scripts/index_corpus.py \
-     --corpus data/enhanced_corpus/corpus_with_metadata.jsonl \
-     --output data/enhanced_index
+     --corpus data/corpus/enhanced_corpus_with_metadata.jsonl \
+     --output data/indexes/enhanced
    ```
 
 2. **Validate quality**:

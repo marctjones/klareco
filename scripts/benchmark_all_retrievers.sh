@@ -142,7 +142,26 @@ echo ""
 
 # Step 2: Benchmark each solution
 # NOTE: Baseline skipped by default for large indexes (loads entire index into RAM)
-SOLUTIONS=("mmap" "faiss" "multifaiss" "sqlite")
+# NOTE: mmap skipped for indexes >1M docs (too slow - 160s/query brute-force search)
+
+# Determine which solutions to run based on index size
+if [ "$INDEX_SIZE" -gt 1000000 ]; then
+    echo "════════════════════════════════════════════════════════════════════"
+    echo "ℹ️  Large Index Detected ($INDEX_SIZE docs)"
+    echo "════════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Automatically skipping 'mmap' retriever (too slow for >1M docs):"
+    echo "  • mmap uses brute-force search: ~160s per query on 4M docs"
+    echo "  • Would take >2 hours for 50 queries"
+    echo ""
+    echo "Testing optimized retrievers only: faiss, multifaiss, sqlite"
+    echo ""
+    SOLUTIONS=("faiss" "multifaiss" "sqlite")
+else
+    echo "Testing all retrievers: mmap, faiss, multifaiss, sqlite"
+    echo ""
+    SOLUTIONS=("mmap" "faiss" "multifaiss" "sqlite")
+fi
 
 if [ "${INCLUDE_BASELINE:-0}" = "1" ]; then
     echo "════════════════════════════════════════════════════════════════════"

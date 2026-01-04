@@ -8,11 +8,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+import pytest
 
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
-
-from build_corpus_with_sources import build_corpus
+# Skip entire module - build_corpus_with_sources script archived
+pytestmark = pytest.mark.skip(reason="build_corpus_with_sources script archived")
 
 
 class TestCorpusBuilder(unittest.TestCase):

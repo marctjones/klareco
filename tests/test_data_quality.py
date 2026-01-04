@@ -33,16 +33,16 @@ class TestCleanRootsVocabulary:
     @pytest.fixture
     def clean_roots(self):
         """Load clean roots vocabulary."""
-        path = Path('data/vocabularies/clean_roots.json')
+        path = Path('data/vocabularies/core/clean_roots.json')
         if not path.exists():
-            pytest.skip("clean_roots.json not found - run clean_revo_vocabulary.py first")
+            pytest.skip("clean_roots.json not found - run clean_revo.py first")
         with open(path) as f:
             return json.load(f)
-    
+
     def test_file_exists(self):
         """Verify clean_roots.json exists."""
-        path = Path('data/vocabularies/clean_roots.json')
-        assert path.exists(), "clean_roots.json not found"
+        path = Path('data/vocabularies/core/clean_roots.json')
+        assert path.exists(), "clean_roots.json not found at data/vocabularies/core/"
     
     def test_has_metadata(self, clean_roots):
         """Verify metadata is present."""
@@ -127,7 +127,7 @@ class TestNoJunkInVocabulary:
     @pytest.fixture
     def clean_roots(self):
         """Load clean roots vocabulary."""
-        path = Path('data/vocabularies/clean_roots.json')
+        path = Path('data/vocabularies/core/clean_roots.json')
         if not path.exists():
             pytest.skip("clean_roots.json not found")
         with open(path) as f:
@@ -180,26 +180,26 @@ class TestNoJunkInVocabulary:
 
 class TestTrainingDataConsistency:
     """Tests for consistency between training data files."""
-    
+
     def test_revo_definitions_exist(self):
         """ReVo definitions file should exist."""
-        path = Path('data/revo/revo_definitions_with_roots.json')
-        assert path.exists(), "ReVo definitions not found"
-    
+        path = Path('data/raw/eo/dictionaries/revo/revo_definitions_with_roots.json')
+        assert path.exists(), "ReVo definitions not found at data/raw/eo/dictionaries/revo/"
+
     def test_fundamento_roots_exist(self):
         """Fundamento roots file should exist."""
-        path = Path('data/vocabularies/fundamento_roots.json')
-        assert path.exists(), "Fundamento roots not found"
-    
+        path = Path('data/vocabularies/core/fundamento_roots.json')
+        assert path.exists(), "Fundamento roots not found at data/vocabularies/core/"
+
     def test_clean_roots_matches_metadata(self):
         """Root count should match metadata."""
-        path = Path('data/vocabularies/clean_roots.json')
+        path = Path('data/vocabularies/core/clean_roots.json')
         if not path.exists():
             pytest.skip("clean_roots.json not found")
-        
+
         with open(path) as f:
             data = json.load(f)
-        
+
         assert data['metadata']['total_roots'] == len(data['roots'])
 
 

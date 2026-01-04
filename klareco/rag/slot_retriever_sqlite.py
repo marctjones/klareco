@@ -3,6 +3,10 @@ Solution 4: SQLite backend with vector storage.
 
 Uses SQLite for metadata and feature filtering,
 stores embeddings as BLOBs, computes similarities in Python.
+
+Optimizations:
+- P1: Pre-computed norms stored in database (15-20% speedup) - #214
+- P2: SQL feature prefilter using indexed columns (5-10% speedup) - #216
 """
 
 import json
@@ -76,6 +80,7 @@ class SQLiteSlotRetriever:
         conn = sqlite3.connect(str(self.db_path))
 
         # Create schema
+        # P1: Added norm columns for pre-computed norms (#214)
         conn.execute("""
             CREATE TABLE documents (
                 id INTEGER PRIMARY KEY,
@@ -84,6 +89,10 @@ class SQLiteSlotRetriever:
                 verb_embedding BLOB,
                 obj_embedding BLOB,
                 full_embedding BLOB NOT NULL,
+                subj_norm REAL,
+                verb_norm REAL,
+                obj_norm REAL,
+                full_norm REAL NOT NULL,
                 negita INTEGER,
                 tempo TEXT,
                 fraztipo TEXT,
@@ -107,11 +116,22 @@ class SQLiteSlotRetriever:
             for line in f:
                 doc = json.loads(line)
 
-                # Convert embeddings to blobs
-                subj_blob = self._embedding_to_blob(doc['slots'].get('SUBJ'))
-                verb_blob = self._embedding_to_blob(doc['slots'].get('VERB'))
-                obj_blob = self._embedding_to_blob(doc['slots'].get('OBJ'))
-                full_blob = self._embedding_to_blob(doc['full_embedding'])
+                # Convert embeddings to blobs and compute norms (P1: #214)
+                subj_emb = doc['slots'].get('SUBJ')
+                verb_emb = doc['slots'].get('VERB')
+                obj_emb = doc['slots'].get('OBJ')
+                full_emb = doc['full_embedding']
+
+                subj_blob = self._embedding_to_blob(subj_emb)
+                verb_blob = self._embedding_to_blob(verb_emb)
+                obj_blob = self._embedding_to_blob(obj_emb)
+                full_blob = self._embedding_to_blob(full_emb)
+
+                # P1: Pre-compute norms
+                subj_norm = float(np.linalg.norm(np.array(subj_emb, dtype=np.float32))) if subj_emb else None
+                verb_norm = float(np.linalg.norm(np.array(verb_emb, dtype=np.float32))) if verb_emb else None
+                obj_norm = float(np.linalg.norm(np.array(obj_emb, dtype=np.float32))) if obj_emb else None
+                full_norm = float(np.linalg.norm(np.array(full_emb, dtype=np.float32)))
 
                 documents.append((
                     doc['text'],
@@ -119,6 +139,10 @@ class SQLiteSlotRetriever:
                     verb_blob,
                     obj_blob,
                     full_blob,
+                    subj_norm,
+                    verb_norm,
+                    obj_norm,
+                    full_norm,
                     1 if doc['features'].get('negita') else 0,
                     doc['features'].get('tempo', 'prezenco'),
                     doc['features'].get('fraztipo', 'deklaro'),
@@ -131,9 +155,10 @@ class SQLiteSlotRetriever:
                     conn.executemany("""
                         INSERT INTO documents (
                             text, subj_embedding, verb_embedding, obj_embedding,
-                            full_embedding, negita, tempo, fraztipo, modo,
+                            full_embedding, subj_norm, verb_norm, obj_norm, full_norm,
+                            negita, tempo, fraztipo, modo,
                             source_type, source_title
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, documents)
                     total_count += len(documents)
                     documents = []
@@ -143,9 +168,10 @@ class SQLiteSlotRetriever:
                 conn.executemany("""
                     INSERT INTO documents (
                         text, subj_embedding, verb_embedding, obj_embedding,
-                        full_embedding, negita, tempo, fraztipo, modo,
+                        full_embedding, subj_norm, verb_norm, obj_norm, full_norm,
+                        negita, tempo, fraztipo, modo,
                         source_type, source_title
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, documents)
                 total_count += len(documents)
 
@@ -167,10 +193,15 @@ class SQLiteSlotRetriever:
             return None
         return np.frombuffer(blob, dtype=np.float32)
 
-    def cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
-        """Compute cosine similarity between two vectors."""
-        norm_a = np.linalg.norm(a)
-        norm_b = np.linalg.norm(b)
+    def cosine_similarity(self, a: np.ndarray, b: np.ndarray, norm_a: Optional[float] = None, norm_b: Optional[float] = None) -> float:
+        """Compute cosine similarity between two vectors.
+
+        P1: Optionally use pre-computed norms (#214) to avoid recomputing.
+        """
+        if norm_a is None:
+            norm_a = np.linalg.norm(a)
+        if norm_b is None:
+            norm_b = np.linalg.norm(b)
 
         if norm_a == 0 or norm_b == 0:
             return 0.0
@@ -181,22 +212,39 @@ class SQLiteSlotRetriever:
         self,
         query_slots: Dict[str, Optional[np.ndarray]],
         doc_slots: Dict[str, Optional[np.ndarray]],
+        doc_norms: Optional[Dict[str, Optional[float]]] = None,
+        is_question: bool = False,
     ) -> float:
-        """Compute weighted slot similarity."""
+        """
+        Compute weighted slot similarity.
+
+        P1: Optionally use pre-computed norms (#214) to avoid recomputing.
+
+        Args:
+            query_slots: Query slot embeddings
+            doc_slots: Document slot embeddings
+            doc_norms: Pre-computed norms for document slots
+            is_question: Whether query is a question (affects partial bonus)
+        """
         score = 0.0
         total_weight = 0.0
+
+        # Bug #2 fix: Higher partial bonus for questions
+        partial_bonus = 0.8 if is_question else 0.5
 
         for slot, weight in self.slot_weights.items():
             query_emb = query_slots.get(slot)
             doc_emb = doc_slots.get(slot)
 
             if query_emb is not None and doc_emb is not None:
-                sim = self.cosine_similarity(query_emb, doc_emb)
+                # P1: Use pre-computed norm if available
+                doc_norm = doc_norms.get(slot) if doc_norms else None
+                sim = self.cosine_similarity(query_emb, doc_emb, norm_b=doc_norm)
                 score += weight * sim
                 total_weight += weight
             elif query_emb is None and doc_emb is not None:
                 # Partial credit when query slot is missing but doc has it
-                score += weight * 0.5
+                score += weight * partial_bonus
                 total_weight += weight
 
         # Normalize by total weight used (not number of slots)
@@ -256,6 +304,9 @@ class SQLiteSlotRetriever:
         query_slots = self.indexer.extract_slots(query_ast)
         query_features = self.indexer.extract_features(query_ast)
 
+        # Detect if query is a question (Bug #2 fix)
+        is_question = query.strip().endswith('?') or query_ast.get('fraztipo') == 'demando'
+
         # Compute query full embedding
         query_word_embs = [emb for emb in query_slots.values() if emb is not None]
         if not query_word_embs:
@@ -268,20 +319,33 @@ class SQLiteSlotRetriever:
         # Stage 1: SQL prefilter
         logger.debug(f"Stage 1: SQL feature prefilter")
 
-        # Build WHERE clause for feature matching (optional)
+        # P2: Build WHERE clause for feature matching (#216)
         where_clauses = []
         params = []
 
         if use_feature_prefilter:
-            # Exact matches preferred, but also allow non-matches
-            # This is a soft filter - we'll use it for scoring
-            pass
+            # Filter by negation (indexed column)
+            if 'negita' in query_features:
+                where_clauses.append("negita = ?")
+                params.append(1 if query_features['negita'] else 0)
+
+            # Filter by tense (indexed column)
+            if 'tempo' in query_features and query_features['tempo']:
+                where_clauses.append("tempo = ?")
+                params.append(query_features['tempo'])
+
+            # Filter by sentence type (indexed column)
+            if 'fraztipo' in query_features and query_features['fraztipo']:
+                where_clauses.append("fraztipo = ?")
+                params.append(query_features['fraztipo'])
 
         # Query database
+        # P1: Load pre-computed norms (#214)
         sql = f"""
             SELECT
                 id, text,
                 subj_embedding, verb_embedding, obj_embedding, full_embedding,
+                subj_norm, verb_norm, obj_norm, full_norm,
                 negita, tempo, fraztipo, modo,
                 source_type, source_title
             FROM documents
@@ -292,7 +356,10 @@ class SQLiteSlotRetriever:
         cursor = self.conn.execute(sql, params)
         rows = cursor.fetchall()
 
-        logger.debug(f"  {len(rows)} candidates from SQL")
+        if where_clauses:
+            logger.debug(f"  {len(rows)} candidates from SQL (filtered by {len(where_clauses)} features)")
+        else:
+            logger.debug(f"  {len(rows)} candidates from SQL (no feature filter)")
 
         # Stage 2: Slot-based scoring
         logger.debug(f"Stage 2: Slot-based scoring")
@@ -307,6 +374,14 @@ class SQLiteSlotRetriever:
             }
             full_emb = self._blob_to_embedding(row['full_embedding'])
 
+            # P1: Extract pre-computed norms (#214)
+            doc_norms = {
+                'SUBJ': row['subj_norm'],
+                'VERB': row['verb_norm'],
+                'OBJ': row['obj_norm'],
+            }
+            full_norm = row['full_norm']
+
             # Extract features
             doc_features = {
                 'negita': bool(row['negita']),
@@ -315,15 +390,15 @@ class SQLiteSlotRetriever:
                 'modo': row['modo'],
             }
 
-            # Compute slot similarity
-            slot_sim = self.slot_similarity(query_slots, doc_slots)
+            # Compute slot similarity (P1: using pre-computed norms)
+            slot_sim = self.slot_similarity(query_slots, doc_slots, doc_norms, is_question=is_question)
 
             # Apply feature bonus
             feature_bonus = self.feature_similarity(query_features, doc_features)
             slot_score = slot_sim * feature_bonus
 
-            # Compute full embedding similarity
-            full_sim = self.cosine_similarity(query_full_emb, full_emb)
+            # Compute full embedding similarity (P1: using pre-computed norm)
+            full_sim = self.cosine_similarity(query_full_emb, full_emb, norm_b=full_norm)
 
             # Combine scores
             final_score = slot_weight * slot_score + full_weight * full_sim

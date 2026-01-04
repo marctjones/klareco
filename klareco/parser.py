@@ -1318,11 +1318,11 @@ def parse(text: str):
             # In Esperanto, 'ne' typically directly precedes the word it negates
             if i > 0 and word_asts[i-1].get("radiko") == "ne":
                 ast["negita"] = True
-        # Object: any noun or pronoun in accusative case (-n)
-        elif ast["vortspeco"] in ["substantivo", "pronomo"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"]:
+        # Object: any noun, pronoun, proper noun, correlative, or unknown word in accusative case (-n)
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"]:
             sentence_ast["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
-        # Subject: any noun or pronoun in nominative case (no -n)
-        elif ast["vortspeco"] in ["substantivo", "pronomo"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"]:
+        # Subject: any noun, pronoun, proper noun, correlative, or unknown word in nominative case (no -n)
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"]:
             sentence_ast["subjekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
 
     # Associate articles and adjectives with their noun groups

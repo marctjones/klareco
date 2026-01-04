@@ -39,6 +39,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from klareco.rag.slot_indexer import SlotBasedIndexer
 from klareco.rag.slot_retriever import SlotBasedRetriever
 
+# Import FAISS-based retriever for large indexes
+try:
+    from klareco.rag.slot_retriever_faiss import FAISSSlotRetriever
+    FAISS_AVAILABLE = True
+except ImportError:
+    FAISS_AVAILABLE = False
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(levelname)s - %(message)s',
@@ -258,6 +265,27 @@ def main():
         logger.error(f"Run: python scripts/index_slot_based.py --corpus <corpus> --output {args.index}")
         sys.exit(1)
 
+    # Check index size to determine which retriever to use
+    import subprocess
+    try:
+        result = subprocess.run(['wc', '-l', str(index_file)], capture_output=True, text=True)
+        num_docs = int(result.stdout.split()[0])
+        logger.info(f"Index contains {num_docs:,} documents")
+    except:
+        num_docs = 0
+        logger.warning("Could not determine index size")
+
+    # Auto-select retriever based on index size
+    use_faiss = False
+    if num_docs > 100000:  # More than 100K docs
+        if FAISS_AVAILABLE and (args.index / "faiss").exists():
+            use_faiss = True
+            logger.info(f"Large index ({num_docs:,} docs) - using FAISS-based retriever for efficiency")
+        else:
+            logger.warning(f"Large index ({num_docs:,} docs) but FAISS not available")
+            logger.warning("This may use significant memory. Consider using a smaller test index.")
+            logger.warning("Or build FAISS index: python scripts/index_slot_based.py --index {args.index} --build-faiss")
+
     # Load indexer (for query embedding)
     logger.info("Loading models...")
     indexer = SlotBasedIndexer(
@@ -266,11 +294,19 @@ def main():
         output_dir=args.index,  # Not used for retrieval
     )
 
-    # Load retriever
-    retriever = SlotBasedRetriever(
-        index_path=index_file,
-        indexer=indexer,
-    )
+    # Load retriever (FAISS for large indexes, naive for small)
+    if use_faiss:
+        logger.info("Using FAISSSlotRetriever (memory-efficient)")
+        retriever = FAISSSlotRetriever(
+            index_path=args.index,
+            indexer=indexer,
+        )
+    else:
+        logger.info("Using SlotBasedRetriever (loads all docs in memory)")
+        retriever = SlotBasedRetriever(
+            index_path=index_file,
+            indexer=indexer,
+        )
 
     # Load translator if requested
     translator = None

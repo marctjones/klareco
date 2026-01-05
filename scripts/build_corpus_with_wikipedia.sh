@@ -230,26 +230,24 @@ build_corpus() {
     mkdir -p "$OUTPUT_DIR"
     log_info "Output directory: $OUTPUT_DIR"
 
-    # Determine verbosity flag
-    local verbose_flag=""
-    if [ "$VERBOSE" = true ]; then
-        verbose_flag="--verbose"
+    # Determine fresh flag
+    local fresh_flag=""
+    if [ "$FRESH" = true ]; then
+        fresh_flag="--fresh"
     fi
 
     # Build command
     local cmd="python3 scripts/build_enhanced_corpus.py"
-    cmd="$cmd --gutenberg \"$BOOKS_INPUT\""
-    cmd="$cmd --wikipedia \"$WIKI_INPUT\""
-    cmd="$cmd --output \"$OUTPUT_DIR\""
+    cmd="$cmd --stage all"
+    cmd="$cmd --output-dir \"$OUTPUT_DIR\""
     cmd="$cmd --min-parse-rate $MIN_PARSE_RATE"
-    cmd="$cmd --checkpoint \"$CHECKPOINT_FILE\""
-    cmd="$cmd $verbose_flag"
+    cmd="$cmd $fresh_flag"
 
     log_info "Command: $cmd"
     echo ""
 
     # Run build with progress monitoring
-    if $cmd 2>&1 | tee -a "$LOG_FILE"; then
+    if eval $cmd 2>&1 | tee -a "$LOG_FILE"; then
         log_success "Corpus build completed"
     else
         log_error "Corpus build failed (see log: $LOG_FILE)"
@@ -258,43 +256,24 @@ build_corpus() {
 }
 
 merge_corpus_files() {
-    log_step "Merging Corpus Files"
+    log_step "Finalizing Corpus"
 
-    local books_corpus="$OUTPUT_DIR/books_corpus.jsonl"
-    local wiki_corpus="$OUTPUT_DIR/wikipedia_corpus.jsonl"
+    local merged_corpus="$OUTPUT_DIR/corpus_with_metadata.jsonl"
 
-    # Check files exist
-    if [ ! -f "$books_corpus" ]; then
-        log_error "Books corpus not found: $books_corpus"
-        exit 1
-    fi
-    if [ ! -f "$wiki_corpus" ]; then
-        log_error "Wikipedia corpus not found: $wiki_corpus"
+    # Check merged file exists (created by Python script)
+    if [ ! -f "$merged_corpus" ]; then
+        log_error "Merged corpus not found: $merged_corpus"
+        log_error "Python script may have failed"
         exit 1
     fi
 
-    # Count sentences
-    local books_count=$(wc -l < "$books_corpus")
-    local wiki_count=$(wc -l < "$wiki_corpus")
-    local total=$((books_count + wiki_count))
-
-    log_info "Merging:"
-    log_info "  Books:     $books_count sentences"
-    log_info "  Wikipedia: $wiki_count sentences"
-    log_info "  Total:     $total sentences"
-
-    # Merge files
-    cat "$books_corpus" "$wiki_corpus" > "$FINAL_OUTPUT"
+    # Copy to final location
+    cp "$merged_corpus" "$FINAL_OUTPUT"
 
     # Verify
     local final_count=$(wc -l < "$FINAL_OUTPUT")
-    if [ "$final_count" -eq "$total" ]; then
-        log_success "Merged successfully: $final_count sentences"
-        log_success "Output: $FINAL_OUTPUT ($(ls -lh "$FINAL_OUTPUT" | awk '{print $5}'))"
-    else
-        log_error "Merge verification failed: expected $total, got $final_count"
-        exit 1
-    fi
+    log_success "Corpus finalized: $final_count sentences"
+    log_success "Output: $FINAL_OUTPUT ($(ls -lh "$FINAL_OUTPUT" | awk '{print $5}'))"
 }
 
 validate_wikipedia_inclusion() {

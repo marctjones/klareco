@@ -246,6 +246,7 @@ class MultiFAISSSlotRetriever:
         top_k: int = 10,
         slot_top_n: int = 200,
         merge_strategy: str = 'union',
+        rerank_top_n: int = None,
     ) -> List[Tuple[float, Dict]]:
         """
         Multi-slot retrieval with FAISS indexes.
@@ -255,6 +256,7 @@ class MultiFAISSSlotRetriever:
             top_k: Number of results to return
             slot_top_n: Number of candidates to retrieve per slot
             merge_strategy: 'union' or 'intersection' for merging slot results
+            rerank_top_n: Ignored (for API compatibility with other retrievers)
 
         Returns:
             List of (score, document) tuples sorted by score descending

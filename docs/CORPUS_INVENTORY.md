@@ -60,9 +60,9 @@ See `docs/CORPUS_BUILDING.md` for complete guide.
 
 **Quick start**:
 ```bash
-./scripts/run_wikipedia_extraction.sh   # 2-3 hours
-./scripts/run_books_extraction.sh       # 5-10 min
-./scripts/run_corpus_builder.sh         # 1-2 hours
+./scripts/extract_wikipedia.sh   # 2-3 hours
+./scripts/extract_gutenberg.sh   # 5-10 min
+./scripts/parse_corpus.sh        # 1-2 hours
 ```
 
 ## Citation Metadata

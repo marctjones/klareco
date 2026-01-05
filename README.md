@@ -96,10 +96,10 @@ python scripts/demo_rag.py "Kio estas Esperanto?"
 ### Train Models
 ```bash
 # Run training pipeline (in separate terminal)
-./scripts/run_fundamento_training.sh
+./scripts/train_roots.sh
 
 # Monitor progress
-tail -f logs/training/fundamento_training_*.log
+tail -f logs/training/root_training_*.log
 ```
 
 See `TRAINING_QUICKSTART.md` for the complete training guide.

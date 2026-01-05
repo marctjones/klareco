@@ -36,7 +36,7 @@ The enhanced corpus includes rich metadata for proper citations:
 
 ```bash
 # Runs Wikipedia + Books extraction with automatic archiving
-./scripts/run_full_extraction.sh
+./scripts/extract_all.sh
 ```
 
 This script:
@@ -47,20 +47,20 @@ This script:
 
 **To skip archiving** (if starting fresh):
 ```bash
-./scripts/run_full_extraction.sh --no-archive
+./scripts/extract_all.sh --no-archive
 ```
 
 ### Option 2: Run Steps Manually
 
 ```bash
 # Step 1: Extract Wikipedia (2-3 hours)
-./scripts/run_wikipedia_extraction.sh
+./scripts/extract_wikipedia.sh
 
 # Step 2: Extract Books (5-10 minutes)
-./scripts/run_books_extraction.sh
+./scripts/extract_gutenberg.sh
 
 # Step 3: Build Enhanced Corpus (1-2 hours)
-./scripts/run_corpus_builder.sh
+./scripts/parse_corpus.sh
 ```
 
 ## Detailed Instructions
@@ -70,7 +70,7 @@ This script:
 Extracts Wikipedia articles with full metadata.
 
 ```bash
-./scripts/run_wikipedia_extraction.sh
+./scripts/extract_wikipedia.sh
 ```
 
 **What it does:**
@@ -114,7 +114,7 @@ Extracts Wikipedia articles with full metadata.
 Extracts book sentences with chapter detection.
 
 ```bash
-./scripts/run_books_extraction.sh
+./scripts/extract_gutenberg.sh
 ```
 
 **What it does:**
@@ -159,7 +159,7 @@ Extracts book sentences with chapter detection.
 Parses all sentences to ASTs and combines sources.
 
 ```bash
-./scripts/run_corpus_builder.sh [--min-parse-rate 0.5]
+./scripts/parse_corpus.sh [--min-parse-rate 0.5]
 ```
 
 **What it does:**
@@ -257,9 +257,9 @@ wc -l data/enhanced_corpus/books_parsed.jsonl
 
 **Solution**:
 ```bash
-chmod +x scripts/run_wikipedia_extraction.sh
-chmod +x scripts/run_books_extraction.sh
-chmod +x scripts/run_corpus_builder.sh
+chmod +x scripts/extract_wikipedia.sh
+chmod +x scripts/extract_gutenberg.sh
+chmod +x scripts/parse_corpus.sh
 ```
 
 ### Wikipedia Dump Not Found
@@ -316,9 +316,9 @@ rm data/extracted/books_sentences.jsonl
 rm -rf data/enhanced_corpus/
 
 # Run scripts again
-./scripts/run_wikipedia_extraction.sh
-./scripts/run_books_extraction.sh
-./scripts/run_corpus_builder.sh
+./scripts/extract_wikipedia.sh
+./scripts/extract_gutenberg.sh
+./scripts/parse_corpus.sh
 ```
 
 ## Output Files
@@ -389,7 +389,7 @@ To run extraction in background and check later:
 
 ```bash
 # Start in background
-nohup ./scripts/run_wikipedia_extraction.sh > wikipedia.out 2>&1 &
+nohup ./scripts/extract_wikipedia.sh > wikipedia.out 2>&1 &
 
 # Check progress
 tail -f wikipedia.out
@@ -407,13 +407,13 @@ You can run Wikipedia and Books extraction in parallel (different terminals):
 
 ```bash
 # Terminal 1
-./scripts/run_wikipedia_extraction.sh
+./scripts/extract_wikipedia.sh
 
 # Terminal 2 (simultaneously)
-./scripts/run_books_extraction.sh
+./scripts/extract_gutenberg.sh
 
 # Then combine (after both finish)
-./scripts/run_corpus_builder.sh
+./scripts/parse_corpus.sh
 ```
 
 ### Reduce Disk Usage

@@ -1,32 +1,34 @@
 #!/usr/bin/env python3
 """
-Klareco Pipeline Demo
-=====================
+Phase 1.5 Demo: EnrichedAST, SemanticPipeline, Retriever, and Translation
 
-Demonstrates each stage of the Esperanto AI pipeline:
+Demonstrates the new abstractions built on top of the Stage 1 models:
 
-Stage 0: Deterministic Parser
-  - Parses Esperanto text into structured ASTs
-  - Decomposes words into roots, prefixes, suffixes
-  - 100% rule-based, no learned parameters
+1. EnrichedAST: Container that accumulates semantic meaning through the pipeline
+   - Wraps parser output + learned embeddings
+   - Tracks which stages have been applied
+   - Serializable for storage
 
-Stage 1a: Root Embeddings
-  - 11,121 roots × 64d = ~712K params
-  - Semantic similarity between roots
-  - Trained on ReVo definitions + Ekzercaro co-occurrence
+2. SemanticPipeline: Chains models where each reads/writes to EnrichedAST
+   - Stage 0: Parser (deterministic)
+   - Stage 1: Semantic Model (root + affix embeddings)
+   - Stage 2: Grammatical Model (future)
+   - Stage 3: Discourse Model (future)
 
-Stage 1b: Affix Transformations
-  - 41 affixes × 512 params = ~21K params
-  - Low-rank transforms that modify root embeddings
-  - mal- flips polarity, -ej clusters places, etc.
+3. Retriever: Semantic search using the pipeline
+   - Fast query embedding via SemanticPipeline
+   - FAISS index for similarity search
+   - Lazy enrichment of results
 
-Combined: Compositional Word Embeddings
-  - Parse word → get root → apply prefix/suffix transforms
-  - Handles novel words never seen in training!
+4. Translation: Automatic EN↔EO translation
+   - Uses Helsinki-NLP/opus-mt models
+   - Language detection for auto-translation
+   - Enables English speakers to query Esperanto corpus
 
 Usage:
-    python scripts/demo_pipeline.py
-    python scripts/demo_pipeline.py --interactive
+    python scripts/demo_phase15.py
+    python scripts/demo_phase15.py --interactive
+    python scripts/demo_phase15.py --translate "The dog runs fast"
 """
 
 import sys
@@ -37,541 +39,912 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import json
-from typing import Optional
 
 
-def get_model_info(model_path: Path) -> dict:
-    """Get model file info including modification time and version detection."""
-    info = {
-        'path': str(model_path),
-        'name': model_path.name,
-        'exists': model_path.exists(),
-        'modified': None,
-        'version': None,
-        'size_kb': None,
-    }
-    if model_path.exists():
-        stat = model_path.stat()
-        info['modified'] = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M')
-        info['size_kb'] = stat.st_size // 1024
-        # Detect version from path
-        if '_v2' in str(model_path) or 'v2' in model_path.parent.name:
-            info['version'] = 'V2'
-        elif '_v3' in str(model_path) or 'v3' in model_path.parent.name:
-            info['version'] = 'V3'
-        else:
-            info['version'] = 'V1'
-    return info
+# =============================================================================
+# Translation Module
+# =============================================================================
 
-from klareco.parser import parse
+# Global translators (lazy loaded)
+_translator_eo_en = None  # Esperanto → English
+_translator_en_eo = None  # English → Esperanto
+_translator_loading = False
 
 
-class LowRankTransform(nn.Module):
-    """Low-rank transformation for affixes."""
-    def __init__(self, dim: int = 64, rank: int = 4):
-        super().__init__()
-        self.down = nn.Linear(dim, rank, bias=False)
-        self.up = nn.Linear(rank, dim, bias=False)
+def get_translator(direction: str = "eo-en"):
+    """Lazy load translators. Direction: 'eo-en' or 'en-eo'."""
+    global _translator_eo_en, _translator_en_eo, _translator_loading
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x + self.up(self.down(x))
+    if direction == "eo-en":
+        if _translator_eo_en is not None:
+            return _translator_eo_en
+    else:
+        if _translator_en_eo is not None:
+            return _translator_en_eo
 
-
-class KlarecoPipeline:
-    """Complete Klareco pipeline with all trained models."""
-
-    def __init__(self, models_dir: Path = Path("models")):
-        self.models_dir = models_dir
-        self.root_embeddings = None
-        self.root_to_idx = None
-        self.prefix_transforms = {}
-        self.suffix_transforms = {}
-        self.root_model_path = None
-        self.affix_model_path = None
-        self._load_models()
-
-    def _load_models(self):
-        """Load all trained models."""
-        # Load root embeddings
-        root_path = self.models_dir / "root_embeddings" / "best_model.pt"
-        self.root_model_path = root_path
-        if root_path.exists():
-            ckpt = torch.load(root_path, map_location='cpu', weights_only=False)
-            self.root_to_idx = ckpt['root_to_idx']
-            self.root_embeddings = nn.Embedding(ckpt['vocab_size'], ckpt['embedding_dim'])
-            self.root_embeddings.load_state_dict({
-                'weight': ckpt['model_state_dict']['embeddings.weight']
-            })
-            self.embedding_dim = ckpt['embedding_dim']
-            print(f"✓ Loaded root embeddings: {ckpt['vocab_size']:,} roots × {ckpt['embedding_dim']}d")
-        else:
-            print(f"✗ Root embeddings not found at {root_path}")
-            return
-
-        # Load affix transforms (V2 model - uses low-rank transforms with anti-collapse)
-        affix_path = self.models_dir / "affix_transforms_v2" / "best_model.pt"
-        self.affix_model_path = affix_path
-        if affix_path.exists():
-            ckpt = torch.load(affix_path, map_location='cpu', weights_only=False)
-
-            for p in ckpt['prefixes']:
-                t = LowRankTransform(self.embedding_dim, ckpt['rank'])
-                t.down.weight.data = ckpt['model_state_dict'][f'prefix_transforms.{p}.down.weight']
-                t.up.weight.data = ckpt['model_state_dict'][f'prefix_transforms.{p}.up.weight']
-                self.prefix_transforms[p] = t
-
-            for s in ckpt['suffixes']:
-                t = LowRankTransform(self.embedding_dim, ckpt['rank'])
-                t.down.weight.data = ckpt['model_state_dict'][f'suffix_transforms.{s}.down.weight']
-                t.up.weight.data = ckpt['model_state_dict'][f'suffix_transforms.{s}.up.weight']
-                self.suffix_transforms[s] = t
-
-            print(f"✓ Loaded affix transforms: {len(self.prefix_transforms)} prefixes, {len(self.suffix_transforms)} suffixes")
-        else:
-            print(f"✗ Affix transforms not found at {affix_path}")
-
-    def get_root_embedding(self, root: str) -> Optional[torch.Tensor]:
-        """Get embedding for a root word."""
-        if root in self.root_to_idx:
-            idx = self.root_to_idx[root]
-            return self.root_embeddings(torch.tensor([idx])).squeeze()
+    if _translator_loading:
         return None
 
-    def get_word_embedding(self, word_ast: dict) -> Optional[torch.Tensor]:
-        """
-        Get compositional embedding for a parsed word.
+    _translator_loading = True
 
-        Applies: prefixes → root → suffixes
-        """
-        root = word_ast.get('radiko')
-        if not root:
-            return None
+    try:
+        from transformers import MarianMTModel, MarianTokenizer
 
-        # Start with root embedding
-        emb = self.get_root_embedding(root)
-        if emb is None:
-            return None
-
-        # Apply prefix transforms (in order)
-        prefixes = word_ast.get('prefiksoj', [])
-        for p in prefixes:
-            if p in self.prefix_transforms:
-                emb = self.prefix_transforms[p](emb)
-
-        # Apply suffix transforms (in order)
-        suffixes = word_ast.get('sufiksoj', [])
-        for s in suffixes:
-            if s in self.suffix_transforms:
-                emb = self.suffix_transforms[s](emb)
-
-        return emb
-
-    def similarity(self, emb1: torch.Tensor, emb2: torch.Tensor) -> float:
-        """Cosine similarity between embeddings."""
-        return F.cosine_similarity(emb1.unsqueeze(0), emb2.unsqueeze(0)).item()
-
-    def print_model_info(self):
-        """Print detailed model information with timestamps and versions."""
-        print("\n" + "-" * 60)
-        print("MODEL INFORMATION")
-        print("-" * 60)
-        print(f"Session timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print()
-
-        # Root model info
-        root_info = get_model_info(self.root_model_path)
-        print(f"Root Embeddings:")
-        print(f"  Path: {root_info['path']}")
-        if root_info['exists']:
-            print(f"  Version: {root_info['version']}")
-            print(f"  Modified: {root_info['modified']}")
-            print(f"  Size: {root_info['size_kb']:,} KB")
-            if self.root_to_idx:
-                print(f"  Roots: {len(self.root_to_idx):,}")
+        if direction == "eo-en":
+            print("  Loading EO→EN translation model...")
+            model_name = "Helsinki-NLP/opus-mt-eo-en"
+            tokenizer = MarianTokenizer.from_pretrained(model_name)
+            model = MarianMTModel.from_pretrained(model_name)
+            model.eval()
+            _translator_eo_en = (model, tokenizer)
+            print("  EO→EN model loaded!")
+            _translator_loading = False
+            return _translator_eo_en
         else:
-            print(f"  Status: NOT FOUND")
+            print("  Loading EN→EO translation model...")
+            model_name = "Helsinki-NLP/opus-mt-en-eo"
+            tokenizer = MarianTokenizer.from_pretrained(model_name)
+            model = MarianMTModel.from_pretrained(model_name)
+            model.eval()
+            _translator_en_eo = (model, tokenizer)
+            print("  EN→EO model loaded!")
+            _translator_loading = False
+            return _translator_en_eo
 
-        print()
+    except ImportError:
+        print("  Warning: transformers not installed")
+        print("  Install with: pip install transformers sentencepiece")
+        _translator_loading = False
+        return None
+    except Exception as e:
+        print(f"  Warning: Could not load translator: {e}")
+        _translator_loading = False
+        return None
 
-        # Affix model info
-        affix_info = get_model_info(self.affix_model_path)
-        print(f"Affix Transforms:")
-        print(f"  Path: {affix_info['path']}")
-        if affix_info['exists']:
-            print(f"  Version: {affix_info['version']}")
-            print(f"  Modified: {affix_info['modified']}")
-            print(f"  Size: {affix_info['size_kb']:,} KB")
-            print(f"  Prefixes: {len(self.prefix_transforms)}")
-            print(f"  Suffixes: {len(self.suffix_transforms)}")
-        else:
-            print(f"  Status: NOT FOUND")
 
-        print("-" * 60)
+def translate_to_english(text: str, max_length: int = 100) -> str:
+    """Translate Esperanto text to English."""
+    translator = get_translator("eo-en")
+
+    if translator is None:
+        return None
+
+    model, tokenizer = translator
+
+    try:
+        # Tokenize
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+
+        # Translate
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_length=max_length,
+                num_beams=4,
+                early_stopping=True
+            )
+
+        # Decode
+        translation = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return translation
+    except Exception as e:
+        return f"[translation error: {e}]"
+
+
+def translate_to_esperanto(text: str, max_length: int = 100) -> str:
+    """Translate English text to Esperanto."""
+    translator = get_translator("en-eo")
+
+    if translator is None:
+        return None
+
+    model, tokenizer = translator
+
+    try:
+        # Tokenize
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+
+        # Translate
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_length=max_length,
+                num_beams=4,
+                early_stopping=True
+            )
+
+        # Decode
+        translation = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return translation
+    except Exception as e:
+        return f"[translation error: {e}]"
+
+
+def detect_language(text: str) -> str:
+    """Simple language detection - returns 'eo' or 'en'."""
+    # Esperanto-specific characters
+    eo_chars = set('ĉĝĥĵŝŭĈĜĤĴŜŬ')
+    if any(c in eo_chars for c in text):
+        return 'eo'
+
+    # Common English words that don't exist in Esperanto
+    english_markers = ['the', 'is', 'are', 'was', 'were', 'have', 'has', 'been',
+                       'what', 'where', 'when', 'how', 'why', 'which', 'who',
+                       'this', 'that', 'these', 'those', 'with', 'from', 'about']
+
+    words = text.lower().split()
+    english_count = sum(1 for w in words if w.strip('.,!?') in english_markers)
+
+    # If more than 15% of words are English markers, it's probably English
+    if len(words) > 0 and english_count / len(words) > 0.15:
+        return 'en'
+
+    # Esperanto word endings
+    eo_endings = ['oj', 'aj', 'on', 'an', 'as', 'is', 'os', 'us', 'ojn', 'ajn']
+    eo_count = sum(1 for w in words if any(w.strip('.,!?').endswith(e) for e in eo_endings))
+
+    if len(words) > 0 and eo_count / len(words) > 0.3:
+        return 'eo'
+
+    # Default to English if uncertain
+    return 'en'
+
+
+def auto_translate(text: str, target: str = 'eo') -> tuple:
+    """
+    Auto-detect language and translate if needed.
+
+    Returns: (translated_text, source_lang, was_translated)
+    """
+    detected = detect_language(text)
+
+    if detected == target:
+        return text, detected, False
+
+    if target == 'eo' and detected == 'en':
+        translated = translate_to_esperanto(text)
+        if translated:
+            return translated, detected, True
+    elif target == 'en' and detected == 'eo':
+        translated = translate_to_english(text)
+        if translated:
+            return translated, detected, True
+
+    return text, detected, False
+
+
+def annotate_eo(text: str, max_len: int = 60) -> str:
+    """
+    Annotate Esperanto text with English translation in parentheses.
+    Returns: "EO text (EN translation)"
+    """
+    if not text:
+        return text
+
+    # Try to translate
+    en = translate_to_english(text)
+    if en and en != text:
+        # Truncate if too long
+        if len(en) > max_len:
+            en = en[:max_len-3] + "..."
+        return f"{text} ({en})"
+    return text
 
 
 def print_header(title: str):
     """Print a section header."""
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 70)
     print(f" {title}")
-    print("=" * 60)
+    print("=" * 70)
 
 
-def print_ast(ast: dict, indent: int = 0):
-    """Pretty print an AST."""
-    prefix = "  " * indent
-    if ast.get('tipo') == 'frazo':
-        stats = ast.get('parse_statistics', {})
-        print(f"{prefix}Sentence (parse rate: {stats.get('success_rate', 0)*100:.0f}%)")
-        for role in ['subjekto', 'verbo', 'objekto', 'aliaj']:
-            if role in ast and ast[role]:
-                print(f"{prefix}  {role}:")
-                content = ast[role]
-                if isinstance(content, list):
-                    for item in content:
-                        print_ast(item, indent + 2)
-                else:
-                    print_ast(content, indent + 2)
-    elif ast.get('tipo') == 'vortgrupo':
-        kerno = ast.get('kerno', {})
-        print_ast(kerno, indent)
-    elif ast.get('tipo') == 'vorto':
+def print_subheader(title: str):
+    """Print a subsection header."""
+    print(f"\n--- {title} ---")
+
+
+def demo_enriched_ast():
+    """Demonstrate the EnrichedAST container."""
+    from klareco import EnrichedAST
+    from klareco.parser import parse
+
+    print_header("1. EnrichedAST: Structured Container for Pipeline Stages")
+
+    # Example sentence with translation
+    text = "La malbona hundo rapide kuris al la lernejo."
+    en_text = translate_to_english(text) if get_translator("eo-en") else "The bad dog quickly ran to the school."
+    print(f"\nInput: {text}")
+    print(f"       ({en_text})")
+
+    # Stage 0: Parse
+    raw_ast = parse(text)
+    enriched = EnrichedAST.from_parser_output(raw_ast, text)
+
+    print_subheader("Stage 0: Parser Output")
+    print(f"  tipo: {enriched.tipo}")
+    print(f"  fraztipo: {enriched.fraztipo}")
+    print(f"  negita: {enriched.negita}")
+    print(f"  stages_applied: {enriched.stages_applied}")
+
+    # Show parser statistics
+    stats = enriched.parse_statistics
+    if stats:
+        print(f"  parse_rate: {stats.get('success_rate', 0)*100:.0f}%")
+
+    # Show extracted words
+    print_subheader("Content Words from AST")
+    for word in enriched.get_content_words():
+        root = word.get('radiko', '?')
+        prefixes = word.get('prefiksoj', [])
+        suffixes = word.get('sufiksoj', [])
+        vortspeco = word.get('vortspeco', '?')
+
         parts = []
-        if ast.get('prefiksoj'):
-            parts.append(f"[{'+'.join(ast['prefiksoj'])}]")
-        parts.append(ast.get('radiko', '?'))
-        if ast.get('sufiksoj'):
-            parts.append(f"[{'+'.join(ast['sufiksoj'])}]")
-        parts.append(f"-{ast.get('finaĵo', '?')}")
-        word_str = ''.join(parts)
-        print(f"{prefix}{word_str} ({ast.get('vortspeco', '?')})")
+        if prefixes:
+            parts.append(f"[{'+'.join(prefixes)}]")
+        parts.append(root)
+        if suffixes:
+            parts.append(f"[{'+'.join(suffixes)}]")
+
+        print(f"  {''.join(parts):<20} ({vortspeco})")
+
+    # Show accessors
+    print_subheader("AST Accessors")
+    if enriched.subjekto:
+        kerno = enriched.subjekto.get('kerno', {})
+        print(f"  subjekto: {kerno.get('radiko', '?')}")
+    if enriched.verbo:
+        print(f"  verbo: {enriched.verbo.get('radiko', '?')} (tempo: {enriched.tempo})")
+    if enriched.objekto:
+        kerno = enriched.objekto.get('kerno', {})
+        print(f"  objekto: {kerno.get('radiko', '?')}")
+
+    return enriched
 
 
-def demo_stage0():
-    """Demonstrate the deterministic parser."""
-    print_header("Stage 0: Deterministic Parser")
+def demo_semantic_pipeline():
+    """Demonstrate the SemanticPipeline."""
+    from klareco import SemanticPipeline
 
-    test_sentences = [
-        "La hundo manĝas la katon.",
-        "Mi lernas Esperanton.",
-        "La malbona homo malrapide iris al la lernejo.",
-        "Ĉu vi parolas Esperanton?",
-    ]
+    print_header("2. SemanticPipeline: Staged Model Processing")
 
-    for sentence in test_sentences:
-        print(f"\n>>> {sentence}")
-        ast = parse(sentence)
-        print_ast(ast)
-
-
-def demo_stage1a(pipeline: KlarecoPipeline):
-    """Demonstrate root embeddings."""
-    print_header("Stage 1a: Root Embeddings")
-
-    print("\n--- Semantic Clusters ---")
-    clusters = {
-        "Animals": ["hund", "kat", "bird", "fiŝ", "ĉeval"],
-        "Family": ["patr", "frat", "fil", "edz"],
-        "Qualities": ["bon", "bel", "grand", "fort"],
-    }
-
-    for cluster_name, roots in clusters.items():
-        print(f"\n{cluster_name}:")
-        embeddings = []
-        for root in roots:
-            emb = pipeline.get_root_embedding(root)
-            if emb is not None:
-                embeddings.append((root, emb))
-
-        # Show pairwise similarities
-        for i, (r1, e1) in enumerate(embeddings):
-            for r2, e2 in embeddings[i+1:]:
-                sim = pipeline.similarity(e1, e2)
-                print(f"  {r1} ↔ {r2}: {sim:.3f}")
-
-    print("\n--- Cross-cluster (should be lower) ---")
-    hund = pipeline.get_root_embedding("hund")
-    bon = pipeline.get_root_embedding("bon")
-    patr = pipeline.get_root_embedding("patr")
-
-    if hund is not None and bon is not None:
-        print(f"  hund ↔ bon: {pipeline.similarity(hund, bon):.3f}")
-    if hund is not None and patr is not None:
-        print(f"  hund ↔ patr: {pipeline.similarity(hund, patr):.3f}")
-
-
-def demo_stage1b(pipeline: KlarecoPipeline):
-    """Demonstrate affix transformations."""
-    print_header("Stage 1b: Affix Transformations")
-
-    print("\n--- mal- prefix (polarity flip) ---")
-    test_roots = ["bon", "grand", "jun", "bel"]
-    for root in test_roots:
-        emb = pipeline.get_root_embedding(root)
-        if emb is not None and 'mal' in pipeline.prefix_transforms:
-            mal_emb = pipeline.prefix_transforms['mal'](emb)
-            dist = 1 - pipeline.similarity(emb, mal_emb)
-            print(f"  {root} → mal{root}: distance = {dist:.3f}")
-
-    print("\n--- -ej suffix (place clustering) ---")
-    place_roots = ["lern", "labor", "kuir", "preĝ", "vend"]
-    place_embs = []
-    for root in place_roots:
-        emb = pipeline.get_root_embedding(root)
-        if emb is not None and 'ej' in pipeline.suffix_transforms:
-            ej_emb = pipeline.suffix_transforms['ej'](emb)
-            place_embs.append((root, ej_emb))
-
-    print("  Pairwise similarities of -ejo words:")
-    for i, (r1, e1) in enumerate(place_embs):
-        for r2, e2 in place_embs[i+1:]:
-            sim = pipeline.similarity(e1, e2)
-            print(f"    {r1}ejo ↔ {r2}ejo: {sim:.3f}")
-
-    print("\n--- -ist suffix (person clustering) ---")
-    person_roots = ["labor", "art", "muzik", "scien"]
-    person_embs = []
-    for root in person_roots:
-        emb = pipeline.get_root_embedding(root)
-        if emb is not None and 'ist' in pipeline.suffix_transforms:
-            ist_emb = pipeline.suffix_transforms['ist'](emb)
-            person_embs.append((root, ist_emb))
-
-    print("  Pairwise similarities of -isto words:")
-    for i, (r1, e1) in enumerate(person_embs):
-        for r2, e2 in person_embs[i+1:]:
-            sim = pipeline.similarity(e1, e2)
-            print(f"    {r1}isto ↔ {r2}isto: {sim:.3f}")
-
-
-def demo_compositional(pipeline: KlarecoPipeline):
-    """Demonstrate full compositional embeddings."""
-    print_header("Compositional Word Embeddings")
-
-    print("\n--- Parse + Embed ---")
-    test_words = [
-        "lernejo",      # lern + ej + o
-        "malbona",      # mal + bon + a
-        "laboristo",    # labor + ist + o
-        "relerni",      # re + lern + i
-        "malgrandega",  # mal + grand + eg + a
-    ]
-
-    for word in test_words:
-        ast = parse(word)
-        # Find the word node
-        def find_word(node):
-            if isinstance(node, dict):
-                if node.get('tipo') == 'vorto':
-                    return node
-                for v in node.values():
-                    result = find_word(v)
-                    if result:
-                        return result
-            elif isinstance(node, list):
-                for item in node:
-                    result = find_word(item)
-                    if result:
-                        return result
-            return None
-
-        word_ast = find_word(ast)
-        if word_ast:
-            parts = []
-            if word_ast.get('prefiksoj'):
-                parts.extend(word_ast['prefiksoj'])
-            parts.append(word_ast.get('radiko', '?'))
-            if word_ast.get('sufiksoj'):
-                parts.extend(word_ast['sufiksoj'])
-            parts.append(word_ast.get('finaĵo', '?'))
-
-            emb = pipeline.get_word_embedding(word_ast)
-            status = "✓" if emb is not None else "✗"
-            print(f"  {word}: {' + '.join(parts)} {status}")
-
-    print("\n--- Novel Word Generalization ---")
-    print("  Testing words that may not be in training data...")
-
-    # Create embeddings for comparison
-    lernejo = parse("lernejo")
-    laborejo = parse("laborejo")
-
-    def get_word_emb(text):
-        ast = parse(text)
-        def find_word(node):
-            if isinstance(node, dict):
-                if node.get('tipo') == 'vorto':
-                    return node
-                for v in node.values():
-                    result = find_word(v)
-                    if result:
-                        return result
-            elif isinstance(node, list):
-                for item in node:
-                    result = find_word(item)
-                    if result:
-                        return result
-            return None
-        word_ast = find_word(ast)
-        if word_ast:
-            return pipeline.get_word_embedding(word_ast)
+    # Load pipeline
+    print("\nLoading SemanticPipeline...")
+    try:
+        pipeline = SemanticPipeline.load()
+        print("  Loaded successfully!")
+    except Exception as e:
+        print(f"  Error loading pipeline: {e}")
+        print("  Make sure Stage 1 models are trained.")
         return None
 
-    lernejo_emb = get_word_emb("lernejo")
-    laborejo_emb = get_word_emb("laborejo")
-    laboristo_emb = get_word_emb("laboristo")
+    # Show model info
+    semantic = pipeline.semantic
+    print(f"\nSemanticModel:")
+    print(f"  Roots: {len(semantic.root_to_idx):,}")
+    print(f"  Embedding dim: {semantic.embedding_dim}")
+    print(f"  Prefixes: {len(semantic.prefix_transforms)}")
+    print(f"  Suffixes: {len(semantic.suffix_transforms)}")
 
-    if lernejo_emb is not None and laborejo_emb is not None:
-        sim = pipeline.similarity(lernejo_emb, laborejo_emb)
-        print(f"  lernejo ↔ laborejo (both places): {sim:.3f}")
+    # Process some sentences with translations
+    test_sentences = [
+        ("La hundo manĝas la katon.", "The dog eats the cat."),
+        ("La kato manĝas la hundon.", "The cat eats the dog."),
+        ("La bona lernanto rapide lernas.", "The good student learns quickly."),
+        ("La malbona vetero daŭris longe.", "The bad weather lasted long."),
+    ]
 
-    if lernejo_emb is not None and laboristo_emb is not None:
-        sim = pipeline.similarity(lernejo_emb, laboristo_emb)
-        print(f"  lernejo ↔ laboristo (place vs person): {sim:.3f}")
+    print_subheader("Processing Sentences")
+    enriched_list = []
+    for text, en_fallback in test_sentences:
+        enriched = pipeline.for_retrieval(text)
+        enriched_list.append((text, enriched))
+
+        known = len(enriched.known_roots)
+        unknown = len(enriched.unknown_roots)
+        has_emb = enriched.sentence_embedding is not None
+
+        # Get translation
+        en = translate_to_english(text) if get_translator("eo-en") else en_fallback
+
+        print(f"\n  '{text}'")
+        print(f"   ({en})")
+        print(f"    Stages: {sorted(enriched.stages_applied)}")
+        print(f"    Known roots: {known}, Unknown: {unknown}")
+        print(f"    Has embedding: {has_emb}")
+        if enriched.unknown_roots:
+            print(f"    Missing: {enriched.unknown_roots}")
+
+    # Show similarity between sentences
+    print_subheader("Sentence Similarities (Cosine)")
+    for i, (text1, e1) in enumerate(enriched_list):
+        for text2, e2 in enriched_list[i+1:]:
+            if e1.sentence_embedding is not None and e2.sentence_embedding is not None:
+                sim = F.cosine_similarity(
+                    e1.sentence_embedding.unsqueeze(0),
+                    e2.sentence_embedding.unsqueeze(0)
+                ).item()
+                t1_short = text1[:25] + "..." if len(text1) > 25 else text1
+                t2_short = text2[:25] + "..." if len(text2) > 25 else text2
+                print(f"  {t1_short:<28} ↔ {t2_short:<28}: {sim:.3f}")
+
+    return pipeline
 
 
-def demo_interactive(pipeline: KlarecoPipeline):
-    """Interactive demo mode."""
+def demo_retriever():
+    """Demonstrate the Retriever."""
+    from klareco import Retriever
+
+    print_header("3. Retriever: Semantic Search with Lazy Enrichment")
+
+    # Check if index exists
+    index_dir = Path("data/indexes/compositional")
+    if not index_dir.exists():
+        print(f"\n  Index not found at {index_dir}")
+        print("  Run: ./scripts/run_compositional_indexing.sh")
+        return None
+
+    # Load retriever
+    print("\nLoading Retriever...")
+    try:
+        retriever = Retriever.load()
+        print(f"  {retriever}")
+    except Exception as e:
+        print(f"  Error: {e}")
+        return None
+
+    # Demo queries with translations
+    queries = [
+        ("La hundo kuras rapide.", "The dog runs fast."),
+        ("Zamenhof kreis Esperanton.", "Zamenhof created Esperanto."),
+        ("La lernejo estas granda.", "The school is big."),
+    ]
+
+    print_subheader("Search Results")
+    for query, en_fallback in queries:
+        en_query = translate_to_english(query) if get_translator("eo-en") else en_fallback
+        print(f"\n  Query: '{query}'")
+        print(f"         ({en_query})")
+        results = retriever.search(query, top_k=3)
+
+        if not results:
+            print("    (No results)")
+            continue
+
+        for i, r in enumerate(results, 1):
+            text = r.text[:50] + "..." if len(r.text) > 50 else r.text
+            # Translate result
+            en_result = translate_to_english(r.text) if get_translator("eo-en") else None
+            print(f"    {i}. [{r.score:.3f}] {text}")
+            if en_result:
+                en_short = en_result[:45] + "..." if len(en_result) > 45 else en_result
+                print(f"                   ({en_short})")
+
+    # Demo lazy enrichment
+    print_subheader("Lazy Enrichment")
+    query = "La bona instruisto instruas."
+    en_query = translate_to_english(query) if get_translator("eo-en") else "The good teacher teaches."
+    print(f"\n  Query: '{query}'")
+    print(f"         ({en_query})")
+
+    results = retriever.search_and_enrich(query, top_k=2)
+    for i, r in enumerate(results, 1):
+        text = r.text[:50] + "..." if len(r.text) > 50 else r.text
+        en_result = translate_to_english(r.text) if get_translator("eo-en") else None
+        print(f"\n  Result {i}: [{r.score:.3f}] {text}")
+        if en_result:
+            en_short = en_result[:45] + "..." if len(en_result) > 45 else en_result
+            print(f"              ({en_short})")
+
+        if r.enriched_ast:
+            ast = r.enriched_ast
+            print(f"    Stages: {sorted(ast.stages_applied)}")
+            print(f"    Known roots: {ast.known_roots}")
+            if ast.sentence_embedding is not None:
+                print(f"    Embedding: {ast.sentence_embedding.shape}")
+
+    return retriever
+
+
+def demo_serialization():
+    """Demonstrate EnrichedAST serialization."""
+    from klareco import EnrichedAST, SemanticPipeline
+    import json
+
+    print_header("4. Serialization: Save/Load EnrichedAST")
+
+    try:
+        pipeline = SemanticPipeline.load()
+    except Exception:
+        print("  (Skipped - models not available)")
+        return
+
+    text = "La rapida vulpo saltas super la laca hundo."
+    en_text = translate_to_english(text) if get_translator("eo-en") else "The quick fox jumps over the lazy dog."
+    enriched = pipeline.for_retrieval(text)
+
+    print(f"\nInput: {text}")
+    print(f"       ({en_text})")
+    print(f"\nOriginal: {enriched}")
+
+    # Serialize to dict
+    data = enriched.to_dict()
+    print(f"\nSerialized keys: {list(data.keys())}")
+
+    # Convert to JSON and back
+    json_str = json.dumps(data, ensure_ascii=False)
+    print(f"JSON size: {len(json_str)} bytes")
+
+    # Deserialize
+    data2 = json.loads(json_str)
+    enriched2 = EnrichedAST.from_dict(data2)
+
+    print(f"\nRestored: {enriched2}")
+    print(f"  Stages match: {enriched.stages_applied == enriched2.stages_applied}")
+
+    # Compare embeddings
+    if enriched.sentence_embedding is not None and enriched2.sentence_embedding is not None:
+        sim = F.cosine_similarity(
+            enriched.sentence_embedding.unsqueeze(0),
+            enriched2.sentence_embedding.unsqueeze(0)
+        ).item()
+        print(f"  Embedding similarity: {sim:.6f}")
+
+
+def demo_pipeline_hooks():
+    """Demonstrate pipeline hooks for debugging."""
+    from klareco import SemanticPipeline
+
+    print_header("5. Pipeline Hooks: Stage Callbacks")
+
+    try:
+        pipeline = SemanticPipeline.load()
+    except Exception:
+        print("  (Skipped - models not available)")
+        return
+
+    # Add hooks
+    def stage0_hook(ast):
+        print(f"    [Hook] Stage 0: parsed '{ast.original_text[:30]}...'")
+
+    def stage1_hook(ast):
+        roots = len(ast.known_roots)
+        print(f"    [Hook] Stage 1: embedded {roots} roots")
+
+    pipeline.add_hook('stage0', stage0_hook)
+    pipeline.add_hook('stage1', stage1_hook)
+
+    text = "La instruisto instruas en la lernejo."
+    en_text = translate_to_english(text) if get_translator("eo-en") else "The teacher teaches in the school."
+    print(f"\nInput: {text}")
+    print(f"       ({en_text})")
+    print("\nProcessing with hooks enabled:")
+    enriched = pipeline.for_retrieval(text)
+    print(f"\n  Final: {enriched}")
+
+
+def demo_translation():
+    """Demonstrate automatic EN↔EO translation."""
+    print_header("6. Translation: Automatic EN↔EO")
+
+    print("\nLanguage Detection:")
+    test_texts = [
+        "The dog runs fast in the park.",
+        "La hundo kuras rapide en la parko.",
+        "Mi amas Esperanton.",
+        "What is Esperanto?",
+        "Zamenhof kreis la lingvon.",
+    ]
+
+    for text in test_texts:
+        lang = detect_language(text)
+        print(f"  [{lang.upper()}] {text}")
+
+    print_subheader("English → Esperanto")
+    english_sentences = [
+        "The dog is big.",
+        "I love learning languages.",
+        "Where is the school?",
+    ]
+
+    for text in english_sentences:
+        eo = translate_to_esperanto(text)
+        if eo:
+            print(f"  EN: {text}")
+            print(f"  EO: {eo}\n")
+        else:
+            print(f"  (Translation not available)")
+            break
+
+    print_subheader("Esperanto → English")
+    esperanto_sentences = [
+        "La hundo estas granda.",
+        "Mi amas lerni lingvojn.",
+        "Kie estas la lernejo?",
+    ]
+
+    for text in esperanto_sentences:
+        en = translate_to_english(text)
+        if en:
+            print(f"  EO: {text}")
+            print(f"  EN: {en}\n")
+        else:
+            print(f"  (Translation not available)")
+            break
+
+    print_subheader("Auto-Translation for Search")
+    print("  When searching, English queries are auto-translated to Esperanto:")
+    queries = [
+        "The teacher teaches students.",
+        "Who created Esperanto?",
+        "La instruisto instruas.",
+    ]
+
+    for query in queries:
+        translated, source, was_translated = auto_translate(query, target='eo')
+        if was_translated:
+            print(f"  '{query}'")
+            print(f"    → Detected: {source.upper()}, Translated: '{translated}'")
+        else:
+            print(f"  '{query}'")
+            print(f"    → Detected: {source.upper()}, No translation needed")
+
+
+def demo_thought_decoder():
+    """Demonstrate ThoughtDecoder for explainable AI."""
+    from klareco import SemanticPipeline, ThoughtDecoder
+
+    print_header("7. ThoughtDecoder: Making AI Thoughts Explainable")
+
+    # Load pipeline
+    try:
+        pipeline = SemanticPipeline.load()
+    except Exception as e:
+        print(f"  Pipeline error: {e}")
+        return
+
+    # Create decoder (without retriever for simpler demo)
+    decoder = ThoughtDecoder(pipeline=pipeline)
+
+    print_subheader("Decoding a Simple Sentence")
+
+    # Test sentence
+    text = "La hundo kuras rapide."  # The dog runs fast.
+    en_text = translate_to_english(text) if translate_to_english(text) else "(The dog runs fast.)"
+    print(f"\nInput: {text}")
+    print(f"       ({en_text})")
+
+    # Process through pipeline
+    enriched = pipeline.for_retrieval(text)
+
+    # Decode the thoughts
+    decoded = decoder.decode(enriched, find_similar=False)
+    print(f"\n{decoded}")
+
+    print_subheader("Comparing Two Sentences")
+
+    # Compare two sentences
+    text1 = "La kato dormas."  # The cat sleeps.
+    text2 = "La kato ne dormas."  # The cat doesn't sleep.
+    en1 = translate_to_english(text1) if translate_to_english(text1) else "(The cat sleeps.)"
+    en2 = translate_to_english(text2) if translate_to_english(text2) else "(The cat doesn't sleep.)"
+
+    print(f"\nSentence 1: {text1} ({en1})")
+    print(f"Sentence 2: {text2} ({en2})")
+
+    enriched1 = pipeline.for_retrieval(text1)
+    enriched2 = pipeline.for_retrieval(text2)
+
+    comparison = decoder.compare_thoughts(enriched1, enriched2)
+
+    print("\nComparison:")
+    print(f"  Same type: {comparison['syntactic']['same_type']}")
+    print(f"  Same negation: {comparison['syntactic']['same_negation']}")
+    print(f"  Same subject: {comparison['syntactic']['same_subject']} ({comparison['syntactic']['subjects']})")
+    print(f"  Same verb: {comparison['syntactic']['same_verb']} ({comparison['syntactic']['verbs']})")
+
+    if 'embedding_similarity' in comparison.get('semantic', {}):
+        sim = comparison['semantic']['embedding_similarity']
+        interp = comparison['semantic']['interpretation']
+        print(f"  Semantic similarity: {sim:.3f} ({interp})")
+
+    print(f"  Shared concepts: {comparison['semantic'].get('shared_concepts', [])}")
+
+    print_subheader("JSON Output (for API use)")
+    text3 = "Ĉu vi komprenas Esperanton?"  # Do you understand Esperanto?
+    en3 = translate_to_english(text3) if translate_to_english(text3) else "(Do you understand Esperanto?)"
+    print(f"\nInput: {text3}")
+    print(f"       ({en3})")
+
+    enriched3 = pipeline.for_retrieval(text3)
+    json_output = decoder.decode_to_json(enriched3, find_similar=False)
+    print(f"\n{json_output[:500]}...")  # Truncate for display
+
+
+def interactive_mode(enable_translation: bool = True):
+    """Interactive demo mode with optional auto-translation."""
+    from klareco import SemanticPipeline, Retriever
+
     print_header("Interactive Mode")
-    print("Enter Esperanto words or sentences to analyze.")
-    print("Commands: 'quit' to exit, 'sim word1 word2' for similarity")
+
+    # Load models
+    try:
+        pipeline = SemanticPipeline.load()
+        print("  Pipeline loaded.")
+    except Exception as e:
+        print(f"  Pipeline error: {e}")
+        return
+
+    retriever = None
+    try:
+        retriever = Retriever.load()
+        print(f"  {retriever}")
+    except Exception:
+        print("  Retriever not available (no index)")
+
+    translation_available = False
+    if enable_translation:
+        print("\n  Checking translation models...")
+        # Try loading translators in background
+        try:
+            from transformers import MarianMTModel
+            translation_available = True
+            print("  Translation: available (EN↔EO)")
+        except ImportError:
+            print("  Translation: not available (install transformers)")
+
+    print("\nCommands:")
+    print("  <text>          - Embed and show EnrichedAST (auto-translates EN→EO)")
+    print("  search <text>   - Search corpus (auto-translates EN→EO)")
+    print("  translate <text>- Translate between EN↔EO")
+    print("  en <text>       - Force translate to English")
+    print("  eo <text>       - Force translate to Esperanto")
+    print("  quit            - Exit")
     print()
 
     while True:
         try:
             user_input = input(">>> ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\nĜis revido!")
+            print("\nGis revido!")
             break
 
         if not user_input:
             continue
 
-        if user_input.lower() == 'quit':
-            print("Ĝis revido!")
+        if user_input.lower() in ['quit', 'exit', 'q']:
+            print("Gis revido!")
             break
 
-        if user_input.lower().startswith('sim '):
-            # Similarity comparison
-            parts = user_input[4:].split()
-            if len(parts) >= 2:
-                word1, word2 = parts[0], parts[1]
-
-                def get_word_emb(text):
-                    ast = parse(text)
-                    def find_word(node):
-                        if isinstance(node, dict):
-                            if node.get('tipo') == 'vorto':
-                                return node
-                            for v in node.values():
-                                result = find_word(v)
-                                if result:
-                                    return result
-                        elif isinstance(node, list):
-                            for item in node:
-                                result = find_word(item)
-                                if result:
-                                    return result
-                        return None
-                    word_ast = find_word(ast)
-                    if word_ast:
-                        return pipeline.get_word_embedding(word_ast), word_ast
-                    return None, None
-
-                emb1, ast1 = get_word_emb(word1)
-                emb2, ast2 = get_word_emb(word2)
-
-                if emb1 is not None and emb2 is not None:
-                    sim = pipeline.similarity(emb1, emb2)
-                    print(f"  Similarity: {sim:.3f}")
+        # Translation commands
+        if user_input.lower().startswith('translate '):
+            text = user_input[10:]
+            lang = detect_language(text)
+            if lang == 'en':
+                result = translate_to_esperanto(text)
+                if result:
+                    print(f"  EN: {text}")
+                    print(f"  EO: {result}")
                 else:
-                    if emb1 is None:
-                        print(f"  Could not embed: {word1}")
-                    if emb2 is None:
-                        print(f"  Could not embed: {word2}")
+                    print("  (Translation not available)")
+            else:
+                result = translate_to_english(text)
+                if result:
+                    print(f"  EO: {text}")
+                    print(f"  EN: {result}")
+                else:
+                    print("  (Translation not available)")
+            print()
             continue
 
-        # Parse and analyze
-        ast = parse(user_input)
-        print("\nParsed AST:")
-        print_ast(ast)
+        if user_input.lower().startswith('en '):
+            text = user_input[3:]
+            result = translate_to_english(text)
+            if result:
+                print(f"  → EN: {result}")
+            else:
+                print("  (Translation not available)")
+            print()
+            continue
 
-        # Show word embeddings
-        def find_words(node, words=None):
-            if words is None:
-                words = []
-            if isinstance(node, dict):
-                if node.get('tipo') == 'vorto':
-                    words.append(node)
-                for v in node.values():
-                    find_words(v, words)
-            elif isinstance(node, list):
-                for item in node:
-                    find_words(item, words)
-            return words
+        if user_input.lower().startswith('eo '):
+            text = user_input[3:]
+            result = translate_to_esperanto(text)
+            if result:
+                print(f"  → EO: {result}")
+            else:
+                print("  (Translation not available)")
+            print()
+            continue
 
-        words = find_words(ast)
-        if words:
-            print("\nWord embeddings:")
-            for word_ast in words:
-                emb = pipeline.get_word_embedding(word_ast)
-                radiko = word_ast.get('radiko', '?')
-                status = "✓ embedded" if emb is not None else "✗ unknown root"
-                print(f"  {radiko}: {status}")
+        # Search command with auto-translation
+        if user_input.lower().startswith('search '):
+            if retriever is None:
+                print("  Retriever not available")
+                continue
+
+            query = user_input[7:]
+
+            # Auto-translate if English
+            if translation_available:
+                eo_query, src_lang, was_translated = auto_translate(query, target='eo')
+                if was_translated:
+                    print(f"  [Translated EN→EO: '{eo_query}']")
+                    query = eo_query
+
+            results = retriever.search(query, top_k=5)
+            if not results:
+                print("  (No results)")
+            else:
+                print(f"\n  Results for: '{query}'")
+                for i, r in enumerate(results, 1):
+                    text = r.text[:60] + "..." if len(r.text) > 60 else r.text
+                    print(f"  {i}. [{r.score:.3f}] {text}")
+
+                    # Optionally translate results to English
+                    if translation_available and src_lang == 'en':
+                        en_text = translate_to_english(r.text)
+                        if en_text:
+                            en_short = en_text[:55] + "..." if len(en_text) > 55 else en_text
+                            print(f"       EN: {en_short}")
+            print()
+            continue
+
+        # Default: embed and show EnrichedAST (auto-translate if English)
+        text_to_embed = user_input
+        was_translated = False
+
+        if translation_available:
+            eo_text, src_lang, was_translated = auto_translate(user_input, target='eo')
+            if was_translated:
+                print(f"  [Translated EN→EO: '{eo_text}']")
+                text_to_embed = eo_text
+
+        enriched = pipeline.for_retrieval(text_to_embed)
+        print(f"\n  {enriched}")
+        print(f"  Known roots: {enriched.known_roots}")
+        print(f"  Unknown roots: {enriched.unknown_roots}")
+        if enriched.sentence_embedding is not None:
+            emb = enriched.sentence_embedding
+            print(f"  Embedding: shape={emb.shape}, norm={emb.norm():.3f}")
         print()
 
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Klareco Pipeline Demo")
+    parser = argparse.ArgumentParser(description="Phase 1.5 Demo with Translation")
     parser.add_argument('--interactive', '-i', action='store_true',
                         help="Run in interactive mode")
+    parser.add_argument('--translate', '-t', type=str, metavar='TEXT',
+                        help="Translate text (auto-detects direction)")
+    parser.add_argument('--en', type=str, metavar='TEXT',
+                        help="Translate Esperanto to English")
+    parser.add_argument('--eo', type=str, metavar='TEXT',
+                        help="Translate English to Esperanto")
+    parser.add_argument('--no-translate', action='store_true',
+                        help="Disable auto-translation in interactive mode")
+    parser.add_argument('--skip-translation-demo', action='store_true',
+                        help="Skip translation demo (faster startup)")
     args = parser.parse_args()
 
-    print("=" * 60)
-    print(" KLARECO PIPELINE DEMO")
-    print(" Esperanto-First AI with Minimal Learned Parameters")
-    print("=" * 60)
+    print("=" * 70)
+    print(" KLARECO PHASE 1.5 DEMO")
+    print(" EnrichedAST, SemanticPipeline, Retriever, and Translation")
+    print("=" * 70)
+    print(f" Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Load pipeline
-    print("\nLoading models...")
-    pipeline = KlarecoPipeline()
+    # Handle one-shot translation commands
+    if args.translate:
+        lang = detect_language(args.translate)
+        if lang == 'en':
+            result = translate_to_esperanto(args.translate)
+            if result:
+                print(f"\n  EN: {args.translate}")
+                print(f"  EO: {result}")
+            else:
+                print("  Translation not available")
+        else:
+            result = translate_to_english(args.translate)
+            if result:
+                print(f"\n  EO: {args.translate}")
+                print(f"  EN: {result}")
+            else:
+                print("  Translation not available")
+        return
 
-    # Print model information
-    pipeline.print_model_info()
+    if args.en:
+        result = translate_to_english(args.en)
+        if result:
+            print(f"\n  EO: {args.en}")
+            print(f"  EN: {result}")
+        else:
+            print("  Translation not available")
+        return
+
+    if args.eo:
+        result = translate_to_esperanto(args.eo)
+        if result:
+            print(f"\n  EN: {args.eo}")
+            print(f"  EO: {result}")
+        else:
+            print("  Translation not available")
+        return
 
     if args.interactive:
-        demo_interactive(pipeline)
+        interactive_mode(enable_translation=not args.no_translate)
     else:
         # Run all demos
-        demo_stage0()
-        demo_stage1a(pipeline)
-        demo_stage1b(pipeline)
-        demo_compositional(pipeline)
+        demo_enriched_ast()
+        demo_semantic_pipeline()
+        demo_retriever()
+        demo_serialization()
+        demo_pipeline_hooks()
+
+        if not args.skip_translation_demo:
+            demo_translation()
+            demo_thought_decoder()
 
         print_header("Summary")
         print("""
-Pipeline Components:
-  Stage 0: Parser (deterministic)     - 0 params
-  Stage 1a: Root Embeddings           - ~712K params
-  Stage 1b: Affix Transforms          - ~21K params
-  ─────────────────────────────────────────────
-  Total Learned Parameters:           - ~733K params
+Phase 1.5 Components:
 
-Key Insight:
-  By making grammar 100% deterministic and only learning
-  semantics, we achieve compositional generalization to
-  novel words while keeping parameters minimal.
+1. EnrichedAST
+   - Container for parser AST + learned embeddings
+   - Immutable progression: each stage creates new instance
+   - Fully serializable for storage
+   - Grammatical annotations (negita, tempo, fraztipo, modo) passed to downstream
 
-Next Stages (not yet implemented):
-  Stage 2: Grammatical Model (~52K params)
-  Stage 3: Discourse Model (~100K params)
-  Stage 4: Reasoning Core (20-100M params)
+2. SemanticPipeline
+   - Chains Stage 0 (parser) → Stage 1 (semantic)
+   - Convenience methods: for_retrieval(), for_qa(), for_analysis()
+   - Supports hooks for debugging/visualization
+
+3. Retriever
+   - Uses SemanticPipeline for query embedding
+   - FAISS index for fast similarity search
+   - Lazy enrichment: enrich results on-demand
+
+4. Translation
+   - Automatic EN↔EO using Helsinki-NLP/opus-mt models
+   - Language detection for auto-translation
+   - English speakers can query Esperanto corpus seamlessly
+
+5. ThoughtDecoder
+   - Decodes EnrichedAST into human-readable explanations
+   - Explains syntactic structure and semantic content
+   - Compares sentences for similarity analysis
+   - JSON output for API integration
+
+Usage:
+  from klareco import (EnrichedAST, SemanticPipeline, Retriever,
+                       ThoughtDecoder)
+
+  # Quick embedding
+  pipeline = SemanticPipeline.load()
+  enriched = pipeline.for_retrieval("La hundo kuras.")
+  embedding = enriched.get_effective_embedding()
+
+  # Search (works with English too via auto-translation)
+  retriever = Retriever.load()
+  results = retriever.search("Kio estas Esperanto?", top_k=10)
+
+  # Decode thoughts (explainable AI)
+  decoder = ThoughtDecoder(pipeline=pipeline)
+  decoded = decoder.decode(enriched)
+  print(decoded)  # Human-readable explanation
+
+  # Grammar labels are in AST for downstream task-specific handling
+  print(enriched.negita, enriched.tempo, enriched.fraztipo)
+
+Translation CLI:
+  python demo_phase15.py --translate "The dog runs fast"
+  python demo_phase15.py --eo "Hello world"
+  python demo_phase15.py --en "Saluton mondo"
+  python demo_phase15.py -i   # Interactive with auto-translation
 """)
 
-        print("\nRun with --interactive for live testing!")
+        print("\nRun with --interactive for live testing with translation!")
 
 
 if __name__ == '__main__':

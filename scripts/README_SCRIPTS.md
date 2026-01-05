@@ -1,374 +1,259 @@
 # Klareco Scripts Guide
 
-## Corpus Builder Scripts
+## Pipeline Overview
 
-### Main Runner: `run_corpus_builder.sh`
+The Klareco data pipeline has 7 logical stages:
 
-**Robust corpus builder with automatic environment setup, checkpointing, and logging.**
-
-#### Basic Usage
-
-```bash
-# Standard run (recommended)
-./scripts/run_corpus_builder.sh
-
-# Clean start (remove checkpoint and start fresh)
-./scripts/run_corpus_builder.sh --clean
-
-# Fast mode (max speed, may freeze on slow systems)
-./scripts/run_corpus_builder.sh --fast
-
-# Gentle mode (slower but safer, won't freeze)
-./scripts/run_corpus_builder.sh --gentle
-
-# Skip AST generation (faster but no quality info)
-./scripts/run_corpus_builder.sh --no-ast
+```
+ACQUIRE  → Download raw data (Gutenberg, Wikipedia)
+CLEAN    → Clean/normalize text (remove headers, markup)
+EXTRACT  → Extract sentences + metadata (JSONL)
+PARSE    → Parse to ASTs (unified corpus)
+INDEX    → Build FAISS indexes
+TRAIN    → Train embedding models
+VALIDATE → Validate quality
 ```
 
-#### What It Does
+### Master Script
 
-1. **Environment Setup**
-   - Creates/activates Python virtual environment
-   - Installs requirements automatically
-   - Verifies dependencies
-
-2. **Checkpointing**
-   - Saves progress every 20 sentences (default)
-   - Automatically resumes if interrupted
-   - Use `--clean` to start fresh
-
-3. **Logging**
-   - Creates timestamped log file in `logs/`
-   - Symlinks to `logs/corpus_builder_latest.log`
-   - Shows output in terminal AND saves to file
-
-4. **Safe Interruption**
-   - Press Ctrl+C to stop gracefully
-   - Progress saved in checkpoint
-   - Run again to resume
-
-#### Default Settings
-
-- **Batch size**: 20 sentences (checkpoint frequency)
-- **Throttle**: 0.1s delay between batches
-- **Min parse rate**: 0.0 (no filtering, keep all Esperanto)
-- **AST generation**: Enabled
-
-#### Modes
-
-**Standard (Balanced)**
 ```bash
-./scripts/run_corpus_builder.sh
-```
-- Good balance of speed and stability
-- Won't freeze most systems
-
-**Fast Mode**
-```bash
-./scripts/run_corpus_builder.sh --fast
-```
-- Batch size: 50
-- Throttle: 0.0s (no delay)
-- Use if you have a fast system and want maximum speed
-
-**Gentle Mode**
-```bash
-./scripts/run_corpus_builder.sh --gentle
-```
-- Batch size: 10
-- Throttle: 0.3s (more delay)
-- Use if system is freezing or low on resources
-
-**No AST Mode**
-```bash
-./scripts/run_corpus_builder.sh --no-ast
-```
-- Skips AST generation
-- Much faster but no parse quality info
-- Use for quick corpus building without quality filtering
-
-#### Logs
-
-All logs saved to `logs/corpus_builder_TIMESTAMP.log`
-
-Access latest log:
-```bash
-# View latest log
-cat logs/corpus_builder_latest.log
-
-# Follow log in real-time
-tail -f logs/corpus_builder_latest.log
-
-# View with colors
-less -R logs/corpus_builder_latest.log
+./scripts/pipeline.sh              # Run full pipeline
+./scripts/pipeline.sh --from clean # Start from clean stage
+./scripts/pipeline.sh --only index # Run only index stage
 ```
 
 ---
 
-### Monitor Progress: `monitor_corpus_builder.sh`
+## Naming Convention
 
-**Check corpus builder status and progress.**
+Scripts follow the pattern: `<stage>_<target>.py` or `<stage>_<target>.sh`
 
-#### Usage
+| Stage | Prefix | Example |
+|-------|--------|---------|
+| Acquire | `acquire_` | `acquire_gutenberg.py` |
+| Clean | `clean_` | `clean_gutenberg.py`, `clean_all.sh` |
+| Extract | `extract_` | `extract_wikipedia.py`, `extract_all.sh` |
+| Parse | `parse_` | `parse_corpus.py`, `parse_corpus.sh` |
+| Index | `index_` | `index_compositional.py`, `index_compositional.sh` |
+| Train | `train_` | `train_roots.sh`, `train_affixes.sh` |
+| Validate | `validate_` | `validate_stage1.py`, `validate_all.sh` |
+| Demo | `demo_` | `demo_rag.py`, `demo_pipeline.py` |
 
-```bash
-# View current status
-./scripts/monitor_corpus_builder.sh
-
-# Monitor every 5 seconds
-watch -n 5 ./scripts/monitor_corpus_builder.sh
-```
-
-#### What It Shows
-
-1. **Running Status**
-   - Is builder currently running?
-   - Process ID
-
-2. **Current Progress**
-   - Checkpoint info (which file, sentences processed)
-   - Output file size
-   - Sentence count
-
-3. **System Resources**
-   - Memory usage
-   - Disk space
-   - CPU usage (if running)
-
-4. **Recent Log Output**
-   - Last 20 lines of log
+Other categories:
+- `analyze_*.py` - Analysis/inspection (read-only)
+- `benchmark_*.py` - Performance benchmarks
+- `util_*.py` - Shared utilities
 
 ---
 
-## Running from Another Terminal
+## Stage-by-Stage Reference
 
-### Start Builder in Background
+### Stage 1: ACQUIRE
+
+Download raw data sources.
 
 ```bash
-# Option 1: Run in background with nohup
-nohup ./scripts/run_corpus_builder.sh > /dev/null 2>&1 &
+# Download Gutenberg Esperanto texts
+python scripts/acquire_gutenberg.py
 
-# Option 2: Use tmux (recommended)
-tmux new -s corpus
-./scripts/run_corpus_builder.sh
-# Press Ctrl+B, then D to detach
-
-# Option 3: Use screen
-screen -S corpus
-./scripts/run_corpus_builder.sh
-# Press Ctrl+A, then D to detach
+# Download FastText embeddings (reference)
+python scripts/acquire_fasttext.py
 ```
 
-### Monitor from Another Terminal
+**Output:** `data/raw/eo/gutenberg/`, `data/raw/eo/wikipedia/`
+
+### Stage 2: CLEAN
+
+Clean and normalize text files.
 
 ```bash
-# Terminal 1: Running builder
-./scripts/run_corpus_builder.sh
+# Clean all sources
+./scripts/clean_all.sh
 
-# Terminal 2: Monitor progress
-watch -n 5 ./scripts/monitor_corpus_builder.sh
-
-# Terminal 3: Follow logs
-tail -f logs/corpus_builder_latest.log
+# Or individually:
+python scripts/clean_gutenberg.py --input data/raw/eo/gutenberg --output data/cleaned/eo
+python scripts/clean_revo.py
 ```
 
-### Reattach to Running Session
+**Output:** `data/cleaned/eo/`
+
+### Stage 3: EXTRACT
+
+Extract sentences with metadata (JSONL format).
 
 ```bash
-# If using tmux
-tmux attach -t corpus
+# Extract all sources
+./scripts/extract_all.sh
 
-# If using screen
-screen -r corpus
+# Or individually:
+./scripts/extract_wikipedia.sh   # Wikipedia articles (~2-3 hours)
+./scripts/extract_gutenberg.sh   # Books (~5-10 minutes)
 ```
 
----
+**Output:** `data/extracted/wikipedia_sentences.jsonl`, `data/extracted/books_sentences.jsonl`
 
-## Troubleshooting
+### Stage 4: PARSE
 
-### Builder Stops with Error
+Parse sentences to ASTs and build unified corpus.
 
-**Check the log:**
 ```bash
-cat logs/corpus_builder_latest.log
+# Build unified corpus with ASTs
+./scripts/parse_corpus.sh
+
+# Or with options:
+./scripts/parse_corpus.sh --min-parse-rate 0.5
 ```
 
-**Common issues:**
-- Missing files: Check `data/cleaned/` directory exists
-- Import errors: Run `pip install -r requirements.txt`
-- Permission errors: Check file permissions
+**Output:** `data/corpus/unified_corpus.jsonl`
 
-**Resume after fixing:**
+### Stage 5: INDEX
+
+Build FAISS indexes for retrieval.
+
 ```bash
-./scripts/run_corpus_builder.sh
-# Automatically resumes from checkpoint
+# Build compositional embeddings index
+./scripts/index_compositional.sh
+
+# Start fresh (ignore checkpoint)
+./scripts/index_compositional.sh --fresh
 ```
 
-### System Freezing
+**Output:** `data/indexes/compositional/`
 
-**Use gentler settings:**
+### Stage 6: TRAIN
+
+Train embedding models.
+
 ```bash
-./scripts/run_corpus_builder.sh --gentle
+# Train root embeddings
+./scripts/train_roots.sh
+
+# Train affix transforms
+./scripts/train_affixes.sh
+
+# Full training pipeline
+./scripts/train_full.sh
 ```
 
-**Or adjust throttle manually:**
+**Output:** `models/root_embeddings/best_model.pt`, `models/affix_transforms_v2/best_model.pt`
+
+### Stage 7: VALIDATE
+
+Validate quality of corpus, vocabulary, and models.
+
 ```bash
-# Edit the script or use Python directly
-python scripts/build_corpus_v2.py --throttle 0.5 --batch-size 5
-```
+# Run all validation
+./scripts/validate_all.sh
 
-### Out of Memory
-
-**Try:**
-1. Close other applications
-2. Use gentler settings (smaller batch size)
-3. Skip AST generation temporarily:
-   ```bash
-   ./scripts/run_corpus_builder.sh --no-ast --gentle
-   ```
-
-### Checkpoint Corruption
-
-**Start fresh:**
-```bash
-./scripts/run_corpus_builder.sh --clean
-```
-
-### Want to Access Logs Later
-
-All logs are saved in `logs/` directory with timestamps:
-```bash
-# List all logs
-ls -lht logs/corpus_builder_*.log
-
-# View specific log
-cat logs/corpus_builder_20251127_143022.log
-
-# Search for errors
-grep -i error logs/corpus_builder_*.log
+# Or individually:
+python scripts/validate_vocabulary.py
+python scripts/validate_corpus.py
+python scripts/validate_stage1.py  # Requires trained model
 ```
 
 ---
 
-## File Locations
+## Demo Scripts
 
-### Input
-- `data/cleaned/` - Cleaned text files
+Interactive demos to test the pipeline:
 
-### Output
-- `data/corpus_with_sources_v2.jsonl` - Built corpus
+```bash
+# RAG demo (retrieval + answering)
+python scripts/demo_rag.py --interactive
+python scripts/demo_rag.py "Kio estas la Unu Ringo?"
 
-### Temporary
-- `data/build_corpus_v2_checkpoint.json` - Checkpoint (auto-deleted on success)
+# Full pipeline demo
+python scripts/demo_pipeline.py
 
-### Logs
-- `logs/corpus_builder_TIMESTAMP.log` - Timestamped logs
-- `logs/corpus_builder_latest.log` - Symlink to latest log
+# Embeddings demo
+python scripts/demo_embeddings.py
+```
 
 ---
 
-## Examples
+## Long-Running Scripts
 
-### Standard Workflow
+These scripts take significant time and should be run in a separate terminal:
 
-```bash
-# 1. Start builder
-./scripts/run_corpus_builder.sh
+| Script | Duration | Description |
+|--------|----------|-------------|
+| `extract_wikipedia.sh` | 2-3 hours | Extract Wikipedia |
+| `extract_all.sh` | 2-3 hours | All extraction |
+| `parse_corpus.sh` | 1-2 hours | Build corpus with ASTs |
+| `index_compositional.sh` | 30-60 min | Build FAISS index |
+| `train_roots.sh` | 1-2 hours | Train root embeddings |
+| `train_affixes.sh` | 30-60 min | Train affix transforms |
 
-# 2. Monitor from another terminal
-watch -n 5 ./scripts/monitor_corpus_builder.sh
-
-# 3. Follow logs (optional)
-tail -f logs/corpus_builder_latest.log
-```
-
-### Interrupted and Resume
+### Running in Background
 
 ```bash
-# First run - Ctrl+C after processing some files
-./scripts/run_corpus_builder.sh
-# ... working ... ^C
-
-# Check what was saved
-cat data/build_corpus_v2_checkpoint.json
-
-# Resume where left off
-./scripts/run_corpus_builder.sh
-# Automatically continues!
-```
-
-### Run Overnight
-
-```bash
-# Option 1: Use tmux
-tmux new -s corpus
-./scripts/run_corpus_builder.sh
+# Option 1: tmux (recommended)
+tmux new -s pipeline
+./scripts/pipeline.sh
 # Detach: Ctrl+B, then D
+# Reattach: tmux attach -t pipeline
 
-# Option 2: Use nohup
-nohup ./scripts/run_corpus_builder.sh &
+# Option 2: nohup
+nohup ./scripts/train_roots.sh &
 
-# Next morning - check status
-./scripts/monitor_corpus_builder.sh
+# Option 3: screen
+screen -S training
+./scripts/train_roots.sh
+# Detach: Ctrl+A, then D
 ```
 
-### Debug Issues
+### Monitoring Progress
 
 ```bash
-# Run with verbose Python output
-./scripts/run_corpus_builder.sh 2>&1 | tee debug.log
+# Follow training logs
+tail -f logs/training/root_training_*.log
 
-# Check what went wrong
-grep -i error logs/corpus_builder_latest.log
+# Check extraction progress
+wc -l data/extracted/wikipedia_sentences.jsonl
 
-# Try with minimal settings
-./scripts/run_corpus_builder.sh --no-ast --gentle
+# Check corpus size
+wc -l data/corpus/unified_corpus.jsonl
 ```
 
 ---
 
-## Script Features Summary
+## Checkpointing
 
-### `run_corpus_builder.sh`
-✅ Automatic environment setup
-✅ Checkpointing every N sentences
-✅ Automatic resumption on restart
-✅ Comprehensive logging
-✅ Safe Ctrl+C handling
-✅ Multiple speed modes
-✅ System info display
-✅ Error handling
+All long-running scripts support checkpointing:
 
-### `monitor_corpus_builder.sh`
-✅ Running status check
-✅ Progress display
-✅ Resource monitoring
-✅ Recent log output
-✅ Helpful commands
+```bash
+# Resume from checkpoint (default)
+./scripts/train_roots.sh
+
+# Start fresh (ignore checkpoint)
+./scripts/train_roots.sh --fresh
+```
+
+Checkpoint files are saved atomically (write to `.tmp`, then rename) to prevent corruption.
+
+---
+
+## Archive
+
+Obsolete/superseded scripts are in `scripts/archive/`. These are kept for reference but should not be used.
 
 ---
 
 ## Quick Reference
 
 ```bash
-# Start building
-./scripts/run_corpus_builder.sh
+# Full pipeline
+./scripts/pipeline.sh
 
-# Monitor progress
-./scripts/monitor_corpus_builder.sh
+# Stage by stage
+./scripts/clean_all.sh
+./scripts/extract_all.sh
+./scripts/parse_corpus.sh
+./scripts/index_compositional.sh
+./scripts/train_roots.sh
+./scripts/train_affixes.sh
+./scripts/validate_all.sh
 
-# Follow logs
-tail -f logs/corpus_builder_latest.log
-
-# Stop gracefully
-pkill -INT -f build_corpus_v2.py
-
-# Start fresh
-./scripts/run_corpus_builder.sh --clean
-
-# Gentle mode (safe)
-./scripts/run_corpus_builder.sh --gentle
-
-# Fast mode (risky)
-./scripts/run_corpus_builder.sh --fast
+# Demo
+python scripts/demo_rag.py -i
 ```

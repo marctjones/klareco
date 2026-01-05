@@ -78,25 +78,28 @@ python -m klareco translate "The dog sees the cat." --to eo
 ### Corpus Management
 ```bash
 # Build corpus from cleaned texts
-python scripts/build_corpus_v2.py \
+python scripts/parse_corpus.py \
   --cleaned-dir data/cleaned/eo \
-  --output data/corpus/corpus_with_sources.jsonl \
+  --output data/corpus/unified_corpus.jsonl \
   --min-parse-rate 0.5
 
-# Build retrieval index
-python scripts/index_corpus.py \
-  --corpus data/corpus/corpus_with_sources.jsonl \
-  --output data/indexes/v3 \
-  --batch-size 32
+# Build retrieval index with compositional embeddings
+python scripts/index_compositional.py \
+  --corpus data/corpus/unified_corpus.jsonl \
+  --root-model models/root_embeddings/best_model.pt \
+  --output-dir data/indexes/compositional
 ```
 
 ### Training Models
 ```bash
 # Train root embeddings (Stage 1)
-./scripts/run_fundamento_training.sh
+./scripts/train_roots.sh
+
+# Train affix transforms
+./scripts/train_affixes.sh
 
 # Full training pipeline
-./scripts/run_full_training.sh
+./scripts/train_full.sh
 ```
 
 ### RAG Demo
@@ -162,7 +165,7 @@ Long-running scripts include:
 
 2. **Tell the user to run it** in a separate terminal:
    ```bash
-   ./scripts/run_corpus_rebuild.sh --fresh   # Example
+   ./scripts/parse_corpus.sh --fresh   # Example
    ```
 
 3. **Monitor progress** only if asked, by reading log files
@@ -215,9 +218,36 @@ python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
 
 | Task | Shell Script | Description |
 |------|--------------|-------------|
-| Corpus rebuild | `./scripts/run_corpus_rebuild.sh` | Full corpus rebuild pipeline |
-| Fundamento training | `./scripts/run_fundamento_training.sh` | Train on Fundamento data |
-| Full training | `./scripts/run_full_training.sh` | Complete training pipeline |
+| Full pipeline | `./scripts/pipeline.sh` | Run complete data pipeline |
+| Clean all texts | `./scripts/clean_all.sh` | Clean Gutenberg + ReVo |
+| Extract all | `./scripts/extract_all.sh` | Extract Wikipedia + Books |
+| Parse corpus | `./scripts/parse_corpus.sh` | Build unified corpus with ASTs |
+| Build index | `./scripts/index_compositional.sh` | Build FAISS index |
+| Train roots | `./scripts/train_roots.sh` | Train root embeddings |
+| Train affixes | `./scripts/train_affixes.sh` | Train affix transforms |
+| Validate all | `./scripts/validate_all.sh` | Run all validation checks |
+
+### Pipeline Workflow
+
+The Klareco data pipeline has 7 logical stages. Use `pipeline.sh` to run the full workflow:
+
+```bash
+./scripts/pipeline.sh              # Run full pipeline
+./scripts/pipeline.sh --from clean # Start from clean stage
+./scripts/pipeline.sh --only index # Run only index stage
+```
+
+```
+ACQUIRE  → Download raw data (Gutenberg, Wikipedia)
+CLEAN    → Clean/normalize text (remove headers, markup)
+EXTRACT  → Extract sentences + metadata (JSONL)
+PARSE    → Parse to ASTs (unified corpus)
+INDEX    → Build FAISS indexes
+TRAIN    → Train embedding models
+VALIDATE → Validate quality
+```
+
+Scripts follow naming convention: `<stage>_<target>.py` and `<stage>_<target>.sh`
 
 ## Code Organization
 
@@ -238,9 +268,17 @@ klareco/
 └── orchestrator.py         # Intent routing and pipeline coordination
 
 scripts/
-├── build_corpus_v2.py      # Corpus builder with quality filtering
-├── create_training_corpus.py  # Filter corpus for training
-└── index_corpus.py         # Build FAISS retrieval index
+├── acquire_*.py            # Download raw data
+├── clean_*.py              # Clean/normalize text
+├── extract_*.py            # Extract sentences with metadata
+├── parse_*.py              # Parse to ASTs
+├── index_*.py              # Build FAISS indexes
+├── train_*.sh              # Train models (shell wrappers)
+├── validate_*.py           # Validate quality
+├── demo_*.py               # Interactive demos
+├── analyze_*.py            # Analysis scripts (read-only)
+├── pipeline.sh             # Master workflow script
+└── archive/                # Obsolete/superseded scripts
 ```
 
 ## Data Files (Not in Git)
@@ -304,10 +342,10 @@ All ASTs follow this pattern:
 ### Running Long Processes
 For training or corpus building, use shell scripts to run in separate terminal to save Claude context:
 ```bash
-./scripts/run_semantic_training.sh  # Logs to models/semantic_similarity/training.log
+./scripts/train_roots.sh  # Logs to logs/training/root_training_*.log
 ```
 
-Monitor with: `tail -f models/semantic_similarity/training.log`
+Monitor with: `tail -f logs/training/root_training_*.log`
 
 ## Current Development Status
 
@@ -585,7 +623,7 @@ Migrate when discussion crystallizes into:
 - **Move to Discussion**: "What did we learn?" (results/notes)
 
 **Example**:
-- ✅ KEEP: `CORPUS_BUILDING.md` - Step-by-step guide to run `./scripts/run_wikipedia_extraction.sh`
+- ✅ KEEP: `CORPUS_BUILDING.md` - Step-by-step guide to run `./scripts/extract_wikipedia.sh`
 - ❌ MOVE: `RAG_SYSTEM.md` - Explains RAG architecture concepts (→ Wiki)
 - ❌ MOVE: `SESSION_SUMMARY.md` - Notes from development session (→ Discussion)
 

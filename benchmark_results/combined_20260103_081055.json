@@ -1,0 +1,92 @@
+{
+  "index_path": "data/indexes/slot_test",
+  "queries_path": "benchmark_results/queries_20260103_081055.jsonl",
+  "num_queries": 20,
+  "timestamp": "20260103_081055",
+  "solutions": [
+    {
+      "retriever": "MemoryMappedSlotRetriever",
+      "num_queries": 20,
+      "latency": {
+        "mean_ms": 44.82417106628418,
+        "median_ms": 44.318199157714844,
+        "p95_ms": 50.861918926239014,
+        "p99_ms": 50.9429144859314,
+        "min_ms": 34.39760208129883,
+        "max_ms": 50.96316337585449
+      },
+      "memory": {
+        "peak_mb": 675.796875,
+        "delta_mb": 4.33984375
+      },
+      "accuracy": {
+        "recall_at_10": 0.9,
+        "mrr": 0.86,
+        "ndcg_at_10": 0.869342640361727
+      }
+    },
+    {
+      "retriever": "FAISSSlotRetriever",
+      "num_queries": 20,
+      "latency": {
+        "mean_ms": 5.131089687347412,
+        "median_ms": 5.318403244018555,
+        "p95_ms": 7.391047477722169,
+        "p99_ms": 8.24376583099365,
+        "min_ms": 2.4442672729492188,
+        "max_ms": 8.456945419311523
+      },
+      "memory": {
+        "peak_mb": 682.890625,
+        "delta_mb": 3.33203125
+      },
+      "accuracy": {
+        "recall_at_10": 0.85,
+        "mrr": 0.775,
+        "ndcg_at_10": 0.7946394630357186
+      }
+    },
+    {
+      "retriever": "MultiFAISSSlotRetriever",
+      "num_queries": 20,
+      "latency": {
+        "mean_ms": 1.0529041290283203,
+        "median_ms": 0.9551048278808594,
+        "p95_ms": 2.056586742401123,
+        "p99_ms": 2.1759963035583496,
+        "min_ms": 0.4992485046386719,
+        "max_ms": 2.2058486938476562
+      },
+      "memory": {
+        "peak_mb": 682.87109375,
+        "delta_mb": 3.3828125
+      },
+      "accuracy": {
+        "recall_at_10": 0.75,
+        "mrr": 0.5591666666666667,
+        "ndcg_at_10": 0.6025462166730402
+      }
+    },
+    {
+      "retriever": "SQLiteSlotRetriever",
+      "num_queries": 20,
+      "latency": {
+        "mean_ms": 30.876076221466064,
+        "median_ms": 24.498820304870605,
+        "p95_ms": 37.05614805221567,
+        "p99_ms": 133.7860465049742,
+        "min_ms": 19.425630569458008,
+        "max_ms": 157.96852111816406
+      },
+      "memory": {
+        "peak_mb": 675.83203125,
+        "delta_mb": 5.3671875
+      },
+      "accuracy": {
+        "recall_at_10": 0.85,
+        "mrr": 0.8099999999999999,
+        "ndcg_at_10": 0.819342640361727
+      }
+    }
+  ]
+}

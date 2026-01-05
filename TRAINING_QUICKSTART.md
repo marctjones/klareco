@@ -13,7 +13,7 @@ This is the definitive guide to training Klareco models. For full details, see `
 | Training corpus | **COMPLETE** | `scripts/create_training_corpus.py` |
 | Stage 1: Root embeddings | **COMPLETE** | `scripts/training/train_root_embeddings.py` |
 | Stage 1: Affix transforms V2 | **COMPLETE** | `scripts/training/train_affix_transforms_v2.py` |
-| Stage 1: Corpus index | **COMPLETE** | `scripts/index_corpus_compositional.py` |
+| Stage 1: Corpus index | **COMPLETE** | `scripts/index_compositional.py` |
 | Stage 2: Grammatical model | **NEXT** | (not yet implemented) |
 
 ### Stage 1 Results
@@ -54,13 +54,13 @@ ls -la data/vocabularies/fundamento_roots.json
 
 ```bash
 # Run the full training pipeline (in a separate terminal)
-./scripts/run_fundamento_training.sh
+./scripts/train_roots.sh
 
 # Or run with fresh start (ignores checkpoints)
-./scripts/run_fundamento_training.sh --fresh
+./scripts/train_roots.sh --fresh
 
 # Monitor progress
-tail -f logs/training/fundamento_training_*.log
+tail -f logs/training/root_training_*.log
 ```
 
 ### 3. Evaluate
@@ -190,16 +190,15 @@ Training is weighted heavily toward Zamenhof's original works. The Fundamento Ek
 ### Training Scripts
 ```
 scripts/
-├── run_fundamento_training.sh      # Main training runner
-├── run_full_training.sh            # Full pipeline runner
+├── train_roots.sh                  # Train root embeddings
+├── train_affixes.sh                # Train affix transforms
+├── train_full.sh                   # Full pipeline runner
 ├── create_training_corpus.py       # Create training data from corpus
 └── training/
     ├── train_root_embeddings.py    # Stage 1 Phase 1
-    ├── train_affix_embeddings.py   # Stage 1 Phase 2
-    ├── train_sentence_encoder.py   # Stage 1 Phase 3
+    ├── train_affix_transforms_v2.py # Stage 1 Phase 2
     ├── evaluate_embeddings.py      # Evaluation
-    ├── extract_fundamento_uv.py    # Extract Fundamento roots
-    └── extract_ekzercaro.py        # Extract Ekzercaro sentences
+    └── extract_fundamento_uv.py    # Extract Fundamento roots
 ```
 
 ### Data Files

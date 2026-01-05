@@ -1,0 +1,28 @@
+{
+  "index_path": "data/indexes/slot_full",
+  "queries_path": "benchmark_results/queries_20260103_004515.jsonl",
+  "num_queries": 50,
+  "solutions": [
+    {
+      "retriever": "SQLiteSlotRetriever",
+      "num_queries": 50,
+      "latency": {
+        "mean_ms": 152.2481918334961,
+        "median_ms": 129.05073165893555,
+        "p95_ms": 238.86684179306027,
+        "p99_ms": 246.14803791046143,
+        "min_ms": 101.93657875061035,
+        "max_ms": 247.5581169128418
+      },
+      "memory": {
+        "peak_mb": 680.625,
+        "delta_mb": 13.6484375
+      },
+      "accuracy": {
+        "recall_at_10": 0.0,
+        "mrr": 0.0,
+        "ndcg_at_10": 0.0
+      }
+    }
+  ]
+}

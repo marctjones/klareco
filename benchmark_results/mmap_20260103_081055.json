@@ -1,0 +1,28 @@
+{
+  "index_path": "data/indexes/slot_test",
+  "queries_path": "benchmark_results/queries_20260103_081055.jsonl",
+  "num_queries": 20,
+  "solutions": [
+    {
+      "retriever": "MemoryMappedSlotRetriever",
+      "num_queries": 20,
+      "latency": {
+        "mean_ms": 44.82417106628418,
+        "median_ms": 44.318199157714844,
+        "p95_ms": 50.861918926239014,
+        "p99_ms": 50.9429144859314,
+        "min_ms": 34.39760208129883,
+        "max_ms": 50.96316337585449
+      },
+      "memory": {
+        "peak_mb": 675.796875,
+        "delta_mb": 4.33984375
+      },
+      "accuracy": {
+        "recall_at_10": 0.9,
+        "mrr": 0.86,
+        "ndcg_at_10": 0.869342640361727
+      }
+    }
+  ]
+}

@@ -31,6 +31,9 @@ Usage:
 import argparse
 import logging
 import sys
+import time
+import psutil
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -39,18 +42,50 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from klareco.rag.slot_indexer import SlotBasedIndexer
 from klareco.rag.slot_retriever import SlotBasedRetriever
 
-# Import FAISS-based retriever for large indexes
+# Import specialized retrievers for large indexes
 try:
-    from klareco.rag.slot_retriever_faiss import FAISSSlotRetriever
-    FAISS_AVAILABLE = True
+    from klareco.rag.slot_retriever_multifaiss import MultiFAISSSlotRetriever
+    MULTIFAISS_AVAILABLE = True
 except ImportError:
-    FAISS_AVAILABLE = False
+    MULTIFAISS_AVAILABLE = False
+
+try:
+    from klareco.rag.slot_retriever_hybrid import HybridFAISSMmapRetriever
+    HYBRID_AVAILABLE = True
+except ImportError:
+    HYBRID_AVAILABLE = False
+
+try:
+    from klareco.rag.slot_retriever_hnsw import HNSWSlotRetriever
+    HNSW_AVAILABLE = True
+except ImportError:
+    HNSW_AVAILABLE = False
+
+try:
+    from klareco.rag.slot_retriever_scann import ScaNNSlotRetriever
+    SCANN_AVAILABLE = True
+except ImportError:
+    SCANN_AVAILABLE = False
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(levelname)s - %(message)s',
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S',
 )
 logger = logging.getLogger(__name__)
+
+# Resource monitoring utilities
+def get_resource_usage():
+    """Get current CPU and memory usage."""
+    process = psutil.Process(os.getpid())
+    memory_mb = process.memory_info().rss / 1024 / 1024
+    cpu_percent = process.cpu_percent(interval=0.1)
+    return memory_mb, cpu_percent
+
+def log_resources(prefix=""):
+    """Log current resource usage."""
+    memory_mb, cpu_percent = get_resource_usage()
+    logger.info(f"{prefix}Memory: {memory_mb:.1f} MB | CPU: {cpu_percent:.1f}%")
 
 # Translation support
 def load_translator():
@@ -98,12 +133,34 @@ def demo_queries(retriever: SlotBasedRetriever, top_k: int = 10, rerank_top_n: i
     print("=" * 70)
     print()
 
-    for query_eo, query_en in test_queries:
-        print(f"Query: {query_eo}")
+    for query_num, (query_eo, query_en) in enumerate(test_queries, 1):
+        print(f"Query {query_num}/{len(test_queries)}: {query_eo}")
         print(f"  EN: {query_en}")
         print()
 
-        results = retriever.search(query_eo, top_k=top_k, rerank_top_n=rerank_top_n)
+        log_resources(f"Q{query_num} before: ")
+        start_time = time.time()
+
+        # Call search with appropriate parameters based on retriever type
+        if 'ScaNN' in retriever.__class__.__name__:
+            # ScaNNSlotRetriever uses scann_top_n
+            results = retriever.search(query_eo, top_k=top_k, scann_top_n=rerank_top_n)
+        elif 'HNSW' in retriever.__class__.__name__:
+            # HNSWSlotRetriever uses hnsw_top_n
+            results = retriever.search(query_eo, top_k=top_k, hnsw_top_n=rerank_top_n)
+        elif 'Hybrid' in retriever.__class__.__name__:
+            # HybridFAISSMmapRetriever uses faiss_top_n
+            results = retriever.search(query_eo, top_k=top_k, faiss_top_n=rerank_top_n)
+        elif 'MultiFAISS' in retriever.__class__.__name__:
+            # MultiFAISSSlotRetriever uses slot_top_n
+            results = retriever.search(query_eo, top_k=top_k, slot_top_n=rerank_top_n)
+        else:
+            # SlotBasedRetriever and MemoryMappedSlotRetriever use rerank_top_n
+            results = retriever.search(query_eo, top_k=top_k, rerank_top_n=rerank_top_n)
+
+        query_time = (time.time() - start_time) * 1000  # ms
+        log_resources(f"Q{query_num} after: ")
+        logger.info(f"Query {query_num} time: {query_time:.1f} ms")
 
         if results:
             print(f"Top {len(results)} results:")
@@ -163,7 +220,24 @@ def interactive_mode(retriever: SlotBasedRetriever, top_k: int = 20, rerank_top_
             break
 
         print()
-        results = retriever.search(query, top_k=top_k, rerank_top_n=rerank_top_n)
+        log_resources("Before query: ")
+        start_time = time.time()
+
+        # Call search with appropriate parameters based on retriever type
+        if 'ScaNN' in retriever.__class__.__name__:
+            results = retriever.search(query, top_k=top_k, scann_top_n=rerank_top_n)
+        elif 'HNSW' in retriever.__class__.__name__:
+            results = retriever.search(query, top_k=top_k, hnsw_top_n=rerank_top_n)
+        elif 'Hybrid' in retriever.__class__.__name__:
+            results = retriever.search(query, top_k=top_k, faiss_top_n=rerank_top_n)
+        elif 'MultiFAISS' in retriever.__class__.__name__:
+            results = retriever.search(query, top_k=top_k, slot_top_n=rerank_top_n)
+        else:
+            results = retriever.search(query, top_k=top_k, rerank_top_n=rerank_top_n)
+
+        query_time = (time.time() - start_time) * 1000  # ms
+        log_resources("After query: ")
+        logger.info(f"Query time: {query_time:.1f} ms")
 
         if results:
             print(f"Top {len(results)} results:")
@@ -276,37 +350,100 @@ def main():
         logger.warning("Could not determine index size")
 
     # Auto-select retriever based on index size
-    use_faiss = False
+    log_resources("Initial: ")
+
+    use_scann = False
+    use_hnsw = False
+    use_hybrid = False
+    use_multifaiss = False
+
     if num_docs > 100000:  # More than 100K docs
-        if FAISS_AVAILABLE and (args.index / "faiss").exists():
-            use_faiss = True
-            logger.info(f"Large index ({num_docs:,} docs) - using FAISS-based retriever for efficiency")
+        # Prefer HNSW if available (fastest + simplest)
+        if HNSW_AVAILABLE and (args.index / "hnsw").exists() and (args.index / "mmap").exists():
+            use_hnsw = True
+            logger.info(f"Large index ({num_docs:,} docs) - using HNSWSlot retriever")
+            logger.info("Note: HNSW graph traversal + mmap slot reranking")
+            logger.info("Expected: 85-90% recall, ~2-3ms latency (fastest + simplest)")
+        # Use ScaNN if available (highest accuracy but requires TensorFlow)
+        elif SCANN_AVAILABLE and (args.index / "scann").exists() and (args.index / "mmap").exists():
+            use_scann = True
+            logger.info(f"Large index ({num_docs:,} docs) - using ScaNNSlot retriever")
+            logger.info("Note: ScaNN anisotropic quantization + mmap slot reranking")
+            logger.info("Expected: 90-95% recall, ~3-5ms latency (highest accuracy)")
+        # Fall back to Hybrid if HNSW/ScaNN not available
+        elif HYBRID_AVAILABLE and (args.index / "faiss").exists() and (args.index / "mmap").exists():
+            use_hybrid = True
+            logger.info(f"Large index ({num_docs:,} docs) - using HybridFAISSMmap retriever")
+            logger.info("Note: Combines FAISS pre-filtering + mmap slot reranking")
+            logger.info("Expected: 90% recall, ~3.5ms latency (FAISS-based)")
+        elif MULTIFAISS_AVAILABLE and (args.index / "multifaiss").exists():
+            use_multifaiss = True
+            logger.info(f"Large index ({num_docs:,} docs) - using MultiFAISS retriever")
+            logger.info("Note: Separate FAISS index per slot (SUBJ/VERB/OBJ)")
+            logger.info("Expected: 75% recall, 1.1ms latency (fallback option)")
         else:
-            logger.warning(f"Large index ({num_docs:,} docs) but FAISS not available")
+            logger.warning(f"Large index ({num_docs:,} docs) but no optimized retriever available")
             logger.warning("This may use significant memory. Consider using a smaller test index.")
-            logger.warning("Or build FAISS index: python scripts/index_slot_based.py --index {args.index} --build-faiss")
+            logger.warning("Or build indexes:")
+            logger.warning(f"  HNSW (recommended): ./scripts/build_hnsw_index.sh --index {args.index}")
+            logger.warning(f"  ScaNN (highest accuracy): ./scripts/build_scann_index.sh --index {args.index}")
+            logger.warning(f"  Hybrid: python scripts/index_slot_based.py --index {args.index} --build-faiss")
+            logger.warning(f"  MultiFAISS: python scripts/index_slot_based.py --index {args.index} --build-multifaiss")
 
     # Load indexer (for query embedding)
     logger.info("Loading models...")
+    log_resources("Before model load: ")
+
     indexer = SlotBasedIndexer(
         root_model_path=args.root_model,
         affix_model_path=args.affix_model,
         output_dir=args.index,  # Not used for retrieval
     )
 
-    # Load retriever (FAISS for large indexes, naive for small)
-    if use_faiss:
-        logger.info("Using FAISSSlotRetriever (memory-efficient)")
-        retriever = FAISSSlotRetriever(
+    log_resources("After model load: ")
+
+    # Load retriever (hnsw > scann > hybrid > multifaiss > slotbased)
+    logger.info("Loading retriever...")
+    if use_hnsw:
+        logger.info("Using HNSWSlotRetriever (HNSW + mmap, 85-90% recall)")
+        log_resources("Before retriever load: ")
+        retriever = HNSWSlotRetriever(
             index_path=args.index,
             indexer=indexer,
         )
+        log_resources("After retriever load: ")
+    elif use_scann:
+        logger.info("Using ScaNNSlotRetriever (ScaNN + mmap, 90-95% recall)")
+        log_resources("Before retriever load: ")
+        retriever = ScaNNSlotRetriever(
+            index_path=args.index,
+            indexer=indexer,
+        )
+        log_resources("After retriever load: ")
+    elif use_hybrid:
+        logger.info("Using HybridFAISSMmapRetriever (FAISS + mmap, 90% recall)")
+        log_resources("Before retriever load: ")
+        retriever = HybridFAISSMmapRetriever(
+            index_path=args.index,
+            indexer=indexer,
+        )
+        log_resources("After retriever load: ")
+    elif use_multifaiss:
+        logger.info("Using MultiFAISSSlotRetriever (3 separate indexes, 75% recall)")
+        log_resources("Before retriever load: ")
+        retriever = MultiFAISSSlotRetriever(
+            index_path=args.index,
+            indexer=indexer,
+        )
+        log_resources("After retriever load: ")
     else:
         logger.info("Using SlotBasedRetriever (loads all docs in memory)")
+        log_resources("Before retriever load: ")
         retriever = SlotBasedRetriever(
             index_path=index_file,
             indexer=indexer,
         )
+        log_resources("After retriever load: ")
 
     # Load translator if requested
     translator = None

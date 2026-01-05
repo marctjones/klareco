@@ -91,12 +91,18 @@ import json
 import sys
 
 count = 0
+total = 0
 with open(sys.argv[1], 'r') as f:
     for line in f:
+        total += 1
         doc = json.loads(line)
         source = doc.get('source', {})
         if source.get('name') == 'wikipedia' or source.get('tier') == 6:
             count += 1
+
+        # Progress indicator every 500K lines
+        if total % 500000 == 0:
+            print(f"  Scanned {total:,} sentences... (found {count:,} Wikipedia)", file=sys.stderr)
 
 print(count)
 EOF
@@ -120,14 +126,20 @@ from collections import Counter
 
 key_articles = ['L. L. Zamenhof', 'Esperanto', 'La Espero']
 found = Counter()
+total = 0
 
 with open(sys.argv[1], 'r') as f:
     for line in f:
+        total += 1
         doc = json.loads(line)
         source = doc.get('source', {})
         article = source.get('article_title', '')
         if article in key_articles:
             found[article] += 1
+
+        # Progress indicator every 500K lines
+        if total % 500000 == 0:
+            print(f"  Scanned {total:,} sentences...", file=sys.stderr)
 
 print("Key articles found:")
 for article in key_articles:
@@ -179,6 +191,10 @@ with open(sys.argv[1], 'r') as f:
         by_tier[tier] += 1
         by_source[source_type] += 1
         total_words += doc.get('word_count', len(doc['text'].split()))
+
+        # Progress indicator every 500K lines
+        if total % 500000 == 0:
+            print(f"  Computing statistics... {total:,} sentences", file=sys.stderr)
 
 print(f"Total sentences: {total:,}")
 print(f"Total words: {total_words:,}")

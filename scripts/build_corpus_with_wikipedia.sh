@@ -190,7 +190,8 @@ check_prerequisites() {
     # Count input sentences
     local books_count=$(wc -l < "$BOOKS_INPUT")
     local wiki_count=$(wc -l < "$WIKI_INPUT")
-    log_info "Input sentences: ${books_count:,} books + ${wiki_count:,} Wikipedia = $((books_count + wiki_count)) total"
+    local total_count=$((books_count + wiki_count))
+    log_info "Input sentences: $books_count books + $wiki_count Wikipedia = $total_count total"
 }
 
 activate_venv() {
@@ -278,9 +279,9 @@ merge_corpus_files() {
     local total=$((books_count + wiki_count))
 
     log_info "Merging:"
-    log_info "  Books:     ${books_count:,} sentences"
-    log_info "  Wikipedia: ${wiki_count:,} sentences"
-    log_info "  Total:     ${total:,} sentences"
+    log_info "  Books:     $books_count sentences"
+    log_info "  Wikipedia: $wiki_count sentences"
+    log_info "  Total:     $total sentences"
 
     # Merge files
     cat "$books_corpus" "$wiki_corpus" > "$FINAL_OUTPUT"
@@ -288,7 +289,7 @@ merge_corpus_files() {
     # Verify
     local final_count=$(wc -l < "$FINAL_OUTPUT")
     if [ "$final_count" -eq "$total" ]; then
-        log_success "Merged successfully: ${final_count:,} sentences"
+        log_success "Merged successfully: $final_count sentences"
         log_success "Output: $FINAL_OUTPUT ($(ls -lh "$FINAL_OUTPUT" | awk '{print $5}'))"
     else
         log_error "Merge verification failed: expected $total, got $final_count"
@@ -319,7 +320,7 @@ EOF
 "$FINAL_OUTPUT")
 
     if [ "$wiki_count" -gt 0 ]; then
-        log_success "Wikipedia sentences found: ${wiki_count:,}"
+        log_success "Wikipedia sentences found: $wiki_count"
 
         # Check for key articles
         log_info "Checking for key articles..."

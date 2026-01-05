@@ -1,0 +1,11 @@
+[project]
+name = ""
+
+[github]
+
+[daemon]
+auto_start = true
+
+[backends]
+task = "github"
+explore = "github"

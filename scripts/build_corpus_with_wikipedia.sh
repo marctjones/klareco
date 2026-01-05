@@ -282,7 +282,7 @@ validate_wikipedia_inclusion() {
     log_info "Checking for Wikipedia sentences in corpus..."
 
     # Check for Wikipedia metadata
-    local wiki_count=$(python3 << 'EOF'
+    local wiki_count=$(python3 - "$FINAL_OUTPUT" << 'EOF'
 import json
 import sys
 
@@ -291,19 +291,19 @@ with open(sys.argv[1], 'r') as f:
     for line in f:
         doc = json.loads(line)
         source = doc.get('source', {})
-        if source.get('name') == 'wikipedia' or source.get('tier') == 6:
+        if source.get('type') == 'wikipedia' or source.get('tier') == 6:
             count += 1
 
 print(count)
 EOF
-"$FINAL_OUTPUT")
+)
 
-    if [ "$wiki_count" -gt 0 ]; then
+    if [ -n "$wiki_count" ] && [ "$wiki_count" -gt 0 ]; then
         log_success "Wikipedia sentences found: $wiki_count"
 
         # Check for key articles
         log_info "Checking for key articles..."
-        python3 << 'EOF' "$FINAL_OUTPUT"
+        python3 - "$FINAL_OUTPUT" << 'EOF'
 import json
 import sys
 from collections import Counter
@@ -340,7 +340,7 @@ EOF
         fi
     else
         log_error "No Wikipedia sentences found in corpus!"
-        log_error "Expected >0 Wikipedia sentences, found 0"
+        log_error "Expected >0 Wikipedia sentences, found ${wiki_count:-0}"
         exit 1
     fi
 }

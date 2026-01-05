@@ -95,7 +95,7 @@ with open(sys.argv[1], 'r') as f:
     for line in f:
         doc = json.loads(line)
         source = doc.get('source', {})
-        if source.get('type') == 'wikipedia' or source.get('tier') == 6:
+        if source.get('name') == 'wikipedia' or source.get('tier') == 6:
             count += 1
 
 print(count)
@@ -174,7 +174,7 @@ with open(sys.argv[1], 'r') as f:
 
         source = doc.get('source', {})
         tier = source.get('tier', 5)
-        source_type = source.get('type', 'unknown')
+        source_type = source.get('name', 'unknown')
 
         by_tier[tier] += 1
         by_source[source_type] += 1

@@ -23,6 +23,7 @@ import numpy as np
 import torch
 
 from klareco.parser import parse
+from klareco.embeddings.hybrid_embeddings import HybridEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +37,40 @@ class SlotBasedIndexer:
         affix_model_path: Path,
         output_dir: Path,
         batch_size: int = 100,
+        topical_model_path: Optional[Path] = None,
+        use_hybrid: bool = False,
     ):
         self.root_model_path = root_model_path
         self.affix_model_path = affix_model_path
+        self.topical_model_path = topical_model_path
         self.output_dir = output_dir
         self.batch_size = batch_size
+        self.use_hybrid = use_hybrid
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Load models
         self.device = torch.device('cpu')
-        self.root_emb, self.root_to_idx, self.embedding_dim = self._load_root_model()
+
+        if use_hybrid and topical_model_path:
+            # Load hybrid embeddings (linguistic + topical)
+            self.hybrid_model = HybridEmbeddings.from_checkpoints(
+                linguistic_checkpoint=root_model_path,
+                topical_checkpoint=topical_model_path,
+                pad_missing=True,
+                default_mode='hybrid'
+            )
+            self.embedding_dim = 128  # 64d linguistic + 64d topical
+            self.root_to_idx = self.hybrid_model.topical_model.root_to_idx  # Use larger topical vocab
+            # For fallback embeddings
+            self.avg_root_embedding = torch.zeros(self.embedding_dim)
+        else:
+            # Load linguistic embeddings only (legacy)
+            self.hybrid_model = None
+            self.root_emb, self.root_to_idx, self.embedding_dim = self._load_root_model()
+            self.avg_root_embedding = self.root_emb.mean(dim=0)
+
         self.prefix_transforms, self.suffix_transforms = self._load_affix_transforms()
-        self.avg_root_embedding = self.root_emb.mean(dim=0)
 
         # Function words (excluded from embeddings)
         self.function_words = {
@@ -140,26 +162,43 @@ class SlotBasedIndexer:
 
         # Get root embedding
         root_lower = root.lower()
-        if root_lower in self.root_to_idx:
-            root_idx = self.root_to_idx[root_lower]
-            emb = self.root_emb[root_idx].clone()
-        elif root in self.root_to_idx:
-            root_idx = self.root_to_idx[root]
-            emb = self.root_emb[root_idx].clone()
+
+        if self.use_hybrid and self.hybrid_model:
+            # Use hybrid embeddings (linguistic + topical)
+            emb_tensor = self.hybrid_model.get_root_embedding(root_lower, mode='hybrid')
+            if emb_tensor is None:
+                # Try without lowercase
+                emb_tensor = self.hybrid_model.get_root_embedding(root, mode='hybrid')
+            if emb_tensor is None:
+                # Fallback to character hash
+                emb = self._char_hash_embedding(root)
+            else:
+                emb = emb_tensor
         else:
-            emb = self._char_hash_embedding(root)
+            # Use linguistic embeddings only (legacy)
+            if root_lower in self.root_to_idx:
+                root_idx = self.root_to_idx[root_lower]
+                emb = self.root_emb[root_idx].clone()
+            elif root in self.root_to_idx:
+                root_idx = self.root_to_idx[root]
+                emb = self.root_emb[root_idx].clone()
+            else:
+                emb = self._char_hash_embedding(root)
 
-        # Apply prefix transforms
-        for p in prefixes:
-            if p and p in self.prefix_transforms:
-                with torch.no_grad():
-                    emb = self.prefix_transforms[p](emb.unsqueeze(0)).squeeze(0)
+        # Note: Affix transforms not yet supported for hybrid embeddings (128d)
+        # TODO: Train new affix transforms for 128d embeddings
+        if not self.use_hybrid:
+            # Apply prefix transforms
+            for p in prefixes:
+                if p and p in self.prefix_transforms:
+                    with torch.no_grad():
+                        emb = self.prefix_transforms[p](emb.unsqueeze(0)).squeeze(0)
 
-        # Apply suffix transforms
-        for s in suffixes:
-            if s and s in self.suffix_transforms:
-                with torch.no_grad():
-                    emb = self.suffix_transforms[s](emb.unsqueeze(0)).squeeze(0)
+            # Apply suffix transforms
+            for s in suffixes:
+                if s and s in self.suffix_transforms:
+                    with torch.no_grad():
+                        emb = self.suffix_transforms[s](emb.unsqueeze(0)).squeeze(0)
 
         return emb.numpy()
 

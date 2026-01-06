@@ -4,10 +4,10 @@ title: Make FAISS search parameters runtime-tunable (nprobe, efSearch)
 state: open
 created: '2026-01-04T00:37:09.587063Z'
 labels:
-- enhancement
-- M2
 - faiss
-priority: high
+- future
+- superseded
+priority: low
 ---
 ## Problem
 

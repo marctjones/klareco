@@ -4,10 +4,10 @@ title: '[P3] Add LRU cache to MemoryMappedSlotRetriever for hot queries'
 state: open
 created: '2026-01-04T00:46:08.519313Z'
 labels:
-- enhancement
-- M2
-- P3
-priority: medium
+- faiss
+- future
+- superseded
+priority: low
 ---
 ## Goal
 

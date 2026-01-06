@@ -233,8 +233,10 @@ class MemoryMappedSlotRetriever:
             Array of similarity scores for documents [batch_start:batch_end]
         """
         batch_size = batch_end - batch_start
-        scores = np.zeros(batch_size, dtype=np.float32)
-        matched_counts = np.zeros(batch_size, dtype=np.float32)
+        # Get actual batch size from first slot to handle edge cases
+        actual_batch_size = len(self.embeddings['SUBJ'][batch_start:batch_end])
+        scores = np.zeros(actual_batch_size, dtype=np.float32)
+        matched_counts = np.zeros(actual_batch_size, dtype=np.float32)
 
         # Bug #2 fix: Higher partial bonus for questions
         partial_bonus = 0.8 if is_question else 0.5
@@ -259,7 +261,7 @@ class MemoryMappedSlotRetriever:
                     dots = np.dot(doc_embs, query_emb)  # (batch_size,)
 
                     # Cosine similarities (vectorized, using pre-computed norms)
-                    sims = np.zeros(batch_size, dtype=np.float32)
+                    sims = np.zeros(actual_batch_size, dtype=np.float32)
                     valid = (doc_norms > 0) & has_slot & ~np.isnan(dots)
                     sims[valid] = dots[valid] / (query_norm * doc_norms[valid])
 

@@ -1,7 +1,7 @@
 ---
 id: 25
 title: Rebuild corpus with Wikipedia data using build_enhanced_corpus.py
-state: open
+state: closed
 created: '2026-01-05T00:15:12.864602Z'
 labels:
 - P0-CRITICAL

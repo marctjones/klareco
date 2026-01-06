@@ -5,10 +5,10 @@ title: "Fix FAISS nlist calculation for 4.2M dataset (use 4\xD7\u221AN instead o
 state: open
 created: '2026-01-04T00:37:08.347850Z'
 labels:
-- enhancement
-- M2
 - faiss
-priority: high
+- future
+- superseded
+priority: low
 ---
 ## Problem
 

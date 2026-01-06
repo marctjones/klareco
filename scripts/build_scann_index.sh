@@ -33,23 +33,32 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 [OPTIONS]"
+            echo "Usage: $0 [INDEX_PATH] [OPTIONS]"
+            echo ""
+            echo "Arguments:"
+            echo "  INDEX_PATH             Path to slot index (default: data/indexes/slot_full)"
             echo ""
             echo "Options:"
-            echo "  --index PATH           Path to slot index (default: data/indexes/slot_full)"
+            echo "  --index PATH           Path to slot index (alternative to positional arg)"
             echo "  --force-reinstall      Force reinstall scann even if already installed"
             echo "  -h, --help             Show this help"
             echo ""
-            echo "Example:"
+            echo "Examples:"
             echo "  $0                                    # Build ScaNN index for slot_full"
-            echo "  $0 --index data/indexes/slot_test    # Build for test index"
+            echo "  $0 data/indexes/slot_verified        # Build for slot_verified (positional)"
+            echo "  $0 --index data/indexes/slot_test    # Build for test index (flag)"
             echo "  $0 --force-reinstall                 # Reinstall scann first"
             exit 0
             ;;
-        *)
+        -*)
             echo "Unknown option: $1"
             echo "Use --help for usage information"
             exit 1
+            ;;
+        *)
+            # Positional argument (index path)
+            INDEX_PATH="$1"
+            shift
             ;;
     esac
 done

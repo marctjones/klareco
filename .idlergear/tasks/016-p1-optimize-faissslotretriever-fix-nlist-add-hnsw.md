@@ -5,11 +5,10 @@ title: '[P1] Optimize FAISSSlotRetriever: Fix nlist + add HNSW quantizer (Tasks 
 state: open
 created: '2026-01-04T00:46:06.894375Z'
 labels:
-- enhancement
-- M2
 - faiss
-- P1
-priority: high
+- future
+- superseded
+priority: low
 ---
 ## Goal
 

@@ -4,10 +4,10 @@ title: Replace IndexIVFFlat with IndexHNSWFlat for better accuracy
 state: open
 created: '2026-01-04T00:37:10.856296Z'
 labels:
-- enhancement
-- M2
 - faiss
-priority: medium
+- future
+- superseded
+priority: low
 ---
 ## Problem
 

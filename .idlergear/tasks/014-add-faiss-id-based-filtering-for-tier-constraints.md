@@ -4,10 +4,10 @@ title: Add FAISS ID-based filtering for tier constraints
 state: open
 created: '2026-01-04T00:37:12.087870Z'
 labels:
-- enhancement
-- M2
 - faiss
-priority: medium
+- future
+- superseded
+priority: low
 ---
 ## Problem
 

@@ -4,11 +4,10 @@ title: '[P2] Implement FusedMultiSlotRetriever with weighted fusion (Task #12)'
 state: open
 created: '2026-01-04T00:46:07.641447Z'
 labels:
-- enhancement
-- M2
 - faiss
-- P2
-priority: high
+- future
+- superseded
+priority: low
 ---
 ## Goal
 

@@ -313,8 +313,26 @@ class HNSWSlotRetriever:
 
         query_vector = query_full_emb.reshape(-1)  # HNSWlib expects 1D
 
-        # Search HNSW index
-        labels, distances = self.hnsw_index.knn_query(query_vector, k=hnsw_top_n)
+        # Search HNSW index with fallback for ef_search errors
+        try:
+            labels, distances = self.hnsw_index.knn_query(query_vector, k=hnsw_top_n)
+        except RuntimeError as e:
+            if "contiguous 2D array" in str(e) or "ef or M is too small" in str(e):
+                # Increase ef_search and retry
+                original_ef = self.hnsw_ef_search
+                new_ef = max(hnsw_top_n * 2, 1000)
+                logger.warning(f"HNSW search failed with ef={original_ef}, retrying with ef={new_ef}")
+                self.hnsw_index.set_ef(new_ef)
+                try:
+                    labels, distances = self.hnsw_index.knn_query(query_vector, k=hnsw_top_n)
+                    # Keep the higher ef for future queries
+                    self.hnsw_ef_search = new_ef
+                    logger.info(f"  Updated ef_search to {new_ef} for better reliability")
+                except RuntimeError as e2:
+                    logger.error(f"HNSW search failed even with increased ef: {e2}")
+                    return []
+            else:
+                raise
 
         # Convert distances to similarities (cosine space)
         # For normalized vectors: distance = 1 - cosine_similarity

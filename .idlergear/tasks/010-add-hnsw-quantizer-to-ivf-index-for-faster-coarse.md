@@ -4,10 +4,10 @@ title: Add HNSW quantizer to IVF index for faster coarse quantization
 state: open
 created: '2026-01-04T00:37:08.958222Z'
 labels:
-- enhancement
-- M2
 - faiss
-priority: high
+- future
+- superseded
+priority: low
 ---
 ## Problem
 

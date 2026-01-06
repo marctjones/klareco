@@ -3,16 +3,23 @@
 Build slot-based index from corpus.
 
 Usage:
-    # Test on small subset
+    # Test on small subset (linguistic-only, 64d)
     python scripts/index_slot_based.py \
         --corpus data/corpus/authoritative_corpus.jsonl \
         --output data/indexes/slot_test \
         --limit 1000
 
-    # Full index
+    # Full index (linguistic-only, 64d)
     python scripts/index_slot_based.py \
         --corpus data/corpus/unified_corpus.jsonl \
         --output data/indexes/slot_full
+
+    # Hybrid embeddings (linguistic + topical, 128d)
+    python scripts/index_slot_based.py \
+        --corpus data/corpus/unified_corpus.jsonl \
+        --output data/indexes/slot_hybrid \
+        --hybrid \
+        --topical-model models/topical_embeddings/best_model.pt
 
     # Resume from checkpoint
     python scripts/index_slot_based.py \
@@ -64,6 +71,17 @@ def main():
         help='Path to affix transforms model'
     )
     parser.add_argument(
+        '--topical-model',
+        type=Path,
+        default=None,
+        help='Path to topical embeddings model (for hybrid mode)'
+    )
+    parser.add_argument(
+        '--hybrid',
+        action='store_true',
+        help='Use hybrid embeddings (linguistic + topical, 128d)'
+    )
+    parser.add_argument(
         '--batch-size',
         type=int,
         default=100,
@@ -101,6 +119,15 @@ def main():
         logger.error(f"Affix model not found: {args.affix_model}")
         sys.exit(1)
 
+    # Validate hybrid mode requirements
+    if args.hybrid and not args.topical_model:
+        logger.error("--topical-model is required when using --hybrid")
+        sys.exit(1)
+
+    if args.topical_model and not args.topical_model.exists():
+        logger.error(f"Topical model not found: {args.topical_model}")
+        sys.exit(1)
+
     # Create indexer
     logger.info("=" * 60)
     logger.info("Slot-Based Indexing")
@@ -108,12 +135,15 @@ def main():
     logger.info(f"Corpus: {args.corpus}")
     logger.info(f"Output: {args.output}")
     logger.info(f"Limit: {args.limit or 'None (full corpus)'}")
+    logger.info(f"Mode: {'Hybrid (128d)' if args.hybrid else 'Linguistic-only (64d)'}")
 
     indexer = SlotBasedIndexer(
         root_model_path=args.root_model,
         affix_model_path=args.affix_model,
         output_dir=args.output,
         batch_size=args.batch_size,
+        topical_model_path=args.topical_model,
+        use_hybrid=args.hybrid,
     )
 
     # Build index

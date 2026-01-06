@@ -1,0 +1,1195 @@
+[
+  {
+    "name": "AST-Aware",
+    "answer_in_top_1": 2,
+    "answer_in_top_5": 4,
+    "answer_in_top_10": 6,
+    "total_questions": 50,
+    "avg_time_ms": 359.2610692977905,
+    "peak_memory_mb": 4175.36328125,
+    "avg_cpu_pct": 0.0,
+    "questions": [
+      {
+        "id": "q001",
+        "question": "Kiu fondis Esperanton?",
+        "category": "factual",
+        "gold_answer": "Ludoviko Lazaro Zamenhof fondis Esperanton.",
+        "acceptable_answers": [
+          "Zamenhof",
+          "L.L. Zamenhof",
+          "Ludoviko Zamenhof",
+          "Ludoviko Lazaro Zamenhof",
+          "D-ro Zamenhof"
+        ],
+        "found_at_rank": 1,
+        "query_time_ms": 603.187084197998,
+        "retrieved_docs": [
+          "Trunte, Hartmut 1971 : Ĉu la Litova lingvo influis Esperanton?, Esperanto, n-ro 787 (6), p. 104-105. * Poska A. 1971 : Povus esti, ke Zamenhof konis iom la Litova, Esperanto, n-ro 787 (6), p. 105.",
+          "En la 1980-aj jaroj li lernis Esperanton kaj partoprenis kelkajn esperantistajn aranĝojn",
+          "Esperanton oni lernas en proks. triono de la tempo, kiu necesas por la plej multaj eŭropaj lingvoj, kiel montris multaj studoj (kaj kiel scias ĉiu Esperanto-lerninto, kiu lernis ankaŭ aliajn lingvojn)",
+          "Je Valpurg Nokto, 30a de aprilo, 1966, Anton LaVey fondis la \"La Satanan Kirkon\" (kiu li poste renomus \"la Kirkon de Satano\")",
+          "Li estis la dua prezidanto de la praga Esperanto-klubo kaj kunfondis Boheman Asocion Esperantistan",
+          "Jaunvalks estis Esperantisto de 1918 kaj aktivis kiel kursgvidanto",
+          "La termino \"centralo\", kiu ankaŭ en Esperanto havas interalie la signifon \"elektrejo\", ekestis fine de la 19-a jarcento, kiam pli grandaj (centraj) instalaĵoj transprenis la produktadon de elektro, kiu estis ĝis tiam produktita en pli malgranda kaj malcentra maniero",
+          "Ties natura habitato estas subtropikaj aŭ tropikaj humidaj montarbaroj, kio nomigas la specion en Esperanto",
+          "James RODGER (roĝer), naskiĝis la 14-an de oktobro 1867, estis skota lernejestro kaj prezidanto de Skota Esperanto-Federacio",
+          "Li verkis per vere internacia Esperanto, lingvo agrable glata, lude legebla"
+        ],
+        "top_result": "Trunte, Hartmut 1971 : Ĉu la Litova lingvo influis Esperanton?, Esperanto, n-ro 787 (6), p. 104-105. * Poska A. 1971 : Povus esti, ke Zamenhof konis iom la Litova, Esperanto, n-ro 787 (6), p. 105."
+      },
+      {
+        "id": "q002",
+        "question": "Kiam aperis la Fundamento de Esperanto?",
+        "category": "factual",
+        "gold_answer": "La Fundamento de Esperanto aperis en 1905.",
+        "acceptable_answers": [
+          "1905",
+          "en 1905",
+          "en la jaro 1905"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 403.0740261077881,
+        "retrieved_docs": [
+          "Jean Valjean iom post iom malaperas for de la vivo de la paro, kuraĝigita de Marius kiu vidas en li malbonulon kaj murdiston",
+          "Kiam kapitano Knowles kun la aliaj en la boato alvenis al Pitkarna Insulo, li eksciis, ke la loĝantaro foriris el la insulo, ĉar en la jaro 1856 ili translokiĝis al Norfolkinsulo",
+          "Kiam Bel kaj liaj armeoj persekutis Hajkon kaj liajn homojn, Hajko lanĉis sagon trans la batalkampo, mortigante Belon kaj fortimigante liajn fortojn",
+          "Kiam Dan eniras, ili kaŝas en proksima ĉambro kaj komencas batali kaj forkuri el la loĝejo antaŭ la rigardo de Dan kiu, en interkonsento kun sia patrino, fortranĉas la rilaton kun Lucy",
+          "* Oficiala retejo: www.postcrossing.com * Esperanto-poŝtkruciĝo",
+          "Esperanto tiutempe ja estis lingva projekto, sed nun estas natura kaj tute viva",
+          "Krom aktualajn mangaojn, la eldonejo interalie publikigis polan version de la kontraŭatombomba mangao Nudpieda Gen, kiu jam en 1982 publikiĝis en Esperanto",
+          "Dai Takeuchi laŭ la Hepburn-sistemo aŭ Dai Takeuĉi en Esperanto (, n. ) estas japana futbalisto",
+          "(Traduko) La arbo...kiu forkuris, Libroteko, Tokio, 1990. *(Kunkompilanto) Cent Esperantaj verboj por japanlingvanoj, kompilita de la Redakta Komisiono de Esperanto-Japana Vortaro, Japana Esperanto-Instituto, 1995. *(Vidbenda filmo) En somera vilao, 1998. * (Kunkompilanto) Esperanto-Japana vortaro, Japana Esperanto-Instituto, 2006. * (Traduko) La vojaĝo de la biciklo Ginta, Nihon Betonamu Yūkō Kyōkai Kawasaki Shibu, 2008. * (Traduko) Jack Halpern, Kanĵi-vortaro por lernantoj: esperanta eldono, Japana Esperanto-Instituto, 2019.",
+          "“Fraŭlino Lunalum” (10 min) - premiero 2005 en Esperanto. * “La nigra sinjorino” (15 min) – premiero 2007 en la angla. * “La papilio” (50 min) – 2009. * “La steloplena tago” (50 min) – premiero 2010 en la franca. * “Tempo rabita” (25 min) – premiero 2013 en Esperanto"
+        ],
+        "top_result": "Jean Valjean iom post iom malaperas for de la vivo de la paro, kuraĝigita de Marius kiu vidas en li malbonulon kaj murdiston"
+      },
+      {
+        "id": "q003",
+        "question": "Kiom da reguloj havas Esperanto?",
+        "category": "factual",
+        "gold_answer": "Esperanto havas 16 regulojn.",
+        "acceptable_answers": [
+          "16",
+          "dek ses",
+          "16 regulojn",
+          "dek ses regulojn"
+        ],
+        "found_at_rank": 6,
+        "query_time_ms": 515.1691436767578,
+        "retrieved_docs": [
+          "En 1898 li havis jam 45 laboristojn kaj ili produktis ĉiuspecajn muzikilojn",
+          "Ankaŭ la abatejo de Tihany havis posedaĵojn en Kőröshegy kaj dum longa periodo ankaŭ la vitistoj devenis de ĉi tie",
+          "En jaro 1959 la urbo havis 11,5 mil loĝantojn",
+          "Mi jam havas artikolon pri Kolombedoj, kiun mi finigos iam, kaj bezonas artikolojn por subfamilioj, ekzemple Columbinae, genroj, ekzemple Columba, sed tie aperas stelaro kaj por specioj, kiel Rokkolombo, sed tiu estas la sama artikolo kiel por Kolombo, dum Kolomboj estas sama kiel Kolombedoj",
+          "Ili havas kodojn por scii la valoron de la rezistilo",
+          "La komunumo havas surfacon de 1655,55 km²",
+          "Nomon Oprechtice havas pluraj setlejoj: * Oprechtice (Zahořany), parto de municipo Zahořany en distrikto Domažlice * Oprechtice (Paskov), parto de urbo Paskov en distrikto Frýdek-Místek",
+          "La municipo kun plej alta nombro de loĝantoj, kiu ne havas statuson de urbo, estas Petrovice u Karviné",
+          "La «Magia Lando» — laŭŝajne paradizo kun eterna somero kaj ĉarme drolaj loĝantoj ― havas siajn partojn malhelajn kaj draste danĝerajn; malicaj magiistoj, hommanĝuloj, sabrodenthavaj tigroj kaj aliaj embuskas",
+          "La distrikto havas areon de 965 km², kaj fine de ĝi havis loĝantojn"
+        ],
+        "top_result": "En 1898 li havis jam 45 laboristojn kaj ili produktis ĉiuspecajn muzikilojn"
+      },
+      {
+        "id": "q004",
+        "question": "Kio estas la nomo de la unua libro de Esperanto?",
+        "category": "factual",
+        "gold_answer": "La unua libro nomiĝas Unua Libro.",
+        "acceptable_answers": [
+          "Unua Libro",
+          "La Unua Libro",
+          "Lingvo Internacia"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 285.8419418334961,
+        "retrieved_docs": [
+          "Arturo Tudor, Princo de Kimrio, angle: Arthur Tudor, (* 19-a aŭ 20-a de septembro 1486 - † 2-a de aprilo 1502) estis la unua filo de la reĝo Henriko la 7-a de Anglio kaj Elizabeta de Jorko",
+          "Fondita en 1894 laŭ propono de Zamenhof (en la gazeto La Esperantisto, 1894, n-ro 3), estis la unua kolekto de Esperantaj literaturaj verkoj; ĝi estis presata en Nürnberg ĉe W",
+          "La unuaj kristanaj grafejoj en la regiono estis fonditaj en la 9a jarcento",
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis"
+        ],
+        "top_result": "Arturo Tudor, Princo de Kimrio, angle: Arthur Tudor, (* 19-a aŭ 20-a de septembro 1486 - † 2-a de aprilo 1502) estis la unua filo de la reĝo Henriko la 7-a de Anglio kaj Elizabeta de Jorko"
+      },
+      {
+        "id": "q005",
+        "question": "En kiu jaro naskiĝis Zamenhof?",
+        "category": "factual",
+        "gold_answer": "Zamenhof naskiĝis en 1859.",
+        "acceptable_answers": [
+          "1859",
+          "en 1859"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 399.31225776672363,
+        "retrieved_docs": [
+          "Johann BÜRGER (naskiĝis en 1898, mortis la 4-an de aŭgusto 1992 en Linz) estis longtempa estrarano de la Aŭstria kaj honora membro de la Internacia Fervojista Esperanto-Federacio",
+          "BPWKETT (naskiĝis 1867; mortis la 3-an de aŭgusto 1932) estis esperantisto en Southport",
+          "De 1764 ĝis 1773 ŝi naskis sep infanojn",
+          "Thubten Zopa Rinpoĉe (Tibete: ཐུབ་བསྟན་བཟོད་པ་, Wylie: Thub-bstan Bzod-pa ; naskiĝis en 1946 ĉe Thangme, Nepalo sub la nomo Dawa Chötar kaj mortis la 13-an de aprilo 2023) estis nepala lamao el Khumbu, la enirejo de la Monto Everest",
+          "Marko POLO (venecie: Marco Polo [mArko pOlo]) (naskiĝis la , verŝajne en Venecio aŭ sur Korčula, Kroatio; mortis la plej frue, sed ne post junio 1325) estis komercisto kaj esploristo el Venecio, Italio",
+          "Alia klasigo de MOS estas gravedrilataj mortoj kio inkludas kaj rektajn kaj nerektajn mortojn kiuj okazas post 42 tagoj de la gravedfino sed antaŭ unu jaro de la nasko",
+          "Ekzistas du varioj. * Carpinus firmifolia (H.J.P.WINKL.) HU: Ĝia hejmregiono estas la ĉina provinco Gŭiĝoŭo. * Carpinus hebestroma YAMAM.: Ĝia hejmlando estas Tajvano. * Carpinus henryana (H.J.P.WINKL.) H.J.P.WINKL.): Ĝi hejmiĝas en Ĉinujo.La specio estas dividita en tri variojn. * Carpinus insularis N.H.XIA, K.S.PANG & Y.H.TONG: Tiu ĉi specio estis unue priskribita en la jaro 2014 el Honkongo. * japana Karpeno (Carpinus japonica BLUME: Ĝia hejmlando estas meza kaj suda Japanio. * Carpinus kawakamii HAYATA: Ĝia hejmlando estas Tajvano kaj la sudorienta Ĉinujo",
+          "Lia patro mortis en la jaro 1946 dum operacio de apendicito",
+          "Pri la fabriko de Kestner sur pupindustrihistoria paĝaro * Prie ĉe die-puppenfee.de * La fabriko en Waltershausen * Etinformoj por turistoj * Detala prezento de pupo de Kestner el la jaro 1823 * Hejmpaĝo de eksa pupfabriko en Waltershausen * Detala historio de la firmao de Kestner",
+          "La unua kune kun la fusilistoj uzata ekzerca ĝardeno situis ĉ. la jaro 1515 ĉe la vajmara esplanado"
+        ],
+        "top_result": "Johann BÜRGER (naskiĝis en 1898, mortis la 4-an de aŭgusto 1992 en Linz) estis longtempa estrarano de la Aŭstria kaj honora membro de la Internacia Fervojista Esperanto-Federacio"
+      },
+      {
+        "id": "q006",
+        "question": "Kie naskiĝis Zamenhof?",
+        "category": "factual",
+        "gold_answer": "Zamenhof naskiĝis en Bjalistoko.",
+        "acceptable_answers": [
+          "Bjalistoko",
+          "Bialystok",
+          "en Bjalistoko",
+          "en Pollando"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 590.7776355743408,
+        "retrieved_docs": [
+          "Ili naskas unu aŭ du idojn post gravedo de 110 tagoj",
+          "Ŝi naskiĝis en Kluĵo la 20-an de septembro 1963.",
+          "Ŝi naskiĝis la en Laholmo, kaj mortis la en Linköping",
+          "Kie estas via infano, Margrete",
+          "Laŭ hindua mitaro Viŝnu renaskita Kriŝna estas blua"
+        ],
+        "top_result": "Ili naskas unu aŭ du idojn post gravedo de 110 tagoj"
+      },
+      {
+        "id": "q007",
+        "question": "Kiu estas la himno de Esperanto?",
+        "category": "factual",
+        "gold_answer": "La himno de Esperanto estas La Espero.",
+        "acceptable_answers": [
+          "La Espero",
+          "Espero"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 527.0459651947021,
+        "retrieved_docs": [
+          "Loĝejoj jam ne estis interne faritaj",
+          "Monda Tago de Purigo () estas tutmonda programo de sociaj agadoj, kies celo estas solvi la problemon de poluo de la Tero per solida rubo, inkluzive la problemon de mara rubo",
+          "Kun Harkan kiel parolanto kaj Mandur kiel filmisto kaj direktoro, epizodoj estis registritaj en sekretaj lokoj en Egiptujo, kaj redaktitaj kaj produktitaj en studio en Usono fare de la produktoro iraka Ĥaldun Alghanimi",
+          "En 1969, Khaled estis parto de grupo da teroristoj kiuj prenis la kontrolon super la flugo TW 840 de Romo al Ateno, kaj devigis la piloton flugi al Damasko",
+          "La teritorio estas parto de la komunumaro Geltinger Bucht, administra ligo de pluraj formale sendependaj politikaj komunumoj, kun administra centro en la komunumo Steinbergkirche",
+          "La proverbo estas kutime vortigita en mallonga kaj preciza frazo (kutime rimita), kiu enhavas signifoplenan enhavon super malgranda kvanto da vortoj",
+          "La pola generalo estis unusola komandanto de aliancitaj soldataroj, kiu antaŭvidis kaj rimarkigis la malvenkon pro eraroj en planado kaj manko de armilaro",
+          "Fakte estas agento de kompanio aŭ, eble, sekreta servo, kiu kaŝe kontrolas agadon de stalkeroj",
+          "Laŭ tio, la valoro de la tri ĉefaj valutoj de la mondo je januaro 2001 estis: eŭro 0,3313 d dolaro 0,3489 d jeno 0,003049 d Tial la eŭro estas ĉirkaŭ unu triono da denaro",
+          "Elektrokardiografio (EKG), laŭ la signifo \"elektra korotema grafikaĵo\", estas la registro de la sumo de la elektraj aktivecoj de ĉiuj fibroj de la miokardio, la kora muskolo"
+        ],
+        "top_result": "Loĝejoj jam ne estis interne faritaj"
+      },
+      {
+        "id": "q008",
+        "question": "Kiu verkis la poemon La Espero?",
+        "category": "factual",
+        "gold_answer": "Zamenhof verkis La Espero.",
+        "acceptable_answers": [
+          "Zamenhof",
+          "L.L. Zamenhof",
+          "Ludoviko Zamenhof"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 617.4535751342773,
+        "retrieved_docs": [
+          "Lia koncepto de triopomuzikado, kiun li unue elverkis kun Scott LeFaro kaj Paul Motian, proponis tute novan vojon por muzikistoj en pianotriopo, kunmuziki kohere unu kun la alia.“ Jam la unua komuna albumo Portrait in Jazz el 1959 montras jam novan bandokoncepton: Evans, LaFaro kaj Motian jam dum la prezentado de la temoj kaj ne nur dum la solooj muzikas plene egalrajtaj apude kaj kune",
+          "Johnson verkis beletron (poezion kaj prozon), gazetraportojn, kaj plurajn sciencajn verkojn",
+          "Cañas y barro (Kanoj kaj koto) estas romano verkita de la hispana verkisto Vicente Blasco Ibáñez en 1902 kaj enkadrita en movado konata kiel \"naturalismo\"",
+          "The Draughtsman's Contract (La kontrakto de la desegnisto) estas brita historia komedi-drama filmo de 1982 verkita kaj reĝisorita de Peter Greenaway – kiel lia unua konvencia longa filmo (post la longa mok-dokumenta filmo The Falls)",
+          "Latin-Esperanto, (Giuliano Vanghetti, 1911. Vortprovizo baze prenita al Latino sen fleksio de Peano; gramatiko de Esperanto) * Linguna, Esperanto moderna * Latin-Ido (Giuliano Vanghetti, kun influo de Ido) * Linguo internationala (Evacustes Phipson, Groydon, 1908) * Lingvo monde (Wladislas Kozlowski, San-Diego (Kalifornio), 1949) * Logo (esperantido) (Edgar Darde, Makcjevka, 1907)",
+          "Germana Esperanto-Servo, Berlino 1921? 16 paga broŝureto 15 X 11 cm. *Vollstaendiges Lehrbuch der Welthilsspache Esperanto. 4-a korektita eldono",
+          "Li futbalis ĉe Urawa Reds, Thespa Kusatsu, Mito HollyHock, Tokyo Verdy, Yokohama FC, JEF United Chiba kaj Ehime FC",
+          "Do, RADE esperegas, kaj proponas, ke iam Esperanto fariĝos oficiala lingvo por Rotariaj rilatoj",
+          "La pronomoj de Ido estis reviziitaj por fari ilin pli akustike apartaj ol tiuj de Esperanto, kiuj ĉiuj finiĝas per i",
+          "* Esperanta Klavaro * Ĝusta klavaro * MessagEase-klavaro"
+        ],
+        "top_result": "Lia koncepto de triopomuzikado, kiun li unue elverkis kun Scott LeFaro kaj Paul Motian, proponis tute novan vojon por muzikistoj en pianotriopo, kunmuziki kohere unu kun la alia.“ Jam la unua komuna albumo Portrait in Jazz el 1959 montras jam novan bandokoncepton: Evans, LaFaro kaj Motian jam dum la prezentado de la temoj kaj ne nur dum la solooj muzikas plene egalrajtaj apude kaj kune"
+      },
+      {
+        "id": "q009",
+        "question": "Kio estas UEA?",
+        "category": "factual",
+        "gold_answer": "UEA estas Universala Esperanto-Asocio.",
+        "acceptable_answers": [
+          "Universala Esperanto-Asocio",
+          "la Universala Esperanto-Asocio"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 286.42725944519043,
+        "retrieved_docs": [
+          "eta|280ra| Kvankam mi preskaŭ ĉiutage estas en la komunejo (sed ne sukcesas regule patroli ĉiujn diskutejojn esperantlingvajn), mi ĝis nun ne rimarkis la kampanjon de Robin van der Vliet agiti favore al forigo de la komuneja ŝablono \"libera havaĵo laŭ permeso de UEA\" kaj la sekvan buĉon de granda nombro de esperantistaj grafikaĵoj publikigitaj en la komunejo laŭ permeso de la permesilo",
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged"
+        ],
+        "top_result": "eta|280ra| Kvankam mi preskaŭ ĉiutage estas en la komunejo (sed ne sukcesas regule patroli ĉiujn diskutejojn esperantlingvajn), mi ĝis nun ne rimarkis la kampanjon de Robin van der Vliet agiti favore al forigo de la komuneja ŝablono \"libera havaĵo laŭ permeso de UEA\" kaj la sekvan buĉon de granda nombro de esperantistaj grafikaĵoj publikigitaj en la komunejo laŭ permeso de la permesilo"
+      },
+      {
+        "id": "q010",
+        "question": "Kie situas la sidejo de UEA?",
+        "category": "factual",
+        "gold_answer": "La sidejo de UEA situas en Roterdamo.",
+        "acceptable_answers": [
+          "Roterdamo",
+          "en Roterdamo",
+          "Nederlando",
+          "en Nederlando"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 368.0093288421631,
+        "retrieved_docs": [
+          "La kvadrata kampanilo situas iomete for",
+          "La preĝejo situas sola en korto ĉe stratangulo",
+          "Ĝi situas sur la precipa ŝtata insulo Malto en la Mediteranea Maro",
+          "La preĝejo situas sola en korto",
+          "Ĝi situas en la Regiono Podravska",
+          "Opština situas en la suda parto de la regiono Skopjo",
+          "Situas la koncerthalo en la nordo de la urbokerno",
+          "Ĝi situas ĉe kilometra punkto (PK) de la linio Lille - Les Fontinettes (295000)",
+          "Ekde multaj jaroj ŝi krome estas ano de la Internacia Ekzamena Komisiono de UEA kaj ILEI, ekz. ankaŭ en la deĵorperiodo 2018-2021.",
+          "Celebrado La tereno, sur kiu okazas la monda Tago de Siberianoj apartenas al la Centro de Edukado kaj Promocio de la Regiono en Szymbark (CEPR)"
+        ],
+        "top_result": "La kvadrata kampanilo situas iomete for"
+      },
+      {
+        "id": "q011",
+        "question": "Kio estas la akuzativo?",
+        "category": "definition",
+        "gold_answer": "La akuzativo estas la kazo de la rekta objekto, markita per -n.",
+        "acceptable_answers": [
+          "kazo",
+          "rekta objekto",
+          "marko -n",
+          "finaĵo -n"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 254.02283668518066,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q012",
+        "question": "Kio estas sufikso?",
+        "category": "definition",
+        "gold_answer": "Sufikso estas vortelemento aldonita post la radiko por ŝanĝi la signifon.",
+        "acceptable_answers": [
+          "vortelemento",
+          "parto de vorto",
+          "post radiko"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 254.79364395141602,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q013",
+        "question": "Kio estas prefikso?",
+        "category": "definition",
+        "gold_answer": "Prefikso estas vortelemento aldonita antaŭ la radiko.",
+        "acceptable_answers": [
+          "vortelemento",
+          "parto de vorto",
+          "antaŭ radiko"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 261.78431510925293,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q014",
+        "question": "Kio signifas la sufikso -ej-?",
+        "category": "definition",
+        "gold_answer": "La sufikso -ej- signifas lokon destinitan por io.",
+        "acceptable_answers": [
+          "loko",
+          "loko por",
+          "ejo"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 434.3857765197754,
+        "retrieved_docs": [
+          "La disvastiĝo de kristanismo de la mediteranea regiono kaj de Irlando kaj Skotlando tra Eŭropo, kaj la manko de ĉia forta alternativa ideologia bazo por potenco signifis, ke ekleziuloj profunde implikiĝis en registaron, kaj provizis la bazon de unua eŭropa \"identeco\" en la formo de religio komuna al la plejparto de la kontinento ekde almenaŭ la 9-a jarcento ĝis la disigo de la katolika kaj ortodoksa eklezioj (1054)"
+        ],
+        "top_result": "La disvastiĝo de kristanismo de la mediteranea regiono kaj de Irlando kaj Skotlando tra Eŭropo, kaj la manko de ĉia forta alternativa ideologia bazo por potenco signifis, ke ekleziuloj profunde implikiĝis en registaron, kaj provizis la bazon de unua eŭropa \"identeco\" en la formo de religio komuna al la plejparto de la kontinento ekde almenaŭ la 9-a jarcento ĝis la disigo de la katolika kaj ortodoksa eklezioj (1054)"
+      },
+      {
+        "id": "q015",
+        "question": "Kio signifas la sufikso -ist-?",
+        "category": "definition",
+        "gold_answer": "La sufikso -ist- signifas profesion aŭ konstantan okupiĝon.",
+        "acceptable_answers": [
+          "profesio",
+          "okupiĝo",
+          "persono kiu"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 285.4924201965332,
+        "retrieved_docs": [
+          "La disvastiĝo de kristanismo de la mediteranea regiono kaj de Irlando kaj Skotlando tra Eŭropo, kaj la manko de ĉia forta alternativa ideologia bazo por potenco signifis, ke ekleziuloj profunde implikiĝis en registaron, kaj provizis la bazon de unua eŭropa \"identeco\" en la formo de religio komuna al la plejparto de la kontinento ekde almenaŭ la 9-a jarcento ĝis la disigo de la katolika kaj ortodoksa eklezioj (1054)"
+        ],
+        "top_result": "La disvastiĝo de kristanismo de la mediteranea regiono kaj de Irlando kaj Skotlando tra Eŭropo, kaj la manko de ĉia forta alternativa ideologia bazo por potenco signifis, ke ekleziuloj profunde implikiĝis en registaron, kaj provizis la bazon de unua eŭropa \"identeco\" en la formo de religio komuna al la plejparto de la kontinento ekde almenaŭ la 9-a jarcento ĝis la disigo de la katolika kaj ortodoksa eklezioj (1054)"
+      },
+      {
+        "id": "q016",
+        "question": "Kio signifas la prefikso mal-?",
+        "category": "definition",
+        "gold_answer": "La prefikso mal- signifas la rektan kontraŭon.",
+        "acceptable_answers": [
+          "kontraŭo",
+          "malo",
+          "kontraŭa signifo"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 259.4454288482666,
+        "retrieved_docs": [
+          "La disvastiĝo de kristanismo de la mediteranea regiono kaj de Irlando kaj Skotlando tra Eŭropo, kaj la manko de ĉia forta alternativa ideologia bazo por potenco signifis, ke ekleziuloj profunde implikiĝis en registaron, kaj provizis la bazon de unua eŭropa \"identeco\" en la formo de religio komuna al la plejparto de la kontinento ekde almenaŭ la 9-a jarcento ĝis la disigo de la katolika kaj ortodoksa eklezioj (1054)"
+        ],
+        "top_result": "La disvastiĝo de kristanismo de la mediteranea regiono kaj de Irlando kaj Skotlando tra Eŭropo, kaj la manko de ĉia forta alternativa ideologia bazo por potenco signifis, ke ekleziuloj profunde implikiĝis en registaron, kaj provizis la bazon de unua eŭropa \"identeco\" en la formo de religio komuna al la plejparto de la kontinento ekde almenaŭ la 9-a jarcento ĝis la disigo de la katolika kaj ortodoksa eklezioj (1054)"
+      },
+      {
+        "id": "q017",
+        "question": "Kio estas korelativo?",
+        "category": "definition",
+        "gold_answer": "Korelativo estas sistemo de demandaj, montraj kaj aliaj vortoj kiel kiu, tiu, ĉiu.",
+        "acceptable_answers": [
+          "tabelvortoj",
+          "kiu tiu ĉiu",
+          "sistemo de vortoj"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 260.9899044036865,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q018",
+        "question": "Kio estas adjektivo?",
+        "category": "definition",
+        "gold_answer": "Adjektivo estas vorto kiu priskribas substantivon, finiĝanta per -a.",
+        "acceptable_answers": [
+          "priskribvorto",
+          "finiĝas per -a",
+          "modifas substantivon"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 242.65170097351074,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q019",
+        "question": "Kio estas adverbo?",
+        "category": "definition",
+        "gold_answer": "Adverbo estas vorto kiu priskribas verbon aŭ adjektivon, finiĝanta per -e.",
+        "acceptable_answers": [
+          "priskribas verbon",
+          "finiĝas per -e",
+          "modifas verbon"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 248.79908561706543,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q020",
+        "question": "Kio estas infinitivo?",
+        "category": "definition",
+        "gold_answer": "Infinitivo estas la baza formo de verbo, finiĝanta per -i.",
+        "acceptable_answers": [
+          "baza formo",
+          "verbo sen tempo",
+          "finiĝas per -i"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 265.43426513671875,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q021",
+        "question": "Kiel oni formas la pasintecon en Esperanto?",
+        "category": "grammar",
+        "gold_answer": "La pasintecon oni formas per la finaĵo -is.",
+        "acceptable_answers": [
+          "-is",
+          "per -is",
+          "finaĵo -is"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 465.55447578430176,
+        "retrieved_docs": [
+          "Spermatocitoj formas unu el la stadioj de la procezo spermatogenezo",
+          "Inter muzikistoj, kiuj sin rigardas en la tradicio de la son-muziko, Arsenio Rodríguez ĝuas tri-rilate vere respektoplenan adoron: * Kiel tresludisto oni rigardas lin kiel la granda, stilforma virtuozo de sia intrmento",
+          "1906: [Werner Andelin] Esperanto-kielen sanakirja, esperanto-suomalainen ja suomalais-esperantinen. — Vortaroj esperanta-finna kaj finna-esperanta, Helsingforso 1906. 118 paĝoj * 1906: [Werner Andelin] Esperanto-kielen oppikirja [Lernolibro de la lingvo Esperanto]",
+          "Ĝi havigas al la leganto proponojn por plibonigo de Esperanto-propagando",
+          "Kiel dungito de la Sociala Bonfara Sekcio, ŝi havis specialan permeson eniri la Varsovian geton, kie ŝi portis stelon de Davido",
+          "* Amikejo: la Esperanto-lando kiu preskaŭ ekzistis (longa artikolo el Libera Folio)",
+          "Li estis ankaŭ aktiva gvidanto de Esperanto-kursoj kaj apartenis inter 1954 kaj 1959 al la centra komitato de Svisa Esperanto-Societo",
+          "Sed oni rakontis, ke la ŝipon konstruis agrabla mara dio Glaŭko kiu ankaŭ stiris ĝin dum navigado de Argonaŭtoj",
+          "La virinoj portas rondajn kaj altajn korbojn, kiuj estas ornamitaj per buntaj kvastoj",
+          "Oni taksas, ke 15 % de la loĝantaro de Ooizumi, Japanio, parolas la portugalan kiel denaskan lingvon, kaj en 2007, Ooizumi havis la plej altan koncentriĝon de brazilanoj en Japanujo"
+        ],
+        "top_result": "Spermatocitoj formas unu el la stadioj de la procezo spermatogenezo"
+      },
+      {
+        "id": "q022",
+        "question": "Kiel oni formas la estontecon en Esperanto?",
+        "category": "grammar",
+        "gold_answer": "La estontecon oni formas per la finaĵo -os.",
+        "acceptable_answers": [
+          "-os",
+          "per -os",
+          "finaĵo -os"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 483.63637924194336,
+        "retrieved_docs": [
+          "Pri la tialoj de tiu atako, la skota historiisto William Montgomery Watt notas la eston en Hajbar de la Banu Nadir, kiuj estis incitintaj malamikecojn inter najbaraj arabaj triboj kontraŭ la islama komunumo en Medino",
+          "Samtempe en Esperanto estas multe da ligiloj, sed mankas la hungara, kion mi ne scias kunligi.--Crosstor (diskuto) 09:27, 10 Feb. 2015 (UTC) :Do mi konstatas, ke lingva ligilo estas fuŝaĵo, tio en la malnova sistemo ne povus okazi.--Crosstor (diskuto) 09:29, 12 Feb. 2015 (UTC)",
+          "Koresponda servo de edukado.net * Koresponda Servo Universala * Esperanto Koresponda Servo",
+          "ALIDIREKTI ĝermolisto de Esperanto-eldonaĵoj#Islamo Esperantiste Rigardata",
+          "Kiel rezulto, Toro konservas þjálfi kaj lian fratinon Röskva kiel siaj servistoj",
+          "Kiel ĉe la parencaj specioj la supraj partoj estas grizaj kaj la brusto estas hela kun tre fajne griza horizontala strieco",
+          "Por Esperanto estis proponita kanalo 1887. Pli vigla kanalo estas la ĝenerala konvers-kanalo numero 000, en kiu ofte multaj uzantoj konversacias en diversaj lingvoj",
+          "Kiel parametron indiku la paĝon, de kie la teksto estas translokita",
+          "Tamen la unua dosiero havas centran lokon en la koncerna artikolo Minejo Odra, kaj la dua, kiu laŭ mi pli bone nomiĝu \"Dua Flandra Kongreso de Esperanto\" ol \"Dnua-flandra-kgr\", samkiel cetere ankaŭ dosiero Dosiero:Unua-flandra-kgr de 1930 havas historian esperantlingvan signifon kaj gravan bildigan rolon en la teksto Flandra Ligo Esperantista",
+          "Laŭ kelkaj atestantoj, li eĉ ekfaris la surprizan komparon en 1933: Kiel judo mi trovas min en malfacila pozicio"
+        ],
+        "top_result": "Pri la tialoj de tiu atako, la skota historiisto William Montgomery Watt notas la eston en Hajbar de la Banu Nadir, kiuj estis incitintaj malamikecojn inter najbaraj arabaj triboj kontraŭ la islama komunumo en Medino"
+      },
+      {
+        "id": "q023",
+        "question": "Kiel oni formas la pluralan nombron?",
+        "category": "grammar",
+        "gold_answer": "La pluralan nombron oni formas per la finaĵo -j.",
+        "acceptable_answers": [
+          "-j",
+          "per -j",
+          "finaĵo -j"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 525.5818367004395,
+        "retrieved_docs": [
+          "La malsupran etaĝon formas tavolmasonaĵo kun bosoj el ŝtonoj akvorepeligaj"
+        ],
+        "top_result": "La malsupran etaĝon formas tavolmasonaĵo kun bosoj el ŝtonoj akvorepeligaj"
+      },
+      {
+        "id": "q024",
+        "question": "Kio estas la finaĵo de substantivo?",
+        "category": "grammar",
+        "gold_answer": "La finaĵo de substantivo estas -o.",
+        "acceptable_answers": [
+          "-o",
+          "o"
+        ],
+        "found_at_rank": 1,
+        "query_time_ms": 245.55492401123047,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q025",
+        "question": "Kiel oni uzas la akuzativon por montri direkton?",
+        "category": "grammar",
+        "gold_answer": "La akuzativo -n montras direkton post lokaj prepozicioj.",
+        "acceptable_answers": [
+          "direkto",
+          "-n kun prepozicio",
+          "movado al loko"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 397.4108695983887,
+        "retrieved_docs": [
+          "Multaj lingvistoj uzas la terminojn bateto kaj frapeto sendistinge",
+          "Por edukado ĝi uzis kvizojn kaj videojn",
+          "Triklorofenokso-acetata acido estas sinteza aŭksino, derivaĵo de la fenokso-acetata acido uzata kiel senfoliiganto de trudherboj",
+          "Hidrazino estas ĉefe uzata kiel ŝaŭmiga agento en la preparado de polimeraj ŝaŭmoj, tamen ĝi ankaŭ uzatas kiel antaŭiloj de polimerizaj kataliziloj kaj farmaciaĵoj",
+          "Sarangio estas nomo uzata por du diferencaj tipoj de muzikilo, nome kordinstrumento, ambaŭ ludataj per arĉo",
+          "La kolora nuanco de la meza blua strio estas proksima al la meza strio de la rusa flago uzita dum la post-sovetia epoko inter 1991 kaj 1993.",
+          "Tamen tiu ceremonio, ordinare reciproka, celas restarigon de bonaj interrilatoj, tial pardonpetoj povas servi bona bazo por plua nekonflikta kunlaborado",
+          "Laŭ la stato de en la komunumo vivis sur areo de kvadrataj kilometroj, kio rezultigas loĝdenson de loĝantoj/km²",
+          "Laŭ la stato de en la komunumo vivis sur areo de kvadrataj kilometroj, kio rezultigas loĝdenson de loĝantoj/km²",
+          "Laŭ la stato de en la urbo vivis"
+        ],
+        "top_result": "Multaj lingvistoj uzas la terminojn bateto kaj frapeto sendistinge"
+      },
+      {
+        "id": "q026",
+        "question": "Kio estas la kondiĉa modo en Esperanto?",
+        "category": "grammar",
+        "gold_answer": "La kondiĉa modo estas verba formo kun -us, esprimanta hipotezon.",
+        "acceptable_answers": [
+          "-us",
+          "hipotezo",
+          "se-frazo"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 250.2758502960205,
+        "retrieved_docs": [
+          "Fondita en 1894 laŭ propono de Zamenhof (en la gazeto La Esperantisto, 1894, n-ro 3), estis la unua kolekto de Esperantaj literaturaj verkoj; ĝi estis presata en Nürnberg ĉe W",
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged"
+        ],
+        "top_result": "Fondita en 1894 laŭ propono de Zamenhof (en la gazeto La Esperantisto, 1894, n-ro 3), estis la unua kolekto de Esperantaj literaturaj verkoj; ĝi estis presata en Nürnberg ĉe W"
+      },
+      {
+        "id": "q027",
+        "question": "Kiel oni formas demandojn en Esperanto?",
+        "category": "grammar",
+        "gold_answer": "Demandojn oni formas per demandvortoj kiel ĉu, kiu, kio, aŭ per inversio.",
+        "acceptable_answers": [
+          "ĉu",
+          "demandvortoj",
+          "kiu kio kiel"
+        ],
+        "found_at_rank": 5,
+        "query_time_ms": 456.9404125213623,
+        "retrieved_docs": [
+          "Li estis la tria prezidanto de Svisa Esperanto-Societo (SES) kaj plenumigis tiun-ĉi oficon de 1904 ĝis 1908. En 1905 li partoprenis la 1-an Universalan Kongreson de Esperanto en Bulonjo-ĉe-Maro kaj prezidis la 2-an Universalan Kongreson en Ĝenevo en 1906. Kiel pioniro de la esperanta stenografio, li esperantigis la sistemon Stolze-Schrey en 1905. Li kunredaktis la periodaĵojn Tra la Mondo kaj La Revuo",
+          "La kanaligita rivereto Limpach formas la sudan limon de la komunumo",
+          "Esperanto-Domo estis domo kun bieno en la nederlanda urbo Arnhem, Esperantolaan 3. Ĝi apartenis al la Internacia Cseh-Instituto",
+          "Sur la kampo la rozet' Kiel infanet'",
+          "1434: Janus Pannonius, latinlingva kroata-hungara poeto, episkopo (m. 1472) * 1619: Jean-Baptiste Colbert, franca politikisto, ministro pri financoj, reprezentanto de merkantilismo (m. 1683) * 1632: John Locke, angla filozofo, politikisto kaj ekonomikisto, ĉefa reprezentanto de empiriismo, konata kiel \"patro de la klasika liberalismo\" (m. 1704) * 1708: Olof von Dalin, sveda poeto kaj historiisto, reprezentanto de la sveda klerismo (m. 1763) * 1709: Jean-Baptiste Gresset, franca jezuito kaj dramaturgo (m. 1777) * 1727: Johann Benjamin Busch, germana teologo kaj superintendanto (m. 1802) *1742: Martin Gottlieb Klauer, germana skulptisto (m. 1801) * 1755: Jan Henryk Dąbrowski, pola generalo, partoprenanto de la Insurekcio de Kościuszko, kreinto de Polaj Legioj en Italio, nacia heroo (m. 1818) * 1756: Jan Śniadecki, pola matematikisto, astronomo, filozofo, geografo, poeto, aŭtoro de kalendaroj, lingvosciencisto, pedagogo, balonisto (m. 1830) * 1777: Nikita Biĉurin, rusia monaĥo, fondinto de ĉinologio (m. 1853) * 1780: Jean Auguste Dominique Ingres, franca pentristo de klasikismo (m. 1863) * 1801: Michelangelo Grigoletti, itala pentristo, profesoro (m. 1870) * 1809: Oliver Wendell Holmes, Sr., usona kuracisto, verkisto, poeto, profesoro (m. 1894) * 1810: Juan Bautista Alberdi, argentina diplomato, kunverkinto de Konstitucio de la Argentina Nacio (m. 1884) * 1825: Ferenc Salamon, hungara historiisto, publicisto, universitata profesoro (m. 1892) * 1831: Adolfo Bezerra de Menezes, brazila spiritisto, nomata \"Kuracisto de Malriĉuloj\" (m. 1900) *1847: Moritz von Egidy, germana oficiro, publicisto kaj filozofo * 1856: Lajos Bíró, hungara entomologo, etnografo (m. 1931) * 1862: Maurice Maeterlinck, belga dramisto kaj eseisto Nobelpremiita; enestanta en Belga Antologio (m. 1949) * 1866: Hermann Löns, germana ĵurnalisto, verkisto, poeto (m. 1914) * 1876: Kim Koo, korea sendependec-aktivulo, ĉefministro kaj prezidento (m. 1949) * 1883: Dmitro Doncov, ukraina literatura kritikisto, verkisto kaj politikisto, fondinto de integrala naciismo, akceptita de la Organizaĵo de Ukrainaj Naciistoj, postulanta rompon de politikaj kaj kulturaj ligoj kun Rusio kaj proksiman kunlaboron kun Okcidenta Eŭropo (m. 1973) * 1884: Ehm Welk, germana verkisto, ĵurnalisto kaj profesoro (m. 1966) *1884: Euchar Albrecht Schmid, germana juristo kaj eldonisto * 1891: Miĥail Ĉeĥov, rusia, usona aktoro, pedagogo, reĝisoro (m. 1955) * 1903: Ernst Kreuder, germana helplaboristo kaj verkisto (m. 1972) * 1904: Anna Letenská, ĉeĥa aktorino (m. 1942) * 1912: Son Ki Ĉung, korea maratonisto (m. 2002) * 1915: Ingrid Bergman, sveda aktorino (m. 1982) * 1915: Béla Botár, hungara poeto kaj tradukisto (m. 1974) * 1920: Éva Bázsa, hungara aktorino, dancistino, koreografo (m. 1975) * 1920: Charlie Parker, usona ĵaza muzikisto, saksofonisto, komponisto, patro de bibopo (m. 1955) * 1923: Richard Attenborough, brita aktoro kaj reĝisoro (m. 2014) * 1924: Dinah Washington, usona ĵaza kantistino (m. 1963) * 1929: Ferenc Albert, rumania hungara sociologo, kunlaboranto de \"Libera Vorto\" * 1929: István Bálint, rumania hungara grafikisto kaj pentristo * 1929: Thom Gunn, brita-usona poeto (m. 2004) * 1931: Juliusz Janicki, pola filmreĝisoro, scenaristo kaj aktoro, lekciisto, dekano (m. 2011) * 1935: William Friedkin, usona reĝisoro (m. 2023) * 1936: John McCain, usona senatano, kandidato al prezidenteco (m. 2018) * 1937: Anton Schwob, aŭstra germanisto kaj profesoro (m. 2023) * 1938: Hermann Nitsch, aŭstra avangarda artisto (m. 2022) * 1939: Joachim Schulze, germana ĵurnalisto kaj grafikisto, aktivulo de la Esperanto-Asocio de GDR kaj de la organizaĵo en Lepsiko, kie li kunorganizis multajn el la famiĝintaj Internaciaj Foiraj Esperantistaj Renkontiĝoj (IFER), redaktoro de \"Saksa Kuriero\" (m. 2000) * 1943: Károly Ferenc Szabó, rumania hungara inĝeniero, politikisto (m. 2011) * 1946: Dimitris Ĥristofias, prezidento de Kipro 2008-2013 (m. 2019) * 1955: Diamanda Galás, usona komponistino, kantistino, pentristino * 1958: Michael Jackson, usona mirinfano, kantisto, dancisto, pop-muzikisto (m. 2009) * 1958: Károly Varga, rumania hungara geologo, redaktoro, eldonisto * 1963: Gabriella Lakatos, rumania hungara grafikistino * 1972: Bae Yong Jun, sudkorea aktoro * 1981: Émilie Dequenne, belga aktorino (m. 2025)",
+          "Tion esprimas ankaŭ la akceptita rezolucio, kiu krome adresas al ĉiuj lernejaj aŭtoritatoj kaj lernejestroj la peton, ke ili en la kadro de la nunaj lernejaj leĝoj akcelu la enkondukon de Esperanto kiel nedeviga fako de instruado",
+          "Kiel aliaj kukoloj, tiu ĉi specio estas nestoparazita, preferante Timaliedojn",
+          "MATUOKA Kyôko, traduko IZUMI Yukio, 1990) * La arbo... kiu forkuris (dulingve: en Esperanto kaj la japana, verkinto Martin BURKERT, KITAGAWA Hisasi, 1990) * Etimologia Vortareto Pragmata de Esperanto (YAMASAKI Seikô, 1991) * Neĝa Lando (verkinto KAWABATA Yasunari, traduko KONISI Gaku, dua reviziita eldono 1992. Unua eldono 1971 de Japana Esperanto-Instituto) * Fabeloj de Andersen (traduko L.L",
+          "La originoj de la Deutschordenskommende Freiburg datas de 1258. Kiel tria ordeno la Aŭgustenanoj trovis lokon por sia monaĥejo en la mallarĝa malnovurbo inter Salzstraße (strato de salo) kaj la urbomuro",
+          "Bonaero: Argentina Esperanto-Instituto, 1973. Paĝoj 101–127."
+        ],
+        "top_result": "Li estis la tria prezidanto de Svisa Esperanto-Societo (SES) kaj plenumigis tiun-ĉi oficon de 1904 ĝis 1908. En 1905 li partoprenis la 1-an Universalan Kongreson de Esperanto en Bulonjo-ĉe-Maro kaj prezidis la 2-an Universalan Kongreson en Ĝenevo en 1906. Kiel pioniro de la esperanta stenografio, li esperantigis la sistemon Stolze-Schrey en 1905. Li kunredaktis la periodaĵojn Tra la Mondo kaj La Revuo"
+      },
+      {
+        "id": "q028",
+        "question": "Kio estas la diferenco inter esti kaj estis?",
+        "category": "grammar",
+        "gold_answer": "Esti estas infinitivo, dum estis estas pasinteca formo de la verbo.",
+        "acceptable_answers": [
+          "tempo",
+          "pasinteco",
+          "infinitivo vs pasinto"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 246.55556678771973,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q029",
+        "question": "Kiam oni uzas la vorteton la?",
+        "category": "grammar",
+        "gold_answer": "La estas la difinita artikolo, uzata kiam oni parolas pri io konata aŭ specifa.",
+        "acceptable_answers": [
+          "difinita artikolo",
+          "konata afero",
+          "specifa"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 535.7398986816406,
+        "retrieved_docs": [
+          "Kiam Armstrong rimarkis ke ili estis direktiĝintaj al alteriĝa areo kiu laŭ li estis nesekura, li transprenis manan kontrolon de la LM, kaj provis trovi areon kiu ŝajnus pli sekura, irante pli longe for ol atendite, kaj pli longe ol la plej multaj simulaĵoj faris",
+          "Kiam li studis en la peterburga universitato, li estis arestita por revolucia agado"
+        ],
+        "top_result": "Kiam Armstrong rimarkis ke ili estis direktiĝintaj al alteriĝa areo kiu laŭ li estis nesekura, li transprenis manan kontrolon de la LM, kaj provis trovi areon kiu ŝajnus pli sekura, irante pli longe for ol atendite, kaj pli longe ol la plej multaj simulaĵoj faris"
+      },
+      {
+        "id": "q030",
+        "question": "Ĉu ekzistas nedifina artikolo en Esperanto?",
+        "category": "grammar",
+        "gold_answer": "Ne, Esperanto ne havas nedifinitan artikolon.",
+        "acceptable_answers": [
+          "ne",
+          "ne ekzistas",
+          "neniu nedifina artikolo"
+        ],
+        "found_at_rank": 9,
+        "query_time_ms": 395.36118507385254,
+        "retrieved_docs": [
+          "Krome, ekzistas aliaj dediĉaĵoj skribitaj fare de aliaj aktoroj el la firmao de la viroj el Leicester: Robert Wilson, John Bentley kaj Thomas Clarke",
+          "Ekzistas gamoj kvarontonaj, en kiu la plej malgranda intervalo estas la kvarontono",
+          "Gerila ĝardenado estas farita por diversaj celoj kaj motivoj, kaj ĉiu gerila ĝardenisto havas sendependan agadon",
+          "En la loko de ĉasigo de la kaĉaloto la fundo estas en la profundaĵo pli ol 3 km, kio signifas, ke la kaĉaloto devis mergiĝi, eĉ kiam nur por mallonga tempo, por nutraĵo ĝis profundaĵo preskaŭ 3 km",
+          "Discovery estas elektita dufoje kiel la orbitilo por rekomenco de flugoj, unue en 1988 kiel la orbitilo por rekomenco de flugoj post la 1986-a Challenger-a Katastrofo, kaj tiam por la ĝemelaj misioj por rekomenco de flugoj en julio 2005 kaj julio 2006 post la 2003-a Colombia-a Katastrofo",
+          "Septembron 965 li estis mortigata survoje al Kufa, laŭdire de triba ĉefo kiun li insultis",
+          "Hodiaŭ ĝi estas konata kiel Little Chester, en la antaŭurbo de Derby, lokita en la Angla provinco de Derbyshire",
+          "La akvokolekta areo estas limigita oriente de la masivo Aran Fawddwy kaj okcidente kaj norde de la zono de Harlech kiu formas basenon ĝuste sude de Llyn Trawsfynydd",
+          "Roperuelos del Páramo estus komprenebla dub-etimologie kiel Ŝranketoj de la Stepo",
+          "Frua dokumenta mencio estas de 1144. En la municipo loĝis Don Juan de Zúñiga Avellaneda y Velasco, kiu estis gravulo de la kortego de la reĝo de Karolo la 1-a"
+        ],
+        "top_result": "Krome, ekzistas aliaj dediĉaĵoj skribitaj fare de aliaj aktoroj el la firmao de la viroj el Leicester: Robert Wilson, John Bentley kaj Thomas Clarke"
+      },
+      {
+        "id": "q031",
+        "question": "Se mal- signifas kontraŭon, kio estas malbona?",
+        "category": "reasoning",
+        "gold_answer": "Malbona signifas la kontraŭon de bona, do malbona.",
+        "acceptable_answers": [
+          "ne bona",
+          "kontraŭo de bona",
+          "malbona = ne bona"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 651.7653465270996,
+        "retrieved_docs": [
+          "Entoprocta, kies nomo signifas \"anuso ene\", estas filumo de ĉefa senmovaj akvaj animaloj, kiuj gamas el 0.1 al 7 milimetrojn 0.3 longaj",
+          "Sed kiam temis pri bona observademo li estis vera majstro",
+          "Ĝi pluas sian flugon, ŝajne senlace, kaj dum trankvila kaj dum ŝtorma veteroj"
+        ],
+        "top_result": "Entoprocta, kies nomo signifas \"anuso ene\", estas filumo de ĉefa senmovaj akvaj animaloj, kiuj gamas el 0.1 al 7 milimetrojn 0.3 longaj"
+      },
+      {
+        "id": "q032",
+        "question": "Se lernejo estas loko por lerni, kio estas vendejo?",
+        "category": "reasoning",
+        "gold_answer": "Vendejo estas loko por vendi.",
+        "acceptable_answers": [
+          "loko por vendi",
+          "butiko",
+          "magazeno"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 402.4524688720703,
+        "retrieved_docs": [
+          "Kiel mistika tradicio, ĝi unue estis transdonita per framasona altnivela sistemo estigita en Francio de Martinez de Pasqually, kaj malfrue Louis Claude de Saint-Martin kaj Jean-Baptiste Willermoz propagis ĝin",
+          "Ĝi estas marmora kopio el la 1-a jarcento a.K., eble farita en Ateno, el bronza origina greka skulptaĵo, sekvante la specon de la Afrodito de Knido, kiu estus farita de skulptisto en la tuja praksitela tradicio, eble ĉe la fino de la jarcento",
+          "La plej gravaj uzataj muzikiloj estas la gitaro (elektra kaj akustika), piano kaj buŝharmoniko",
+          "Alveninte ĉe la posteno de ministro pri Nacia Edukado, li estis kompreninta, ke la Respubliko povis esti defendita, servita, konstruita nur de popolo instruita kaj edukita laŭ ĝiaj demokrataj valoroj",
+          "Laŭ decido de Prezidio de Supera Konsilio (Soveto) de Litova SSR, V. Šilas estis konfirmita kiel prezidanto de la Konsilio pri Aferoj de Eta Litovio",
+          "Erotika transvestulo estas viro, kiu ŝatas vesti sin virine pro sia (ofte erotika) plezuro kaj fetiĉo",
+          "Pli da ol duono de la sud-afrika loĝantaro estas kapabla kompreni ĝin, kun super 9 milionoj kiel unua lingvo kaj super 15 milionoj kiel dua-lingvaj parolantoj",
+          "Granda temo de lia filozofio estas \"la pejzaĝo\", kiel homo ŝanĝas ĝin, kiel ĝi rilatas al la sano. (Komparu paralelojn ĉe promenadologio, :de:Lucius Burckhardt)",
+          "Eĉ kiam Gajdušek estis en 1719 kun kelkaj siaj samideanoj ekzekutita en Nový Jičín, kelkaj restintaj rabistoj maltrankviligis ĝis la jaro 1736 senĉese tiun ĉi regionon",
+          "Sudetgermanoj estas nomataj tiu parto de la germana gento, kiu loĝis en Sudetio, nome en la regiono de la Sudeta montaro, kaj pli speciale en la limzonoj de la nuna Ĉeĥio, ĝis 1945 kaj 1946, kiam ili estis preskaŭ ĉiuj forpelitaj el siaj loĝregionoj"
+        ],
+        "top_result": "Kiel mistika tradicio, ĝi unue estis transdonita per framasona altnivela sistemo estigita en Francio de Martinez de Pasqually, kaj malfrue Louis Claude de Saint-Martin kaj Jean-Baptiste Willermoz propagis ĝin"
+      },
+      {
+        "id": "q033",
+        "question": "Se instruisto estas iu kiu instruas, kio estas kuracisto?",
+        "category": "reasoning",
+        "gold_answer": "Kuracisto estas iu kiu kuracas, do kuracisto.",
+        "acceptable_answers": [
+          "iu kiu kuracas",
+          "doktoro",
+          "medicino profesio"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 11.418581008911133,
+        "retrieved_docs": [],
+        "top_result": null
+      },
+      {
+        "id": "q034",
+        "question": "Kio estas la malo de rapida?",
+        "category": "reasoning",
+        "gold_answer": "La malo de rapida estas malrapida.",
+        "acceptable_answers": [
+          "malrapida",
+          "lenta"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 282.49120712280273,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q035",
+        "question": "Se hundo estas besto, kaj kato estas besto, kio estas hundo kaj kato kune?",
+        "category": "reasoning",
+        "gold_answer": "Hundo kaj kato kune estas bestoj.",
+        "acceptable_answers": [
+          "bestoj",
+          "du bestoj",
+          "ambaŭ estas bestoj"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 393.86630058288574,
+        "retrieved_docs": [
+          "La aldonitaj ilustraĵoj estas faritaj laŭ originalaj fotografaĵoj, kiuj bedaŭrinde--pro la malbona vetero dum la enterigo--ne estas tre klaraj sed tamen reprezentas valoran memoraĵon pri la historia ceremonio",
+          "Ŝi estis farita Oficiro de la Honora Legio la",
+          "--Kio tio ĉi estas",
+          "Kristanisma patrono de la komunumo estas la sanktulo Aleksandro de Bergamo, kies religia memortago sekve estas la komunuma festotago",
+          "Karakterizaj estas krimuloj (banditaj filmoj), policanoj (policaj filmoj) aŭ juĝejanoj (juĝejaj filmoj) kiel ĉefaj roluloj, aŭ la ago de krimo en si mem kiel centra temo",
+          "Nun trankvila pri la sorto de sia familio, li estis finonta la verkojn, pri kiuj li jam delonge meditis, kiam la malfortiĝo de lia sano devigis lin forlasi ĉiajn okupojn; finfine, post sufero kaj malsano dum pluraj monatoj, li mortis la 6-an de aprilo 1574, kaj estis entombigita en la dominika preĝejo de Sankta Maria Sopra Minerva, sen surskribo",
+          "Kabardio-Balkario (aŭ Kabardujo-Balkarujo, aŭ Kabard-Balkario; , ) estas respubliko en Norda Kaŭkazio, subjekto de Rusia Federacio",
+          "La 17-a de majo estas la 137-a tago de la jaro (la 138-a en superjaroj) laŭ la Gregoria kalendaro. 228 tagoj restas",
+          "Hortensio aŭ grandfolia hidrangeo (Hydrangea macrophylla) estas specio de hidrangeoj el la de familio de hidrangeacoj",
+          "Ankaŭ estas en la municipo la aparta industria kvartalo Itapeti"
+        ],
+        "top_result": "La aldonitaj ilustraĵoj estas faritaj laŭ originalaj fotografaĵoj, kiuj bedaŭrinde--pro la malbona vetero dum la enterigo--ne estas tre klaraj sed tamen reprezentas valoran memoraĵon pri la historia ceremonio"
+      },
+      {
+        "id": "q036",
+        "question": "Kio estas pli granda: domo aŭ domego?",
+        "category": "reasoning",
+        "gold_answer": "Domego estas pli granda, ĉar -eg- signifas grandecon.",
+        "acceptable_answers": [
+          "domego",
+          "la domego"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 241.87278747558594,
+        "retrieved_docs": [
+          "Najrobio aŭ Najrobo ( , ) estas la ĉefurbo kaj plej granda urbo de Kenjo",
+          "Ĝi estis establita de Konstanteno la Granda en la jaro 312 de la kristana erao",
+          "eta|280ra| Kvankam mi preskaŭ ĉiutage estas en la komunejo (sed ne sukcesas regule patroli ĉiujn diskutejojn esperantlingvajn), mi ĝis nun ne rimarkis la kampanjon de Robin van der Vliet agiti favore al forigo de la komuneja ŝablono \"libera havaĵo laŭ permeso de UEA\" kaj la sekvan buĉon de granda nombro de esperantistaj grafikaĵoj publikigitaj en la komunejo laŭ permeso de la permesilo",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "Se Downfall estus okazinta, ĝi estus estinta la plej granda amfibia operaco en la historio",
+          "29220 Xavierbaptista estas malgranda meze hela asteroido de la asteroida zono malkovrita la de la belga astronomo Eric Walter Elst elde la Observatorio La Silla en Ĉilio",
+          "dekstra|eta|200px| La Kolonio kaj Protektorato de Kenjo estis parto de la Brita Imperio en Afriko el 1920 ĝis 1963. Ĝi establiĝis kiam la iama Orientafrika Protektorato estis transformita en Kronkolonio en 1920. Teknike la \"Kolonio Kenjo\" referencis al la internaj teritorioj, dum 16 kilometrojn larĝa marborda strio (teorie luprenita de la Sultano de Zanzibaro) estis la \"Protektorato Kenjo\" sed ambaŭ teroj estis kontrolitaj kiel unusola administracia unuo",
+          "En 1857 do Henrichshütte estis vendata al la Berlina bankaro „Berliner Disconto-Gesellschaft“",
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)"
+        ],
+        "top_result": "Najrobio aŭ Najrobo ( , ) estas la ĉefurbo kaj plej granda urbo de Kenjo"
+      },
+      {
+        "id": "q037",
+        "question": "Se la kato manĝas la muson, kiu estas manĝata?",
+        "category": "reasoning",
+        "gold_answer": "La muso estas manĝata.",
+        "acceptable_answers": [
+          "la muso",
+          "muso"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 449.9704837799072,
+        "retrieved_docs": [],
+        "top_result": null
+      },
+      {
+        "id": "q038",
+        "question": "Kio estas la malo de antaŭ?",
+        "category": "reasoning",
+        "gold_answer": "La malo de antaŭ estas malantaŭ.",
+        "acceptable_answers": [
+          "malantaŭ",
+          "post"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 244.15254592895508,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q039",
+        "question": "Se libroj estas libra en la pluralo, kio estas tablo en la pluralo?",
+        "category": "reasoning",
+        "gold_answer": "Tablo en la pluralo estas tabloj.",
+        "acceptable_answers": [
+          "tabloj"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 363.849401473999,
+        "retrieved_docs": [
+          "Estas tute logike kaj konforme al la vortfaro de Esperanto distingi (kiel farita en nia Vikipedio ekde ĝia origino en 2001 sen iu ajn kontraŭdiro) inajn kaj virajn personajn nomojn, per uzo de la -a finaĵo pri inaj sanktulinoj",
+          "Ekde 2002 Bookshare estas interreta librejo, kiu havas verkojn legitajn per komputila voĉo elŝuteble por malkapabluloj",
+          "Dum registara krizo en 1980 Gunnar, kiu tiam estis vicpartiestro de la Sendependecpartio, koaliciis kun aliaj parlamentaj partioj kaj kelkaj parlamentanoj en sia partio, kontraŭ la volo de partiestro Geir Hallgrímsson kaj la partio",
+          "La poltura (ebla esperantigo polturo) estas historia hungara monero, kiu estis pregita dum regado de Lipoto la 1-a, Jozefo la 1-a, Ferenc Rákóczi la 2-a, Karlo la 3-a kaj Maria Terezia",
+          "Apud Moskvo estas peltbieno, kiu eksperimentas pri bredado de aziaj marmotoj",
+          "Paim Filho estas municipo en la brazila subŝtato Suda Rio-Grando, kiu havis 4.243 loĝantojn en 2010",
+          "Proksime estas 25 hektarojn granda rifuĝburgo Winzenburg, kiun oni uzis jam prahistorie",
+          "Unu el ĝiaj kunlaborantoj estis Pēteris Ķiķauka (1886 - 1967), kiu tradukis en Esperanton rakonton de Jānis Poruks \"Vakciniuja krono\", kiu estas la unua beletra verko de la latva lingvo tradukita en Esperanton",
+          "Du ĉefaj vilaĝoj en la arkipelago estas Pangai en Lifuka (kie estas la flughaveno Salote Pilolevu) kaj Haano",
+          "Supre estis brila krono el oro kaj juveloj meze de kiu videblis la monogramo de Kristo formita de la du greklingvaj komencaj literoj nome X kaj P (Ĥio kaj Ro) de tiu nomo (χριστóς) tiele ke la lasta estu meze de la unua"
+        ],
+        "top_result": "Estas tute logike kaj konforme al la vortfaro de Esperanto distingi (kiel farita en nia Vikipedio ekde ĝia origino en 2001 sen iu ajn kontraŭdiro) inajn kaj virajn personajn nomojn, per uzo de la -a finaĵo pri inaj sanktulinoj"
+      },
+      {
+        "id": "q040",
+        "question": "Se mi legas libron, kion mi faras?",
+        "category": "reasoning",
+        "gold_answer": "Vi legas, do vi rigardas kaj komprenas la tekston de libro.",
+        "acceptable_answers": [
+          "legas",
+          "legado",
+          "rigardas tekston"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 385.0586414337158,
+        "retrieved_docs": [
+          "Li redaktis kaj parte tradukis La Libron de Komuna Preĝo",
+          "Eldonis la libreton (32 pĝ) Esperanta Kantokolekto kaj tradukis kelkajn el la kantoj",
+          "La tiel nomata \"Plej Granda Disiĝo\" oficialiĝis dum septembro de 1867 inter Ṣubḥ-i-Azal kaj Bahá'u'lláh, kiu nelonge poste verkis sian libron titolitan Kitáb-i-Badí' (La Mirinda Libro Nova) por refuti la argumentojn de siaj opoziciantoj nomitaj de li la \"Popolo de la Bayán\" (Ahl-i-Bayán) kaj precipe de Siyyid Muḥammad-i-Iṣfahání La foje eĉ sanga konflikto inter bahaanoj kaj azalanoj forte malkontentigis la turkan registaron, kiu fine ordonis splitigon de ekzilintoj kaj sendon de unu grupo, inter ili Mírzá Yaḥya, al la insulo Kipro kaj de la alia, inter ili Bahá'u'lláh, al la punkolonio de Akko ( 'Akká) en Palestino"
+        ],
+        "top_result": "Li redaktis kaj parte tradukis La Libron de Komuna Preĝo"
+      },
+      {
+        "id": "q041",
+        "question": "Kio estas la ĉefurbo de Marso?",
+        "category": "negative",
+        "gold_answer": "Mi ne scias. Marso ne havas ĉefurbon.",
+        "acceptable_answers": [
+          "ne scias",
+          "ne ekzistas",
+          "Marso ne havas ĉefurbon",
+          "neniu"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 255.06830215454102,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q042",
+        "question": "Kiom kostas la luno?",
+        "category": "negative",
+        "gold_answer": "Mi ne scias. La luno ne estas vendebla.",
+        "acceptable_answers": [
+          "ne scias",
+          "ne vendebla",
+          "sencela demando"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 379.11152839660645,
+        "retrieved_docs": [],
+        "top_result": null
+      },
+      {
+        "id": "q043",
+        "question": "Kiu gajnis la Esperanto-mondĉampionaton en 2075?",
+        "category": "negative",
+        "gold_answer": "Mi ne scias. Tiu evento ankoraŭ ne okazis.",
+        "acceptable_answers": [
+          "ne scias",
+          "estonteco",
+          "ne okazis",
+          "ne ekzistas"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 326.1270523071289,
+        "retrieved_docs": [
+          "La celo estas helpi al lernantoj de Esperanto praktiki la lingvon en sekura medio kaj samtempe provizi por Vikipedio novajn kvalitajn artikoloj",
+          "ALIDIREKTI Ĝermolisto de Esperanto-eldonaĵoj",
+          "Mi ne havas fortan opinion pri tio, do se estas interkonsento, oni eble kreos liston por Pywikipediabotisto aŭ mi provos uzi mian AWBn.--Salatonbv (diskuto) 04:13, 26 Feb. 2015 (UTC) :Oni povas vidi ke \"turismo\" en Esperanto-Vikipedio similas \"vojaĝado\"",
+          "Krom la hungara, germana kaj rusa, li ankaŭ sciis iom la francan kaj iom da Esperanto kiun li lernis dum sia junaĝo",
+          "Marek Mazurkiewicz (diskuto) 15:02, 5 Jun. 2015 (UTC) :--Salatonbv (diskuto) 17:18, 30 Okt. 2015 (UTC) * Mi kontrolis la slovakan verkon „Smrť Jánošíkova“ (la sama ĉefrolulo), kiu en Esperanta traduko estas „La morto de Jánošík“",
+          "Post ses monatoj, María ricevas alvokon ke oni trovis infanon, pro kio ŝi devas reveni al la insulo kaj malkaŝi misterojn",
+          "La 15-an de septembro 2010 la navokruciĝo denove ricevis tegmentotureton",
+          "Okaze de la datreveno 70-a naskiĝtaga li ricevis medalon fare de la loĝvilaĝo, la partiuloj de Sozialistische Einheitspartei Deutschlands donis al li honore la \"Karl-Marx-ordenon\"",
+          "Li ricevis Stipendio Guggenheim en 1964. La asteroido 3222 Liller estis nomita en lia honoro ; 3086 Kalbaugh estis nomita en honoro de lia patro",
+          "Ŝi ricevis premiojn inter 1993-2011."
+        ],
+        "top_result": "La celo estas helpi al lernantoj de Esperanto praktiki la lingvon en sekura medio kaj samtempe provizi por Vikipedio novajn kvalitajn artikoloj"
+      },
+      {
+        "id": "q044",
+        "question": "Kio estas la sekreto de la universo?",
+        "category": "negative",
+        "gold_answer": "Mi ne scias. Tio estas filozofia demando sen klara respondo.",
+        "acceptable_answers": [
+          "ne scias",
+          "filozofia",
+          "neniu respondo"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 241.41502380371094,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      },
+      {
+        "id": "q045",
+        "question": "Kiom da haroj havas mia najbarino?",
+        "category": "negative",
+        "gold_answer": "Mi ne scias. Mi ne havas informojn pri via najbarino.",
+        "acceptable_answers": [
+          "ne scias",
+          "ne konas",
+          "neniu informo"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 285.980224609375,
+        "retrieved_docs": [
+          "En 1898 li havis jam 45 laboristojn kaj ili produktis ĉiuspecajn muzikilojn",
+          "Ankaŭ la abatejo de Tihany havis posedaĵojn en Kőröshegy kaj dum longa periodo ankaŭ la vitistoj devenis de ĉi tie",
+          "En jaro 1959 la urbo havis 11,5 mil loĝantojn",
+          "Mi jam havas artikolon pri Kolombedoj, kiun mi finigos iam, kaj bezonas artikolojn por subfamilioj, ekzemple Columbinae, genroj, ekzemple Columba, sed tie aperas stelaro kaj por specioj, kiel Rokkolombo, sed tiu estas la sama artikolo kiel por Kolombo, dum Kolomboj estas sama kiel Kolombedoj",
+          "Vi partoprenis en doloro mia La tagon, kiam glav' de malamiko De mia flanko rabis mian filon, La lastan, la plej bonan",
+          "Ili havas kodojn por scii la valoron de la rezistilo",
+          "La komunumo havas surfacon de 1655,55 km²",
+          "Nomon Oprechtice havas pluraj setlejoj: * Oprechtice (Zahořany), parto de municipo Zahořany en distrikto Domažlice * Oprechtice (Paskov), parto de urbo Paskov en distrikto Frýdek-Místek",
+          "En 1910 ĝi havis 1 731 loĝantojn (hungaroj), en 1992 1 271 (hungaroj)",
+          "La «Magia Lando» — laŭŝajne paradizo kun eterna somero kaj ĉarme drolaj loĝantoj ― havas siajn partojn malhelajn kaj draste danĝerajn; malicaj magiistoj, hommanĝuloj, sabrodenthavaj tigroj kaj aliaj embuskas"
+        ],
+        "top_result": "En 1898 li havis jam 45 laboristojn kaj ili produktis ĉiuspecajn muzikilojn"
+      },
+      {
+        "id": "q046",
+        "question": "Ĉu la luno estas farita el fromaĝo?",
+        "category": "negative",
+        "gold_answer": "Ne. La luno estas farita el roko, ne el fromaĝo.",
+        "acceptable_answers": [
+          "ne",
+          "roko",
+          "ne el fromaĝo"
+        ],
+        "found_at_rank": 2,
+        "query_time_ms": 315.61756134033203,
+        "retrieved_docs": [
+          "La internaĵoj estis faritaj en diversaj eraoj",
+          "Poissy RER estas estonta haltejo de Eksprestramo 13, situanta en Poissy, en departemento Yvelines, regiono Francilio",
+          "Place du Garde estas estonta haltejo de tramvojo T10, situanta en Clamart, en departemento Hauts-de-Seine, regiono Francilio",
+          "Ĝi estas orienta aramea lingvo rimarkinda pro sia abunda uzo de vokalaj literoj skribe, aparta skribo (la mandaja alfabeto, vido la ekzempleron de preĝobovlo maldekstre) kaj la grandkvanta influo de la persa kaj akada lingvoj sur ĝia vortaro, precipe en la areo de religia kaj mistika terminologio",
+          "Tiu estis en tempo de la kunpuŝiĝo en la postveturila veturilo",
+          "Gordos estas ĥora historio",
+          "Lago Saint Pierre (, lago Sankta Petro) estas lago en Kebekio, Kanado, elfluanta el la Sankt-Laŭrenca rivero inter Sorel-Tracy kaj Trois-Rivières",
+          "- prononco [] - estas komunumo de Francio",
+          "Jarohněvice estas municipo en Ĉeĥio, en Regiono Zlín, en distrikto Kroměříž",
+          "La longo de la rivero estas de 694 km kaj drenas basenon de 39 417 km², pli granda ol landoj kiel Gvineo Bisaŭa aŭ Tajvano"
+        ],
+        "top_result": "La internaĵoj estis faritaj en diversaj eraoj"
+      },
+      {
+        "id": "q047",
+        "question": "Kiu inventis la tempomaŝinon?",
+        "category": "negative",
+        "gold_answer": "Mi ne scias. Tempomaŝino ankoraŭ ne ekzistas.",
+        "acceptable_answers": [
+          "ne scias",
+          "ne ekzistas",
+          "neniu inventis"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 455.57093620300293,
+        "retrieved_docs": [],
+        "top_result": null
+      },
+      {
+        "id": "q048",
+        "question": "Kio okazos morgaŭ?",
+        "category": "negative",
+        "gold_answer": "Mi ne scias. Mi ne povas antaŭdiri la estontecon.",
+        "acceptable_answers": [
+          "ne scias",
+          "ne povas diri",
+          "estonteco nekonata"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 376.59478187561035,
+        "retrieved_docs": [
+          "En julio ICANN okazigis internacian konferencon pri la proceduro de generado de ŝlosiloj de la cifera subskribo per kiu poste estis subskribita la radika zono",
+          "En la sekvaj jaroj okazis serio de packonferencoj inter la tradiciaj estraroj de la klanoj por solvi daŭrantajn internajn konfliktojn",
+          "Tiu milito okazis inter la kolonioj de Brita Nord-Ameriko kaj Nova Francio, dum ambaŭ flankoj estis eltenitaj kaj helpitaj de militunuoj el la metropolaj landoj Granda Britio kaj Francio, same kiel de la indianaj aliancanoj de ambaŭ",
+          "En moderna minado la ŝaktotransporto okazas per potencaj transportmaŝinoj, kies movo- kaj transportkapablo klare situas super la moviloj de la aliaj transportiloj",
+          "Tie okazis foiroj kaj ĉiutaga vendado",
+          "Kiam venos por mi la tago, kiam mi ankaŭ vidos tiujn ravaĵojn, kiujn vi tiel pentraĵe priskribas",
+          "En 1958 la dekanejo Bottrop kun siaj 18 parokoj venis al la novfondita episkopejo Essen",
+          "Kozimo venis el tre malsimila branĉo de la familio, kaj estis preskaŭ nekonata en Florenco",
+          "En la moderna aerarmeo, bombaviadilo farigas la misiojn de taktika aŭ strategia aerbombado",
+          "Per tio la muziko fariĝis grava sontubo de la malsupra socia klaso de Rio-de-Ĵanejro, al kiu apartenis plejparte la nigrula loĝantaro"
+        ],
+        "top_result": "En julio ICANN okazigis internacian konferencon pri la proceduro de generado de ŝlosiloj de la cifera subskribo per kiu poste estis subskribita la radika zono"
+      },
+      {
+        "id": "q049",
+        "question": "Kiu estas la plej bela lingvo en la mondo?",
+        "category": "negative",
+        "gold_answer": "Tio estas subjektiva opinio. Ekzistas neniu objektiva respondo.",
+        "acceptable_answers": [
+          "subjektiva",
+          "opinio",
+          "ne objektiva"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 284.20305252075195,
+        "retrieved_docs": [],
+        "top_result": null
+      },
+      {
+        "id": "q050",
+        "question": "Kio estas la signifo de xyzabc?",
+        "category": "negative",
+        "gold_answer": "Mi ne scias. Tiu vorto ne ekzistas en Esperanto.",
+        "acceptable_answers": [
+          "ne ekzistas",
+          "ne scias",
+          "nekonata vorto"
+        ],
+        "found_at_rank": null,
+        "query_time_ms": 249.75824356079102,
+        "retrieved_docs": [
+          "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi",
+          "La druidaro estis estrata de ĉefdruido elektita sekretloke en regiono de la Karnutoj (Karnutio estante rigardata kiel centro de Gaŭlio)",
+          "Se granda grupo de dancistoj estas koncernata, ĝi estas kutime nomata kiel la coda générale",
+          "estas komunumo de Francio",
+          "Alhama estas nelonga rivero de la nordoriento de Hispanio, alfluanto de la dekstra bordo de la grandrivero Ebro",
+          "August Rush estas usona kineja filmo de la reĝisorino Kirsten Sheridan el la jaro 2007. Ĉefaj rolantoj estis la tiam 14-jara knabo Freddie Highmore, la usona aktorino Keri Russell kaj la irlanda aktoro Jonathan Rhys Meyers",
+          "Laŭ la helena mitologio, la Oceanidoj aŭ Potamoj (el la greka Ποταμοι, riveroj) estis riveraj dioj, kiuj personigis la akvajn fluadojn, kiujn ili regis",
+          "Ĉe la transiro de la dura kalkroko al la mola ŝtonaĵo estiĝis falanta kalkroko, ĉe la nuna akvofalo",
+          "La Kalvinana preĝejo, aŭ Preĝejo de Nova Hungara Aŭroro estas religia konstruaĵo en Hungario, en urbo Szeged",
+          "La nova bronzoportalo ĉe la ĥorejo estis konsekrata en 2001."
+        ],
+        "top_result": "La filmo estis verkita de Kevin Bisch, prezentas Smith kiel Alex \"Hitch\" Hitchens, profesia \"rendevua kuracisto\", kies laboro estas instrui virojn kiel amindumi"
+      }
+    ],
+    "memory_delta_mb": 1008.296875
+  }
+]

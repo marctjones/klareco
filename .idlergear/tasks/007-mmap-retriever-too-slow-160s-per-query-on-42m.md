@@ -1,7 +1,7 @@
 ---
 id: 7
 title: 'mmap retriever too slow: 160s per query on 4.2M docs (2.7min/query)'
-state: open
+state: closed
 created: '2026-01-03T12:59:21.097297Z'
 labels:
 - performance

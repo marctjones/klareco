@@ -1,7 +1,7 @@
 ---
 id: 42
 title: 'Test 1: Detect embedding space collapse'
-state: open
+state: closed
 created: '2026-01-05T15:35:34.571413Z'
 labels:
 - research

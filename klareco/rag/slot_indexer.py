@@ -203,7 +203,11 @@ class SlotBasedIndexer:
         return emb.numpy()
 
     def _embed_ast_node(self, node) -> Optional[np.ndarray]:
-        """Extract embedding from an AST node (word or phrase)."""
+        """Extract embedding from an AST node (word or phrase).
+
+        Returns only the HEAD embedding. For compound words, modifiers are
+        extracted separately via _extract_modifiers().
+        """
         if node is None:
             return None
 
@@ -227,26 +231,90 @@ class SlotBasedIndexer:
 
         return None
 
-    def extract_slots(self, ast: dict) -> Dict[str, Optional[np.ndarray]]:
-        """Extract slot embeddings from AST."""
+    def _extract_modifiers(self, node) -> List[np.ndarray]:
+        """Extract modifier embeddings from compound words.
+
+        For hyphenated compound words (Esperanto-klubo), extracts embeddings
+        for each modifier component (left parts in the compound).
+
+        Args:
+            node: AST node (vorto or vortgrupo)
+
+        Returns:
+            List of modifier embeddings (empty if no compound)
+        """
+        if node is None:
+            return []
+
+        if isinstance(node, dict):
+            if node.get('tipo') == 'vorto':
+                # Check if it's a compound word
+                if node.get('estas_kunmetita') and node.get('kunmetajhoj'):
+                    modifier_embeddings = []
+                    for mod_ast in node.get('kunmetajhoj', []):
+                        mod_emb = self._embed_ast_node(mod_ast)
+                        if mod_emb is not None:
+                            modifier_embeddings.append(mod_emb)
+                    return modifier_embeddings
+
+            elif node.get('tipo') == 'vortgrupo':
+                # Phrase: extract from head word
+                kerno = node.get('kerno')
+                if kerno:
+                    return self._extract_modifiers(kerno)
+
+        return []
+
+    def _is_compound(self, node) -> bool:
+        """Check if a node is or contains a compound word."""
+        if node is None:
+            return False
+
+        if isinstance(node, dict):
+            if node.get('tipo') == 'vorto':
+                return bool(node.get('estas_kunmetita'))
+            elif node.get('tipo') == 'vortgrupo':
+                kerno = node.get('kerno')
+                return self._is_compound(kerno) if kerno else False
+
+        return False
+
+    def extract_slots(self, ast: dict) -> Dict[str, any]:
+        """Extract slot embeddings from AST.
+
+        Returns a dictionary with:
+        - SUBJ_HEAD: Subject head embedding (rightmost part of compound)
+        - SUBJ_MOD: List of subject modifier embeddings (left parts of compound)
+        - VERB: Verb embedding
+        - OBJ_HEAD: Object head embedding
+        - OBJ_MOD: List of object modifier embeddings
+
+        For non-compound words, MOD lists are empty.
+        This enables HEAD-weighted matching: a query for "Esperanto" should match
+        "Esperanto-klubo" in OBJ_MOD position, not OBJ_HEAD.
+        """
         slots = {
-            'SUBJ': None,
+            'SUBJ_HEAD': None,
+            'SUBJ_MOD': [],
             'VERB': None,
-            'OBJ': None,
+            'OBJ_HEAD': None,
+            'OBJ_MOD': [],
         }
 
         if ast.get('tipo') == 'frazo':
-            # Extract subject
+            # Extract subject (HEAD + modifiers)
             if ast.get('subjekto'):
-                slots['SUBJ'] = self._embed_ast_node(ast['subjekto'])
+                slots['SUBJ_HEAD'] = self._embed_ast_node(ast['subjekto'])
+                slots['SUBJ_MOD'] = self._extract_modifiers(ast['subjekto'])
 
             # Extract verb
             if ast.get('verbo'):
                 slots['VERB'] = self._embed_ast_node(ast['verbo'])
 
-            # Extract object
+            # Extract object (HEAD + modifiers)
             if ast.get('objekto'):
-                slots['OBJ'] = self._embed_ast_node(ast['objekto'])
+                slots['OBJ_HEAD'] = self._embed_ast_node(ast['objekto'])
+                slots['OBJ_MOD'] = self._extract_modifiers(ast['objekto'])
 
         return slots
 
@@ -259,6 +327,249 @@ class SlotBasedIndexer:
             'modo': ast.get('modo', 'indikativo'),
         }
 
+    def _extract_word_info(self, word_node: Dict) -> Optional[Dict]:
+        """Extract essential word information from a vorto node.
+
+        Returns a compact dict with only fields needed for matching:
+        - radiko: word root
+        - vortspeco: part of speech
+        - prefiksoj: list of prefixes (if any)
+        - sufiksoj: list of suffixes (if any)
+        - tempo: verb tense (only for verbs)
+        - kazo: grammatical case (only for nouns)
+        """
+        if not word_node or word_node.get('tipo') != 'vorto':
+            return None
+
+        info = {
+            'radiko': word_node.get('radiko', '').lower(),
+            'vortspeco': word_node.get('vortspeco', 'nekonata'),
+        }
+
+        # Only include prefixes if present
+        prefiksoj = word_node.get('prefiksoj', [])
+        if not prefiksoj:
+            p = word_node.get('prefikso')
+            if p:
+                prefiksoj = [p]
+        if prefiksoj:
+            info['prefiksoj'] = prefiksoj
+
+        # Only include suffixes if present
+        sufiksoj = word_node.get('sufiksoj', [])
+        if sufiksoj:
+            info['sufiksoj'] = sufiksoj
+
+        # Only include tempo for verbs
+        if word_node.get('vortspeco') == 'verbo' and word_node.get('tempo'):
+            info['tempo'] = word_node.get('tempo')
+
+        # Only include kazo for nouns/adjectives
+        if word_node.get('kazo') and word_node.get('vortspeco') in ['substantivo', 'adjektivo', 'propra_nomo']:
+            info['kazo'] = word_node.get('kazo')
+
+        return info
+
+    def _extract_words_from_phrase(self, phrase_node: Dict) -> List[Dict]:
+        """Extract all word info from a phrase (vortgrupo or vorto).
+
+        For vortgrupo: extracts kerno (head) + priskriboj (modifiers)
+        For compound words: extracts both head and kunmetajhoj (compound parts)
+        """
+        if not phrase_node:
+            return []
+
+        words = []
+
+        if phrase_node.get('tipo') == 'vorto':
+            # Single word
+            info = self._extract_word_info(phrase_node)
+            if info:
+                words.append(info)
+
+            # Check for compound word parts
+            if phrase_node.get('estas_kunmetita') and phrase_node.get('kunmetajhoj'):
+                for part in phrase_node.get('kunmetajhoj', []):
+                    part_info = self._extract_word_info(part)
+                    if part_info:
+                        words.append(part_info)
+
+        elif phrase_node.get('tipo') == 'vortgrupo':
+            # Phrase: extract head (kerno)
+            kerno = phrase_node.get('kerno')
+            if kerno:
+                words.extend(self._extract_words_from_phrase(kerno))
+
+            # Extract modifiers (priskriboj)
+            for modifier in phrase_node.get('priskriboj', []):
+                words.extend(self._extract_words_from_phrase(modifier))
+
+        return words
+
+    def _extract_prep_phrases(self, aliaj: List) -> List[Dict]:
+        """Extract prepositional phrases from 'aliaj' list.
+
+        Handles two parser output formats:
+        1. Grouped: vortgrupo with preposition as kerno and object in priskriboj
+        2. Flat: preposition and object as separate items in aliaj list
+
+        Returns list of dicts with:
+        - preposition: the preposition used
+        - object_words: list of word info for the object of the preposition
+        """
+        if not aliaj:
+            return []
+
+        prep_phrases = []
+        current_prep = None
+
+        for item in aliaj:
+            if not isinstance(item, dict):
+                continue
+
+            # Check for prepositional phrase structure
+            # Format 1: vortgrupo with prep as kerno
+            if item.get('tipo') == 'vortgrupo':
+                kerno = item.get('kerno')
+                if kerno and kerno.get('vortspeco') == 'prepozicio':
+                    prep_phrase = {
+                        'preposition': kerno.get('radiko', '').lower(),
+                        'object_words': []
+                    }
+                    # Get objects from priskriboj
+                    for modifier in item.get('priskriboj', []):
+                        prep_phrase['object_words'].extend(
+                            self._extract_words_from_phrase(modifier)
+                        )
+                    if prep_phrase['object_words']:
+                        prep_phrases.append(prep_phrase)
+
+            elif item.get('tipo') == 'vorto':
+                # Format 2: Flat list - preposition followed by object(s)
+                if item.get('vortspeco') == 'prepozicio':
+                    # Save current prep if it had objects
+                    if current_prep and current_prep['object_words']:
+                        prep_phrases.append(current_prep)
+                    # Start new prep phrase
+                    current_prep = {
+                        'preposition': item.get('radiko', '').lower(),
+                        'object_words': []
+                    }
+                elif current_prep and item.get('vortspeco') in ['substantivo', 'propra_nomo', 'adjektivo']:
+                    # This word is the object of the current preposition
+                    word_info = self._extract_word_info(item)
+                    if word_info:
+                        current_prep['object_words'].append(word_info)
+
+        # Don't forget the last prep phrase
+        if current_prep and current_prep['object_words']:
+            prep_phrases.append(current_prep)
+
+        return prep_phrases
+
+    def _extract_all_modifiers(self, ast: Dict) -> Dict[str, List]:
+        """Extract all modifiers (adverbs, adjectives) from the sentence.
+
+        Returns dict with:
+        - adverbs: list of adverb word info
+        - adjectives: list of adjective roots (strings for compactness)
+        """
+        modifiers = {
+            'adverbs': [],
+            'adjectives': []
+        }
+
+        def collect_modifiers(node):
+            """Recursively collect modifiers from AST."""
+            if not isinstance(node, dict):
+                return
+
+            if node.get('tipo') == 'vorto':
+                vortspeco = node.get('vortspeco')
+                if vortspeco == 'adverbo':
+                    info = self._extract_word_info(node)
+                    if info:
+                        modifiers['adverbs'].append(info)
+                elif vortspeco == 'adjektivo':
+                    radiko = node.get('radiko', '').lower()
+                    if radiko and radiko not in modifiers['adjectives']:
+                        modifiers['adjectives'].append(radiko)
+
+            elif node.get('tipo') == 'vortgrupo':
+                # Check kerno
+                if node.get('kerno'):
+                    collect_modifiers(node['kerno'])
+                # Check priskriboj
+                for mod in node.get('priskriboj', []):
+                    collect_modifiers(mod)
+
+            elif node.get('tipo') == 'frazo':
+                # Traverse sentence structure
+                if node.get('subjekto'):
+                    collect_modifiers(node['subjekto'])
+                if node.get('verbo'):
+                    collect_modifiers(node['verbo'])
+                if node.get('objekto'):
+                    collect_modifiers(node['objekto'])
+                for item in node.get('aliaj', []):
+                    collect_modifiers(item)
+
+        collect_modifiers(ast)
+        return modifiers
+
+    def extract_minimal_ast(self, ast: Dict) -> Dict:
+        """Extract minimal AST fields for enhanced matching.
+
+        This is a compact representation of the AST that captures:
+        - Word-level morphology (root, prefixes, suffixes)
+        - Syntactic roles (subject, verb, object words)
+        - Prepositional phrases
+        - Modifiers (adverbs, adjectives)
+
+        The minimal AST enables:
+        - Modifier matching (query/doc adjective similarity)
+        - Prepositional phrase matching (location queries)
+        - Entity type boosting (proper noun detection)
+        - Morphological pattern matching (shared prefixes/suffixes)
+
+        Returns:
+            Dict with subjekto_words, verbo_words, objekto_words,
+            prep_phrases, and modifiers.
+        """
+        minimal = {
+            'subjekto_words': [],
+            'verbo_words': [],
+            'objekto_words': [],
+            'prep_phrases': [],
+            'modifiers': {'adverbs': [], 'adjectives': []}
+        }
+
+        if ast.get('tipo') != 'frazo':
+            return minimal
+
+        # Extract subject words
+        if ast.get('subjekto'):
+            minimal['subjekto_words'] = self._extract_words_from_phrase(ast['subjekto'])
+
+        # Extract verb words
+        if ast.get('verbo'):
+            verb_info = self._extract_word_info(ast['verbo'])
+            if verb_info:
+                minimal['verbo_words'] = [verb_info]
+
+        # Extract object words
+        if ast.get('objekto'):
+            minimal['objekto_words'] = self._extract_words_from_phrase(ast['objekto'])
+
+        # Extract prepositional phrases from aliaj
+        if ast.get('aliaj'):
+            minimal['prep_phrases'] = self._extract_prep_phrases(ast['aliaj'])
+
+        # Extract all modifiers
+        minimal['modifiers'] = self._extract_all_modifiers(ast)
+
+        return minimal
+
     def index_sentence(
         self,
         text: str,
@@ -268,7 +579,14 @@ class SlotBasedIndexer:
         Index a single sentence with slot-based structure.
 
         Returns:
-            Dictionary with slots, features, full embedding, and metadata
+            Dictionary with slots, features, full embedding, and metadata.
+
+        Slots structure:
+            - SUBJ_HEAD: Subject head embedding (or None)
+            - SUBJ_MOD: List of subject modifier embeddings (or empty list)
+            - VERB: Verb embedding (or None)
+            - OBJ_HEAD: Object head embedding (or None)
+            - OBJ_MOD: List of object modifier embeddings (or empty list)
         """
         try:
             ast = parse(text)
@@ -276,17 +594,20 @@ class SlotBasedIndexer:
             logger.debug(f"Parse failed: {text[:50]}... - {e}")
             return None
 
-        # Extract slots
+        # Extract slots (now includes HEAD and MOD for compounds)
         slots = self.extract_slots(ast)
 
         # Extract features
         features = self.extract_features(ast)
 
-        # Compute full embedding (fallback)
+        # Extract minimal AST for enhanced matching
+        minimal_ast = self.extract_minimal_ast(ast)
+
+        # Compute full embedding (fallback) from HEAD embeddings only
         word_embeddings = []
-        for slot_emb in slots.values():
-            if slot_emb is not None:
-                word_embeddings.append(slot_emb)
+        for key in ['SUBJ_HEAD', 'VERB', 'OBJ_HEAD']:
+            if slots.get(key) is not None:
+                word_embeddings.append(slots[key])
 
         if not word_embeddings:
             return None
@@ -296,15 +617,25 @@ class SlotBasedIndexer:
         if norm > 0:
             full_emb = full_emb / norm
 
-        # Build index entry
+        # Build index entry with proper serialization
+        serialized_slots = {}
+        for k, v in slots.items():
+            if v is None:
+                serialized_slots[k] = None
+            elif isinstance(v, list):
+                # List of modifier embeddings
+                serialized_slots[k] = [emb.tolist() for emb in v]
+            elif isinstance(v, np.ndarray):
+                serialized_slots[k] = v.tolist()
+            else:
+                serialized_slots[k] = v
+
         entry = {
             'text': text,
-            'slots': {
-                k: v.tolist() if v is not None else None
-                for k, v in slots.items()
-            },
+            'slots': serialized_slots,
             'features': features,
             'full_embedding': full_emb.tolist(),
+            'minimal_ast': minimal_ast,
         }
 
         # Add source info if provided

@@ -1,7 +1,7 @@
 ---
 id: 15
 title: Evaluate Product Quantization (PQ) for memory reduction if scaling >10M docs
-state: open
+state: closed
 created: '2026-01-04T00:37:12.948719Z'
 labels:
 - enhancement

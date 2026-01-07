@@ -1,7 +1,7 @@
 ---
 id: 43
 title: 'Test 6: Evaluate proper noun embedding quality'
-state: open
+state: closed
 created: '2026-01-05T15:35:49.735582Z'
 labels:
 - research

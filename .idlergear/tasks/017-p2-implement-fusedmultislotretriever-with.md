@@ -1,7 +1,7 @@
 ---
 id: 17
 title: '[P2] Implement FusedMultiSlotRetriever with weighted fusion (Task #12)'
-state: open
+state: closed
 created: '2026-01-04T00:46:07.641447Z'
 labels:
 - faiss

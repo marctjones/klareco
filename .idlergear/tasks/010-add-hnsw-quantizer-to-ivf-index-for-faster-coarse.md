@@ -1,7 +1,7 @@
 ---
 id: 10
 title: Add HNSW quantizer to IVF index for faster coarse quantization
-state: open
+state: closed
 created: '2026-01-04T00:37:08.958222Z'
 labels:
 - faiss

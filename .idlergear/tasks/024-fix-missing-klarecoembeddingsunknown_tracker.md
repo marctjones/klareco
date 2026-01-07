@@ -1,7 +1,7 @@
 ---
 id: 24
 title: Fix missing klareco.embeddings.unknown_tracker module
-state: open
+state: closed
 created: '2026-01-05T00:13:57.463941Z'
 labels:
 - bug

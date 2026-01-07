@@ -1,7 +1,7 @@
 ---
 id: 48
 title: Create comprehensive embedding evaluation report
-state: open
+state: closed
 created: '2026-01-05T15:37:18.002589Z'
 labels:
 - research

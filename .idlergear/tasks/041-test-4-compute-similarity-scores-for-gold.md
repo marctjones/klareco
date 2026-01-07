@@ -1,7 +1,7 @@
 ---
 id: 41
 title: 'Test 4: Compute similarity scores for gold standard pairs'
-state: open
+state: closed
 created: '2026-01-05T15:35:22.487008Z'
 labels:
 - research

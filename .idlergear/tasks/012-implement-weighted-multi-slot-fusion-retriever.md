@@ -1,7 +1,7 @@
 ---
 id: 12
 title: Implement weighted multi-slot fusion retriever (replace intersection with fusion)
-state: open
+state: closed
 created: '2026-01-04T00:37:10.220134Z'
 labels:
 - faiss

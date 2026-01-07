@@ -1,7 +1,7 @@
 ---
 id: 50
 title: Build AST pattern matcher for flexible structural matching
-state: open
+state: closed
 created: '2026-01-05T15:46:39.588933Z'
 labels:
 - enhancement

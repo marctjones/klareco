@@ -2,7 +2,7 @@
 id: 19
 title: '[P1-AGGRESSIVE] Optimize FAISSSlotRetriever with aggressive tuning for 30GB
   RAM'
-state: open
+state: closed
 created: '2026-01-04T01:14:57.195223Z'
 labels:
 - faiss

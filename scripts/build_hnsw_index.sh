@@ -63,13 +63,22 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Setup logging
+LOG_DIR="$PROJECT_ROOT/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/hnsw_build_$(date +%Y%m%d_%H%M%S).log"
+
 echo "========================================"
 echo "HNSW Index Builder"
 echo "========================================"
 echo "Index path: $INDEX_PATH"
 echo "Project root: $PROJECT_ROOT"
+echo "Log file: $LOG_FILE"
 echo "========================================"
 echo ""
+
+# Log everything to file and stdout
+exec > >(tee -a "$LOG_FILE") 2>&1
 
 # Check if hnswlib is installed
 echo "Checking for hnswlib..."
@@ -99,16 +108,6 @@ if [ ! -f "$SLOT_INDEX" ]; then
     echo "Error: Slot index not found at $SLOT_INDEX"
     echo ""
     echo "You need to build the slot index first:"
-    echo "  python scripts/index_slot_based.py --corpus <corpus> --output $INDEX_PATH"
-    exit 1
-fi
-
-# Check if mmap directory exists
-MMAP_DIR="$INDEX_PATH/mmap"
-if [ ! -d "$MMAP_DIR" ]; then
-    echo "Error: Mmap directory not found at $MMAP_DIR"
-    echo ""
-    echo "You need to build the mmap arrays first:"
     echo "  python scripts/index_slot_based.py --corpus <corpus> --output $INDEX_PATH"
     exit 1
 fi
@@ -173,24 +172,32 @@ def build_hnsw_index(index_path, M=16, ef_construction=200):
     )
     index.set_num_threads(physical_cores)
 
-    # Load embeddings and add to index
-    logger.info("Adding embeddings to HNSW index...")
-    full_embeddings = []
-    ids = []
+    # Add embeddings in batches to save memory
+    logger.info("Adding embeddings to HNSW index in batches...")
+    BATCH_SIZE = 100000
 
     with open(index_file) as f:
+        batch_embeddings = []
+        batch_ids = []
+
         for i, line in enumerate(f):
             doc = json.loads(line)
-            full_embeddings.append(doc['full_embedding'])
-            ids.append(i)
+            batch_embeddings.append(doc['full_embedding'])
+            batch_ids.append(i)
 
-            if (i + 1) % 100000 == 0:
-                logger.info(f"  Loaded {i+1:,} embeddings...")
+            # Add batch when full
+            if len(batch_embeddings) >= BATCH_SIZE:
+                embeddings_array = np.array(batch_embeddings, dtype=np.float32)
+                index.add_items(embeddings_array, batch_ids)
+                logger.info(f"  Added {i+1:,} embeddings...")
+                batch_embeddings = []
+                batch_ids = []
 
-    # Convert to numpy array and add to index
-    logger.info("Building HNSW graph...")
-    embeddings_array = np.array(full_embeddings, dtype=np.float32)
-    index.add_items(embeddings_array, ids)
+        # Add remaining
+        if batch_embeddings:
+            embeddings_array = np.array(batch_embeddings, dtype=np.float32)
+            index.add_items(embeddings_array, batch_ids)
+            logger.info(f"  Added {i+1:,} embeddings (final batch)")
 
     # Save index
     logger.info(f"Saving HNSW index to {hnsw_file}...")

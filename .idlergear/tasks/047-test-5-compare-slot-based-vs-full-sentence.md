@@ -1,7 +1,7 @@
 ---
 id: 47
 title: 'Test 5: Compare slot-based vs full-sentence similarity'
-state: open
+state: closed
 created: '2026-01-05T15:37:01.527662Z'
 labels:
 - research

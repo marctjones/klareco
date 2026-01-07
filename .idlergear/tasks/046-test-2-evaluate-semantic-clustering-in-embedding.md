@@ -1,7 +1,7 @@
 ---
 id: 46
 title: 'Test 2: Evaluate semantic clustering in embedding space'
-state: open
+state: closed
 created: '2026-01-05T15:36:43.325053Z'
 labels:
 - research

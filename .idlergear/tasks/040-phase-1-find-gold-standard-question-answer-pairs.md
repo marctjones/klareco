@@ -1,7 +1,7 @@
 ---
 id: 40
 title: 'Phase 1: Find gold standard question-answer pairs in corpus'
-state: open
+state: closed
 created: '2026-01-05T15:35:04.485753Z'
 labels:
 - research

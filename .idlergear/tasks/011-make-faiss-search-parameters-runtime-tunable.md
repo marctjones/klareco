@@ -1,7 +1,7 @@
 ---
 id: 11
 title: Make FAISS search parameters runtime-tunable (nprobe, efSearch)
-state: open
+state: closed
 created: '2026-01-04T00:37:09.587063Z'
 labels:
 - faiss

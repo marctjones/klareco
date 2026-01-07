@@ -203,9 +203,10 @@ class HNSWSlotRetriever:
         Compute weighted slot similarity for a single document.
 
         Uses pre-computed norms from mmap if available.
+        Supports both old (SUBJ/VERB/OBJ) and new (SUBJ_HEAD/SUBJ_MOD/etc.) slot formats.
 
         Args:
-            query_slots: Query slot embeddings
+            query_slots: Query slot embeddings (may have _HEAD/_MOD keys)
             doc_id: Document ID
             is_question: Whether query is a question (affects partial bonus)
         """
@@ -215,22 +216,53 @@ class HNSWSlotRetriever:
         # Bug #2 fix: Higher partial bonus for questions
         partial_bonus = 0.8 if is_question else 0.5
 
-        for slot, weight in self.slot_weights.items():
-            query_emb = query_slots.get(slot)
+        # HEAD matching weight (HEAD is more important than modifiers)
+        head_weight = 0.8
+        mod_weight = 0.2
 
-            # Get document embedding from mmap
+        for slot, weight in self.slot_weights.items():
+            # Support both old and new slot formats
+            # New format: SUBJ_HEAD, SUBJ_MOD, OBJ_HEAD, OBJ_MOD, VERB
+            # Old format: SUBJ, VERB, OBJ
+            head_key = f"{slot}_HEAD" if slot != 'VERB' else 'VERB'
+            mod_key = f"{slot}_MOD" if slot != 'VERB' else None
+
+            # Get query HEAD embedding (prefer _HEAD key, fall back to old key)
+            query_head_emb = query_slots.get(head_key) or query_slots.get(slot)
+
+            # Get query MOD embeddings (list of embeddings)
+            query_mod_embs = query_slots.get(mod_key, []) if mod_key else []
+
+            # Get document embedding from mmap (uses old slot names)
             doc_emb = self.slot_embeddings[slot][doc_id]
 
             # Check if doc has this slot (not NaN)
             doc_norm = self.slot_norms[slot][doc_id] if self.slot_norms[slot] is not None else None
             doc_has_slot = not (doc_norm is None or np.isnan(doc_norm))
 
-            if query_emb is not None and doc_has_slot:
-                # Both have this slot: compute similarity
-                sim = self.cosine_similarity(query_emb, doc_emb, norm_b=doc_norm)
-                score += weight * sim
+            if query_head_emb is not None and doc_has_slot:
+                # Both have this slot: compute HEAD similarity
+                head_sim = self.cosine_similarity(query_head_emb, doc_emb, norm_b=doc_norm)
+
+                # If query has modifier embeddings, compute MOD similarity too
+                # This catches cases where query "Esperanto" matches doc "Esperanto-klubo"
+                # In the doc, "Esperanto" would be in the full SUBJ/OBJ embedding
+                if query_mod_embs:
+                    # Average modifier similarity
+                    mod_sims = []
+                    for mod_emb in query_mod_embs:
+                        mod_sim = self.cosine_similarity(mod_emb, doc_emb, norm_b=doc_norm)
+                        mod_sims.append(mod_sim)
+                    avg_mod_sim = np.mean(mod_sims) if mod_sims else 0.0
+
+                    # Combined HEAD + MOD score
+                    slot_sim = head_weight * head_sim + mod_weight * avg_mod_sim
+                else:
+                    slot_sim = head_sim
+
+                score += weight * slot_sim
                 matched_slots += 1
-            elif query_emb is None and doc_has_slot:
+            elif query_head_emb is None and doc_has_slot:
                 # Query missing this slot: partial match bonus
                 score += weight * partial_bonus
                 matched_slots += 1
@@ -299,8 +331,21 @@ class HNSWSlotRetriever:
         # Detect if query is a question (Bug #2 fix)
         is_question = query.strip().endswith('?') or query_ast.get('fraztipo') == 'demando'
 
-        # Compute query full embedding
-        query_word_embs = [emb for emb in query_slots.values() if emb is not None]
+        # Compute query full embedding from HEAD embeddings
+        # Handle both old format (SUBJ/VERB/OBJ as np.ndarray) and
+        # new format (SUBJ_HEAD/SUBJ_MOD/VERB/OBJ_HEAD/OBJ_MOD with MOD as list)
+        query_word_embs = []
+        for key, value in query_slots.items():
+            if value is None:
+                continue
+            if isinstance(value, np.ndarray):
+                query_word_embs.append(value)
+            elif isinstance(value, list) and value:
+                # MOD slots are lists of embeddings - include them too
+                for emb in value:
+                    if isinstance(emb, np.ndarray):
+                        query_word_embs.append(emb)
+
         if not query_word_embs:
             logger.warning(f"No content words in query: {query}")
             return []

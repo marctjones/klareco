@@ -1,7 +1,7 @@
 ---
 id: 18
 title: '[P3] Add LRU cache to MemoryMappedSlotRetriever for hot queries'
-state: open
+state: closed
 created: '2026-01-04T00:46:08.519313Z'
 labels:
 - faiss

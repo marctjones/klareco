@@ -47,20 +47,17 @@ def cmd_parse(args):
 
 
 def cmd_query(args):
-    """Query corpus using two-stage hybrid retrieval."""
-    from klareco.rag.retriever import KlarecoRetriever
-    from klareco.parser import parse
+    """Query corpus using AST-aware retrieval."""
+    from klareco.rag.ast_aware_retriever import ASTAwareRetriever
 
     # Initialize retriever
-    index_dir = args.index_dir or "data/corpus_index_v3"
-    model_path = args.model_path or "models/tree_lstm/best_model.pt"
+    index_dir = Path(args.index_dir or "data/indexes/slot_hybrid")
 
     try:
-        retriever = KlarecoRetriever(
-            index_dir=index_dir,
-            model_path=model_path,
-            mode='tree_lstm',
-            device=args.device
+        retriever = ASTAwareRetriever(
+            index_path=index_dir,
+            use_prefilter=True,
+            use_keyword_prefilter=True,
         )
     except Exception as e:
         print(f"ERROR initializing retriever: {e}", file=sys.stderr)
@@ -76,18 +73,17 @@ def cmd_query(args):
 
     # Retrieve
     try:
-        results = retriever.retrieve(
+        results = retriever.search(
             query_text,
             top_k=args.top_k,
-            use_structural=not args.neural_only
         )
 
         print(f"\n=== Query: {query_text} ===\n")
-        for i, result in enumerate(results, 1):
-            print(f"{i}. [Score: {result['score']:.4f}]")
-            print(f"   {result['text']}")
-            if args.verbose and 'source' in result:
-                print(f"   Source: {result['source']}")
+        for i, (score, doc) in enumerate(results, 1):
+            print(f"{i}. [Score: {score:.4f}]")
+            print(f"   {doc.get('text', '')}")
+            if args.verbose and 'source' in doc:
+                print(f"   Source: {doc['source']}")
             print()
 
     except Exception as e:

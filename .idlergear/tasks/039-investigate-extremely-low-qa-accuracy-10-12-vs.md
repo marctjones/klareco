@@ -1,7 +1,7 @@
 ---
 id: 39
 title: Investigate extremely low Q&A accuracy (10-12% vs expected 60-80%)
-state: open
+state: closed
 created: '2026-01-05T15:22:17.456765Z'
 labels:
 - bug

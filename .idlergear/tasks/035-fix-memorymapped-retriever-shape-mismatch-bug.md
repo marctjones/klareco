@@ -1,7 +1,7 @@
 ---
 id: 35
 title: Fix MemoryMapped retriever shape mismatch bug causing 100% failure
-state: open
+state: closed
 created: '2026-01-05T15:22:16.649473Z'
 labels:
 - bug

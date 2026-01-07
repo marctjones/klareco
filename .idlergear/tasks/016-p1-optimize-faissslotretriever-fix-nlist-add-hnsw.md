@@ -2,7 +2,7 @@
 id: 16
 title: '[P1] Optimize FAISSSlotRetriever: Fix nlist + add HNSW quantizer (Tasks #9,
   #10)'
-state: open
+state: closed
 created: '2026-01-04T00:46:06.894375Z'
 labels:
 - faiss

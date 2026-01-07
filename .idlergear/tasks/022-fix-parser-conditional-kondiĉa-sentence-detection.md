@@ -1,7 +1,7 @@
 ---
 id: 22
 title: "Fix parser conditional (kondi\u0109a) sentence detection"
-state: open
+state: closed
 created: '2026-01-05T00:12:56.342421Z'
 labels:
 - bug

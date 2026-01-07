@@ -1,7 +1,7 @@
 ---
 id: 21
 title: '[P3-AGGRESSIVE] Cached Mmap with massive cache for near-instant retrieval'
-state: open
+state: closed
 created: '2026-01-04T01:14:59.151939Z'
 labels:
 - enhancement

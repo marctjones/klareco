@@ -111,6 +111,29 @@ class ASTPatternMatcher:
             transformations.append("appositive")
             explanations.append("Appositive/fragment match")
 
+        # Strategy 5: Position-aware core matching
+        # Boosts when query core words appear in doc core position (not just as modifiers)
+        # This helps distinguish "fondis Esperanton" from "fondis Esperanto-rondon"
+        position_score, position_slots = self._match_core_positions(
+            query_ast, doc_ast, target_slots
+        )
+        if position_score > 0:
+            score += position_score
+            matched_slots.update(position_slots)
+            transformations.append("position_match")
+            explanations.append("Core-position match")
+
+        # Strategy 6: Entity type boosting (Bug #3 fix)
+        # Boosts documents where entity type matches question expectation
+        # e.g., "Kiu?" expects PERSON → boost docs with propra_nomo in subject
+        entity_boost, entity_explanation = self._match_entity_type(
+            doc_ast, entity_type, target_slots
+        )
+        if entity_boost > 0:
+            score += entity_boost
+            transformations.append("entity_type_boost")
+            explanations.append(entity_explanation)
+
         explanation = "; ".join(explanations) if explanations else "No match"
 
         return MatchResult(
@@ -398,6 +421,109 @@ class ASTPatternMatcher:
 
         return roots
 
+    def _extract_roots_by_position(self, node: Dict) -> Tuple[Set[str], Set[str]]:
+        """
+        Extract roots from an AST node, separating core from modifiers.
+
+        This enables position-aware matching where we can distinguish between:
+        - "fondis Esperanton" (Esperanto is object CORE)
+        - "fondis Esperanto-rondon" (Esperanto modifies "rond")
+
+        Returns:
+            (core_roots, modifier_roots) tuple
+        """
+        core_roots = set()
+        modifier_roots = set()
+
+        if node.get('tipo') == 'vorto':
+            # Single word: it's the core
+            root = node.get('radiko', '').lower()
+            vortspeco = node.get('vortspeco', '')
+
+            if root and vortspeco not in ['pronomo', 'artikolo', 'prepozicio', 'konjunkcio']:
+                if not root.startswith('ki'):
+                    core_roots.add(root)
+
+        elif node.get('tipo') == 'vortgrupo':
+            # Word group: kerno is core, priskriboj are modifiers
+            if node.get('kerno'):
+                kerno_roots, kerno_mods = self._extract_roots_by_position(node['kerno'])
+                core_roots.update(kerno_roots)
+                modifier_roots.update(kerno_mods)
+
+            if node.get('priskriboj'):
+                for modifier in node['priskriboj']:
+                    # Modifiers are added to modifier set
+                    mod_roots = self._extract_roots(modifier)
+                    modifier_roots.update(mod_roots)
+
+        return core_roots, modifier_roots
+
+    def _match_core_positions(
+        self,
+        query_ast: Dict,
+        doc_ast: Dict,
+        target_slots: List[str],
+    ) -> Tuple[float, Set[str]]:
+        """
+        Position-aware core matching.
+
+        Gives higher score when query core words appear in the document's core position
+        rather than as modifiers. This implements the generalized search principle:
+
+        - "fondis Esperanton" has "esperant" as object CORE
+        - "fondis Esperanto-rondon" has "esperant" as object MODIFIER
+
+        A query asking "Kiu fondis Esperanton?" should prefer the first.
+
+        Returns:
+            (score, matched_slots)
+        """
+        score = 0.0
+        matched_slots = set()
+
+        slot_mapping = {
+            'SUBJ': 'subjekto',
+            'VERB': 'verbo',
+            'OBJ': 'objekto',
+        }
+
+        # Higher weight for target slots
+        slot_weights = {
+            slot: 0.6 if slot in target_slots else 0.3
+            for slot in ['SUBJ', 'VERB', 'OBJ']
+        }
+
+        for slot in ['SUBJ', 'VERB', 'OBJ']:
+            ast_field = slot_mapping[slot]
+            query_node = query_ast.get(ast_field)
+            doc_node = doc_ast.get(ast_field)
+
+            if not query_node or not doc_node:
+                continue
+
+            # Extract core and modifier roots separately
+            query_core, query_mod = self._extract_roots_by_position(query_node)
+            doc_core, doc_mod = self._extract_roots_by_position(doc_node)
+
+            # Best match: query core matches doc core
+            core_match = query_core & doc_core
+            if core_match:
+                # High score for core-to-core match
+                score += slot_weights[slot] * 1.0
+                matched_slots.add(slot)
+                continue
+
+            # Weaker match: query core matches doc modifier
+            # (e.g., query asks about "Esperanto", doc mentions "Esperanto-rondon")
+            mod_match = query_core & doc_mod
+            if mod_match:
+                # Lower score - the word is there but in a different structural role
+                score += slot_weights[slot] * 0.3
+                matched_slots.add(slot)
+
+        return score, matched_slots
+
     def _expand_synonyms(self, roots: Set[str]) -> Set[str]:
         """Expand a set of roots with their synonyms."""
         expanded = set(roots)
@@ -493,3 +619,218 @@ class ASTPatternMatcher:
                             roots.add(root)
 
         return roots
+
+    def _match_entity_type(
+        self,
+        doc_ast: Dict,
+        entity_type: str,
+        target_slots: List[str],
+    ) -> Tuple[float, str]:
+        """
+        Entity type boosting for Bug #3 fix.
+
+        When question type indicates expected entity type, boost documents
+        that have matching entity types in the appropriate slots.
+
+        Entity type mapping:
+        - 'person' (Kiu?) → boost if SUBJ has propra_nomo
+        - 'place' (Kie?) → boost if doc has place-related words
+        - 'time' (Kiam?) → boost if doc has time expressions
+        - 'quantity' (Kiom?) → boost if doc has numbers
+
+        Args:
+            doc_ast: Document AST
+            entity_type: Expected entity type from question classifier
+            target_slots: Which slots to check
+
+        Returns:
+            (boost_score, explanation)
+        """
+        boost = 0.0
+        explanation_parts = []
+
+        # Map entity types to what we look for in doc AST
+        if entity_type == 'person':
+            # "Kiu?" questions expect a person/proper noun in subject
+            subj = doc_ast.get('subjekto')
+            if subj:
+                if self._has_proper_noun(subj):
+                    boost += 0.3
+                    explanation_parts.append("Subject has proper noun (matches PERSON)")
+                # Also check for person-related suffixes: -ist-, -ul-
+                if self._has_person_suffix(subj):
+                    boost += 0.2
+                    explanation_parts.append("Subject has person suffix (-ist-, -ul-)")
+
+        elif entity_type == 'place':
+            # "Kie?" questions expect a place
+            # Look for prepositions that indicate location
+            for node_name in ['aliaj', 'objekto', 'subjekto']:
+                node = doc_ast.get(node_name, [])
+                nodes = node if isinstance(node, list) else [node] if node else []
+                for n in nodes:
+                    if self._has_location_indicator(n):
+                        boost += 0.3
+                        explanation_parts.append("Has location indicator (matches PLACE)")
+                        break
+
+        elif entity_type == 'time':
+            # "Kiam?" questions expect a time expression
+            # Look for year numbers, time-related words
+            if self._has_time_expression(doc_ast):
+                boost += 0.3
+                explanation_parts.append("Has time expression (matches TIME)")
+
+        elif entity_type == 'quantity':
+            # "Kiom?" questions expect a number
+            if self._has_number(doc_ast):
+                boost += 0.3
+                explanation_parts.append("Has number (matches QUANTITY)")
+
+        explanation = "; ".join(explanation_parts) if explanation_parts else ""
+        return boost, explanation
+
+    def _has_proper_noun(self, node: Dict) -> bool:
+        """Check if AST node contains a proper noun."""
+        if not node:
+            return False
+
+        if node.get('tipo') == 'vorto':
+            return node.get('vortspeco') == 'propra_nomo'
+
+        elif node.get('tipo') == 'vortgrupo':
+            # Check kerno (core)
+            kerno = node.get('kerno')
+            if kerno and self._has_proper_noun(kerno):
+                return True
+            # Check modifiers
+            for mod in node.get('priskriboj', []):
+                if self._has_proper_noun(mod):
+                    return True
+
+        return False
+
+    def _has_person_suffix(self, node: Dict) -> bool:
+        """Check if AST node has person-related suffixes (-ist-, -ul-, -an-)."""
+        person_suffixes = {'ist', 'ul', 'an', 'estr', 'in'}
+
+        if not node:
+            return False
+
+        if node.get('tipo') == 'vorto':
+            sufiksoj = set(node.get('sufiksoj', []))
+            return bool(sufiksoj & person_suffixes)
+
+        elif node.get('tipo') == 'vortgrupo':
+            kerno = node.get('kerno')
+            if kerno and self._has_person_suffix(kerno):
+                return True
+
+        return False
+
+    def _has_location_indicator(self, node: Dict) -> bool:
+        """Check if AST node indicates a location."""
+        location_roots = {
+            'urb', 'land', 'lok', 'domo', 'ejo', 'mont', 'mar',
+            'insul', 'region', 'provinc', 'ĉefurb'
+        }
+        location_suffixes = {'uj', 'ej'}  # -ujo = country, -ejo = place
+
+        if not node:
+            return False
+
+        if node.get('tipo') == 'vorto':
+            root = node.get('radiko', '').lower()
+            if root in location_roots:
+                return True
+            sufiksoj = set(node.get('sufiksoj', []))
+            if sufiksoj & location_suffixes:
+                return True
+            # Check for proper noun (could be place name)
+            if node.get('vortspeco') == 'propra_nomo':
+                # Heuristic: proper nouns with location-like endings
+                if root.endswith(('io', 'ujo', 'lando')):
+                    return True
+
+        elif node.get('tipo') == 'vortgrupo':
+            kerno = node.get('kerno')
+            if kerno and self._has_location_indicator(kerno):
+                return True
+
+        return False
+
+    def _has_time_expression(self, ast: Dict) -> bool:
+        """Check if AST contains time expressions."""
+        time_roots = {
+            'jar', 'monat', 'semajn', 'tag', 'hor', 'minut', 'sekund',
+            'dato', 'temp', 'epok', 'period', 'jarcent'
+        }
+
+        # Check all nodes for time-related content
+        for key in ['subjekto', 'verbo', 'objekto']:
+            node = ast.get(key)
+            if not node:
+                continue
+
+            if node.get('tipo') == 'vorto':
+                root = node.get('radiko', '').lower()
+                if root in time_roots:
+                    return True
+                # Check for year numbers (e.g., 1887)
+                if root.isdigit() and len(root) == 4:
+                    return True
+
+        # Check aliaj for time expressions and numbers
+        for node in ast.get('aliaj', []):
+            if isinstance(node, dict):
+                root = node.get('radiko', '').lower()
+                if root in time_roots:
+                    return True
+                if root.isdigit() and len(root) == 4:
+                    return True
+
+        return False
+
+    def _has_number(self, ast: Dict) -> bool:
+        """Check if AST contains number expressions."""
+        number_roots = {
+            'unu', 'du', 'tri', 'kvar', 'kvin', 'ses', 'sep', 'ok', 'naŭ', 'dek',
+            'cent', 'mil', 'milion', 'miliard'
+        }
+
+        def check_node(node: Dict) -> bool:
+            if not node or not isinstance(node, dict):
+                return False
+
+            if node.get('tipo') == 'vorto':
+                root = node.get('radiko', '').lower()
+                # Check for number words
+                if root in number_roots:
+                    return True
+                # Check for digit numbers
+                if root.isdigit():
+                    return True
+                # Check vortspeco
+                if node.get('vortspeco') == 'numero':
+                    return True
+
+            elif node.get('tipo') == 'vortgrupo':
+                if check_node(node.get('kerno')):
+                    return True
+                for mod in node.get('priskriboj', []):
+                    if check_node(mod):
+                        return True
+
+            return False
+
+        # Check main slots
+        for key in ['subjekto', 'verbo', 'objekto']:
+            if check_node(ast.get(key)):
+                return True
+
+        # Check aliaj
+        for node in ast.get('aliaj', []):
+            if check_node(node):
+                return True
+
+        return False

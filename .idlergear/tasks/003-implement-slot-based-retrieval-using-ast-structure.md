@@ -1,7 +1,7 @@
 ---
 id: 3
 title: Implement slot-based indexing and retrieval (M2 priority)
-state: open
+state: closed
 created: '2026-01-02T07:48:46.443364Z'
 labels:
 - enhancement

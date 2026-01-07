@@ -1,7 +1,7 @@
 ---
 id: 45
 title: 'Test 3: Evaluate affix transformation consistency'
-state: open
+state: closed
 created: '2026-01-05T15:36:26.960472Z'
 labels:
 - research

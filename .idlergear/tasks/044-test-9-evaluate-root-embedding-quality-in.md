@@ -1,7 +1,7 @@
 ---
 id: 44
 title: 'Test 9: Evaluate root embedding quality in isolation'
-state: open
+state: closed
 created: '2026-01-05T15:36:04.846860Z'
 labels:
 - research

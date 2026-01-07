@@ -696,6 +696,40 @@ def parse_word(word: str) -> dict:
     }
 
     # ==========================================================================
+    # STEP 0: Hyphenated Compound Word Check
+    # ==========================================================================
+    # Esperanto compound words with hyphens: Esperanto-klubo, hundo-domo
+    # The RIGHTMOST component is the HEAD, left components are MODIFIERS
+    # Example: "Esperanto-klubon" → HEAD=klub, MODIFIER=esperant
+    if '-' in word:
+        parts = word.split('-')
+        if len(parts) >= 2:
+            # Parse each component
+            modifier_parts = parts[:-1]  # All except last
+            head_part = parts[-1]  # Last part is HEAD
+
+            # Parse the HEAD (determines grammatical properties)
+            head_ast = parse_word(head_part)
+
+            # Parse modifiers
+            modifier_asts = []
+            for mod_part in modifier_parts:
+                # Modifiers are typically bare roots (no endings) or with -o
+                mod_ast = parse_word(mod_part)
+                modifier_asts.append(mod_ast)
+
+            # Build compound word AST
+            # The HEAD's grammatical properties apply to the whole compound
+            ast = head_ast.copy()
+            ast["plena_vorto"] = original_word
+            ast["kunmetajhoj"] = modifier_asts  # Store modifier ASTs
+            ast["estas_kunmetita"] = True  # Flag as compound word
+
+            # The radiko remains the HEAD's root
+            # Modifiers are stored separately for retrieval
+            return ast
+
+    # ==========================================================================
     # STEP 1: Function Word Check (closed lists - no morphology)
     # ==========================================================================
 
@@ -1263,19 +1297,26 @@ def parse(text: str):
     # Preprocess: normalize punctuation
     text = preprocess_text(text)
 
-    # Simple tokenizer: split by space, remove all punctuation EXCEPT apostrophes for elision
+    # Simple tokenizer: split by space, remove all punctuation EXCEPT:
+    # - Apostrophes for elision (l', hund')
+    # - Hyphens connecting words (Esperanto-klubo, hundo-domo)
     # Remove common punctuation marks: . , ! ? : ; " ( ) [ ] { }
-    # Keep apostrophes attached to preceding letter for elision: l', hund'
     import string
     import re
     # First, preserve elision apostrophes by converting "letter'" to a safe form
     # Match: word character followed by apostrophe (straight or curly)
-    text = re.sub(r"(\w)([''])", r"\1ELISION_MARKER", text)
-    # Remove all punctuation
+    text = re.sub(r"(\w)([''])", r"\1ZZZELISIONZZZ", text)
+    # Preserve compound word hyphens: word-word patterns
+    # Match: letter(s) + hyphen + letter(s) (captures compound words)
+    # Use ZZZCOMPOUNDZZ (no underscores) because underscore is in string.punctuation
+    text = re.sub(r"(\w)-(\w)", r"\1ZZZCOMPOUNDZZ\2", text)
+    # Remove all punctuation (now hyphens in compounds are protected)
     for punct in string.punctuation:
         text = text.replace(punct, ' ')
     # Restore elision apostrophes
-    text = text.replace("ELISION_MARKER", "'")
+    text = text.replace("ZZZELISIONZZZ", "'")
+    # Restore compound hyphens
+    text = text.replace("ZZZCOMPOUNDZZ", "-")
     words = text.split()
 
     if not words:
@@ -1407,6 +1448,34 @@ def parse(text: str):
     if not is_question and sentence_ast["verbo"]:
         if sentence_ast["verbo"].get("modo") == "imperativo":
             fraztipo = 'ordono'
+
+    # Check for conditional sentence (kondiĉa) - Issue #22
+    # Conditional sentences typically:
+    # 1. Start with "Se" (if) and contain conditional mood verb (-us)
+    # 2. Have a main verb in conditional mood (-us)
+    if not is_question and fraztipo == 'deklaro':
+        has_conditional_verb = False
+        starts_with_se = False
+
+        # Check if sentence starts with "Se" (if)
+        for ast in word_asts:
+            if ast.get("radiko", "").lower() == "se":
+                starts_with_se = True
+                break
+
+        # Check for conditional mood verbs (-us ending)
+        for ast in word_asts:
+            if ast.get("modo") == "kondicionalo":
+                has_conditional_verb = True
+                break
+
+        # Also check main verb
+        if sentence_ast["verbo"] and sentence_ast["verbo"].get("modo") == "kondicionalo":
+            has_conditional_verb = True
+
+        # Mark as conditional if we have "Se" + conditional verb, or just conditional verb
+        if has_conditional_verb and (starts_with_se or sentence_ast["verbo"].get("modo") == "kondicionalo"):
+            fraztipo = 'kondiĉa'
 
     sentence_ast["fraztipo"] = fraztipo
     if demandotipo:

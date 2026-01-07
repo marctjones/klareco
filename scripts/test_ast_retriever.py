@@ -18,7 +18,7 @@ def main():
     print()
 
     # Index path
-    index_path = Path("data/indexes/slot_verified")
+    index_path = Path("data/indexes/slot_hybrid")
 
     if not (index_path / "slot_index.jsonl").exists():
         print(f"❌ Index not found: {index_path}")

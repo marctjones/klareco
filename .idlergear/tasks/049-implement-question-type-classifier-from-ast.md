@@ -1,7 +1,7 @@
 ---
 id: 49
 title: Implement question type classifier from AST
-state: open
+state: closed
 created: '2026-01-05T15:46:08.653720Z'
 labels:
 - enhancement

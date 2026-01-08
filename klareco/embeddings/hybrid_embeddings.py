@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pathlib import Path
-from typing import Dict, Optional, Union, Literal, Tuple
+from typing import Dict, List, Optional, Union, Literal, Tuple
 import logging
 
 from .linguistic_embeddings import LinguisticEmbeddings
@@ -335,3 +335,159 @@ class HybridEmbeddings(nn.Module):
         for param in self.topical_model.parameters():
             param.requires_grad = True
         logger.info("Unfroze all embeddings")
+
+    def find_similar_roots(
+        self,
+        root: str,
+        top_k: int = 5,
+        min_similarity: float = 0.6,
+        mode: Optional[Literal['linguistic', 'topical', 'hybrid']] = None,
+    ) -> List[Tuple[str, float]]:
+        """
+        Find roots similar to the given root using embedding cosine similarity.
+
+        This enables embedding-based synonym expansion for AST-first retrieval.
+        Use after SemanticRelationDB lookup fails to find known synonyms.
+
+        Args:
+            root: Root word to find similar roots for
+            top_k: Maximum number of similar roots to return
+            min_similarity: Minimum cosine similarity threshold (0.0-1.0)
+            mode: Which embedding space to search ('linguistic', 'topical', or 'hybrid')
+
+        Returns:
+            List of (similar_root, similarity_score) tuples, sorted by similarity descending.
+            Empty list if root not found in vocabulary or no similar roots above threshold.
+        """
+        if mode is None:
+            mode = self.default_mode
+
+        # Get embedding for input root
+        root_emb = self.get_root_embedding(root, mode=mode)
+        if root_emb is None:
+            return []
+
+        root_emb = root_emb.unsqueeze(0)  # [1, dim]
+        root_emb_norm = F.normalize(root_emb, dim=-1)
+
+        similar_roots = []
+
+        # Search through linguistic vocabulary
+        if mode in ('linguistic', 'hybrid') and self.linguistic_model.root_to_idx:
+            ling_embs = []
+            ling_roots = []
+            for r, idx in self.linguistic_model.root_to_idx.items():
+                if r == root:
+                    continue
+                emb = self.linguistic_model.get_root_embedding(r)
+                if emb is not None:
+                    ling_embs.append(emb)
+                    ling_roots.append(r)
+
+            if ling_embs:
+                ling_embs = torch.stack(ling_embs)  # [N, 64]
+                ling_embs_norm = F.normalize(ling_embs, dim=-1)
+
+                if mode == 'linguistic':
+                    # Compare directly in 64d space
+                    sims = (root_emb_norm @ ling_embs_norm.T).squeeze(0)  # [N]
+                else:
+                    # For hybrid mode, we only compare the linguistic part (first 64 dims)
+                    sims = (root_emb_norm[:, :64] @ ling_embs_norm.T).squeeze(0)  # [N]
+
+                for i, (r, sim) in enumerate(zip(ling_roots, sims.tolist())):
+                    if sim >= min_similarity:
+                        similar_roots.append((r, sim, 'linguistic'))
+
+        # Search through topical vocabulary
+        if mode in ('topical', 'hybrid') and self.topical_model.root_to_idx:
+            top_embs = []
+            top_roots = []
+            for r, idx in self.topical_model.root_to_idx.items():
+                if r == root:
+                    continue
+                emb = self.topical_model.get_root_embedding(r)
+                if emb is not None:
+                    top_embs.append(emb)
+                    top_roots.append(r)
+
+            if top_embs:
+                top_embs = torch.stack(top_embs)  # [N, 64]
+                top_embs_norm = F.normalize(top_embs, dim=-1)
+
+                if mode == 'topical':
+                    sims = (root_emb_norm @ top_embs_norm.T).squeeze(0)  # [N]
+                else:
+                    # For hybrid mode, compare the topical part (last 64 dims)
+                    sims = (root_emb_norm[:, 64:] @ top_embs_norm.T).squeeze(0)  # [N]
+
+                for i, (r, sim) in enumerate(zip(top_roots, sims.tolist())):
+                    if sim >= min_similarity:
+                        # Check if already found in linguistic (take max sim)
+                        found = False
+                        for j, (existing_root, existing_sim, _) in enumerate(similar_roots):
+                            if existing_root == r:
+                                similar_roots[j] = (r, max(existing_sim, sim), 'both')
+                                found = True
+                                break
+                        if not found:
+                            similar_roots.append((r, sim, 'topical'))
+
+        # Sort by similarity and return top_k
+        similar_roots.sort(key=lambda x: -x[1])
+        return [(r, sim) for r, sim, _ in similar_roots[:top_k]]
+
+    def find_similar_roots_fast(
+        self,
+        root: str,
+        index_roots: set,
+        top_k: int = 3,
+        min_similarity: float = 0.65,
+        mode: Optional[Literal['linguistic', 'topical', 'hybrid']] = None,
+    ) -> List[Tuple[str, float]]:
+        """
+        Find similar roots, but ONLY from roots that exist in the inverted index.
+
+        This is optimized for retrieval: we only want to find similar roots
+        that will actually match documents. No point finding "hundo" similar
+        to "kato" if "kato" has no documents.
+
+        Args:
+            root: Root word to find similar roots for
+            index_roots: Set of roots that exist in the inverted index
+            top_k: Maximum number of similar roots to return
+            min_similarity: Minimum cosine similarity threshold
+            mode: Which embedding space to search
+
+        Returns:
+            List of (similar_root, similarity_score) tuples from index_roots only
+        """
+        if mode is None:
+            mode = self.default_mode
+
+        root_emb = self.get_root_embedding(root, mode=mode)
+        if root_emb is None:
+            return []
+
+        root_emb = root_emb.unsqueeze(0)
+        root_emb_norm = F.normalize(root_emb, dim=-1)
+
+        similar_roots = []
+
+        # Only check roots that exist in the index
+        for candidate_root in index_roots:
+            if candidate_root == root:
+                continue
+
+            cand_emb = self.get_root_embedding(candidate_root, mode=mode)
+            if cand_emb is None:
+                continue
+
+            cand_emb_norm = F.normalize(cand_emb.unsqueeze(0), dim=-1)
+            sim = (root_emb_norm @ cand_emb_norm.T).item()
+
+            if sim >= min_similarity:
+                similar_roots.append((candidate_root, sim))
+
+        similar_roots.sort(key=lambda x: -x[1])
+        return similar_roots[:top_k]

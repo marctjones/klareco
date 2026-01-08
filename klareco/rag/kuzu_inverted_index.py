@@ -629,6 +629,35 @@ class KuzuInvertedIndex:
 
         return results, stats
 
+    # High-frequency roots that appear in too many documents to be useful for retrieval.
+    # These are typically auxiliary verbs and common function-like roots.
+    # Filtering these prevents generating millions of candidates.
+    STOPWORD_ROOTS = frozenset({
+        # Auxiliary/copula verbs (appear in 1M+ documents)
+        'est',      # to be (1.7M docs)
+        # Common verbs that are too general
+        'hav',      # to have
+        'far',      # to do/make
+        'pov',      # to be able
+        'dev',      # must/should
+        'vol',      # to want
+        'ir',       # to go
+        'ven',      # to come
+        'don',      # to give
+        'pren',     # to take
+        'dir',      # to say
+        'vid',      # to see
+        'sci',      # to know
+        'trov',     # to find
+        # Common modifiers
+        'bon',      # good
+        'grand',    # big
+        'nov',      # new
+        'ali',      # other
+        'mult',     # many
+        'sam',      # same
+    })
+
     def _extract_roots(self, ast: Dict) -> Dict[str, float]:
         """Extract roots from AST with weights based on role."""
         roots = {}
@@ -646,6 +675,9 @@ class KuzuInvertedIndex:
                 root = node.get('radiko', '')
                 if root and len(root) >= 2:
                     root = root.lower()
+                    # Skip high-frequency stopword roots
+                    if root in KuzuInvertedIndex.STOPWORD_ROOTS:
+                        return
                     role_weights = {
                         'verbo': 1.5,
                         'objekto': 1.3,

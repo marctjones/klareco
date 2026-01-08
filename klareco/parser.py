@@ -592,6 +592,11 @@ PROTECTED_PREFIX_ROOTS = {
 PROTECTED_SUFFIX_ROOTS = {
     # -ad look-alikes (-ad means "continuous action")
     "salad", "nomad", "balad", "parad", "tirad", "arkad", "fasad", "dekad",
+    # -ant look-alikes (-ant means "active participle present")
+    "elefant", "gigant", "infant", "pedant", "diamant", "briliant", "merkant",
+    "diletant", "konsultant", "protestant", "ignorant", "elegant", "arogant",
+    "galant", "konstant", "distant", "instant", "militant", "observant",
+    "tolerant", "triumfant", "vagant", "viglant",
     # -aĵ look-alikes (-aĵ means "concrete thing")
     "mesaĝ", "bagaĝ", "garaĝ", "vojaĝ", "estaĵ", "kuiraĵ",
     # -ar look-alikes (-ar means "collection")

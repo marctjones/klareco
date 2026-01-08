@@ -178,6 +178,8 @@ class ASTAwareRetriever:
         for result in results:
             doc = self.root_index.get_document(result.doc_id)
             if doc:
+                # Add doc_id to the document for benchmarking/evaluation
+                doc['doc_id'] = result.doc_id
                 output.append((result.score, doc, stats))
 
         return output

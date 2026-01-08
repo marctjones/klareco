@@ -43,13 +43,18 @@ class QueryResult:
     retrieved_doc_ids: List[int]
     retrieved_texts: List[str]
 
-    # Metrics
+    # Metrics (doc ID based)
     recall_at_5: float = 0.0
     recall_at_10: float = 0.0
     precision_at_5: float = 0.0
     precision_at_10: float = 0.0
     mrr: float = 0.0  # Mean Reciprocal Rank
     first_relevant_rank: Optional[int] = None
+
+    # Content-based metrics (root coverage)
+    content_recall_at_10: float = 0.0  # % of retrieved docs containing query roots
+    root_coverage: float = 0.0  # What % of query roots found in top-10 docs
+    query_roots: List[str] = field(default_factory=list)
 
     # Diagnostics
     latency_ms: float = 0.0
@@ -66,13 +71,17 @@ class TierResult:
     expected_threshold: float
     query_count: int = 0
 
-    # Aggregated metrics
+    # Aggregated metrics (doc ID based)
     avg_recall_at_5: float = 0.0
     avg_recall_at_10: float = 0.0
     avg_precision_at_5: float = 0.0
     avg_precision_at_10: float = 0.0
     avg_mrr: float = 0.0
     avg_latency_ms: float = 0.0
+
+    # Content-based metrics
+    avg_content_recall: float = 0.0  # % docs containing query roots
+    avg_root_coverage: float = 0.0   # % query roots found in docs
 
     # Pass/fail
     pass_rate: float = 0.0
@@ -120,6 +129,62 @@ def find_first_relevant_rank(retrieved: List[int], expected: Set[int]) -> Option
     return None
 
 
+def compute_content_recall(
+    retrieved_texts: List[str],
+    query_roots: List[str],
+    k: int = 10,
+) -> float:
+    """
+    Compute content-based recall: what fraction of top-K docs contain ANY query root.
+
+    This is more robust than doc ID matching when ground truth is uncertain.
+    """
+    if not query_roots or k == 0:
+        return 0.0
+
+    texts_k = retrieved_texts[:k]
+    if not texts_k:
+        return 0.0
+
+    # Count docs that contain at least one query root
+    relevant_count = 0
+    for text in texts_k:
+        text_lower = text.lower()
+        for root in query_roots:
+            if root.lower() in text_lower:
+                relevant_count += 1
+                break  # Count each doc once
+
+    return relevant_count / len(texts_k)
+
+
+def compute_root_coverage(
+    retrieved_texts: List[str],
+    query_roots: List[str],
+    k: int = 10,
+) -> float:
+    """
+    Compute what fraction of query roots appear in at least one top-K document.
+
+    Measures: Did we find docs for all the concepts in the query?
+    """
+    if not query_roots:
+        return 0.0
+
+    texts_k = retrieved_texts[:k]
+    if not texts_k:
+        return 0.0
+
+    combined_text = ' '.join(texts_k).lower()
+
+    roots_found = 0
+    for root in query_roots:
+        if root.lower() in combined_text:
+            roots_found += 1
+
+    return roots_found / len(query_roots)
+
+
 def load_benchmark(benchmark_path: Path) -> Dict[str, Any]:
     """Load the retrieval benchmark."""
     with open(benchmark_path, 'r', encoding='utf-8') as f:
@@ -136,32 +201,52 @@ def evaluate_query(
     query_id = query_data['id']
     query = query_data['query']
     expected_ids = set(query_data.get('expected_doc_ids', []))
+    query_roots = query_data.get('query_roots', [])
 
     # Run retrieval
     start_time = time.time()
     try:
-        results = retriever.search(query, top_k=top_k)
+        search_output = retriever.search(query, top_k=top_k)
         latency_ms = (time.time() - start_time) * 1000
 
-        # Extract doc IDs and texts
+        # Handle different return formats
+        # KuzuInvertedIndex returns (List[SearchResult], RetrievalStats)
+        # Other retrievers may return List[Tuple[score, doc, stats]]
+        if isinstance(search_output, tuple) and len(search_output) == 2:
+            results, stats = search_output
+        else:
+            results = search_output
+            stats = None
+
+        # Extract doc IDs and texts from SearchResult objects or dicts
         retrieved_ids = []
         retrieved_texts = []
-        for score, doc, stats in results:
-            doc_id = doc.get('source', {}).get('doc_id')
-            if doc_id is None:
-                # Try to get from metadata
-                doc_id = doc.get('doc_id', -1)
+        for result in results:
+            # Handle SearchResult namedtuple
+            if hasattr(result, 'doc_id'):
+                doc_id = result.doc_id
+                text = getattr(result, 'text', '')[:100]
+            # Handle dict format
+            elif isinstance(result, dict):
+                doc_id = result.get('source', {}).get('doc_id', result.get('doc_id', -1))
+                text = result.get('text', '')[:100]
+            # Handle tuple format (score, doc, stats)
+            elif isinstance(result, tuple) and len(result) >= 2:
+                score, doc = result[0], result[1]
+                doc_id = doc.get('source', {}).get('doc_id', doc.get('doc_id', -1))
+                text = doc.get('text', '')[:100]
+            else:
+                doc_id = -1
+                text = ''
             retrieved_ids.append(doc_id)
-            retrieved_texts.append(doc.get('text', '')[:100])
+            retrieved_texts.append(text)
 
-        # Get stats from last result if available
+        # Get stats
         roots_found = []
         roots_not_found = []
-        if results:
-            _, _, stats = results[0]
-            if stats:
-                roots_found = getattr(stats, 'roots_found_in_index', [])
-                roots_not_found = getattr(stats, 'roots_not_found', [])
+        if stats:
+            roots_found = getattr(stats, 'roots_found_in_index', [])
+            roots_not_found = getattr(stats, 'roots_not_found', [])
 
     except Exception as e:
         return QueryResult(
@@ -188,6 +273,10 @@ def evaluate_query(
         precision_at_10=compute_precision_at_k(retrieved_ids, expected_ids, 10),
         mrr=compute_mrr(retrieved_ids, expected_ids),
         first_relevant_rank=find_first_relevant_rank(retrieved_ids, expected_ids),
+        # Content-based metrics
+        content_recall_at_10=compute_content_recall(retrieved_texts, query_roots, 10),
+        root_coverage=compute_root_coverage(retrieved_texts, query_roots, 10),
+        query_roots=query_roots,
         latency_ms=latency_ms,
         roots_found=roots_found,
         roots_not_found=roots_not_found,
@@ -220,6 +309,8 @@ def evaluate_tier(
     total_precision_10 = 0.0
     total_mrr = 0.0
     total_latency = 0.0
+    total_content_recall = 0.0
+    total_root_coverage = 0.0
     passes = 0
 
     for i, query_data in enumerate(queries):
@@ -240,6 +331,8 @@ def evaluate_tier(
         total_precision_10 += result.precision_at_10
         total_mrr += result.mrr
         total_latency += result.latency_ms
+        total_content_recall += result.content_recall_at_10
+        total_root_coverage += result.root_coverage
 
         if result.recall_at_10 >= expected_threshold:
             passes += 1
@@ -248,6 +341,9 @@ def evaluate_tier(
             status = "✓" if result.recall_at_10 >= expected_threshold else "✗"
             print(f"    {status} R@10={result.recall_at_10:.2f} P@10={result.precision_at_10:.2f} "
                   f"MRR={result.mrr:.2f} ({result.latency_ms:.0f}ms)")
+            # Show content-based metrics (more meaningful than doc ID match)
+            print(f"      Content: {result.content_recall_at_10:.0%} docs w/roots, "
+                  f"{result.root_coverage:.0%} roots covered")
             if result.first_relevant_rank:
                 print(f"      First relevant at rank {result.first_relevant_rank}")
 
@@ -259,6 +355,8 @@ def evaluate_tier(
         tier_result.avg_precision_at_10 = total_precision_10 / n
         tier_result.avg_mrr = total_mrr / n
         tier_result.avg_latency_ms = total_latency / n
+        tier_result.avg_content_recall = total_content_recall / n
+        tier_result.avg_root_coverage = total_root_coverage / n
         tier_result.pass_rate = passes / n
         tier_result.passed = tier_result.avg_recall_at_10 >= expected_threshold
 
@@ -267,21 +365,34 @@ def evaluate_tier(
 
 def print_results(tier_results: List[TierResult], show_details: bool = False):
     """Print evaluation results."""
-    print("\n" + "=" * 70)
+    print("\n" + "=" * 80)
     print("TIERED RETRIEVAL BENCHMARK RESULTS")
-    print("=" * 70)
+    print("=" * 80)
 
-    # Summary table
-    print(f"\n{'Tier':<25} {'Queries':>8} {'R@10':>8} {'P@10':>8} {'MRR':>8} {'Pass%':>8} {'Status':>8}")
-    print("-" * 70)
+    # Summary table - doc ID based metrics
+    print(f"\n{'Tier':<20} {'Queries':>7} {'R@10':>7} {'P@10':>7} {'MRR':>6} {'Pass%':>7} {'Status':>7}")
+    print("-" * 65)
 
     for tier in tier_results:
         status = "✓ PASS" if tier.passed else "✗ FAIL"
-        print(f"{tier.tier_name:<25} {tier.query_count:>8} "
-              f"{tier.avg_recall_at_10:>7.1%} {tier.avg_precision_at_10:>7.1%} "
-              f"{tier.avg_mrr:>7.2f} {tier.pass_rate:>7.1%} {status:>8}")
+        print(f"{tier.tier_name:<20} {tier.query_count:>7} "
+              f"{tier.avg_recall_at_10:>6.1%} {tier.avg_precision_at_10:>6.1%} "
+              f"{tier.avg_mrr:>6.2f} {tier.pass_rate:>6.1%} {status:>7}")
 
-    print("-" * 70)
+    print("-" * 65)
+
+    # Content-based metrics table (more meaningful when ground truth is uncertain)
+    print(f"\n{'Tier':<20} {'ContentR':>10} {'RootCov':>10} {'Latency':>10}")
+    print("-" * 55)
+
+    for tier in tier_results:
+        print(f"{tier.tier_name:<20} "
+              f"{tier.avg_content_recall:>9.1%} {tier.avg_root_coverage:>9.1%} "
+              f"{tier.avg_latency_ms:>8.0f}ms")
+
+    print("-" * 55)
+    print("ContentR = % of top-10 docs containing query roots")
+    print("RootCov  = % of query roots found in top-10 docs")
 
     # Overall stats
     total_queries = sum(t.query_count for t in tier_results)
@@ -331,6 +442,8 @@ def save_results(tier_results: List[TierResult], output_path: Path):
             "avg_precision_at_10": tier.avg_precision_at_10,
             "avg_mrr": tier.avg_mrr,
             "avg_latency_ms": tier.avg_latency_ms,
+            "avg_content_recall": tier.avg_content_recall,
+            "avg_root_coverage": tier.avg_root_coverage,
             "pass_rate": tier.pass_rate,
             "passed": tier.passed,
             "queries": [
@@ -341,6 +454,9 @@ def save_results(tier_results: List[TierResult], output_path: Path):
                     "precision_at_10": q.precision_at_10,
                     "mrr": q.mrr,
                     "first_relevant_rank": q.first_relevant_rank,
+                    "content_recall_at_10": q.content_recall_at_10,
+                    "root_coverage": q.root_coverage,
+                    "query_roots": q.query_roots,
                     "latency_ms": q.latency_ms,
                     "expected_doc_ids": q.expected_doc_ids,
                     "retrieved_doc_ids": q.retrieved_doc_ids[:10],

@@ -178,13 +178,9 @@ echo ""
 
 START_TIME=$(date +%s)
 
-# Run enhanced benchmark with checkpointing and resource monitoring
-if python scripts/benchmark_qa_enhanced.py \
-    --index "$INDEX_DIR" \
-    --benchmark "$BENCHMARK_FILE" \
-    --top-k "$TOP_K" \
-    --output "$OUTPUT_FILE" \
-    --checkpoint-dir "$OUTPUT_DIR" 2>&1 | tee "$LOG_FILE"; then
+# Run Q&A evaluation
+if python scripts/evaluate_qa.py \
+    --output "$OUTPUT_FILE" 2>&1 | tee "$LOG_FILE"; then
 
     END_TIME=$(date +%s)
     ELAPSED=$((END_TIME - START_TIME))

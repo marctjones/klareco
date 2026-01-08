@@ -158,48 +158,42 @@ def baseline_system(question: str, top_k: int = 10) -> tuple:
 
 def klareco_system(question: str, top_k: int = 10) -> tuple:
     """
-    Klareco RAG system with reranking and answer extraction.
+    Klareco RAG system with AST-aware retrieval and answer extraction.
 
-    Pipeline: Retrieve -> Rerank (CP4) -> Extract (CP5)
+    Pipeline: Parse -> AST-aware Retrieve -> Extract
 
     Returns:
         tuple: (answer, retrieved_docs)
     """
     try:
-        from klareco import Retriever
-        from klareco.qa import AnswerExtractor, DeterministicReranker
+        from pathlib import Path
+        from klareco.rag.ast_aware_retriever import ASTAwareRetriever
+        from klareco.rag.kuzu_inverted_index import FallbackMode
+        from klareco.qa import AnswerExtractor
 
         # Load components (cached after first call)
         if not hasattr(klareco_system, '_retriever'):
-            klareco_system._retriever = Retriever.load()
-        if not hasattr(klareco_system, '_reranker'):
-            klareco_system._reranker = DeterministicReranker()
+            index_path = Path('data/indexes/kuzu_index')
+            if not (index_path / 'kuzu.db').exists():
+                raise FileNotFoundError(f"Kuzu index not found at {index_path}")
+
+            klareco_system._retriever = ASTAwareRetriever(
+                index_path=index_path,
+                fallback_mode=FallbackMode.NONE,  # Pure deterministic for benchmarking
+            )
         if not hasattr(klareco_system, '_extractor'):
             klareco_system._extractor = AnswerExtractor()
 
         retriever = klareco_system._retriever
-        reranker = klareco_system._reranker
         extractor = klareco_system._extractor
 
-        # Retrieve relevant documents (fetch more than top_k for reranking)
-        results = retriever.search(question, top_k=top_k * 2)
-        retrieved_docs = [r.text for r in results]
-        original_scores = [getattr(r, 'score', 1.0 - i/len(results))
-                          for i, r in enumerate(results)]
+        # Retrieve relevant documents using AST-aware retrieval
+        results = retriever.search(question, top_k=top_k)
+        # Results are tuples of (score, doc_dict, stats)
+        retrieved_docs = [doc.get('text', '') for score, doc, _ in results]
+        reranked_docs = retrieved_docs  # BM25 already handles ranking
 
-        # Rerank documents (CP4)
-        if retrieved_docs:
-            reranked = reranker.rerank(
-                question,
-                retrieved_docs,
-                original_scores=original_scores,
-                top_k=top_k
-            )
-            reranked_docs = [r.text for r in reranked]
-        else:
-            reranked_docs = []
-
-        # Use answer extractor (CP5)
+        # Use answer extractor on top docs
         if reranked_docs:
             extraction = extractor.extract(question, reranked_docs)
             answer = extraction.answer
@@ -209,6 +203,8 @@ def klareco_system(question: str, top_k: int = 10) -> tuple:
         return answer, reranked_docs
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return f"Eraro: {e}", []
 
 
@@ -445,7 +441,7 @@ def save_results(results: EvaluationResults, output_path: Path):
 def main():
     parser = argparse.ArgumentParser(description='Evaluate Q&A benchmark')
     parser.add_argument('--benchmark', type=Path,
-                        default=PROJECT_ROOT / 'data' / 'benchmarks' / 'qa_benchmark_v1.jsonl',
+                        default=PROJECT_ROOT / 'data' / 'benchmarks' / 'datasets' / 'qa_benchmark_v1.jsonl',
                         help='Path to benchmark JSONL file')
     parser.add_argument('--system', type=str, default='klareco',
                         choices=['baseline', 'klareco'],

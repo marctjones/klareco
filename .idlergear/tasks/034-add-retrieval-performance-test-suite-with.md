@@ -1,7 +1,7 @@
 ---
 id: 34
 title: Add retrieval performance test suite with Wikipedia queries
-state: open
+state: closed
 created: '2026-01-05T01:09:48.286865Z'
 labels:
 - testing

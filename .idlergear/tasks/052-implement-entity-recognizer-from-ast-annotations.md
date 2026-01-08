@@ -1,7 +1,7 @@
 ---
 id: 52
 title: Implement entity recognizer from AST annotations
-state: open
+state: closed
 created: '2026-01-05T15:47:58.406980Z'
 labels:
 - enhancement

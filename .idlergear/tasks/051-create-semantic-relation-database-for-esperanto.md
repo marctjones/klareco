@@ -1,7 +1,7 @@
 ---
 id: 51
 title: Create semantic relation database for Esperanto
-state: open
+state: closed
 created: '2026-01-05T15:47:14.222033Z'
 labels:
 - enhancement

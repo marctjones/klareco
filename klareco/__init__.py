@@ -4,13 +4,12 @@ from klareco.enriched_ast import EnrichedAST
 from klareco.semantic_pipeline import SemanticPipeline, SemanticModel
 from klareco.thought_decoder import ThoughtDecoder, DecodedThought
 
-# Active retrievers for hybrid embeddings (128d = 64d linguistic + 64d topical)
-# All memory-efficient and handle 4.4M corpus
+# AST-First Retrieval (Kuzu graph database backend)
 from klareco.rag import (
     ASTAwareRetriever,
-    HNSWSlotRetriever,
-    FAISSSlotRetriever,
-    HybridFAISSMmapRetriever,
+    KuzuInvertedIndex,
+    FallbackMode,
+    SemanticRelationDB,
 )
 
 __all__ = [
@@ -19,9 +18,9 @@ __all__ = [
     'SemanticModel',
     'ThoughtDecoder',
     'DecodedThought',
-    # Active retrievers (hybrid embeddings)
+    # AST-First Retrieval
     'ASTAwareRetriever',
-    'HNSWSlotRetriever',
-    'FAISSSlotRetriever',
-    'HybridFAISSMmapRetriever',
+    'KuzuInvertedIndex',
+    'FallbackMode',
+    'SemanticRelationDB',
 ]

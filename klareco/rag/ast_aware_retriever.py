@@ -42,6 +42,9 @@ class ASTAwareRetriever:
     """
     AST-aware retriever using Kuzu graph database backend.
 
+    PURE DETERMINISTIC by default - no embeddings loaded.
+    A/B testing showed deterministic lookup has equal recall with lower latency.
+
     Memory efficient: Uses Kuzu-backed root lookups and mmap document access.
     No HNSW index needed - root inverted index provides O(1) root lookup.
 
@@ -50,6 +53,9 @@ class ASTAwareRetriever:
     - Hypernym chain traversal
     - Sentence context retrieval (adjacent sentences)
     - Role-aware pattern matching
+
+    To enable embedding fallback (opt-in):
+        retriever = ASTAwareRetriever(fallback_mode=FallbackMode.EMBEDDING)
     """
 
     def __init__(
@@ -101,25 +107,30 @@ class ASTAwareRetriever:
         logger.info("AST-aware retriever initialized")
 
     def _load_hybrid_embedder(self) -> Optional['HybridEmbeddings']:
-        """Load hybrid embeddings for fallback mode."""
+        """Load linguistic embeddings for fallback mode (OPT-IN).
+
+        This is only called when fallback_mode != NONE. By default, the
+        retriever uses pure deterministic lookup which has equal recall
+        and lower latency (see A/B test results in issue #246).
+
+        NOTE: Topical embeddings are permanently disabled - they hurt
+        retrieval performance (0.819 cross-topic similarity, issue #243).
+        """
         try:
             root_model = Path("models/root_embeddings/best_model.pt")
-            topical_model = Path("models/topical_embeddings/best_model.pt")
 
-            if root_model.exists() and topical_model.exists():
+            if root_model.exists():
                 embedder = HybridEmbeddings.from_checkpoints(
                     linguistic_checkpoint=root_model,
-                    topical_checkpoint=topical_model,
+                    topical_checkpoint=None,
                     pad_missing=True,
-                    default_mode='hybrid'
+                    default_mode='linguistic',
+                    disable_topical=True,
                 )
-                logger.info("  ✓ HybridEmbeddings loaded (for fallback)")
+                logger.info("  ✓ LinguisticEmbeddings loaded (opt-in fallback)")
                 return embedder
-            elif root_model.exists():
-                from klareco.embeddings.linguistic_embeddings import LinguisticEmbeddings
-                embedder = LinguisticEmbeddings.from_checkpoint(root_model)
-                logger.info("  ✓ LinguisticEmbeddings loaded (for fallback)")
-                return embedder
+            else:
+                logger.info("  ⊘ No embedding model found, using pure deterministic")
         except Exception as e:
             logger.warning(f"  Failed to load embeddings: {e}")
         return None

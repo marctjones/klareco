@@ -40,52 +40,66 @@ class HybridEmbeddings(nn.Module):
 
     Args:
         linguistic_model: Pre-loaded LinguisticEmbeddings model
-        topical_model: Pre-loaded TopicalEmbeddings model
+        topical_model: Pre-loaded TopicalEmbeddings model (optional - can be None)
         pad_missing: If True, pad missing embeddings with zeros to always return 128d
                      If False, return only available dimensions (64d or 128d)
         default_mode: Default combination mode
+        disable_topical: If True, ignore topical embeddings entirely (for Option C)
     """
 
     def __init__(
         self,
         linguistic_model: LinguisticEmbeddings,
-        topical_model: TopicalEmbeddings,
+        topical_model: Optional[TopicalEmbeddings] = None,
         pad_missing: bool = True,
-        default_mode: Literal['linguistic', 'topical', 'hybrid'] = 'hybrid'
+        default_mode: Literal['linguistic', 'topical', 'hybrid'] = 'hybrid',
+        disable_topical: bool = False,
     ):
         super().__init__()
 
         self.linguistic_model = linguistic_model
         self.topical_model = topical_model
         self.pad_missing = pad_missing
-        self.default_mode = default_mode
+        self.disable_topical = disable_topical
+
+        # If topical is disabled or not provided, force linguistic mode
+        if disable_topical or topical_model is None:
+            self.default_mode = 'linguistic'
+            self.disable_topical = True
+        else:
+            self.default_mode = default_mode
 
         # Cache vocabulary sizes
         self.linguistic_vocab_size = linguistic_model.vocab_size
-        self.topical_vocab_size = topical_model.vocab_size
+        self.topical_vocab_size = topical_model.vocab_size if topical_model else 0
 
         logger.info(f"HybridEmbeddings initialized:")
         logger.info(f"  Linguistic vocab: {self.linguistic_vocab_size:,} roots")
-        logger.info(f"  Topical vocab: {self.topical_vocab_size:,} roots")
+        if self.disable_topical:
+            logger.info(f"  Topical: DISABLED (linguistic-only mode)")
+        else:
+            logger.info(f"  Topical vocab: {self.topical_vocab_size:,} roots")
         logger.info(f"  Pad missing: {pad_missing}")
-        logger.info(f"  Default mode: {default_mode}")
+        logger.info(f"  Default mode: {self.default_mode}")
 
     @classmethod
     def from_checkpoints(
         cls,
         linguistic_checkpoint: Union[str, Path],
-        topical_checkpoint: Union[str, Path],
+        topical_checkpoint: Optional[Union[str, Path]] = None,
         pad_missing: bool = True,
-        default_mode: Literal['linguistic', 'topical', 'hybrid'] = 'hybrid'
+        default_mode: Literal['linguistic', 'topical', 'hybrid'] = 'hybrid',
+        disable_topical: bool = False,
     ) -> 'HybridEmbeddings':
         """
         Load hybrid model from separate linguistic and topical checkpoints.
 
         Args:
             linguistic_checkpoint: Path to linguistic model checkpoint
-            topical_checkpoint: Path to topical model checkpoint
+            topical_checkpoint: Path to topical model checkpoint (optional)
             pad_missing: Whether to pad missing embeddings
             default_mode: Default combination mode
+            disable_topical: If True, don't load or use topical embeddings
 
         Returns:
             Loaded HybridEmbeddings model
@@ -93,14 +107,23 @@ class HybridEmbeddings(nn.Module):
         logger.info(f"Loading linguistic model from {linguistic_checkpoint}")
         linguistic_model = LinguisticEmbeddings.from_checkpoint(linguistic_checkpoint)
 
-        logger.info(f"Loading topical model from {topical_checkpoint}")
-        topical_model = TopicalEmbeddings.from_checkpoint(topical_checkpoint)
+        topical_model = None
+        if not disable_topical and topical_checkpoint is not None:
+            topical_path = Path(topical_checkpoint)
+            if topical_path.exists():
+                logger.info(f"Loading topical model from {topical_checkpoint}")
+                topical_model = TopicalEmbeddings.from_checkpoint(topical_checkpoint)
+            else:
+                logger.warning(f"Topical checkpoint not found: {topical_checkpoint}")
+        else:
+            logger.info("Topical embeddings disabled - using linguistic only")
 
         return cls(
             linguistic_model=linguistic_model,
             topical_model=topical_model,
             pad_missing=pad_missing,
-            default_mode=default_mode
+            default_mode=default_mode,
+            disable_topical=disable_topical,
         )
 
     def get_root_embedding(
@@ -124,9 +147,15 @@ class HybridEmbeddings(nn.Module):
         if mode is None:
             mode = self.default_mode
 
+        # If topical is disabled, force linguistic mode
+        if self.disable_topical and mode in ('topical', 'hybrid'):
+            mode = 'linguistic'
+
         # Check availability
         has_ling = self.linguistic_model.has_root(root)
-        has_top = self.topical_model.has_root(root)
+        has_top = False if self.disable_topical else (
+            self.topical_model.has_root(root) if self.topical_model else False
+        )
 
         mask = {'linguistic': has_ling, 'topical': has_top}
 
@@ -267,6 +296,18 @@ class HybridEmbeddings(nn.Module):
             Dictionary with vocabulary statistics
         """
         ling_roots = set(self.linguistic_model.root_to_idx.keys())
+
+        if self.disable_topical or self.topical_model is None:
+            return {
+                'linguistic_vocab_size': len(ling_roots),
+                'topical_vocab_size': 0,
+                'topical_disabled': True,
+                'overlap_size': 0,
+                'linguistic_only': len(ling_roots),
+                'topical_only': 0,
+                'overlap_percentage': 0.0
+            }
+
         top_roots = set(self.topical_model.root_to_idx.keys())
 
         overlap = ling_roots & top_roots
@@ -276,6 +317,7 @@ class HybridEmbeddings(nn.Module):
         return {
             'linguistic_vocab_size': len(ling_roots),
             'topical_vocab_size': len(top_roots),
+            'topical_disabled': False,
             'overlap_size': len(overlap),
             'linguistic_only': len(ling_only),
             'topical_only': len(top_only),

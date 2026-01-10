@@ -11,6 +11,7 @@ Verifies:
 
 import pytest
 import torch
+from pathlib import Path
 from klareco.embeddings.linguistic_embeddings import LinguisticEmbeddings
 from klareco.embeddings.topical_embeddings import TopicalEmbeddings
 from klareco.embeddings.hybrid_embeddings import HybridEmbeddings
@@ -246,3 +247,60 @@ def test_no_padding_mode():
     # Proper noun: only topical = 64d (no padding)
     emb = hybrid.get_root_embedding('Parizo')
     assert emb.shape == (64,)  # Only topical, no padding
+
+
+@pytest.mark.skipif(
+    not Path('models/root_embeddings/best_model.pt').exists() or
+    not Path('models/topical_embeddings/best_model.pt').exists(),
+    reason="Trained model checkpoints not available"
+)
+class TestRealModelLoading:
+    """Test loading and using real trained models."""
+
+    def test_from_checkpoints(self):
+        """Test loading hybrid model from real checkpoints."""
+        hybrid = HybridEmbeddings.from_checkpoints(
+            linguistic_checkpoint='models/root_embeddings/best_model.pt',
+            topical_checkpoint='models/topical_embeddings/best_model.pt'
+        )
+
+        # Verify vocabulary sizes
+        assert hybrid.linguistic_vocab_size > 10000  # ~11K linguistic roots
+        assert hybrid.topical_vocab_size > 150000   # ~153K topical roots
+
+    def test_vocabulary_overlap(self):
+        """Test vocabulary overlap between models."""
+        hybrid = HybridEmbeddings.from_checkpoints(
+            linguistic_checkpoint='models/root_embeddings/best_model.pt',
+            topical_checkpoint='models/topical_embeddings/best_model.pt'
+        )
+
+        info = hybrid.get_vocabulary_info()
+        # There should be significant overlap
+        assert info['overlap_size'] > 5000
+        # But topical vocab should be much larger
+        assert info['topical_only'] > 100000
+
+    def test_content_word_embeddings(self):
+        """Test that common content words have both embeddings."""
+        hybrid = HybridEmbeddings.from_checkpoints(
+            linguistic_checkpoint='models/root_embeddings/best_model.pt',
+            topical_checkpoint='models/topical_embeddings/best_model.pt'
+        )
+
+        # Common Esperanto roots should be in both
+        for root in ['hund', 'bel', 'grand', 'vid', 'aŭd']:
+            info = hybrid.analyze_root(root)
+            assert info['has_linguistic'] or info['has_topical'], f"{root} missing"
+
+    def test_topical_similarity_zamenhof_esperanto(self):
+        """Test that topically related words have high topical similarity."""
+        hybrid = HybridEmbeddings.from_checkpoints(
+            linguistic_checkpoint='models/root_embeddings/best_model.pt',
+            topical_checkpoint='models/topical_embeddings/best_model.pt'
+        )
+
+        # Zamenhof and Esperanto should have high topical similarity
+        sim = hybrid.compute_similarity('zamenhof', 'esperant', mode='topical')
+        assert sim is not None
+        assert sim > 0.8, f"Expected high topical similarity, got {sim}"

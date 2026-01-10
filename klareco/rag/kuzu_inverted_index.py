@@ -78,6 +78,10 @@ class RetrievalStats:
     candidate_count_after_scoring: int = 0
     scoring_method: str = "bm25"
     graph_expansions: int = 0  # New: track graph-based expansions
+    # Predicate-first retrieval stats
+    predicate_query: Optional[str] = None  # The predicate pattern searched
+    predicate_matches: int = 0  # Number of predicate-matched docs
+    predicate_boost_applied: bool = False
 
     def to_dict(self) -> Dict:
         return {
@@ -94,6 +98,9 @@ class RetrievalStats:
             "candidates_after_scoring": self.candidate_count_after_scoring,
             "scoring_method": self.scoring_method,
             "graph_expansions": self.graph_expansions,
+            "predicate_query": self.predicate_query,
+            "predicate_matches": self.predicate_matches,
+            "predicate_boost_applied": self.predicate_boost_applied,
         }
 
 
@@ -476,6 +483,141 @@ class KuzuInvertedIndex:
 
         return context
 
+    # =========================================================================
+    # Predicate-First Retrieval (Phase 1.3)
+    # =========================================================================
+
+    def _extract_predicate_from_ast(
+        self,
+        ast: Dict,
+    ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        Extract predicate (verb, subj, obj) from query AST.
+
+        Returns the main predicate triple for predicate-first lookup.
+
+        Args:
+            ast: Parsed query AST
+
+        Returns:
+            Tuple of (verb, subj, obj) roots, any can be None
+        """
+        if not ast or ast.get('tipo') != 'frazo':
+            return (None, None, None)
+
+        skip_vortspeco = {'korelativo', 'pronomo', 'artikolo', 'prepozicio', 'konjunkcio'}
+
+        def get_root(node: Optional[Dict]) -> Optional[str]:
+            """Get root from a word or word group, skipping function words."""
+            if not node or not isinstance(node, dict):
+                return None
+
+            tipo = node.get('tipo')
+
+            if tipo == 'vorto':
+                vortspeco = node.get('vortspeco', '')
+                if vortspeco in skip_vortspeco:
+                    return None
+                root = node.get('radiko', '')
+                if root and len(root) >= 2:
+                    return root.lower()
+                return None
+
+            elif tipo == 'vortgrupo':
+                return get_root(node.get('kerno'))
+
+            return None
+
+        verb = get_root(ast.get('verbo'))
+        subj = get_root(ast.get('subjekto'))
+        obj = get_root(ast.get('objekto'))
+
+        return (verb, subj, obj)
+
+    def search_by_predicate(
+        self,
+        verb: Optional[str] = None,
+        subj: Optional[str] = None,
+        obj: Optional[str] = None,
+        expand_synonyms: bool = True,
+        max_results: int = 1000,
+    ) -> List[int]:
+        """
+        Search for sentences matching a predicate pattern via HAS_PREDICATE edges.
+
+        This is the predicate-first retrieval from Issue #255. It uses the
+        Predicate table (from import_predicates_kuzu.py) for O(1) structural lookup.
+
+        Args:
+            verb: Verb root (required for meaningful search)
+            subj: Subject root (optional)
+            obj: Object root (optional)
+            expand_synonyms: Expand roots to synonyms via Kuzu graph
+            max_results: Maximum sentence IDs to return
+
+        Returns:
+            List of sentence IDs matching the predicate pattern
+        """
+        if self._conn is None:
+            return []
+
+        if not verb:
+            # Without a verb, predicate search isn't meaningful
+            return []
+
+        # Build list of roots for each role (with optional synonym expansion)
+        verb_roots = {verb.lower()}
+        subj_roots = {subj.lower()} if subj else None
+        obj_roots = {obj.lower()} if obj else None
+
+        if expand_synonyms:
+            verb_roots.update(self.get_synonyms_transitive(verb, max_hops=2))
+            if subj_roots:
+                subj_roots.update(self.get_synonyms_transitive(subj, max_hops=2))
+            if obj_roots:
+                obj_roots.update(self.get_synonyms_transitive(obj, max_hops=2))
+
+        # Build Cypher query for HAS_PREDICATE edges
+        where_clauses = ["p.verb IN $verb_roots"]
+        params = {'verb_roots': list(verb_roots)}
+
+        if subj_roots:
+            where_clauses.append("p.subj IN $subj_roots")
+            params['subj_roots'] = list(subj_roots)
+
+        if obj_roots:
+            where_clauses.append("p.obj IN $obj_roots")
+            params['obj_roots'] = list(obj_roots)
+
+        query = f"""
+            MATCH (s:Sentence)-[:HAS_PREDICATE]->(p:Predicate)
+            WHERE {' AND '.join(where_clauses)}
+            RETURN DISTINCT s.id
+            LIMIT {max_results}
+        """
+
+        try:
+            result = self._conn.execute(query, params)
+            sent_ids = []
+            while result.has_next():
+                sent_ids.append(result.get_next()[0])
+            return sent_ids
+        except Exception as e:
+            # HAS_PREDICATE table may not exist yet
+            logger.debug(f"Predicate search failed (table may not exist): {e}")
+            return []
+
+    def has_predicate_table(self) -> bool:
+        """Check if the Predicate table exists in Kuzu."""
+        if self._conn is None:
+            return False
+        try:
+            result = self._conn.execute("MATCH (p:Predicate) RETURN count(p) LIMIT 1")
+            result.get_next()
+            return True
+        except Exception:
+            return False
+
     def search_by_role(
         self,
         verb: Optional[str] = None,
@@ -552,6 +694,9 @@ class KuzuInvertedIndex:
     # Main Search Interface
     # =========================================================================
 
+    # Predicate boost factor for documents matching predicate structure
+    PREDICATE_BOOST = 1.5
+
     def search(
         self,
         query_ast: Dict,
@@ -559,11 +704,12 @@ class KuzuInvertedIndex:
         fallback_mode: Optional[FallbackMode] = None,
         require_all_roots: bool = False,
         use_graph_expansion: bool = True,
+        use_predicate_boost: bool = True,
     ) -> Tuple[List[SearchResult], RetrievalStats]:
         """
         Search for documents matching query AST.
 
-        This is the main search interface.
+        This is the main search interface with predicate-first retrieval.
 
         Args:
             query_ast: Parsed query AST
@@ -571,6 +717,7 @@ class KuzuInvertedIndex:
             fallback_mode: Override instance fallback mode
             require_all_roots: If True, only return docs with ALL query roots
             use_graph_expansion: Use Kuzu graph for synonym expansion
+            use_predicate_boost: Apply boost to predicate-matched documents
 
         Returns:
             Tuple of (results, stats)
@@ -586,6 +733,36 @@ class KuzuInvertedIndex:
         if not query_roots:
             logger.warning("No roots extracted from query")
             return [], stats
+
+        # 1b. Extract predicate for predicate-first retrieval
+        predicate_matched_docs: Set[int] = set()
+        if use_predicate_boost:
+            verb, subj, obj = self._extract_predicate_from_ast(query_ast)
+            if verb:
+                # Format predicate for stats
+                pred_parts = [verb]
+                if subj:
+                    pred_parts.append(f"subj={subj}")
+                if obj:
+                    pred_parts.append(f"obj={obj}")
+                stats.predicate_query = f"({', '.join(pred_parts)})"
+
+                # Do predicate lookup
+                predicate_matched_docs = set(self.search_by_predicate(
+                    verb=verb,
+                    subj=subj,
+                    obj=obj,
+                    expand_synonyms=use_graph_expansion,
+                    max_results=1000,
+                ))
+                stats.predicate_matches = len(predicate_matched_docs)
+
+                if predicate_matched_docs:
+                    stats.predicate_boost_applied = True
+                    logger.debug(
+                        f"Predicate search found {len(predicate_matched_docs)} docs "
+                        f"for {stats.predicate_query}"
+                    )
 
         # 2. Build semantic concepts using Kuzu graph
         concepts = self._build_concepts_from_graph(
@@ -609,8 +786,14 @@ class KuzuInvertedIndex:
         )
         stats.candidate_count_before_scoring = len(candidates)
 
-        # 4. Score using BM25
-        scored = self._score_with_bm25(candidates, concepts, query_grammar, stats)
+        # 4. Score using BM25 with predicate boost
+        scored = self._score_with_bm25(
+            candidates,
+            concepts,
+            query_grammar,
+            stats,
+            predicate_matched_docs=predicate_matched_docs,
+        )
         stats.candidate_count_after_scoring = len(scored)
 
         # 5. Build results
@@ -659,7 +842,14 @@ class KuzuInvertedIndex:
     })
 
     def _extract_roots(self, ast: Dict) -> Dict[str, float]:
-        """Extract roots from AST with weights based on role."""
+        """Extract roots from AST with weights based on role and part of speech.
+
+        Weighting strategy:
+        - NOUNS (substantivo) get highest weight - they're the content of the query
+        - VERBS get lower weight - they're often paraphrased in answers
+          e.g., "Kiam aperis X?" may be answered by "X estis fondita en..."
+        - Named entities (proper nouns) get highest weight
+        """
         roots = {}
         skip_vortspeco = {'korelativo', 'pronomo', 'artikolo', 'prepozicio', 'konjunkcio'}
 
@@ -678,14 +868,29 @@ class KuzuInvertedIndex:
                     # Skip high-frequency stopword roots
                     if root in KuzuInvertedIndex.STOPWORD_ROOTS:
                         return
-                    role_weights = {
-                        'verbo': 1.5,
-                        'objekto': 1.3,
-                        'subjekto': 1.0,
-                        'predikato': 1.2,
-                        'aliaj': 0.8,
+
+                    # Part-of-speech weights: nouns > adjectives > verbs
+                    # Verbs are often paraphrased in answers
+                    pos_weights = {
+                        'substantivo': 1.5,  # Nouns are key content
+                        'adjektivo': 1.2,    # Adjectives describe entities
+                        'verbo': 0.8,        # Verbs often paraphrased
+                        'adverbo': 0.7,      # Adverbs less critical
+                        'numero': 1.3,       # Numbers (dates, quantities) important
                     }
-                    final_weight = weight * role_weights.get(role, 1.0)
+
+                    # Role weights (less extreme than before)
+                    role_weights = {
+                        'verbo': 0.9,        # Verb role (reduced from 1.5)
+                        'objekto': 1.2,      # Object is usually important
+                        'subjekto': 1.1,     # Subject is important
+                        'predikato': 1.0,
+                        'aliaj': 0.9,
+                    }
+
+                    pos_weight = pos_weights.get(vortspeco, 1.0)
+                    role_weight = role_weights.get(role, 1.0)
+                    final_weight = weight * pos_weight * role_weight
                     roots[root] = max(roots.get(root, 0), final_weight)
 
             elif node.get('tipo') == 'vortgrupo':
@@ -797,12 +1002,26 @@ class KuzuInvertedIndex:
         concepts: List[SemanticConcept],
         query_grammar: Dict[str, Any],
         stats: RetrievalStats,
+        predicate_matched_docs: Optional[Set[int]] = None,
     ) -> List[Tuple[int, float, List[str], Dict[str, bool]]]:
-        """Score candidates using BM25 with concept-based IDF."""
+        """
+        Score candidates using BM25 with concept-based IDF.
+
+        Args:
+            candidates: Dict mapping doc_id to (score, matched_roots, occurrences)
+            concepts: List of semantic concepts from query
+            query_grammar: Grammar features from query AST
+            stats: RetrievalStats to update
+            predicate_matched_docs: Set of doc_ids that match predicate structure
+
+        Returns:
+            List of (doc_id, score, matched_roots, grammar_matches) sorted by score
+        """
         import math
 
         stats.scoring_method = "bm25"
         scored = []
+        predicate_matched_docs = predicate_matched_docs or set()
 
         # Build concept lookup
         root_to_concept: Dict[str, SemanticConcept] = {}
@@ -849,7 +1068,13 @@ class KuzuInvertedIndex:
                         grammar_matches['tempo'] = True
                         grammar_bonus += 0.1
 
-            final_score = bm25_score + grammar_bonus
+            # Apply predicate boost if document matches predicate structure
+            predicate_boost = 1.0
+            if doc_id in predicate_matched_docs:
+                predicate_boost = self.PREDICATE_BOOST
+                grammar_matches['predicate'] = True
+
+            final_score = (bm25_score + grammar_bonus) * predicate_boost
             scored.append((doc_id, final_score, matched_roots, grammar_matches))
 
         scored.sort(key=lambda x: -x[1])

@@ -489,7 +489,7 @@ class RetrievalDiagnostics:
             print(f"  ERROR: {e}")
 
     def _phase6_semantic_alignment(self, query: str):
-        """Phase 6: Check alignment between SemanticPipeline and HybridEmbeddings."""
+        """Phase 6: Check SemanticPipeline embeddings."""
         try:
             if not self.retriever.semantic_pipeline:
                 print("  SemanticPipeline not available")

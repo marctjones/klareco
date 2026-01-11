@@ -75,57 +75,21 @@ def load_revo_relations(revo_path: Path) -> Dict:
         return json.load(f)
 
 
-def load_embeddings(model_type: str = 'hybrid'):
+def load_embeddings():
     """
-    Load the embedding model.
-
-    Args:
-        model_type: 'hybrid' (both linguistic + topical),
-                   'linguistic' (only linguistic),
-                   'topical' (only topical)
+    Load the linguistic embedding model.
 
     Returns:
-        Embedding model with get_root_embedding(root) method
+        LinguisticEmbeddings model with get_root_embedding(root) method
     """
+    from klareco.embeddings.linguistic_embeddings import LinguisticEmbeddings
+
     linguistic_path = PROJECT_ROOT / "models" / "root_embeddings" / "best_model.pt"
-    topical_path = PROJECT_ROOT / "models" / "topical_embeddings" / "best_model.pt"
 
-    if model_type == 'hybrid':
-        # Load hybrid model (combines both)
-        from klareco.embeddings.hybrid_embeddings import HybridEmbeddings
+    if not linguistic_path.exists():
+        raise FileNotFoundError(f"Linguistic model not found: {linguistic_path}")
 
-        if not linguistic_path.exists():
-            raise FileNotFoundError(f"Linguistic model not found: {linguistic_path}")
-        if not topical_path.exists():
-            raise FileNotFoundError(f"Topical model not found: {topical_path}")
-
-        return HybridEmbeddings.from_checkpoints(
-            linguistic_checkpoint=linguistic_path,
-            topical_checkpoint=topical_path,
-            pad_missing=True,
-            default_mode='hybrid'
-        )
-
-    elif model_type == 'linguistic':
-        # Load only linguistic embeddings
-        from klareco.embeddings.linguistic_embeddings import LinguisticEmbeddings
-
-        if not linguistic_path.exists():
-            raise FileNotFoundError(f"Linguistic model not found: {linguistic_path}")
-
-        return LinguisticEmbeddings.from_checkpoint(linguistic_path)
-
-    elif model_type == 'topical':
-        # Load only topical embeddings
-        from klareco.embeddings.topical_embeddings import TopicalEmbeddings
-
-        if not topical_path.exists():
-            raise FileNotFoundError(f"Topical model not found: {topical_path}")
-
-        return TopicalEmbeddings.from_checkpoint(topical_path)
-
-    else:
-        raise ValueError(f"Unknown model_type: {model_type}")
+    return LinguisticEmbeddings.from_checkpoint(linguistic_path)
 
 
 def get_root_embedding(embedder, root: str) -> Optional[np.ndarray]:
@@ -233,7 +197,6 @@ def evaluate_antonyms(
 
 def run_evaluation(
     revo_path: Path,
-    model_type: str = 'hybrid',
     verbose: bool = False,
 ) -> EvaluationResults:
     """Run full embedding evaluation."""
@@ -250,8 +213,8 @@ def run_evaluation(
     print(f"  Antonym pairs: {len(antonym_pairs)}")
 
     print("\nLoading embedding model...")
-    embedder = load_embeddings(model_type)
-    print(f"  Model loaded: {model_type}")
+    embedder = load_embeddings()
+    print("  Model loaded: LinguisticEmbeddings")
 
     # Collect all roots for random baseline
     all_roots = set()
@@ -362,9 +325,6 @@ def main():
     parser.add_argument('--revo', type=Path,
                         default=PROJECT_ROOT / 'data' / 'raw' / 'eo' / 'dictionaries' / 'revo' / 'revo_semantic_relations.json',
                         help='Path to ReVo relations JSON')
-    parser.add_argument('--model', type=str, default='hybrid',
-                        choices=['hybrid', 'linguistic', 'topical'],
-                        help='Embedding model type (default: hybrid)')
     parser.add_argument('--output', type=Path,
                         help='Path to save results JSON')
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -380,7 +340,7 @@ def main():
     print("EMBEDDING EVALUATION WITH REVO SEMANTIC RELATIONS")
     print("=" * 60)
 
-    results = run_evaluation(args.revo, args.model, args.verbose)
+    results = run_evaluation(args.revo, args.verbose)
 
     # Save results
     if args.output:

@@ -114,17 +114,17 @@ class M1Pipeline:
                 print("Loading pipeline components...")
 
             from klareco.parser import parse as parser_parse
-            from klareco import Retriever
+            from klareco import ASTAwareRetriever
             from klareco.qa import DeterministicReranker, AnswerExtractor
 
             self._parser = parser_parse
-            self._retriever = Retriever.load()
+            self._retriever = ASTAwareRetriever()
             self._reranker = DeterministicReranker()
             self._extractor = AnswerExtractor()
 
             if self.verbose:
                 print("  - Parser: loaded")
-                print("  - Retriever: loaded")
+                print(f"  - Retriever: loaded ({self._retriever.root_index.total_docs:,} docs)")
                 print("  - Reranker: loaded (0 params)")
                 print("  - Extractor: loaded (0 params)")
 
@@ -172,10 +172,15 @@ class M1Pipeline:
 
         # Stage 3: Retrieve documents
         retrieve_start = time.time()
+        # ASTAwareRetriever.search() returns List[Tuple[score, doc_dict, stats]]
         results = self._retriever.search(question, top_k=top_k * 2)
-        retrieved_docs = [r.text for r in results]
-        original_scores = [getattr(r, 'score', 1.0 - i/len(results))
-                          for i, r in enumerate(results)]
+        retrieved_docs = []
+        original_scores = []
+        for score, doc, stats in results:
+            text = doc.get('text', '')
+            if text:
+                retrieved_docs.append(text)
+                original_scores.append(score)
         retrieve_time = (time.time() - retrieve_start) * 1000
 
         if pipeline_trace:
@@ -590,7 +595,7 @@ def interactive_mode(pipeline: M1Pipeline):
 def main():
     parser = argparse.ArgumentParser(description='M1 Full Pipeline (CP7)')
     parser.add_argument('--benchmark', type=Path,
-                        default=PROJECT_ROOT / 'data' / 'benchmarks' / 'qa_benchmark_v1.jsonl',
+                        default=PROJECT_ROOT / 'data' / 'benchmarks' / 'datasets' / 'qa_benchmark_v1.jsonl',
                         help='Path to benchmark JSONL file')
     parser.add_argument('--question', '-q', type=str, default=None,
                         help='Single question to answer')

@@ -58,3 +58,7 @@ gha-creds-*.json
 # IdlerGear daemon files (don't commit)
 .idlergear/daemon.sock
 .idlergear/daemon.pid
+.idlergear/session_state.json
+
+# Claude Code local settings (user-specific)
+.claude/settings.local.json

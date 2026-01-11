@@ -11,11 +11,9 @@
 # - Grammar-aware scoring
 # - Sentence context retrieval
 #
-# Fallback modes (configurable):
-# - NONE: Pure deterministic (for testing/benchmarking)
-# - EMBEDDING: Use HybridEmbeddings for OOV roots
-# - RERANK: Use embeddings to rerank results
-# - FULL: All fallbacks enabled
+# The retriever is PURE DETERMINISTIC by default. A/B testing showed
+# that deterministic lookup has equal recall with lower latency than
+# embedding-based fallbacks (see issue #246).
 
 from klareco.rag.kuzu_inverted_index import (
     KuzuInvertedIndex,

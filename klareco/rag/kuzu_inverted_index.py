@@ -133,8 +133,6 @@ class KuzuInvertedIndex:
     def __init__(
         self,
         index_path: Path,
-        semantic_db=None,  # For backwards compatibility, but Kuzu replaces this
-        hybrid_embedder=None,
         fallback_mode: FallbackMode = FallbackMode.NONE,
     ):
         """
@@ -142,15 +140,12 @@ class KuzuInvertedIndex:
 
         Args:
             index_path: Path to Kuzu index directory
-            semantic_db: Ignored - Kuzu contains semantic relations
-            hybrid_embedder: HybridEmbeddings for fallback (optional)
-            fallback_mode: Which fallbacks to enable
+            fallback_mode: Which fallbacks to enable (default: NONE for pure deterministic)
         """
         if kuzu is None:
             raise ImportError("kuzu package not installed. Run: pip install kuzu")
 
         self.index_path = Path(index_path)
-        self.hybrid_embedder = hybrid_embedder
         self.fallback_mode = fallback_mode
 
         # Kuzu database

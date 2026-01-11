@@ -28,13 +28,6 @@ from klareco.rag.question_classifier import QuestionClassifier, QuestionType
 from klareco.rag.entity_recognizer import EntityRecognizer
 from klareco.rag.kuzu_inverted_index import KuzuInvertedIndex, FallbackMode, RetrievalStats
 
-# Try to import HybridEmbeddings for fallback
-try:
-    from klareco.embeddings.hybrid_embeddings import HybridEmbeddings
-    HYBRID_EMBEDDINGS_AVAILABLE = True
-except ImportError:
-    HYBRID_EMBEDDINGS_AVAILABLE = False
-
 logger = logging.getLogger(__name__)
 
 
@@ -86,15 +79,11 @@ class ASTAwareRetriever:
         self.entity_recognizer = EntityRecognizer()
         logger.info("  ✓ EntityRecognizer initialized")
 
-        # Try to load hybrid embeddings for fallback mode
-        self.hybrid_embedder = None
-        if fallback_mode != FallbackMode.NONE and HYBRID_EMBEDDINGS_AVAILABLE:
-            self.hybrid_embedder = self._load_hybrid_embedder()
-
         # Initialize Kuzu inverted index
+        # Note: Embedding fallback was removed - pure deterministic lookup
+        # has equal recall with lower latency (see A/B test in issue #246)
         self.root_index = KuzuInvertedIndex(
             index_path=self.index_path,
-            hybrid_embedder=self.hybrid_embedder,
             fallback_mode=fallback_mode,
         )
 
@@ -105,35 +94,6 @@ class ASTAwareRetriever:
             logger.warning(f"  ! KuzuInvertedIndex not loaded from {self.index_path}")
 
         logger.info("AST-aware retriever initialized")
-
-    def _load_hybrid_embedder(self) -> Optional['HybridEmbeddings']:
-        """Load linguistic embeddings for fallback mode (OPT-IN).
-
-        This is only called when fallback_mode != NONE. By default, the
-        retriever uses pure deterministic lookup which has equal recall
-        and lower latency (see A/B test results in issue #246).
-
-        NOTE: Topical embeddings are permanently disabled - they hurt
-        retrieval performance (0.819 cross-topic similarity, issue #243).
-        """
-        try:
-            root_model = Path("models/root_embeddings/best_model.pt")
-
-            if root_model.exists():
-                embedder = HybridEmbeddings.from_checkpoints(
-                    linguistic_checkpoint=root_model,
-                    topical_checkpoint=None,
-                    pad_missing=True,
-                    default_mode='linguistic',
-                    disable_topical=True,
-                )
-                logger.info("  ✓ LinguisticEmbeddings loaded (opt-in fallback)")
-                return embedder
-            else:
-                logger.info("  ⊘ No embedding model found, using pure deterministic")
-        except Exception as e:
-            logger.warning(f"  Failed to load embeddings: {e}")
-        return None
 
     def search(
         self,

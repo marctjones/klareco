@@ -1,9 +1,9 @@
 """Embedding modules for Klareco."""
 
 from .compositional import CompositionalEmbedding
-from .dual_root_embeddings import DualRootEmbeddings
+from .linguistic_embeddings import LinguisticEmbeddings
 
 __all__ = [
     'CompositionalEmbedding',
-    'DualRootEmbeddings',
+    'LinguisticEmbeddings',
 ]

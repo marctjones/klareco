@@ -25,12 +25,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING, Literal
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .unknown_tracker import UnknownRootTracker
-
-from .dual_root_embeddings import DualRootEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +71,6 @@ class CompositionalEmbedding(nn.Module):
         embed_dim: int = 128,
         composition_method: str = 'sum',
         dropout: float = 0.1,
-        use_dual_roots: bool = False,
-        root_embedding_mode: Literal['linguistic', 'topical', 'combined'] = 'combined',
     ):
         """
         Initialize compositional embedding layer.
@@ -86,17 +82,11 @@ class CompositionalEmbedding(nn.Module):
             embed_dim: Dimension of embeddings (total dimension for composed word)
             composition_method: How to combine morphemes ('sum', 'concat', 'gated')
             dropout: Dropout probability
-            use_dual_roots: If True, use DualRootEmbeddings (linguistic + topical)
-            root_embedding_mode: Mode for dual embeddings ('linguistic', 'topical', 'combined')
-                Only used if use_dual_roots=True. In 'combined' mode, root embeddings
-                are 128d (64d linguistic + 64d topical).
         """
         super().__init__()
 
         self.embed_dim = embed_dim
         self.composition_method = composition_method
-        self.use_dual_roots = use_dual_roots
-        self.root_embedding_mode = root_embedding_mode
 
         # Store vocabularies
         self.root_vocab = root_vocab
@@ -104,22 +94,8 @@ class CompositionalEmbedding(nn.Module):
         self.suffix_vocab = suffix_vocab
         self.ending_vocab = ENDINGS
 
-        # Root embedding layer - dual or single
-        if use_dual_roots:
-            # DualRootEmbeddings: 64d per embedding, 128d combined
-            self.root_embed = DualRootEmbeddings(
-                vocab_size=len(root_vocab),
-                embedding_dim=64,  # Each embedding is 64d
-                mode=root_embedding_mode
-            )
-            # Root dimension depends on mode
-            self.root_dim = self.root_embed.get_output_dim()
-        else:
-            # Single root embedding
-            self.root_embed = nn.Embedding(len(root_vocab), embed_dim)
-            self.root_dim = embed_dim
-
-        # Other embedding layers (unchanged)
+        # Embedding layers
+        self.root_embed = nn.Embedding(len(root_vocab), embed_dim)
         self.prefix_embed = nn.Embedding(len(prefix_vocab), embed_dim)
         self.suffix_embed = nn.Embedding(len(suffix_vocab), embed_dim)
         self.ending_embed = nn.Embedding(len(ENDINGS), embed_dim)
@@ -152,29 +128,15 @@ class CompositionalEmbedding(nn.Module):
 
     def _init_embeddings(self):
         """Initialize embedding weights."""
-        # Root embeddings - handle dual vs single
-        if self.use_dual_roots:
-            # DualRootEmbeddings initializes itself (std=0.5 for both linguistic and topical)
-            # Set <PAD> to zero if present
-            with torch.no_grad():
-                if '<PAD>' in self.root_vocab:
-                    pad_idx = self.root_vocab['<PAD>']
-                    self.root_embed.linguistic_embeddings.weight[pad_idx].zero_()
-                    self.root_embed.topical_embeddings.weight[pad_idx].zero_()
-        else:
-            # Single root embedding initialization
-            nn.init.normal_(self.root_embed.weight, mean=0, std=0.1)
-            with torch.no_grad():
-                if '<PAD>' in self.root_vocab:
-                    self.root_embed.weight[self.root_vocab['<PAD>']].zero_()
-
-        # Other embeddings (unchanged)
+        nn.init.normal_(self.root_embed.weight, mean=0, std=0.1)
         nn.init.normal_(self.prefix_embed.weight, mean=0, std=0.1)
         nn.init.normal_(self.suffix_embed.weight, mean=0, std=0.1)
         nn.init.normal_(self.ending_embed.weight, mean=0, std=0.1)
 
-        # Set <NONE> tokens to zero
+        # Set special tokens to zero
         with torch.no_grad():
+            if '<PAD>' in self.root_vocab:
+                self.root_embed.weight[self.root_vocab['<PAD>']].zero_()
             if '<NONE>' in self.prefix_vocab:
                 self.prefix_embed.weight[self.prefix_vocab['<NONE>']].zero_()
             if '<NONE>' in self.suffix_vocab:
@@ -229,93 +191,6 @@ class CompositionalEmbedding(nn.Module):
         """Get the unknown root tracker if enabled."""
         return self._unknown_tracker
 
-    def set_root_embedding_mode(self, mode: Literal['linguistic', 'topical', 'combined']):
-        """
-        Change the root embedding mode for DualRootEmbeddings.
-
-        Only applicable if use_dual_roots=True. Allows switching between
-        linguistic, topical, or combined embeddings at runtime.
-
-        Args:
-            mode: New embedding mode
-
-        Raises:
-            RuntimeError: If use_dual_roots=False
-        """
-        if not self.use_dual_roots:
-            raise RuntimeError("Cannot set embedding mode: use_dual_roots=False")
-
-        self.root_embedding_mode = mode
-        self.root_embed.set_default_mode(mode)
-        self.root_dim = self.root_embed.get_output_dim(mode)
-        logger.info(f"Root embedding mode set to '{mode}' (dim={self.root_dim})")
-
-    def load_linguistic_embeddings(self, checkpoint_path: str):
-        """
-        Load pre-trained linguistic embeddings into DualRootEmbeddings.
-
-        This allows migrating from single-embedding models to dual embeddings
-        by reusing existing trained linguistic embeddings.
-
-        Args:
-            checkpoint_path: Path to checkpoint from train_root_embeddings.py
-
-        Raises:
-            RuntimeError: If use_dual_roots=False
-        """
-        if not self.use_dual_roots:
-            raise RuntimeError("Cannot load linguistic embeddings: use_dual_roots=False")
-
-        self.root_embed.load_linguistic_from_checkpoint(checkpoint_path)
-        logger.info(f"Loaded linguistic embeddings from {checkpoint_path}")
-
-    def freeze_linguistic_embeddings(self):
-        """
-        Freeze linguistic embeddings in DualRootEmbeddings.
-
-        Useful for sequential training: train linguistic embeddings first,
-        freeze them, then train topical embeddings.
-
-        Raises:
-            RuntimeError: If use_dual_roots=False
-        """
-        if not self.use_dual_roots:
-            raise RuntimeError("Cannot freeze linguistic embeddings: use_dual_roots=False")
-
-        self.root_embed.freeze_linguistic()
-        logger.info("Linguistic embeddings frozen")
-
-    def freeze_topical_embeddings(self):
-        """
-        Freeze topical embeddings in DualRootEmbeddings.
-
-        Useful for fine-tuning linguistic embeddings while keeping
-        topical embeddings fixed.
-
-        Raises:
-            RuntimeError: If use_dual_roots=False
-        """
-        if not self.use_dual_roots:
-            raise RuntimeError("Cannot freeze topical embeddings: use_dual_roots=False")
-
-        self.root_embed.freeze_topical()
-        logger.info("Topical embeddings frozen")
-
-    def unfreeze_all_embeddings(self):
-        """
-        Unfreeze both linguistic and topical embeddings.
-
-        Useful for joint fine-tuning after sequential training.
-
-        Raises:
-            RuntimeError: If use_dual_roots=False
-        """
-        if not self.use_dual_roots:
-            raise RuntimeError("Cannot unfreeze embeddings: use_dual_roots=False")
-
-        self.root_embed.unfreeze_all()
-        logger.info("All root embeddings unfrozen")
-
     def get_prefix_idx(self, prefix: Optional[str]) -> int:
         """Get index for prefix, using <NONE> if absent."""
         if not prefix:
@@ -353,11 +228,7 @@ class CompositionalEmbedding(nn.Module):
         Returns:
             Word embedding tensor (embed_dim,)
         """
-        # Get device - compatible with both single and dual embeddings
-        if self.use_dual_roots:
-            device = self.root_embed.linguistic_embeddings.weight.device
-        else:
-            device = self.root_embed.weight.device
+        device = self.root_embed.weight.device
 
         # Get embeddings for each component
         root_idx = torch.tensor([self.get_root_idx(root)], device=device)
@@ -611,7 +482,6 @@ class CompositionalEmbedding(nn.Module):
 
                 if initialization == 'average':
                     # Average of all non-special embeddings
-                    # Skip <PAD>, <UNK>, etc. (assume first few indices)
                     start_idx = min(5, old_vocab_size)
                     new_embed.weight.data[new_idx] = old_weights[start_idx:].mean(dim=0)
 
@@ -672,44 +542,6 @@ class CompositionalEmbedding(nn.Module):
             json.dump(affix_data, f, ensure_ascii=False, indent=2)
 
         logger.info(f"Saved vocabularies to {vocab_dir}")
-
-    def get_new_root_embeddings_for_finetuning(
-        self,
-        new_root_start_idx: int,
-    ) -> List[nn.Parameter]:
-        """
-        Get parameters for fine-tuning only new roots.
-
-        Usage:
-            # After expanding vocabulary
-            new_params = model.get_new_root_embeddings_for_finetuning(old_vocab_size)
-            optimizer = torch.optim.Adam(new_params, lr=1e-3)
-
-        Args:
-            new_root_start_idx: Index where new roots start
-
-        Returns:
-            List of parameters (the embedding weights slice)
-        """
-        # Create a wrapper that only optimizes the new embeddings
-        # This is a bit hacky but works for fine-tuning
-        class NewRootEmbeddingWrapper(nn.Module):
-            def __init__(self, embed_layer, start_idx):
-                super().__init__()
-                self.embed_layer = embed_layer
-                self.start_idx = start_idx
-                # Register the slice as a parameter
-                self.new_embeddings = nn.Parameter(
-                    embed_layer.weight.data[start_idx:].clone()
-                )
-
-            def sync_back(self):
-                """Copy fine-tuned embeddings back to main embedding layer."""
-                with torch.no_grad():
-                    self.embed_layer.weight.data[self.start_idx:] = self.new_embeddings.data
-
-        wrapper = NewRootEmbeddingWrapper(self.root_embed, new_root_start_idx)
-        return [wrapper.new_embeddings], wrapper
 
 
 def main():
@@ -777,16 +609,6 @@ def main():
         ending='o'
     )
     print(f"  remalhundo (multi-prefix): shape={embedding.shape}, norm={embedding.norm().item():.4f}")
-
-    # Test: katidoj (kittens)
-    if 'kat' in emb.root_vocab or '<UNK>' in emb.root_vocab:
-        embedding = emb.encode_word(
-            root='kat',
-            prefix=None,
-            suffixes=['id'],
-            ending='oj'
-        )
-        print(f"  katidoj: shape={embedding.shape}, norm={embedding.norm().item():.4f}")
 
     # Test unknown root (should use <UNK>)
     embedding = emb.encode_word(

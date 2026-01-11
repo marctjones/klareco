@@ -1,3 +1,5 @@
+idlergear_version = "0.3.27"
+
 [project]
 name = ""
 
@@ -9,3 +11,6 @@ auto_start = true
 [backends]
 task = "github"
 explore = "github"
+note = "github"
+reference = "github"
+plan = "github"

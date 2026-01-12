@@ -63,8 +63,21 @@ fi
 python --version
 echo ""
 
-# Paths
-CORPUS_FILE="$PROJECT_ROOT/data/corpus/unified_corpus.jsonl"
+# Paths - Prefer enhanced corpus (latest parser improvements)
+if [ -f "$PROJECT_ROOT/data/enhanced_corpus/corpus_with_metadata.jsonl" ]; then
+    CORPUS_FILE="$PROJECT_ROOT/data/enhanced_corpus/corpus_with_metadata.jsonl"
+    echo -e "${GREEN}Using enhanced corpus (includes -an, -ĉj, -nj parser fixes)${NC}"
+elif [ -f "$PROJECT_ROOT/data/corpus/unified_corpus.jsonl" ]; then
+    CORPUS_FILE="$PROJECT_ROOT/data/corpus/unified_corpus.jsonl"
+    echo -e "${YELLOW}Warning: Using older unified corpus (missing latest parser improvements)${NC}"
+    echo -e "${YELLOW}Recommendation: Rebuild corpus with ./scripts/parse_corpus.sh${NC}"
+else
+    echo -e "${RED}Error: No corpus found${NC}"
+    echo "Expected: data/enhanced_corpus/corpus_with_metadata.jsonl"
+    echo "Or: data/corpus/unified_corpus.jsonl"
+    exit 1
+fi
+
 EKZERCARO_FILE="$PROJECT_ROOT/data/training/ekzercaro_sentences.jsonl"
 CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/clean_roots.json"
 FUNDAMENTO_ROOTS="$PROJECT_ROOT/data/vocabularies/fundamento_roots.json"
@@ -85,13 +98,7 @@ echo "Log:         $LOG_FILE"
 echo "Fresh:       $FRESH_START"
 echo ""
 
-# Check prerequisites
-if [ ! -f "$CORPUS_FILE" ]; then
-    echo -e "${RED}Error: Corpus file not found: $CORPUS_FILE${NC}"
-    echo "Run ./scripts/parse_corpus.sh first"
-    exit 1
-fi
-
+# Check prerequisites (corpus already validated in path selection above)
 if [ ! -f "$CLEAN_VOCAB" ]; then
     echo -e "${RED}Error: Clean vocabulary not found: $CLEAN_VOCAB${NC}"
     exit 1
@@ -196,7 +203,7 @@ fi
 echo "Starting training... (logging to $LOG_FILE)"
 echo ""
 
-python scripts/training/train_root_embeddings.py \
+python scripts/train_root_embeddings.py \
     --fundamento-roots "$FUNDAMENTO_ROOTS" \
     --revo-definitions "$REVO_DEFINITIONS" \
     --ekzercaro "$EKZERCARO_FILE" \

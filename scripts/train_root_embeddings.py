@@ -375,12 +375,22 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
     for i, r1 in enumerate(fund_roots):
         if r1 not in root_to_idx:
             continue
-        trans1 = set(v.lower().strip() for v in fundamento_roots[r1].get('translations', {}).values() if v)
+        # Handle both string format ("am": "love") and dict format ("am": {"translations": {...}})
+        r1_data = fundamento_roots[r1]
+        if isinstance(r1_data, str):
+            trans1 = {r1_data.lower().strip()}
+        else:
+            trans1 = set(v.lower().strip() for v in r1_data.get('translations', {}).values() if v)
 
         for r2 in fund_roots[i+1:]:
             if r2 not in root_to_idx:
                 continue
-            trans2 = set(v.lower().strip() for v in fundamento_roots[r2].get('translations', {}).values() if v)
+            # Handle both string format and dict format
+            r2_data = fundamento_roots[r2]
+            if isinstance(r2_data, str):
+                trans2 = {r2_data.lower().strip()}
+            else:
+                trans2 = set(v.lower().strip() for v in r2_data.get('translations', {}).values() if v)
 
             # Compute translation overlap
             overlap = compute_jaccard(trans1, trans2)

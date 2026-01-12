@@ -22,11 +22,14 @@ def load_model(model_path: Path) -> Tuple[torch.nn.Embedding, Dict[str, int], Di
     """Load trained embedding model and vocabularies."""
     checkpoint = torch.load(model_path, map_location='cpu')
 
+    # Extract the embedding weights directly
     embedding = torch.nn.Embedding(
         checkpoint['vocab_size'],
         checkpoint['embedding_dim']
     )
-    embedding.load_state_dict(checkpoint['model_state_dict'])
+
+    # The checkpoint has 'embeddings.weight', we need just 'weight'
+    embedding.weight.data = checkpoint['model_state_dict']['embeddings.weight']
 
     root_to_idx = checkpoint['root_to_idx']
     idx_to_root = checkpoint['idx_to_root']

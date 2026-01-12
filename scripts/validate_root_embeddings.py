@@ -26,10 +26,10 @@ def load_model(model_path: Path) -> Tuple[torch.nn.Embedding, Dict[str, int], Di
         checkpoint['vocab_size'],
         checkpoint['embedding_dim']
     )
-    embedding.load_state_dict({'weight': checkpoint['embedding_weights']})
+    embedding.load_state_dict(checkpoint['model_state_dict'])
 
     root_to_idx = checkpoint['root_to_idx']
-    idx_to_root = {v: k for k, v in root_to_idx.items()}
+    idx_to_root = checkpoint['idx_to_root']
 
     return embedding, root_to_idx, idx_to_root
 

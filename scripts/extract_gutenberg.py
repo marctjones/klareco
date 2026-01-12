@@ -8,6 +8,7 @@ Features:
 - Progress indicators
 - Error logging with context
 - Handles multiple books in one run
+- Checkpoint support for restartability (--fresh to start over)
 """
 
 import json
@@ -16,7 +17,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Dict, Any
 
 # Configure logging
 logging.basicConfig(
@@ -29,6 +30,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+# =============================================================================
+# Checkpoint Support
+# =============================================================================
+
+def load_checkpoint(checkpoint_path: Path) -> Dict[str, Any]:
+    """Load checkpoint if exists."""
+    if checkpoint_path.exists():
+        try:
+            with open(checkpoint_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Failed to load checkpoint: {e}")
+    return {'completed_books': [], 'total_sentences': 0}
+
+
+def save_checkpoint(checkpoint_path: Path, state: Dict[str, Any]):
+    """Atomically save checkpoint."""
+    temp_path = checkpoint_path.with_suffix('.tmp')
+    try:
+        with open(temp_path, 'w', encoding='utf-8') as f:
+            json.dump(state, f, indent=2)
+        temp_path.rename(checkpoint_path)
+    except Exception as e:
+        logger.error(f"Failed to save checkpoint: {e}")
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+# =============================================================================
+# Chapter/Section Detection
+# =============================================================================
 
 def detect_chapter_marker(line: str) -> Optional[dict]:
     """
@@ -281,7 +314,8 @@ def process_book_file(
 def process_all_books(
     cleaned_dir: Path,
     output_file: Path,
-    books: list[tuple[Path, str, str]]
+    books: list[tuple[Path, str, str]],
+    fresh: bool = False
 ):
     """
     Process all book files and write to output.
@@ -290,19 +324,53 @@ def process_all_books(
         cleaned_dir: Directory containing cleaned text files (unused if books have full paths)
         output_file: Output JSONL file
         books: List of (file_path, book_name, source_id) tuples
+        fresh: If True, start fresh ignoring any checkpoint
     """
+    # Checkpoint file next to output
+    checkpoint_path = output_file.with_suffix('.checkpoint.json')
+
+    # Load or initialize checkpoint
+    if fresh:
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
+            logger.info("Fresh start requested, deleted existing checkpoint")
+        if output_file.exists():
+            output_file.unlink()
+            logger.info("Fresh start requested, deleted existing output")
+        checkpoint = {'completed_books': [], 'total_sentences': 0}
+    else:
+        checkpoint = load_checkpoint(checkpoint_path)
+
+    completed_books = set(checkpoint.get('completed_books', []))
+    total_sentences = checkpoint.get('total_sentences', 0)
+
+    # Filter to only books not yet completed
+    remaining_books = [
+        (f, name, sid) for f, name, sid in books
+        if sid not in completed_books
+    ]
+
     logger.info("=" * 60)
     logger.info("Starting book extraction")
     logger.info(f"Output: {output_file}")
-    logger.info(f"Books to process: {len(books)}")
+    logger.info(f"Total books: {len(books)}")
+    logger.info(f"Already completed: {len(completed_books)}")
+    logger.info(f"Remaining to process: {len(remaining_books)}")
     logger.info("=" * 60)
 
-    start_time = time.time()
-    total_sentences = 0
-    total_errors = 0
+    if not remaining_books:
+        logger.info("All books already processed! Use --fresh to reprocess.")
+        return
 
-    with open(output_file, 'w', encoding='utf-8') as out:
-        for input_file, book_name, source_id in books:
+    start_time = time.time()
+    total_errors = 0
+    session_sentences = 0
+
+    # Append mode if resuming, write mode if fresh
+    mode = 'a' if completed_books else 'w'
+
+    with open(output_file, mode, encoding='utf-8') as out:
+        for input_file, book_name, source_id in remaining_books:
             # Handle both Path objects and string filenames (backwards compatibility)
             if isinstance(input_file, str):
                 input_file = cleaned_dir / input_file
@@ -318,14 +386,25 @@ def process_all_books(
                     out.write(json.dumps(entry, ensure_ascii=False) + '\n')
                     book_sentences += 1
                     total_sentences += 1
+                    session_sentences += 1
 
                     # Progress indicator every 1000 sentences
-                    if total_sentences % 1000 == 0:
+                    if session_sentences % 1000 == 0:
                         elapsed = time.time() - start_time
-                        rate = total_sentences / elapsed
-                        logger.info(f"Progress: {total_sentences:,} sentences ({rate:.0f} sentences/sec)")
+                        rate = session_sentences / elapsed
+                        logger.info(f"Progress: {total_sentences:,} total sentences ({rate:.0f} sentences/sec)")
 
                 logger.info(f"✓ {book_name}: {book_sentences:,} sentences")
+
+                # Mark book as completed and save checkpoint
+                completed_books.add(source_id)
+                checkpoint = {
+                    'completed_books': list(completed_books),
+                    'total_sentences': total_sentences,
+                    'last_book': source_id,
+                    'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+                }
+                save_checkpoint(checkpoint_path, checkpoint)
 
             except Exception as e:
                 total_errors += 1
@@ -336,10 +415,16 @@ def process_all_books(
     logger.info("=" * 60)
     logger.info("Book extraction complete!")
     logger.info(f"Total sentences extracted: {total_sentences:,}")
+    logger.info(f"This session: {session_sentences:,} sentences")
     logger.info(f"Errors encountered: {total_errors}")
     logger.info(f"Time elapsed: {elapsed/60:.1f} minutes")
-    logger.info(f"Rate: {total_sentences/(elapsed/60):.0f} sentences/min")
+    if elapsed > 0:
+        logger.info(f"Rate: {session_sentences/(elapsed/60):.0f} sentences/min")
     logger.info("=" * 60)
+
+    # Clean up checkpoint on successful completion
+    if total_errors == 0 and len(remaining_books) > 0:
+        logger.info("All books processed successfully, checkpoint retained for reference")
 
 
 def discover_books(cleaned_dir: Path) -> list[tuple[Path, str, str]]:
@@ -412,6 +497,8 @@ if __name__ == '__main__':
                         help='Output JSONL file')
     parser.add_argument('--list-only', action='store_true',
                         help='Only list discovered books, do not extract')
+    parser.add_argument('--fresh', action='store_true',
+                        help='Start fresh, ignore checkpoint and delete existing output')
 
     args = parser.parse_args()
 
@@ -435,5 +522,6 @@ if __name__ == '__main__':
     process_all_books(
         cleaned_dir=args.cleaned_dir,
         output_file=args.output,
-        books=BOOKS
+        books=BOOKS,
+        fresh=args.fresh
     )

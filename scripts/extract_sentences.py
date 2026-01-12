@@ -15,10 +15,13 @@ import re
 import gc
 import signal
 import json
+import os
 from pathlib import Path
 from typing import List, Dict, Optional, Iterator
 from datetime import datetime
 import sys
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -80,6 +83,80 @@ def log_problem_sentence(sentence: str, source_file: str, para_num: int, error: 
     }
     with open(PROBLEM_SENTENCES_LOG, 'a', encoding='utf-8') as f:
         f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+
+
+# Global parser reference for multiprocessing workers
+_parser_module = None
+
+
+def _init_worker():
+    """Initialize parser in worker process."""
+    global _parser_module
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from klareco import parser
+    _parser_module = parser
+
+
+def _parse_sentence_worker(args):
+    """Worker function for parallel parsing. Takes (text, timeout) tuple."""
+    text, timeout = args
+    global _parser_module
+
+    if _parser_module is None:
+        _init_worker()
+
+    try:
+        ast = _parser_module.parse(text)
+        stats = ast.get('parse_statistics', {})
+        parse_rate = stats.get('success_rate', 0.0)
+        return {
+            'ast': ast,
+            'parse_success': True,
+            'parse_rate': parse_rate,
+            'parse_error': None
+        }
+    except Exception as e:
+        return {
+            'ast': None,
+            'parse_success': False,
+            'parse_rate': 0.0,
+            'parse_error': str(e)
+        }
+
+
+def parse_sentences_parallel(sentences: List[str], num_workers: int = 0,
+                            parse_timeout: int = 30) -> List[Dict]:
+    """
+    Parse multiple sentences in parallel using multiprocessing.
+
+    Args:
+        sentences: List of sentence texts to parse
+        num_workers: Number of worker processes (0 = auto-detect CPU cores)
+        parse_timeout: Timeout per sentence (not enforced in parallel mode)
+
+    Returns:
+        List of parse results (same order as input sentences)
+    """
+    if num_workers == 0:
+        num_workers = max(1, cpu_count() - 1)  # Leave one core free
+
+    if num_workers == 1 or len(sentences) < 10:
+        # Single-threaded fallback for small batches
+        results = []
+        for text in sentences:
+            results.append(_parse_sentence_worker((text, parse_timeout)))
+        return results
+
+    # Prepare arguments
+    args = [(text, parse_timeout) for text in sentences]
+
+    # Use process pool
+    with Pool(processes=num_workers, initializer=_init_worker) as pool:
+        results = pool.map(_parse_sentence_worker, args, chunksize=50)
+
+    return results
 
 
 def unwrap_paragraphs(text: str) -> List[str]:
@@ -266,6 +343,7 @@ def extract_sentences_streaming(
     chunk_size_mb: int = 50,
     parse_timeout: int = 30,
     start_byte: int = 0,
+    num_workers: int = 0,
 ) -> Iterator[Dict]:
     """
     Extract sentences from a file using streaming/generator pattern for memory efficiency.
@@ -282,6 +360,7 @@ def extract_sentences_streaming(
         chunk_size_mb: Process file in chunks of this size in MB (default: 50MB)
         parse_timeout: Max seconds to wait for parsing a sentence (default: 30)
         start_byte: Byte position to start from for resumption (default: 0)
+        num_workers: Number of parallel workers for parsing (0 = auto-detect CPU cores)
 
     Yields:
         Sentence dictionaries with metadata
@@ -294,7 +373,7 @@ def extract_sentences_streaming(
     if file_size_mb > 100:
         yield from _extract_sentences_chunked(
             file_path, min_words, max_words, with_ast, batch_size, chunk_size_mb, parse_timeout,
-            start_byte=start_byte
+            start_byte=start_byte, num_workers=num_workers
         )
     else:
         # For smaller files, load entire file (faster)
@@ -309,7 +388,8 @@ def extract_sentences_streaming(
         # Add byte tracking to each entry with paragraph-based progress
         for entry in _process_text_streaming(
             text, min_words, max_words, with_ast, batch_size,
-            start_para=1, source_file=source_file, parse_timeout=parse_timeout
+            start_para=1, source_file=source_file, parse_timeout=parse_timeout,
+            num_workers=num_workers
         ):
             # Estimate progress based on paragraph number
             para_num = entry.get('paragraph', 1)
@@ -327,14 +407,19 @@ def _process_text_streaming(
     batch_size: int,
     start_para: int = 1,
     source_file: str = "unknown",
-    parse_timeout: int = 30
+    parse_timeout: int = 30,
+    num_workers: int = 0,
 ) -> Iterator[Dict]:
-    """Helper to process text and yield sentences."""
-    # We use parse_with_timeout instead of direct parse import
+    """Helper to process text and yield sentences.
 
+    When num_workers > 1 and with_ast=True, uses multiprocessing for parallel parsing.
+    """
     # Extract paragraphs and sentences
     paragraphs = unwrap_paragraphs(text)
     count = 0
+
+    # Collect sentences for batch processing if using parallel parsing
+    pending_entries = []  # List of (entry_dict, sentence_text) for batch parsing
 
     for para_num, para in enumerate(paragraphs, start_para):
         # Skip English-language sections in Wikipedia (between <div lang="en"> and </div>)
@@ -375,8 +460,33 @@ def _process_text_streaming(
                 'word_count': word_count,
             }
 
-            # Optional: generate AST for quality control
-            if with_ast:
+            # If generating AST with parallel workers, collect for batch processing
+            if with_ast and num_workers != 1:
+                pending_entries.append((entry, sent, para_num))
+
+                # Process batch when we have enough sentences
+                if len(pending_entries) >= batch_size:
+                    # Parse batch in parallel
+                    sentences_to_parse = [s for _, s, _ in pending_entries]
+                    parse_results = parse_sentences_parallel(sentences_to_parse, num_workers, parse_timeout)
+
+                    # Merge results back into entries
+                    for (entry_dict, sent_text, pnum), result in zip(pending_entries, parse_results):
+                        entry_dict['ast'] = result['ast']
+                        entry_dict['parse_success'] = result['parse_success']
+                        entry_dict['parse_rate'] = result['parse_rate']
+                        if result['parse_error']:
+                            entry_dict['parse_error'] = result['parse_error']
+                            log_problem_sentence(sent_text, source_file, pnum, result['parse_error'])
+
+                        count += 1
+                        yield entry_dict
+
+                    pending_entries = []
+                    gc.collect()
+
+            # Single-threaded AST generation (original behavior)
+            elif with_ast:
                 try:
                     ast = parse_with_timeout(sent, timeout_seconds=parse_timeout)
                     entry['ast'] = ast
@@ -398,12 +508,35 @@ def _process_text_streaming(
                     entry['parse_rate'] = 0.0
                     entry['parse_error'] = str(e)
 
-            count += 1
-            yield entry
+                count += 1
+                yield entry
 
-            # Periodically clear memory
-            if count % batch_size == 0:
-                gc.collect()
+                # Periodically clear memory
+                if count % batch_size == 0:
+                    gc.collect()
+
+            # No AST generation
+            else:
+                count += 1
+                yield entry
+
+                if count % batch_size == 0:
+                    gc.collect()
+
+    # Process any remaining pending entries (for parallel mode)
+    if pending_entries:
+        sentences_to_parse = [s for _, s, _ in pending_entries]
+        parse_results = parse_sentences_parallel(sentences_to_parse, num_workers, parse_timeout)
+
+        for (entry_dict, sent_text, pnum), result in zip(pending_entries, parse_results):
+            entry_dict['ast'] = result['ast']
+            entry_dict['parse_success'] = result['parse_success']
+            entry_dict['parse_rate'] = result['parse_rate']
+            if result['parse_error']:
+                entry_dict['parse_error'] = result['parse_error']
+                log_problem_sentence(sent_text, source_file, pnum, result['parse_error'])
+
+            yield entry_dict
 
 
 def _extract_sentences_chunked(
@@ -415,6 +548,7 @@ def _extract_sentences_chunked(
     chunk_size_mb: int,
     parse_timeout: int = 30,
     start_byte: int = 0,
+    num_workers: int = 0,
 ) -> Iterator[Dict]:
     """
     Process very large files in chunks to avoid memory issues.
@@ -425,6 +559,7 @@ def _extract_sentences_chunked(
     Args:
         start_byte: Byte position to start from (for resumption). Will seek to this
                    position and then find the next paragraph boundary before processing.
+        num_workers: Number of parallel workers for parsing (0 = auto-detect CPU cores)
     """
     source_file = str(file_path.name)
     file_size = file_path.stat().st_size
@@ -461,7 +596,8 @@ def _extract_sentences_chunked(
                     chars_processed = 0
                     for entry in _process_text_streaming(
                         overlap_buffer, min_words, max_words, with_ast, batch_size, para_num,
-                        source_file=source_file, parse_timeout=parse_timeout
+                        source_file=source_file, parse_timeout=parse_timeout,
+                        num_workers=num_workers
                     ):
                         # Interpolate within the remaining buffer
                         sent_text = entry.get('text', '')
@@ -498,7 +634,8 @@ def _extract_sentences_chunked(
                 # Process this chunk
                 for entry in _process_text_streaming(
                     complete_text, min_words, max_words, with_ast, batch_size, para_num,
-                    source_file=source_file, parse_timeout=parse_timeout
+                    source_file=source_file, parse_timeout=parse_timeout,
+                    num_workers=num_workers
                 ):
                     # Interpolate within chunk based on paragraph position
                     current_para = entry.get('paragraph', para_num)

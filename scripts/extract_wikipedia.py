@@ -438,15 +438,22 @@ def process_wikipedia_dump(
                     rate = total_articles / elapsed
                     logger.info(f"Progress: {total_articles} articles, {total_sentences} sentences ({rate:.1f} articles/sec)")
 
-                # Save checkpoint
+                # Save checkpoint (atomic)
                 if checkpoint_file and total_articles % checkpoint_interval == 0:
-                    with open(checkpoint_file, 'w') as f:
-                        json.dump({
-                            'processed_articles': list(processed_articles),
-                            'total_articles': total_articles,
-                            'total_sentences': total_sentences
-                        }, f)
-                    logger.info(f"✓ Checkpoint saved: {total_articles} articles processed")
+                    temp_checkpoint = checkpoint_file.with_suffix('.tmp')
+                    try:
+                        with open(temp_checkpoint, 'w') as f:
+                            json.dump({
+                                'processed_articles': list(processed_articles),
+                                'total_articles': total_articles,
+                                'total_sentences': total_sentences
+                            }, f)
+                        temp_checkpoint.rename(checkpoint_file)
+                        logger.info(f"✓ Checkpoint saved: {total_articles} articles processed")
+                    except Exception as e:
+                        logger.error(f"Failed to save checkpoint: {e}")
+                        if temp_checkpoint.exists():
+                            temp_checkpoint.unlink()
 
             except Exception as e:
                 error_count += 1
@@ -467,15 +474,20 @@ def process_wikipedia_dump(
     logger.info(f"Rate: {total_articles/(elapsed/60):.1f} articles/min")
     logger.info("=" * 60)
 
-    # Save final checkpoint
+    # Save final checkpoint (atomic)
     if checkpoint_file:
-        with open(checkpoint_file, 'w') as f:
-            json.dump({
-                'processed_articles': list(processed_articles),
-                'total_articles': total_articles,
-                'total_sentences': total_sentences,
-                'completed': True
-            }, f)
+        temp_checkpoint = checkpoint_file.with_suffix('.tmp')
+        try:
+            with open(temp_checkpoint, 'w') as f:
+                json.dump({
+                    'processed_articles': list(processed_articles),
+                    'total_articles': total_articles,
+                    'total_sentences': total_sentences,
+                    'completed': True
+                }, f)
+            temp_checkpoint.rename(checkpoint_file)
+        except Exception as e:
+            logger.error(f"Failed to save final checkpoint: {e}")
 
 
 if __name__ == '__main__':
@@ -490,8 +502,19 @@ if __name__ == '__main__':
                         help='Checkpoint file for resuming')
     parser.add_argument('--checkpoint-interval', type=int, default=1000,
                         help='Save checkpoint every N articles')
+    parser.add_argument('--fresh', action='store_true',
+                        help='Start fresh, ignore checkpoint')
 
     args = parser.parse_args()
+
+    # Handle --fresh flag
+    if args.fresh:
+        if args.checkpoint.exists():
+            args.checkpoint.unlink()
+            print(f"Fresh start: removed checkpoint {args.checkpoint}")
+        if args.output.exists():
+            args.output.unlink()
+            print(f"Fresh start: removed output {args.output}")
 
     # Create output directory
     args.output.parent.mkdir(parents=True, exist_ok=True)

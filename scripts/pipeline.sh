@@ -7,7 +7,7 @@
 # 2. Clean - Clean/normalize text
 # 3. Extract - Extract sentences with metadata
 # 4. Parse - Parse to ASTs and build unified corpus
-# 5. Index - Build FAISS indexes
+# 5. Index - Build Kùzu indexes
 # 6. Train - Train embedding models
 # 7. Validate - Validate quality
 #
@@ -123,7 +123,7 @@ fi
 # Stage 5: Index
 if should_run "index"; then
     echo -e "${GREEN}=== Stage 5: INDEX ===${NC}"
-    ./scripts/index_compositional.sh
+    ./scripts/index_kuzu.sh
     echo ""
 fi
 

@@ -183,13 +183,13 @@ def try_parse_with_klareco(sentences: List[dict]) -> List[dict]:
     Falls back gracefully if parser not available.
     """
     try:
-        from klareco.parser import parse_sentence
+        from klareco.parser import parse
         logger.info("Using Klareco parser for accurate root extraction")
 
         parsed_count = 0
         for sent in sentences:
             try:
-                ast = parse_sentence(sent['text'])
+                ast = parse(sent['text'])
                 if ast and ast.get('tipo') == 'frazo':
                     # Extract roots from AST
                     roots = extract_roots_from_ast(ast)
@@ -229,7 +229,7 @@ def extract_roots_from_ast(ast: dict) -> List[str]:
 def main():
     parser = argparse.ArgumentParser(description='Extract Ekzercaro sentences from Fundamento')
     parser.add_argument('--input', type=Path,
-                        default=Path('data/raw/fundamento/fundamento_de_esperanto.txt'),
+                        default=Path('data/raw/eo/fundamento/fundamento_de_esperanto.txt'),
                         help='Path to Fundamento text file')
     parser.add_argument('--output', type=Path,
                         default=Path('data/training/ekzercaro_sentences.jsonl'),

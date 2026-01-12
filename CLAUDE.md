@@ -83,11 +83,10 @@ python scripts/parse_corpus.py \
   --output data/corpus/unified_corpus.jsonl \
   --min-parse-rate 0.5
 
-# Build retrieval index with compositional embeddings
-python scripts/index_compositional.py \
-  --corpus data/corpus/unified_corpus.jsonl \
-  --root-model models/root_embeddings/best_model.pt \
-  --output-dir data/indexes/compositional
+# Build Kùzu graph index
+python scripts/index_kuzu.py \
+  --corpus data/enhanced_corpus/corpus_with_metadata.jsonl \
+  --output-dir data/indexes/kuzu_index
 ```
 
 ### Training Models
@@ -222,7 +221,7 @@ python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
 | Clean all texts | `./scripts/clean_all.sh` | Clean Gutenberg + ReVo |
 | Extract all | `./scripts/extract_all.sh` | Extract Wikipedia + Books |
 | Parse corpus | `./scripts/parse_corpus.sh` | Build unified corpus with ASTs |
-| Build index | `./scripts/index_compositional.sh` | Build FAISS index |
+| Build index | `./scripts/index_kuzu.sh` | Build Kùzu graph index |
 | Train roots | `./scripts/train_roots.sh` | Train root embeddings |
 | Train affixes | `./scripts/train_affixes.sh` | Train affix transforms |
 | Validate all | `./scripts/validate_all.sh` | Run all validation checks |
@@ -241,8 +240,8 @@ The Klareco data pipeline has 7 logical stages. Use `pipeline.sh` to run the ful
 ACQUIRE  → Download raw data (Gutenberg, Wikipedia)
 CLEAN    → Clean/normalize text (remove headers, markup)
 EXTRACT  → Extract sentences + metadata (JSONL)
-PARSE    → Parse to ASTs (unified corpus)
-INDEX    → Build FAISS indexes
+PARSE    → Parse to ASTs (enhanced corpus)
+INDEX    → Build Kùzu graph indexes
 TRAIN    → Train embedding models
 VALIDATE → Validate quality
 ```
@@ -269,14 +268,22 @@ klareco/
 
 scripts/
 ├── acquire_*.py            # Download raw data
+├── acquire_*.sh            # Download scripts (shell wrappers)
 ├── clean_*.py              # Clean/normalize text
 ├── extract_*.py            # Extract sentences with metadata
+├── extract_*.sh            # Extraction scripts (shell wrappers)
 ├── parse_*.py              # Parse to ASTs
-├── index_*.py              # Build FAISS indexes
-├── train_*.sh              # Train models (shell wrappers)
-├── validate_*.py           # Validate quality
+├── parse_*.sh              # Parsing scripts (shell wrappers)
+├── index_*.py              # Build graph indexes
+├── index_*.sh              # Indexing scripts (shell wrappers)
+├── train_*.py              # Train models
+├── train_*.sh              # Training scripts (shell wrappers)
+├── evaluate_*.py           # Evaluation scripts
+├── validate_*.py           # Validation scripts
 ├── demo_*.py               # Interactive demos
 ├── analyze_*.py            # Analysis scripts (read-only)
+├── util_*.py               # Utility scripts
+├── debug_*.py              # Debugging tools
 ├── pipeline.sh             # Master workflow script
 └── archive/                # Obsolete/superseded scripts
 ```

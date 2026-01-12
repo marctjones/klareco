@@ -9,7 +9,9 @@
 # - Shows progress and logs errors
 #
 # Usage:
-#   ./scripts/run_corpus_builder.sh [--min-parse-rate 0.5]
+#   ./scripts/parse_corpus.sh                    # Resume from checkpoint
+#   ./scripts/parse_corpus.sh --fresh            # Start fresh, ignore checkpoint
+#   ./scripts/parse_corpus.sh --min-parse-rate 0.5
 
 set -e  # Exit on error
 
@@ -22,6 +24,7 @@ NC='\033[0m' # No Color
 
 # Default parameters
 MIN_PARSE_RATE=0.5
+FRESH_FLAG=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -29,6 +32,10 @@ while [[ $# -gt 0 ]]; do
         --min-parse-rate)
             MIN_PARSE_RATE="$2"
             shift 2
+            ;;
+        --fresh)
+            FRESH_FLAG="--fresh"
+            shift
             ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
@@ -94,19 +101,24 @@ echo -e "${BLUE}═════════════════════�
 echo -e "${BLUE}Starting corpus building...${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════════${NC}"
 echo ""
+
+# Set up logging
+LOG_FILE="logs/parse_corpus_$(date +%Y%m%d_%H%M%S).log"
 echo -e "${YELLOW}→${NC} This will parse all sentences to ASTs"
 echo -e "${YELLOW}→${NC} Estimated time: 2-4 hours for full corpus"
-echo -e "${YELLOW}→${NC} Logs: logs/corpus_building.log"
+echo -e "${YELLOW}→${NC} Log file: $LOG_FILE"
 echo -e "${YELLOW}→${NC} Progress updates every 100 sentences"
 echo ""
 echo -e "${YELLOW}→${NC} Press Ctrl+C to pause (will checkpoint)"
 echo ""
 
-# Run corpus builder
-python scripts/build_enhanced_corpus.py \
+# Run corpus builder with logging
+python scripts/parse_enhanced_corpus.py \
     --stage all \
     --min-parse-rate "$MIN_PARSE_RATE" \
-    --output-dir data/enhanced_corpus
+    --output-dir data/enhanced_corpus \
+    $FRESH_FLAG \
+    2>&1 | tee "$LOG_FILE"
 
 # Check exit status
 if [ $? -eq 0 ]; then
@@ -144,7 +156,9 @@ parse_rates = []
 with open('data/enhanced_corpus/corpus_with_metadata.jsonl', 'r') as f:
     for line in f:
         entry = json.loads(line)
-        if entry['source'] == 'wikipedia':
+        # source is a dict with 'name' field
+        source_name = entry.get('source', {}).get('name', '')
+        if source_name == 'wikipedia':
             wiki_count += 1
         else:
             books_count += 1
@@ -155,8 +169,8 @@ avg_parse_rate = sum(parse_rates) / len(parse_rates) if parse_rates else 0
 
 print(f'')
 print(f'Corpus Statistics:')
-print(f'  Wikipedia: {wiki_count:,} sentences')
-print(f'  Books: {books_count:,} sentences')
+print(f'  Wikipedia: {wiki_count:,} sentences ({100*wiki_count/(wiki_count+books_count):.1f}%)')
+print(f'  Books: {books_count:,} sentences ({100*books_count/(wiki_count+books_count):.1f}%)')
 print(f'  Total words: {total_words:,}')
 print(f'  Average parse rate: {avg_parse_rate:.2%}')
 PYEOF

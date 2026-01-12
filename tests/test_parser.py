@@ -346,6 +346,161 @@ class TestParserSuffixes(unittest.TestCase):
         self.assertEqual(ast['vortspeco'], 'substantivo')
 
 
+class TestParserSuffixAn(unittest.TestCase):
+    """Test suite for -an suffix (member of group/place)."""
+
+    def test_an_suffix_simple(self):
+        """Test -an suffix with simple root: urbano (city dweller)."""
+        ast = parse_word("urbano")
+        self.assertEqual(ast['radiko'], 'urb')
+        self.assertIn('an', ast['sufiksoj'])
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+
+    def test_an_suffix_klubano(self):
+        """Test -an suffix: klubano (club member)."""
+        ast = parse_word("klubano")
+        self.assertEqual(ast['radiko'], 'klub')
+        self.assertIn('an', ast['sufiksoj'])
+
+    def test_an_suffix_kristano_not_overdecomposed(self):
+        """Test -an suffix: kristano should NOT become kr+ist+an.
+
+        This tests that protected roots prevent over-decomposition.
+        'krist' is a protected root that shouldn't be split into kr+ist.
+        """
+        ast = parse_word("kristano")
+        self.assertEqual(ast['radiko'], 'krist')
+        self.assertIn('an', ast['sufiksoj'])
+        # Should NOT have -ist suffix
+        self.assertNotIn('ist', ast['sufiksoj'])
+
+    def test_an_suffix_amerikano(self):
+        """Test -an suffix: amerikano (American)."""
+        ast = parse_word("amerikano")
+        self.assertEqual(ast['radiko'], 'amerik')
+        self.assertIn('an', ast['sufiksoj'])
+
+    def test_an_suffix_esperantano(self):
+        """Test -an suffix: esperantano (Esperantist)."""
+        ast = parse_word("esperantano")
+        self.assertEqual(ast['radiko'], 'esperant')
+        self.assertIn('an', ast['sufiksoj'])
+
+    def test_an_suffix_samideano(self):
+        """Test -an suffix: samideano (fellow idealist/Esperantist)."""
+        ast = parse_word("samideano")
+        self.assertEqual(ast['radiko'], 'samide')
+        self.assertIn('an', ast['sufiksoj'])
+
+    def test_protected_root_banan_no_an_suffix(self):
+        """Test that 'banan' is protected and NOT decomposed as ban+an."""
+        ast = parse_word("banano")
+        self.assertEqual(ast['radiko'], 'banan')
+        # Should NOT have -an suffix (banan is a protected root)
+        self.assertNotIn('an', ast['sufiksoj'])
+
+    def test_protected_root_organ_no_an_suffix(self):
+        """Test that 'organ' is protected and NOT decomposed as org+an."""
+        ast = parse_word("organo")
+        self.assertEqual(ast['radiko'], 'organ')
+        self.assertNotIn('an', ast['sufiksoj'])
+
+
+class TestParserSuffixAffectionate(unittest.TestCase):
+    """Test suite for affectionate suffixes -ĉj (male) and -nj (female).
+
+    These suffixes truncate the root after the first vowel:
+    - patro → pa + ĉj + o → paĉjo (daddy)
+    - patrino → pa + nj + o → panjo (mommy)
+
+    The parser should recover the full root for semantic embeddings.
+    """
+
+    def test_cj_suffix_pacjo(self):
+        """Test -ĉj suffix: paĉjo (daddy) with root recovery."""
+        ast = parse_word("paĉjo")
+        # Root should be recovered to full form
+        self.assertEqual(ast['radiko'], 'patr')
+        self.assertIn('ĉj', ast['sufiksoj'])
+        # Truncated form should be stored
+        self.assertEqual(ast.get('radiko_trunkita'), 'pa')
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+
+    def test_cj_suffix_fracjo(self):
+        """Test -ĉj suffix: fraĉjo (bro) with root recovery."""
+        ast = parse_word("fraĉjo")
+        self.assertEqual(ast['radiko'], 'frat')
+        self.assertIn('ĉj', ast['sufiksoj'])
+        self.assertEqual(ast.get('radiko_trunkita'), 'fra')
+
+    def test_nj_suffix_panjo(self):
+        """Test -nj suffix: panjo (mommy) with root recovery.
+
+        panjo derives from patrino (patr + in + o), so:
+        - base root = patr (father/parent)
+        - suffixes = [in, nj] (-in for feminine, -nj for affectionate)
+        """
+        ast = parse_word("panjo")
+        self.assertEqual(ast['radiko'], 'patr')
+        self.assertIn('in', ast['sufiksoj'])  # Implicit feminine suffix
+        self.assertIn('nj', ast['sufiksoj'])
+        self.assertEqual(ast.get('radiko_trunkita'), 'pa')
+        self.assertEqual(ast['vortspeco'], 'substantivo')
+
+    def test_nj_suffix_franjo(self):
+        """Test -nj suffix: franjo (sis) with root recovery.
+
+        franjo derives from fratino (frat + in + o), so:
+        - base root = frat (sibling)
+        - suffixes = [in, nj] (-in for feminine, -nj for affectionate)
+        """
+        ast = parse_word("franjo")
+        self.assertEqual(ast['radiko'], 'frat')
+        self.assertIn('in', ast['sufiksoj'])  # Implicit feminine suffix
+        self.assertIn('nj', ast['sufiksoj'])
+        self.assertEqual(ast.get('radiko_trunkita'), 'fra')
+
+    def test_cj_suffix_avocjo(self):
+        """Test -ĉj suffix: aĉjo (grandpa) with root recovery."""
+        ast = parse_word("aĉjo")
+        self.assertEqual(ast['radiko'], 'av')
+        self.assertIn('ĉj', ast['sufiksoj'])
+        self.assertEqual(ast.get('radiko_trunkita'), 'a')
+
+    def test_nj_suffix_avinjo(self):
+        """Test -nj suffix: anjo (grandma) with root recovery.
+
+        anjo derives from avino (av + in + o), so:
+        - base root = av (grandparent)
+        - suffixes = [in, nj] (-in for feminine, -nj for affectionate)
+        """
+        ast = parse_word("anjo")
+        self.assertEqual(ast['radiko'], 'av')
+        self.assertIn('in', ast['sufiksoj'])  # Implicit feminine suffix
+        self.assertIn('nj', ast['sufiksoj'])
+        self.assertEqual(ast.get('radiko_trunkita'), 'a')
+
+    def test_cj_suffix_accusative(self):
+        """Test -ĉj suffix with accusative: paĉjon."""
+        ast = parse_word("paĉjon")
+        self.assertEqual(ast['radiko'], 'patr')
+        self.assertIn('ĉj', ast['sufiksoj'])
+        self.assertEqual(ast['kazo'], 'akuzativo')
+
+    def test_nj_suffix_plural(self):
+        """Test -nj suffix with plural: panjoj.
+
+        panjoj derives from patrinoj (patr + in + o + j), so:
+        - base root = patr (father/parent)
+        - suffixes = [in, nj] (-in for feminine, -nj for affectionate)
+        """
+        ast = parse_word("panjoj")
+        self.assertEqual(ast['radiko'], 'patr')
+        self.assertIn('in', ast['sufiksoj'])  # Implicit feminine suffix
+        self.assertIn('nj', ast['sufiksoj'])
+        self.assertEqual(ast['nombro'], 'pluralo')
+
+
 class TestParserCaseAndNumber(unittest.TestCase):
     """Test suite for case and number marking."""
 
@@ -1536,18 +1691,18 @@ class TestParserProperNounExtraction(unittest.TestCase):
         self.assertEqual(kerno['radiko'].lower(), 'einstein')
 
     def test_proper_noun_object_esperanton(self):
-        """Test that proper nouns are extracted as objects.
+        """Test that 'Esperanton' (Esperanto, accusative) is correctly parsed.
 
-        Note: The parser decomposes "Esperanton" as esp+ant+er+on because
-        "esp" (hope) is a known root. The key test is that the object
-        is successfully extracted, not the specific root decomposition.
+        The parser should extract 'esperant' as the root (not 'esp'), because
+        'esperant' is a Fundamento root meaning the language itself, while
+        'esper' means "to hope". The disambiguation prefers the longer
+        Fundamento root when both match.
         """
         ast = parse("Li parolas Esperanton.")
         self.assertIsNotNone(ast['objekto'])
         kerno = ast['objekto'].get('kerno', ast['objekto'])
-        # Parser decomposes "Esperanton" as esp+ant+er+on (esp=hope root)
-        # The important thing is the object is extracted
-        self.assertIn(kerno['radiko'].lower(), ['esperant', 'esp'])
+        # Must be 'esperant' (the language), not 'esp' (hope)
+        self.assertEqual(kerno['radiko'].lower(), 'esperant')
 
     def test_correlative_subject_kiu(self):
         """Test that 'Kiu' (who) is extracted as subject."""
@@ -1581,11 +1736,10 @@ class TestParserProperNounExtraction(unittest.TestCase):
         # Verify verb
         self.assertEqual(ast['verbo']['radiko'], 'fond')
 
-        # Verify object
+        # Verify object - must be 'esperant' (the language), not 'esp' (hope)
         self.assertIsNotNone(ast['objekto'])
         obj_kerno = ast['objekto'].get('kerno', ast['objekto'])
-        # Parser may decompose as esp+ant+er+on or keep as esperant
-        self.assertIn(obj_kerno['radiko'].lower(), ['esperant', 'esp'])
+        self.assertEqual(obj_kerno['radiko'].lower(), 'esperant')
 
     def test_known_root_still_works(self):
         """Verify that known roots still work as subjects."""

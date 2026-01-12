@@ -117,9 +117,16 @@ class KuzuIndexBuilder:
         return {}
 
     def _save_progress(self):
-        """Save progress to file."""
-        with open(self.progress_file, 'w') as f:
-            json.dump(self.progress, f)
+        """Save progress to file (atomic)."""
+        temp_file = self.progress_file.with_suffix('.tmp')
+        try:
+            with open(temp_file, 'w') as f:
+                json.dump(self.progress, f)
+            temp_file.rename(self.progress_file)
+        except Exception as e:
+            logger.error(f"Failed to save progress: {e}")
+            if temp_file.exists():
+                temp_file.unlink()
 
     def _init_database(self, fresh: bool = False):
         """Initialize Kuzu database and create schema."""
@@ -323,10 +330,8 @@ class KuzuIndexBuilder:
         logger.info("Step 2: Bulk loading CSVs into Kuzu...")
         self._bulk_load_csvs()
 
-        # Step 3: Compute root statistics
-        logger.info("")
-        logger.info("Step 3: Computing root statistics...")
-        self._compute_root_stats()
+        # Note: Root statistics (doc_freq, total_freq) are now computed during
+        # CSV streaming and included in roots.csv, so no separate computation needed.
 
         # Mark phase 1 complete
         self.progress['phase1_complete'] = True
@@ -350,6 +355,10 @@ class KuzuIndexBuilder:
         # Track unique entities
         roots_seen: Set[str] = set()
         docs_seen: Set[int] = set()
+
+        # Track root statistics during streaming (memory efficient)
+        root_doc_freq: Dict[str, int] = defaultdict(int)  # root → doc count
+        root_total_freq: Dict[str, int] = defaultdict(int)  # root → total occurrences
 
         # Open CSV files
         csv_files = {
@@ -453,17 +462,23 @@ class KuzuIndexBuilder:
 
                 # Extract roots and create edges
                 roots = self._extract_roots_from_ast(ast)
+                roots_in_this_doc: Set[str] = set()  # For doc_freq counting
                 for root, role, grammar in roots:
-                    # Add Root node if not seen
+                    # Track stats
+                    root_total_freq[root] += 1
+                    roots_in_this_doc.add(root)
+
+                    # Add Root node if not seen (placeholder - will rewrite with stats)
                     if root not in roots_seen:
-                        # Write all columns: root, doc_freq (0), total_freq (0)
-                        # Stats will be computed later
-                        csv_writers['roots'].writerow([root, 0, 0])
                         roots_seen.add(root)
 
                     # Add HAS_ROOT edge
                     grammar_json = json.dumps(grammar, ensure_ascii=False)
                     csv_writers['has_root'].writerow([sent_id, root, role, grammar_json])
+
+                # Update doc_freq for each unique root in this document
+                for root in roots_in_this_doc:
+                    root_doc_freq[root] += 1
 
                 sent_id += 1
                 processed += 1
@@ -480,9 +495,17 @@ class KuzuIndexBuilder:
                     )
                     last_log_time = now
 
-        # Close CSV files
-        for f in csv_files.values():
+        # Close CSV files (except roots - we'll rewrite it with stats)
+        for name, f in csv_files.items():
             f.close()
+
+        # Rewrite roots.csv with computed statistics
+        logger.info("  Writing roots.csv with computed statistics...")
+        with open(self.temp_dir / 'roots.csv', 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['root', 'doc_freq', 'total_freq'])
+            for root in sorted(roots_seen):
+                writer.writerow([root, root_doc_freq[root], root_total_freq[root]])
 
         # Save document offsets
         np.save(self.output_path / "doc_offsets.npy", np.array(offsets, dtype=np.int64))

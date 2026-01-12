@@ -57,6 +57,7 @@ KNOWN_SUFFIXES = {
     "ism",  # doctrine/system
     "ist",  # professional/adherent
     "ar",   # collection/group
+    "an",   # member of group/place (urbano, kristano)
     "aĉ",   # pejorative
     "aĵ",   # concrete thing
     "ebl",  # possible to
@@ -72,6 +73,8 @@ KNOWN_SUFFIXES = {
     "ing",  # holder/socket
     "uj",   # container/country
     "um",   # indefinite meaning
+    "ĉj",   # male affectionate diminutive (paĉjo from patro)
+    "nj",   # female affectionate diminutive (panjo from patrino)
     # Participial suffixes (active and passive)
     "ant",  # present active participle (seeing)
     "int",  # past active participle (having seen)
@@ -89,6 +92,61 @@ PARTICIPLE_SUFFIXES = {
     "at": {"voĉo": "pasiva", "tempo": "prezenco"},
     "it": {"voĉo": "pasiva", "tempo": "pasinteco"},
     "ot": {"voĉo": "pasiva", "tempo": "futuro"},
+}
+
+# =============================================================================
+# Affectionate suffix root recovery (-ĉj, -nj)
+# =============================================================================
+# These suffixes truncate the root after the first vowel:
+#   patro → pa + ĉj + o → paĉjo (daddy)
+#   patrino → pa + nj + o → panjo (mommy)
+#   frato → fra + ĉj + o → fraĉjo (bro)
+#   Johano → Jo + ĉj + o → Joĉjo (Johnny)
+#
+# Since the truncated form loses information, we need a lookup table
+# to recover the full root for proper semantic embedding.
+# =============================================================================
+AFFECTIONATE_ROOT_LOOKUP = {
+    # -ĉj (male affectionate)
+    "pa": "patr",       # paĉjo → patro (daddy)
+    "fra": "frat",      # fraĉjo → frato (bro)
+    "fi": "fil",        # fiĉjo → filo (sonny)
+    "ne": "nev",        # neĉjo → nevo (nephew dear)
+    "o": "onkl",        # oĉjo → onklo (uncle dear)
+    "a": "av",          # aĉjo → avo (grandpa)
+    "ku": "kuz",        # kuĉjo → kuzo (cousin dear)
+    # Common names (male)
+    "Jo": "Johan",      # Joĉjo → Johano (Johnny)
+    "Pe": "Petr",       # Peĉjo → Petro (Pete)
+    "Mi": "Miĥael",     # Miĉjo → Miĥaelo (Mike)
+    "To": "Tomas",      # Toĉjo → Tomaso (Tommy)
+    "Da": "David",      # Daĉjo → Davido (Davey)
+    "Ma": "Mark",       # Maĉjo → Marko (Marky)
+    "Ja": "Jakob",      # Jaĉjo → Jakobo (Jake)
+
+    # -nj (female affectionate) - same truncated forms often
+    # Note: Some overlap with -ĉj forms, context determines meaning
+    # "pa" is used for both paĉjo (daddy) and panjo (mommy) but roots differ!
+    # We handle this by checking the actual suffix used.
+}
+
+# Separate lookup for -nj since truncated "pa" maps to different roots
+# NOTE: We recover just the BASE root, not root+in, because -nj already implies feminine
+# The -in suffix is implicit in the -nj affectionate form
+AFFECTIONATE_ROOT_LOOKUP_NJ = {
+    "pa": "patr",       # panjo → patrino (mommy) - base root is patr
+    "fra": "frat",      # franjo → fratino (sis) - base root is frat
+    "fi": "fil",        # finjo → filino (daughter dear) - base root is fil
+    "ne": "nev",        # nenjo → nevino (niece dear) - base root is nev
+    "o": "onkl",        # onjo → onklino (auntie) - base root is onkl
+    "a": "av",          # anjo → avino (grandma) - base root is av
+    "ku": "kuz",        # kunjo → kuzino (cousin dear, female) - base root is kuz
+    # Common names (female) - these don't have -in since they're proper nouns
+    "Ma": "Mari",       # Manjo → Mario (Mary dear)
+    "An": "An",         # Annjo → Anno (Annie)
+    "Ka": "Katerin",    # Kanjo → Katerino (Katie)
+    "So": "Sofi",       # Sonjo → Sofio (Sophie)
+    "El": "Elizabet",   # Elnjo → Elizabeto (Lizzy)
 }
 
 # Correlative decomposition for Issue #76
@@ -555,109 +613,26 @@ KNOWN_ROOTS = KNOWN_ROOTS | DICTIONARY_ROOTS | KNOWN_NUMBERS
 # -----------------------------------------------------------------------------
 # --- Protected Roots: Fundamento roots that look like they contain affixes
 # --- These must NEVER be decomposed - they are atomic roots.
+# --- Loaded from data/vocabularies/protected_roots.json for maintainability
 # -----------------------------------------------------------------------------
 
-# Roots that start with prefix-like sequences but are NOT prefixed
-# Example: "bona" is NOT "bo-" + "n" + "-a", it's "bon" + "-a"
-PROTECTED_PREFIX_ROOTS = {
-    # bo- look-alikes (bo- means "in-law")
-    "bon", "bord", "bot", "botel", "bov", "bor",
-    # dis- look-alikes (dis- means "dispersal")
-    "disk", "disput", "displac", "dispon",
-    # ek- look-alikes (ek- means "begin/sudden")
-    "ekzamen", "ekzekut", "ekzempl", "ekzempler", "ekonomi", "ekzist", "ekskuz", "ekskurs",
-    # eks- look-alikes (eks- means "former")
-    "ekspres", "eksplod", "eksperiment", "eksport", "eksped", "ekspoz", "ekspans",
-    # fi- look-alikes (fi- means "shameful")
-    "fil", "fier", "figur", "fidel", "fin", "fiŝ", "fiĥ", "fiber", "fizik", "fiks",
-    # for- look-alikes (for- means "away")
-    "form", "fort", "forg", "forges", "formul", "formal",
-    # mis- look-alikes (mis- means "wrongly")
-    "mister", "misi",
-    # pra- look-alikes (pra- means "primal/ancient")
-    "praktik", "prav", "prateri",
-    # re- look-alikes (re- means "again")
-    "region", "reg", "rest", "respond", "respekt", "respir", "rezult", "rezist",
-    "recenz", "recept", "redakt", "reflex", "reform", "reflekt", "registr",
-    "reliĝ", "relief", "relativ", "reklam", "rekompenc", "rekord", "rekt",
-    "rempar", "rent", "report", "represent", "reprodukt", "republik", "reput",
-    "rezerv", "rezign", "rezon", "retir", "retor", "revizor", "revoluci",
-    "redut", "refut", "rek", "rekomend", "remed", "retori", "revizi", "revu",
-    # vic- look-alikes (vic- means "vice-")
-    "vid", "viktim", "vilaĝ", "viol", "violet", "violon", "viper", "vigl",
-}
+# Load protected roots from JSON file (single source of truth)
+PROTECTED_PREFIX_ROOTS = set()
+PROTECTED_SUFFIX_ROOTS = set()
 
-# Roots that end with suffix-like sequences but are NOT suffixed
-# Example: "rapida" is NOT "rap" + "-id" + "-a", it's "rapid" + "-a"
-PROTECTED_SUFFIX_ROOTS = {
-    # -ad look-alikes (-ad means "continuous action")
-    "salad", "nomad", "balad", "parad", "tirad", "arkad", "fasad", "dekad",
-    # -ant look-alikes (-ant means "active participle present")
-    "elefant", "gigant", "infant", "pedant", "diamant", "briliant", "merkant",
-    "diletant", "konsultant", "protestant", "ignorant", "elegant", "arogant",
-    "galant", "konstant", "distant", "instant", "militant", "observant",
-    "tolerant", "triumfant", "vagant", "viglant",
-    # -aĵ look-alikes (-aĵ means "concrete thing")
-    "mesaĝ", "bagaĝ", "garaĝ", "vojaĝ", "estaĵ", "kuiraĵ",
-    # -ar look-alikes (-ar means "collection")
-    "altar", "bazaar", "kalendar", "polar", "poplar", "regular", "stellar",
-    # -ec look-alikes (-ec means "quality")
-    "sekret",
-    # -eg look-alikes (-eg means "augmentative")
-    "leg", "neg", "seg", "norwegian", "kolleg",
-    # -ej look-alikes (-ej means "place")
-    "fej",
-    # -em look-alikes (-em means "tendency")
-    "problem", "sistem", "poem", "teorem", "ekstrem", "stratagem",
-    # -er look-alikes (-er means "particle")
-    "paper", "danger", "kurier", "karakter", "minister", "jupiter",
-    # -estr look-alikes (-estr means "leader")
-    "maestr", "orkestr",
-    # -ar look-alikes (-ar means "collection")
-    "avar", "cezar", "cigar", "dolar", "familiar", "hangar", "konsular", "popular", "solar",
-    # -er look-alikes (-er means "particle")
-    "difer", "elster", "fajfer", "kajer", "konsider", "lucer", "maner", "miser", "moder",
-    "muster", "numer", "oper", "profer", "puder", "refer", "super", "teler", "toler", "veter",
-    # -et look-alikes (-et means "diminutive")
-    "bilet", "diet", "poet", "kabin", "sekret", "planet", "magnet", "alfabet",
-    "violon", "balot", "pilot", "kariot",
-    "alumet", "biljet", "bufet", "duet", "kabinet", "kadet", "kaset", "ĵaket", "koket",
-    "komplet", "kornet", "korset", "kvartet", "mulet", "oktet", "paket", "parket", "raket",
-    "sonet", "stilet", "tablet", "tapet", "triket", "trompet",
-    # -id look-alikes (-id means "offspring")
-    "rapid", "fluid", "guid", "solid", "valid", "stupid", "morbid", "timid",
-    "vivid", "arid", "horrid", "hybrid", "humid", "lucid", "placid", "rigid",
-    # -ig look-alikes (-ig means "causative")
-    "vestig", "orig", "prodig", "vertigo",
-    # -iĝ look-alikes (-iĝ means "become")
-    "refuĝ", "prestiĝ",
-    # -il look-alikes (-il means "tool")
-    "april", "gentil", "simil", "mobil", "facil", "fragil", "fertil", "humil",
-    "civil", "docil", "agil", "subtil", "util", "viril", "stabil",
-    "fibril", "fossil", "lentil", "papil", "penicil", "pupil", "reptil", "tonsil",
-    "vakul", "vanil", "ventil", "vigil",
-    # -in look-alikes (-in means "feminine")
-    "latin", "basin", "marin", "maŝin", "vitamin", "kuzin", "origin", "domin",
-    "admin", "kabin", "rabin", "rubin", "medic", "imagin", "termin", "ekzamin",
-    "delfin", "kafetin", "buletein", "krokodil",
-    # -ind look-alikes (-ind means "worthy")
-    "hind",
-    # -ing look-alikes (-ing means "holder")
-    "puding", "ring", "viking", "spring", "pudding", "sterling",
-    # -ism look-alikes (-ism means "doctrine")
-    "organism", "optimism", "prism", "turism", "ateism",
-    # -ist look-alikes (-ist means "practitioner")
-    "artist", "baptist", "list", "krist",
-    # -ul look-alikes (-ul means "person")
-    "formul", "insul", "konsul", "stimul", "regul", "artikul", "kalkul",
-    "angul", "modul", "akumul", "ampul", "kapitul", "tuberkul", "kapsul",
-    "betul", "muskul",
-    # -um look-alikes (-um means "indefinite")
-    "album", "forum", "museum", "medium", "maksimum", "minimum", "stadium",
-    "akvarium", "petroleum", "opium", "premium", "uranium", "aluminum",
-    # -end look-alikes (-end means "must be done")
-    "send", "tend", "legend", "blend", "trend", "dividend", "reverend",
-}
+_protected_roots_path = Path(__file__).parent.parent / "data" / "vocabularies" / "protected_roots.json"
+if _protected_roots_path.exists():
+    try:
+        with open(_protected_roots_path, 'r', encoding='utf-8') as f:
+            _protected_data = json.load(f)
+            # Flatten prefix-protected roots (grouped by fake prefix)
+            for prefix, roots in _protected_data.get('prefix_protected', {}).items():
+                PROTECTED_PREFIX_ROOTS.update(roots)
+            # Flatten suffix-protected roots (grouped by fake suffix)
+            for suffix, roots in _protected_data.get('suffix_protected', {}).items():
+                PROTECTED_SUFFIX_ROOTS.update(roots)
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Warning: Could not load protected_roots.json: {e}")
 
 # Combined set for fast lookup
 PROTECTED_ROOTS = PROTECTED_PREFIX_ROOTS | PROTECTED_SUFFIX_ROOTS
@@ -963,6 +938,9 @@ def parse_word(word: str) -> dict:
 
     # Disambiguation logic - Order of priority:
     # 1. If stem is Fundamento and NO affix parses exist → keep atomic
+    # 1b. If stem is Fundamento AND suffix parse exists BUT stem is LONGER → keep atomic
+    #     Example: "esperant" (language) vs "esper+ant" (one who hopes)
+    #     Prefer the longer Fundamento root "esperant"
     # 2. If ONLY suffix parse exists → skip prefix extraction (do suffix)
     # 3. If ONLY prefix parse exists → do prefix extraction
     # 4. If BOTH exist:
@@ -975,6 +953,16 @@ def parse_word(word: str) -> dict:
         # Stem is Fundamento and no affix parse exists - keep atomic
         ast["radiko"] = stem
         return ast
+    elif stem_is_fundamento and suffix_parse and not prefix_parse:
+        # CRITICAL: stem is Fundamento AND suffix parse exists
+        # Prefer the LONGER Fundamento root
+        # Example: "esperant" vs "esper+ant" → prefer "esperant"
+        suffix_root = suffix_parse[0]  # e.g., "esper"
+        if len(stem) > len(suffix_root):
+            # stem is longer → keep atomic (e.g., "esperant" > "esper")
+            ast["radiko"] = stem
+            return ast
+        # Otherwise fall through to suffix extraction
     elif suffix_parse and not prefix_parse:
         # Only suffix parse exists - skip prefix extraction
         skip_prefix = True
@@ -1038,7 +1026,9 @@ def parse_word(word: str) -> dict:
                     # Note: remainder being in PROTECTED_PREFIX_ROOTS is OK here!
                     # E.g., "mal" + "bon" → "bon" is protected (starts with bo-),
                     # but that's fine because "bon" IS a valid Fundamento root.
-                    if remainder in KNOWN_ROOTS:
+                    # CRITICAL: Require minimum root length of 2 to avoid accepting
+                    # garbage like "ĝ", "l", "m" from the polluted KNOWN_ROOTS
+                    if remainder in KNOWN_ROOTS and len(remainder) >= 2:
                         extracted_prefixes.append(prefix)
                         stem = remainder
                         found_prefix = True
@@ -1075,8 +1065,25 @@ def parse_word(word: str) -> dict:
 
             found_suffix = False
             for suffix in sorted_suffixes:
-                if stem.endswith(suffix) and len(stem) > len(suffix) + 1:
+                if stem.endswith(suffix):
                     potential = stem[:-len(suffix)]
+
+                    # Special case: affectionate suffixes (-ĉj, -nj) accept truncated stems
+                    # that exist in our lookup tables, even if they're very short (e.g., "a")
+                    if suffix == "ĉj" and potential in AFFECTIONATE_ROOT_LOOKUP:
+                        extracted_suffixes.append(suffix)
+                        stem = potential
+                        found_suffix = True
+                        break
+                    if suffix == "nj" and potential in AFFECTIONATE_ROOT_LOOKUP_NJ:
+                        extracted_suffixes.append(suffix)
+                        stem = potential
+                        found_suffix = True
+                        break
+
+                    # For non-affectionate suffixes, require minimum stem length
+                    if len(stem) <= len(suffix) + 1:
+                        continue
 
                     # Accept if potential is a valid root
                     if (potential in _FUNDAMENTO_ROOTS or
@@ -1105,6 +1112,36 @@ def parse_word(word: str) -> dict:
             ast["participo_voĉo"] = participle_info["voĉo"]
             ast["participo_tempo"] = participle_info["tempo"]
             break
+
+    # ==========================================================================
+    # STEP 6b: Affectionate Suffix Root Recovery (-ĉj, -nj)
+    # ==========================================================================
+    # These suffixes truncate the root, so we need to recover the full root
+    # from a lookup table. E.g., paĉjo has stem "pa" but root should be "patr"
+    # For -nj (female affectionate), we also add the implicit -in suffix since
+    # panjo comes from patrino (patr + in + o), not just patro
+    if "ĉj" in extracted_suffixes or "nj" in extracted_suffixes:
+        truncated_root = stem
+        recovered_root = None
+
+        if "nj" in extracted_suffixes:
+            # Use -nj lookup (female affectionate)
+            recovered_root = AFFECTIONATE_ROOT_LOOKUP_NJ.get(truncated_root)
+            # Add implicit -in suffix since -nj words derive from feminine forms
+            # panjo = patr + in + nj + o (from patrino)
+            # We insert -in BEFORE -nj in the suffix list
+            if recovered_root and "in" not in extracted_suffixes:
+                nj_idx = extracted_suffixes.index("nj")
+                extracted_suffixes.insert(nj_idx, "in")
+                ast["sufiksoj"] = extracted_suffixes
+        elif "ĉj" in extracted_suffixes:
+            # Use -ĉj lookup (male affectionate)
+            recovered_root = AFFECTIONATE_ROOT_LOOKUP.get(truncated_root)
+
+        if recovered_root:
+            # Store both truncated and recovered for debugging/training
+            ast["radiko_trunkita"] = truncated_root  # The truncated form found
+            stem = recovered_root  # Use recovered root for embeddings
 
     # ==========================================================================
     # STEP 7: Identify Root (with compound word fallback)

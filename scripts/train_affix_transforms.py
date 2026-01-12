@@ -167,19 +167,29 @@ def extract_sentence_words(ast: dict) -> List[Tuple[str, List[str], List[str]]]:
 def build_training_data(
     corpus_path: Path,
     root_to_idx: Dict[str, int],
-    max_samples: int = 500000
+    max_samples: int = 500000,
+    exclude_sources: Optional[Set[str]] = None
 ) -> Tuple[List[Tuple[str, str, str]], Dict[str, Set[str]]]:
     """Build training samples with affix groupings.
+
+    Args:
+        corpus_path: Path to corpus JSONL file
+        root_to_idx: Mapping of roots to indices
+        max_samples: Maximum training samples to collect
+        exclude_sources: Set of source names to exclude (e.g., {'wikipedia'})
 
     Returns:
         samples: List of (root, affix_type, affix) tuples
         affix_to_roots: Dict mapping each affix to set of roots it appears with
     """
     logger.info(f"Building training data from {corpus_path}")
+    if exclude_sources:
+        logger.info(f"  Excluding sources: {exclude_sources}")
 
     samples = []  # (root, affix_type, affix)
     affix_to_roots = defaultdict(set)  # affix -> {root1, root2, ...}
     affix_counts = defaultdict(int)
+    skipped_sources = 0
 
     with open(corpus_path) as f:
         for line_num, line in enumerate(f, 1):
@@ -187,10 +197,18 @@ def build_training_data(
                 break
 
             if line_num % 100000 == 0:
-                logger.info(f"  Processed {line_num:,} lines, {len(samples):,} samples")
+                logger.info(f"  Processed {line_num:,} lines, {len(samples):,} samples, skipped {skipped_sources:,}")
 
             try:
                 entry = json.loads(line)
+
+                # Filter by source
+                if exclude_sources:
+                    source_name = entry.get('source', {}).get('name', '')
+                    if source_name in exclude_sources:
+                        skipped_sources += 1
+                        continue
+
                 ast = entry.get('ast')
                 if not ast:
                     continue
@@ -217,6 +235,8 @@ def build_training_data(
                 continue
 
     logger.info(f"Collected {len(samples):,} training samples")
+    if exclude_sources:
+        logger.info(f"Skipped {skipped_sources:,} entries from excluded sources")
     logger.info(f"Affix coverage: {len(affix_to_roots)} affixes with known roots")
     logger.info("Affix distribution:")
     for affix, count in sorted(affix_counts.items(), key=lambda x: -x[1])[:20]:
@@ -514,6 +534,9 @@ def main():
                         help='Max training samples')
     parser.add_argument('--fresh', action='store_true',
                         help='Start fresh, ignore checkpoint')
+    parser.add_argument('--exclude-source', type=str, action='append', default=[],
+                        dest='exclude_sources',
+                        help='Source names to exclude (can be repeated, e.g., --exclude-source wikipedia)')
 
     args = parser.parse_args()
 
@@ -546,7 +569,10 @@ def main():
     logger.info(f"Loaded {len(root_to_idx):,} root embeddings ({embedding_dim}d)")
 
     # Build training data
-    samples, affix_to_roots = build_training_data(args.corpus, root_to_idx, args.max_samples)
+    exclude_sources = set(args.exclude_sources) if args.exclude_sources else None
+    samples, affix_to_roots = build_training_data(
+        args.corpus, root_to_idx, args.max_samples, exclude_sources
+    )
 
     if not samples:
         logger.error("No training samples found!")

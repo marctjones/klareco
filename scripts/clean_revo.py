@@ -105,16 +105,28 @@ def load_fundamento_roots(json_path: Path) -> dict:
     for root, info in data.get('roots', {}).items():
         # Apply OCR fixes
         fixed_root = OCR_FIXES.get(root, root)
-        
+
         if is_valid_esperanto_root(fixed_root):
-            roots[fixed_root] = {
-                'original': root,
-                'translations': info.get('translations', {}),
-                'source': 'fundamento'
-            }
+            # Handle both formats:
+            # - Simple: {"root": "meaning"}
+            # - Complex: {"root": {"translations": {...}}}
+            if isinstance(info, str):
+                # Simple format - info is just the meaning string
+                roots[fixed_root] = {
+                    'original': root,
+                    'meaning': info,
+                    'source': 'fundamento'
+                }
+            else:
+                # Complex format - info is a dict
+                roots[fixed_root] = {
+                    'original': root,
+                    'translations': info.get('translations', {}),
+                    'source': 'fundamento'
+                }
         else:
             print(f"  Skipping invalid Fundamento root: {root}")
-    
+
     return roots
 
 
@@ -154,8 +166,12 @@ def main():
     print(f"   Valid Fundamento roots: {len(fundamento_roots)}")
     
     print("\n3. Loading Vortlisto for validation...")
-    vortlisto_roots = load_vortlisto_roots(vortlisto_json)
-    print(f"   Vortlisto roots: {len(vortlisto_roots)}")
+    if vortlisto_json.exists():
+        vortlisto_roots = load_vortlisto_roots(vortlisto_json)
+        print(f"   Vortlisto roots: {len(vortlisto_roots)}")
+    else:
+        vortlisto_roots = set()
+        print(f"   Vortlisto not found, skipping validation")
     
     # Merge sources (Fundamento takes priority)
     print("\n4. Merging sources...")
@@ -184,14 +200,17 @@ def main():
     print(f"   In ReVo only: {len(revo_only)}")
     print(f"   In both: {len(both)}")
     
-    # Validate against Vortlisto
-    vortlisto_coverage = len(vortlisto_roots & set(all_roots.keys()))
-    print(f"\n6. Vortlisto coverage:")
-    print(f"   Vortlisto roots in our vocabulary: {vortlisto_coverage}/{len(vortlisto_roots)} ({100*vortlisto_coverage/len(vortlisto_roots):.1f}%)")
-    
-    missing_from_vortlisto = vortlisto_roots - set(all_roots.keys())
-    if missing_from_vortlisto:
-        print(f"   Missing from our vocab: {sorted(list(missing_from_vortlisto))[:20]}...")
+    # Validate against Vortlisto (if available)
+    if vortlisto_roots:
+        vortlisto_coverage = len(vortlisto_roots & set(all_roots.keys()))
+        print(f"\n6. Vortlisto coverage:")
+        print(f"   Vortlisto roots in our vocabulary: {vortlisto_coverage}/{len(vortlisto_roots)} ({100*vortlisto_coverage/len(vortlisto_roots):.1f}%)")
+
+        missing_from_vortlisto = vortlisto_roots - set(all_roots.keys())
+        if missing_from_vortlisto:
+            print(f"   Missing from our vocab: {sorted(list(missing_from_vortlisto))[:20]}...")
+    else:
+        print("\n6. Vortlisto coverage: skipped (no vortlisto file)")
     
     # Tier assignment
     print("\n7. Assigning tiers...")

@@ -70,14 +70,27 @@ echo "Project root: $PROJECT_ROOT"
 echo "Python: $(which python)"
 echo ""
 
-# Check for required files
-CORPUS="${CORPUS_FLAG:-data/corpus/unified_corpus.jsonl}"
-RELATIONS="data/raw/eo/dictionaries/revo/revo_semantic_relations.json"
+# Check for required files - prefer enhanced corpus, fall back to unified
+DEFAULT_CORPUS="data/enhanced_corpus/corpus_with_metadata.jsonl"
+FALLBACK_CORPUS="data/corpus/unified_corpus.jsonl"
 
-if [ ! -f "data/corpus/unified_corpus.jsonl" ] && [ -z "$CORPUS_FLAG" ]; then
-    echo "Warning: Default corpus not found: data/corpus/unified_corpus.jsonl"
-    echo "Use --corpus to specify an alternative corpus file."
+if [ -z "$CORPUS_FLAG" ]; then
+    if [ -f "$DEFAULT_CORPUS" ]; then
+        CORPUS_FLAG="--corpus $DEFAULT_CORPUS"
+        echo "Using enhanced corpus: $DEFAULT_CORPUS"
+    elif [ -f "$FALLBACK_CORPUS" ]; then
+        CORPUS_FLAG="--corpus $FALLBACK_CORPUS"
+        echo "Using fallback corpus: $FALLBACK_CORPUS"
+    else
+        echo "Error: No corpus found!"
+        echo "  Expected: $DEFAULT_CORPUS"
+        echo "  Or: $FALLBACK_CORPUS"
+        echo "  Use --corpus to specify an alternative corpus file."
+        exit 1
+    fi
 fi
+
+RELATIONS="data/raw/eo/dictionaries/revo/revo_semantic_relations.json"
 
 if [ ! -f "$RELATIONS" ]; then
     echo "Warning: Semantic relations file not found: $RELATIONS"
@@ -93,7 +106,7 @@ LOG_FILE="logs/build_kuzu_index_$(date +%Y%m%d_%H%M%S).log"
 echo "Log file: $LOG_FILE"
 echo ""
 
-python scripts/build_kuzu_index.py \
+python scripts/index_kuzu.py \
     $FRESH_FLAG \
     $PHASE_FLAG \
     $CORPUS_FLAG \

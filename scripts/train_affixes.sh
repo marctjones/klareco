@@ -135,7 +135,7 @@ echo "  mal_mean_sim < 0.5   (mal-words shouldn't all cluster)"
 echo "  embedding_diversity  (should stay high)"
 echo ""
 
-python scripts/training/train_affix_transforms_v2.py \
+python scripts/train_affix_transforms.py \
     --root-embeddings "$ROOT_MODEL" \
     --corpus "$CORPUS_FILE" \
     --output-dir "$OUTPUT_DIR" \
@@ -146,6 +146,7 @@ python scripts/training/train_affix_transforms_v2.py \
     --learning-rate 0.001 \
     --patience 10 \
     --max-samples 500000 \
+    --exclude-source wikipedia \
     $FRESH_FLAG \
     2>&1 | tee "$LOG_FILE"
 

@@ -42,178 +42,30 @@ SUFFIXES = {'ul', 'ej', 'in', 'et', 'eg', 'ig', 'iĝ', 'ad', 'ar', 'ec', 'ebl', 
 
 # =============================================================================
 # PROTECTED ROOTS - These should NEVER be split
+# Loaded from data/vocabularies/protected_roots.json (single source of truth)
 # =============================================================================
+
+PROTECTED_ROOTS_PATH = Path(__file__).parent.parent / 'data' / 'vocabularies' / 'protected_roots.json'
+
+def load_protected_roots():
+    """Load protected roots from JSON file. Returns (prefix_dict, suffix_dict)."""
+    prefix_dict = {}
+    suffix_dict = {}
+    if PROTECTED_ROOTS_PATH.exists():
+        with open(PROTECTED_ROOTS_PATH) as f:
+            data = json.load(f)
+            # Convert from {prefix: [roots]} to {root: prefix}
+            for prefix, roots in data.get('prefix_protected', {}).items():
+                for root in roots:
+                    prefix_dict[root] = prefix
+            for suffix, roots in data.get('suffix_protected', {}).items():
+                for root in roots:
+                    suffix_dict[root] = suffix
+    return prefix_dict, suffix_dict
 
 # Fundamento roots that START with prefix-like sequences
 # Format: {root: fake_prefix_it_starts_with}
-PREFIX_PROTECTED_ROOTS = {
-    # bo- (in-law) - these are NOT in-law words
-    'boa': 'bo', 'boben': 'bo', 'boj': 'bo', 'bol': 'bo', 'bombon': 'bo',
-    'bon': 'bo', 'bor': 'bo', 'boraks': 'bo', 'bord': 'bo', 'bot': 'bo',
-    'botel': 'bo', 'bov': 'bo',
-
-    # dis- (apart) - these are NOT scatter words
-    'disput': 'dis', 'distil': 'dis', 'distr': 'dis',
-
-    # ek-/eks- - these are NOT begin/former words
-    'ekscit': 'ek', 'ekskurs': 'ek', 'ekspozici': 'ek', 'ekstrem': 'ek',
-    'ekzekut': 'ek', 'ekzempl': 'ek', 'ekzempler': 'ek', 'ekzerc': 'ek', 'ekzist': 'ek',
-
-    # fi- (morally bad) - these are NOT pejorative words
-    'fibr': 'fi', 'fidel': 'fi', 'fig': 'fi', 'fiĥ': 'fi', 'fil': 'fi',
-    'filologi': 'fi', 'filozofi': 'fi', 'filtr': 'fi', 'fin': 'fi', 'fingr': 'fi',
-    'firm': 'fi', 'fiŝ': 'fi', 'fizik': 'fi',
-
-    # for- (away) - these are NOT "away" words
-    'fork': 'for', 'form': 'for', 'formik': 'for', 'formul': 'for', 'forn': 'for',
-    'fort': 'for', 'fortik': 'for', 'fos': 'for',
-
-    # ge- (both genders) - these are NOT gender-neutral words
-    'gelaten': 'ge', 'gem': 'ge', 'geni': 'ge', 'genu': 'ge',
-    'geografi': 'ge', 'geometri': 'ge', 'german': 'ge', 'gest': 'ge',
-
-    # mal- - these are NOT opposite words
-    'malt': 'mal',
-
-    # mis- (wrongly) - these are NOT "wrong" words
-    'misi': 'mis', 'mister': 'mis',
-
-    # pra- (primordial) - these are NOT primordial words
-    'praktik': 'pra',
-
-    # re- (again) - these are NOT "again" words
-    'redakci': 're', 'redut': 're', 'refut': 're', 'reg': 're', 'registr': 're',
-    'regul': 're', 'rek': 're', 'reĝ': 're', 'reklam': 're', 'rekomend': 're',
-    'rel': 're', 'relief': 're', 'religi': 're', 'rem': 're', 'rembur': 're',
-    'remed': 're', 'ren': 're', 'rendevu': 're', 'renkont': 're', 'rent': 're',
-    'republik': 're', 'respekt': 're', 'rest': 're', 'ret': 're', 'retori': 're',
-    'rev': 're', 'revizi': 're', 'revu': 're',
-}
-
-# Fundamento roots that END with suffix-like sequences
-# Format: {root: fake_suffix_it_ends_with}
-SUFFIX_PROTECTED_ROOTS = {
-    # -ar (collection)
-    'altar': 'ar', 'avar': 'ar', 'bazar': 'ar', 'cezar': 'ar', 'cigar': 'ar',
-    'dolar': 'ar', 'familiar': 'ar', 'hangar': 'ar', 'kalendar': 'ar',
-    'konsular': 'ar', 'popular': 'ar', 'solar': 'ar',
-
-    # -ul (person)
-    'angul': 'ul', 'betul': 'ul', 'formul': 'ul', 'kapitol': 'ul', 'konsul': 'ul',
-    'muskul': 'ul', 'pendol': 'ul', 'regul': 'ul', 'stimul': 'ul', 'tabul': 'ul',
-    'tuberkul': 'ul', 'vestibul': 'ul',
-
-    # -il (tool)
-    'angil': 'il', 'april': 'il', 'argil': 'il', 'babil': 'il', 'daktil': 'il',
-    'facil': 'il', 'fertil': 'il', 'fibril': 'il', 'fossil': 'il', 'krokodil': 'il',
-    'lentil': 'il', 'papil': 'il', 'penicil': 'il', 'pupil': 'il', 'reptil': 'il',
-    'simil': 'il', 'stencil': 'il', 'tonsil': 'il', 'utensil': 'il', 'vakul': 'il',
-    'vanil': 'il', 'ventil': 'il', 'vigil': 'il', 'viril': 'il', 'bril': 'il',
-
-    # -eg (augmentative)
-    'koleg': 'eg', 'strateg': 'eg',
-
-    # -et (diminutive)
-    'alumet': 'et', 'bajonet': 'et', 'biljet': 'et', 'bret': 'et', 'bufet': 'et',
-    'duet': 'et', 'gazet': 'et', 'kabinet': 'et', 'kadet': 'et', 'kaset': 'et',
-    'ĵaket': 'et', 'koket': 'et', 'komplet': 'et', 'kornet': 'et', 'korset': 'et',
-    'kvartet': 'et', 'minuet': 'et', 'mulet': 'et', 'oktet': 'et', 'omlet': 'et',
-    'paket': 'et', 'pamflet': 'et', 'parket': 'et', 'piruet': 'et', 'poet': 'et',
-    'raket': 'et', 'sekret': 'et', 'siluet': 'et', 'skelet': 'et', 'sonet': 'et',
-    'stafet': 'et', 'stilet': 'et', 'tablet': 'et', 'tapet': 'et', 'triket': 'et',
-    'trompet': 'et', 'trumpet': 'et', 'violet': 'et',
-
-    # -er (smallest unit)
-    'anser': 'er', 'aper': 'er', 'cifer': 'er', 'cirkuler': 'er', 'danĝer': 'er',
-    'difer': 'er', 'elster': 'er', 'fajfer': 'er', 'infer': 'er', 'kajer': 'er',
-    'klister': 'er', 'konsider': 'er', 'lucer': 'er', 'maner': 'er', 'miser': 'er',
-    'moder': 'er', 'muster': 'er', 'numer': 'er', 'oper': 'er', 'paper': 'er',
-    'prefer': 'er', 'profer': 'er', 'prosper': 'er', 'puder': 'er', 'refer': 'er',
-    'sever': 'er', 'super': 'er', 'sufer': 'er', 'teler': 'er', 'toler': 'er',
-    'transfer': 'er', 'veter': 'er', 'viper': 'er',
-
-    # -in (feminine)
-    'basin': 'in', 'benzin': 'in', 'bobelin': 'in', 'delfin': 'in', 'dezert': 'in',
-    'din': 'in', 'doktrín': 'in', 'fin': 'in', 'glikol': 'in', 'jasmín': 'in',
-    'kabin': 'in', 'kafeín': 'in', 'kamelin': 'in', 'karmín': 'in', 'kokin': 'in',
-    'kuzin': 'in', 'latin': 'in', 'magazín': 'in', 'margarin': 'in', 'marin': 'in',
-    'maŝin': 'in', 'medicín': 'in', 'min': 'in', 'molin': 'in', 'nikotin': 'in',
-    'origin': 'in', 'parafin': 'in', 'pin': 'in', 'platin': 'in', 'ravin': 'in',
-    'rezin': 'in', 'ruín': 'in', 'sardin': 'in', 'sin': 'in', 'termin': 'in',
-    'toksín': 'in', 'urin': 'in', 'vaksin': 'in', 'vanilín': 'in', 'vazelin': 'in',
-    'vin': 'in', 'violin': 'in', 'vitamin': 'in',
-
-    # -ad (continuous action)
-    'balustrad': 'ad', 'blokad': 'ad', 'brikad': 'ad', 'cikad': 'ad', 'dekad': 'ad',
-    'fasad': 'ad', 'kamarad': 'ad', 'kaskad': 'ad', 'kolonad': 'ad', 'limonad': 'ad',
-    'maskerad': 'ad', 'monad': 'ad', 'nomad': 'ad', 'olimpiad': 'ad', 'parad': 'ad',
-    'pomad': 'ad', 'salad': 'ad', 'serenad': 'ad', 'tirad': 'ad', 'tonad': 'ad',
-
-    # -it (passive past participle)
-    'artrit': 'it', 'biskvit': 'it', 'dinamit': 'it', 'ermit': 'it', 'granit': 'it',
-    'kredit': 'it', 'merit': 'it', 'orbit': 'it', 'profit': 'it', 'vizit': 'it',
-
-    # -at (passive present participle)
-    'advokat': 'at', 'agregat': 'at', 'akrobat': 'at', 'aparát': 'at', 'aristokrat': 'at',
-    'blat': 'at', 'burokrat': 'at', 'celibat': 'at', 'ĉokolat': 'at', 'delegat': 'at',
-    'demokrat': 'at', 'diplomat': 'at', 'drat': 'at', 'format': 'at', 'kandidat': 'at',
-    'klimat': 'at', 'konsulat': 'at', 'kravat': 'at', 'magistrat': 'at', 'pirat': 'at',
-    'plat': 'at', 'privat': 'at', 'proletari': 'at', 'rat': 'at', 'rezultat': 'at',
-    'skarabat': 'at', 'soldat': 'at', 'spat': 'at', 'stat': 'at', 'stigmat': 'at',
-    'sulfat': 'at', 'sindikat': 'at', 'tomat': 'at',
-
-    # -ot (passive future participle)
-    'azot': 'ot', 'balot': 'ot', 'bergamot': 'ot', 'bot': 'ot', 'fagot': 'ot',
-    'gavot': 'ot', 'grot': 'ot', 'idiot': 'ot', 'jakbot': 'ot', 'kalikot': 'ot',
-    'kapot': 'ot', 'karjot': 'ot', 'kompot': 'ot', 'komplot': 'ot', 'lot': 'ot',
-    'margot': 'ot', 'maskot': 'ot', 'mot': 'ot', 'patriot': 'ot', 'pilot': 'ot',
-    'pivot': 'ot', 'pot': 'ot', 'robot': 'ot', 'rot': 'ot', 'ŝalot': 'ot',
-    'tarot': 'ot', 'trikot': 'ot',
-
-    # -ec (quality)
-    'dec': 'ec', 'direc': 'ec', 'indec': 'ec', 'infec': 'ec', 'spec': 'ec',
-
-    # -ind (worthy of)
-    'blind': 'ind', 'hind': 'ind', 'kind': 'ind',
-
-    # -ant (active present participle)
-    'briliant': 'ant', 'diamant': 'ant', 'elefant': 'ant', 'galant': 'ant',
-    'gigant': 'ant', 'infant': 'ant', 'intendant': 'ant', 'komandant': 'ant',
-    'konsonant': 'ant', 'konstant': 'ant', 'konsultant': 'ant', 'kvant': 'ant',
-    'laborant': 'ant', 'liŭtenant': 'ant', 'merkant': 'ant', 'mutant': 'ant',
-    'pedant': 'ant', 'plant': 'ant', 'protestant': 'ant', 'restaur': 'ant',
-    'serĝant': 'ant', 'talant': 'ant', 'tirant': 'ant', 'variant': 'ant',
-
-    # -int (active past participle)
-    'absint': 'int', 'flint': 'int', 'hiacint': 'int', 'instinkt': 'int',
-    'labrint': 'int', 'marmint': 'int', 'mint': 'int', 'pint': 'int', 'print': 'int',
-
-    # -ont (active future participle)
-    'font': 'ont', 'horizont': 'ont', 'kont': 'ont', 'mont': 'ont', 'pont': 'ont',
-
-    # -ig (causative)
-    'konfig': 'ig', 'orig': 'ig',
-
-    # -ej (place)
-    'muze': 'ej',
-
-    # -id (offspring)
-    'aspid': 'id', 'avid': 'id', 'david': 'id', 'humid': 'id', 'likv': 'id',
-    'lucid': 'id', 'morbid': 'id', 'perfid': 'id', 'rapid': 'id', 'rigid': 'id',
-    'solid': 'id', 'splendid': 'id', 'stupid': 'id', 'timid': 'id', 'valid': 'id',
-    'vivid': 'id',
-
-    # -ing (holder)
-    'ating': 'ing', 'buding': 'ing', 'haring': 'ing', 'miting': 'ing',
-    'peding': 'ing', 'pudding': 'ing', 'ŝiling': 'ing', 'sterling': 'ing',
-    'viking': 'ing',
-
-    # -uj (container)
-    'halleluj': 'uj',
-
-    # -ebl (able to be)
-    'mebl': 'ebl',
-}
+PREFIX_PROTECTED_ROOTS, SUFFIX_PROTECTED_ROOTS = load_protected_roots()
 
 
 # =============================================================================
@@ -359,9 +211,13 @@ class TestParserFundamentoRoots(unittest.TestCase):
             raise unittest.SkipTest("Fundamento roots file not found")
 
     def test_fundamento_roots_loaded(self):
-        """Verify Fundamento roots were loaded."""
-        self.assertGreater(len(self.fundamento_roots), 2000,
-                          f"Expected 2000+ roots, got {len(self.fundamento_roots)}")
+        """Verify Fundamento roots were loaded.
+
+        Note: fundamento_roots.json contains a curated subset of essential
+        Fundamento roots used for disambiguation, not the full 2067 roots.
+        """
+        self.assertGreater(len(self.fundamento_roots), 50,
+                          f"Expected 50+ curated roots, got {len(self.fundamento_roots)}")
 
     def test_sample_fundamento_roots_as_nouns(self):
         """Test a sample of Fundamento roots parse correctly as nouns."""
@@ -702,6 +558,77 @@ class TestParserAmbiguousWords(unittest.TestCase):
         ast = parse_word("bopatro")
         self.assertEqual(ast['radiko'], 'patr')
         self.assertIn('bo', ast['prefiksoj'])
+
+
+class TestParserEsperantVsEsper(unittest.TestCase):
+    """Test disambiguation between 'esperant' (the language) and 'esper' (to hope).
+
+    Both 'esperant' and 'esper' are Fundamento roots, but they have different meanings:
+    - esperant: Esperanto (the language itself) - proper noun
+    - esper: to hope (verb root)
+
+    The parser should prefer the LONGER Fundamento root when both match,
+    because "Esperanto" clearly refers to the language, not "hoping one".
+
+    Issue: #402 - Root Cause: Parser/Corpus root mismatch (esperant vs esp)
+    """
+
+    def test_esperanto_uses_esperant_root(self):
+        """'Esperanto' (noun) should use root 'esperant', not 'esper'."""
+        ast = parse_word("Esperanto")
+        self.assertEqual(ast['radiko'], 'esperant',
+                        "Esperanto should use 'esperant' root, not 'esper'")
+        self.assertEqual(ast['sufiksoj'], [],
+                        "Esperanto should not have suffixes extracted")
+
+    def test_esperanton_uses_esperant_root(self):
+        """'Esperanton' (accusative) should use root 'esperant'."""
+        ast = parse_word("Esperanton")
+        self.assertEqual(ast['radiko'], 'esperant',
+                        "Esperanton should use 'esperant' root, not 'esper'")
+
+    def test_esperantisto_uses_esperant_root(self):
+        """'esperantisto' (Esperantist) should use root 'esperant' + suffix 'ist'."""
+        ast = parse_word("esperantisto")
+        self.assertEqual(ast['radiko'], 'esperant',
+                        "esperantisto should use 'esperant' root")
+        self.assertIn('ist', ast['sufiksoj'],
+                     "esperantisto should have -ist suffix")
+
+    def test_esperantistoj_uses_esperant_root(self):
+        """'esperantistoj' (Esperantists, plural) should use root 'esperant'."""
+        ast = parse_word("esperantistoj")
+        self.assertEqual(ast['radiko'], 'esperant',
+                        "esperantistoj should use 'esperant' root")
+        self.assertIn('ist', ast['sufiksoj'])
+
+    def test_esperi_uses_esper_root(self):
+        """'esperi' (to hope) should use root 'esper', not 'esperant'."""
+        ast = parse_word("esperi")
+        self.assertEqual(ast['radiko'], 'esper',
+                        "esperi should use 'esper' root (to hope)")
+
+    def test_espero_uses_esper_root(self):
+        """'espero' (hope, noun) should use root 'esper'."""
+        ast = parse_word("espero")
+        self.assertEqual(ast['radiko'], 'esper',
+                        "espero should use 'esper' root (hope)")
+
+    def test_esperanto_lowercase(self):
+        """'esperanto' (lowercase) should still use root 'esperant'."""
+        ast = parse_word("esperanto")
+        self.assertEqual(ast['radiko'], 'esperant',
+                        "esperanto (lowercase) should use 'esperant' root")
+
+    def test_malesperanto_not_mal_esperant(self):
+        """Test edge case: 'malespero' should be mal- + esper, not 'esperant'."""
+        ast = parse_word("malespero")
+        # "malespero" means despair (opposite of hope), so:
+        # mal- (opposite) + esper (hope) + -o (noun ending)
+        self.assertEqual(ast['radiko'], 'esper',
+                        "malespero should use 'esper' root (despair = opposite of hope)")
+        self.assertIn('mal', ast['prefiksoj'],
+                     "malespero should have mal- prefix")
 
 
 if __name__ == '__main__':

@@ -157,7 +157,9 @@ with open(corpus_path) as f_in, open(output_path, 'w') as f_out:
             continue
 
         # Only use Tier 1-3 (authoritative sources)
-        tier = entry.get('tier', 6)
+        # Tier is nested in source metadata
+        source_info = entry.get('source', {})
+        tier = source_info.get('tier', 6) if isinstance(source_info, dict) else 6
         if tier > 3:
             continue
 

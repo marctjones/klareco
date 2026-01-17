@@ -24,7 +24,10 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 
 ## Current State (January 2026)
 
-**Architecture**: Multi-model semantic system (M0/Stage1/M1/M2/M3) - see `CURRENT_PLAN.md`
+**Architecture**: Multi-model semantic system (M0/Stage1/M1/M2/M3)
+- 📋 **[GitHub Project Board](https://github.com/users/marctjones/projects/16)** - Track current work
+- 📚 **[Wiki: Current-Architecture](https://github.com/marctjones/klareco/wiki/Current-Architecture)** - Architecture details
+- 🎯 **[Epic #453](https://github.com/marctjones/klareco/issues/453)** - Overall progress tracking
 
 ### ✅ M0: Deterministic Parser (COMPLETE)
 - **Parser/Deparser**: 16 Esperanto grammar rules, 91.8% parse rate on 4.2M sentences
@@ -71,7 +74,7 @@ Text → M0 (Parser) → AST → Stage 1 (Roots) → M1 (Selectional) → M2 (Ta
 
 **Total learned parameters**: ~60-70M (vs 1B+ for typical LLMs)
 
-See `CURRENT_PLAN.md` for detailed architecture, `VISION.md` for the thesis, and `DESIGN.md` for technical details.
+See the [Wiki](https://github.com/marctjones/klareco/wiki/Current-Architecture) for detailed architecture, `VISION.md` for the thesis, and `DESIGN.md` for technical details.
 
 ## Setup
 
@@ -119,19 +122,20 @@ python scripts/demo_semantic_retrieval.py
 ./scripts/m1_validate_selectional.sh
 ```
 
-See `CURRENT_PLAN.md` for the full development roadmap.
+See the [GitHub Project Board](https://github.com/users/marctjones/projects/16) for current work and the [Wiki](https://github.com/marctjones/klareco/wiki) for architecture details.
 
 ## Documentation
 
 | Document | Purpose |
 |----------|---------|
-| `CURRENT_PLAN.md` | Multi-model architecture roadmap (M0/Stage1/M1/M2/M3) |
+| **[GitHub Project #16](https://github.com/users/marctjones/projects/16)** | Current work tracking (visual kanban board) |
+| **[Epic #453](https://github.com/marctjones/klareco/issues/453)** | Multi-model architecture progress tracking |
+| **[Wiki](https://github.com/marctjones/klareco/wiki)** | Architecture docs (Current-Architecture, M0, Stage1, M1, M2, M3) |
 | `VISION.md` | Core thesis and long-term vision |
 | `DESIGN.md` | Technical architecture details |
 | `CLAUDE.md` | Development guide for Claude Code |
 | `AGENTS.md` | IdlerGear agent instructions |
 | `16RULES.MD` | Esperanto grammar specification |
-| **Wiki** | Detailed component docs (Current-Architecture, M0, Stage1, M1, M2, M3) |
 
 ## Tests
 

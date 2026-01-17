@@ -11,16 +11,22 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 
 **Core Thesis**: Traditional LLMs waste capacity learning grammar. By factoring out linguistic structure programmatically, we can focus all learned parameters on *reasoning*.
 
-**Proof of Concept Plan**:
-1. Month 1-2: Symbolic reasoner + deterministic features → answer 50 questions with ZERO learned reasoning
-2. Month 3-4: Add 20M param reasoning core → measure improvement
-3. Success: 80%+ accuracy on Esperanto Q&A, fully explainable, grammatically perfect
+**Architectural Approach**: Multi-model semantic system (M0/Stage1/M1/M2/M3)
+- Each model solves ONE semantic problem (selectional preference, taxonomy, discourse)
+- Models compose together on top of deterministic AST foundation
+- Explainable through decomposable contributions (what came from rules vs learned models)
 
 **Why Esperanto Enables This**:
 - Fully regular morphology → 100% programmatic parsing (no learned POS/NER needed)
 - Fixed endings for case/tense → deterministic role detection (no attention needed)
 - Compositional lexicon → root embeddings only (prefix/suffix as transformation vectors)
 - 16 explicit grammar rules → symbolic reasoning over AST structures
+
+**Key Architectural Lessons** (learned through development):
+- **Function words must be excluded**: Including grammatical words in embeddings causes collapse
+- **Compositional embeddings generalize**: Root + affix composition handles unseen words perfectly
+- **Small, specialized models work**: 10M param M1 model achieves 80%+ accuracy on its specific task
+- **Don't learn what you know**: Grammar is deterministic - focus learned parameters on semantics only
 
 ## Current State (January 2026)
 
@@ -57,6 +63,17 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - **Components**: Multi-model coordination, Kuzu graph database (5.2GB active)
 - **Status**: Research phase - Issue #449
 - **Files**: `klareco/rag/kuzu_inverted_index.py`
+
+### Development Stage
+
+**Current Focus**: Building specialized semantic models on validated foundation
+
+After 2 years of exploration (documented in [Development History](https://github.com/marctjones/klareco/wiki/Klareco-Development-History)), we've validated the core thesis:
+- ✅ **Parser works**: 91.8% parse rate on 4.2M sentences proves deterministic grammar is viable
+- ✅ **Compositional embeddings work**: 320K params covers 18,928 roots with perfect generalization
+- ✅ **Small models work**: 10M param M1 achieves 80%+ accuracy on selectional preference
+- 🚧 **Now**: Building remaining semantic models (M2 taxonomic + discourse)
+- 🔮 **Next**: M3 orchestration to compose models for end-to-end Q&A
 
 ### Current Priorities
 1. **CRITICAL**: Fix Stage 1 vocabulary corruption (#479)
@@ -130,8 +147,9 @@ See the [GitHub Project Board](https://github.com/users/marctjones/projects/16) 
 |----------|---------|
 | **[GitHub Project #16](https://github.com/users/marctjones/projects/16)** | Current work tracking (visual kanban board) |
 | **[Epic #453](https://github.com/marctjones/klareco/issues/453)** | Multi-model architecture progress tracking |
-| **[Wiki](https://github.com/marctjones/klareco/wiki)** | Architecture docs (Current-Architecture, M0, Stage1, M1, M2, M3) |
-| `VISION.md` | Core thesis and long-term vision |
+| **[Wiki: Current-Architecture](https://github.com/marctjones/klareco/wiki/Current-Architecture)** | Active architecture (M0/Stage1/M1/M2/M3) |
+| **[Wiki: Development-History](https://github.com/marctjones/klareco/wiki/Klareco-Development-History)** | Complete history: 5 phases, lessons learned, architectural evolution |
+| `VISION.md` | Core thesis: decomposable contributions, explainability |
 | `DESIGN.md` | Technical architecture details |
 | `CLAUDE.md` | Development guide for Claude Code |
 | `AGENTS.md` | IdlerGear agent instructions |

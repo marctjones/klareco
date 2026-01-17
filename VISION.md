@@ -12,6 +12,17 @@ Esperanto was designed to be regular. Its grammar has 16 rules with no exception
 
 This means **grammar is deterministic**. We don't need to learn it. We can extract it with rules.
 
+## The Key Principle: Decomposable Contributions
+
+**Explainability doesn't require zero learned parameters—it requires decomposable contributions.**
+
+The goal is not to eliminate learning, but to ensure every prediction can be traced to its sources:
+- What came from deterministic rules? (grammar, morphology, Fundamento definitions)
+- What came from learned models? (semantic similarity, contextual refinement)
+- What evidence was retrieved? (citation trails to source documents)
+
+By layering deterministic and learned components, we can show exactly how much each contributes. A prediction might be "77% deterministic rule (mal- means opposite), 23% learned adjustment (context: moral judgment)." This preserves explainability while leveraging learning where it's most valuable.
+
 ## The Architecture
 
 Klareco uses the **AST as the universal contract** between all components:
@@ -22,10 +33,11 @@ Text → Parser → AST → Semantic Enrichment → AST → Reasoning → AST �
 ```
 
 At each step:
-1. **The AST carries everything known so far**—grammatical structure, semantic roles, morpheme decomposition, embeddings, reasoning chains
+1. **The AST carries everything known so far**—grammatical structure, semantic roles, morpheme decomposition, embeddings, reasoning chains, attribution metadata
 2. **Deterministic layers extract what rules can derive**—grammar, case, tense, word structure
 3. **Learned layers add only what requires inference**—semantic similarity, entity relationships, reasoning
-4. **The AST is readable at every step**—you can inspect it to see what the system "knows" and "thinks"
+4. **Attribution is preserved**—each AST node tracks whether it came from rules or learning
+5. **The AST is readable at every step**—you can inspect it to see what the system "knows" and "thinks"
 
 ## The Payoff
 
@@ -33,13 +45,14 @@ At each step:
 The goal isn't to eliminate deep learning—it's to make the models **small enough to train on a laptop without a GPU**. By getting grammar for free, learned parameters focus entirely on semantics and reasoning. A 50-100M parameter reasoning core may achieve what takes billions of parameters when grammar must also be learned.
 
 ### Explainable "Thoughts"
-The AST is the system's intermediate representation—its working memory. Because it's structured and annotated, you can decode what the system is "thinking" at each step:
-- What grammatical structure did it find?
-- What semantic relationships did it infer?
-- What evidence did it retrieve?
-- How did it compose its answer?
+The AST is the system's intermediate representation—its working memory. Because it's structured and annotated with attribution, you can decode what the system is "thinking" at each step:
+- What grammatical structure did it find? (deterministic)
+- What semantic relationships did it infer? (learned)
+- What evidence did it retrieve? (cited)
+- How did it compose its answer? (reasoning chain)
+- What percentage came from rules vs learning? (attribution)
 
-This is not post-hoc explanation. The AST *is* the computation.
+This is not post-hoc explanation. The AST *is* the computation, and attribution is built in from the start.
 
 ### Grammatically Perfect Output
 The linearizer converts AST back to text using rules, not generation. Output is grammatically correct by construction—not because a model learned to usually produce valid grammar.
@@ -47,9 +60,17 @@ The linearizer converts AST back to text using rules, not generation. Output is 
 ### Grounded Answers
 Retrieval operates on ASTs, matching semantic structure. Answers come from retrieved evidence with full citation trails. The system can't hallucinate facts it didn't retrieve.
 
+### Hybrid Components Validate the Thesis
+By layering deterministic and learned components with attribution, we can empirically measure how much learning actually helps:
+- If learned layers contribute <5%: deterministic is sufficient
+- If learned layers contribute 10-15%: hybrid approach optimal
+- If learned layers contribute >20%: need more learned capacity
+
+This turns the "Pure Esperanto AI" thesis into a measurable hypothesis, not an assumption.
+
 ## The Core Thesis
 
-> By making linguistic structure deterministic and passing annotated ASTs between layers, we can build AI systems that are smaller, explainable, and provably correct—while achieving comparable capabilities to much larger black-box models.
+> By making linguistic structure deterministic, using decomposable learned components, and passing annotated ASTs between layers, we can build AI systems that are smaller, explainable, and provably correct—while achieving comparable capabilities to much larger black-box models.
 
 Esperanto is the ideal testbed because its regularity maximizes what can be deterministic. If the thesis holds for Esperanto, the approach may extend (with more complex parsers) to other languages.
 
@@ -60,27 +81,30 @@ Esperanto is the ideal testbed because its regularity maximizes what can be dete
 - **Not a grammar checker**—grammar is infrastructure, not the goal
 - **Not an Esperanto teaching tool**—though it could become one
 - **Not trying to compete with GPT-4 on English**—it's proving a different thesis
+- **Not claiming pure rule-based AI**—hybrid deterministic + learned with attribution
 
 ## The Design Principle
 
 At each stage of implementation, ask:
-1. **What can we do deterministically?** Do that first—it's free.
-2. **What requires learning?** Make it as small as possible.
-3. **Does the AST carry all the information?** If not, enrich it.
-4. **How do we validate quality?** Test both deterministic and learned components.
-5. **How do we demonstrate progress?** Build a demo that shows what this stage accomplishes.
+1. **What can we do deterministically?** Do that first—it's free and explainable.
+2. **What requires learning?** Make it as small as possible and track its contribution.
+3. **Does the AST carry all the information?** If not, enrich it with attribution metadata.
+4. **Can we decompose the prediction?** Show what came from rules vs learning.
+5. **How do we validate quality?** Test both deterministic and learned components separately.
+6. **How do we demonstrate progress?** Build a demo that shows what this stage accomplishes.
 
-We're not trying to eliminate neural networks. We're trying to make them small enough that you don't need a data center to train them.
+We're not trying to eliminate neural networks. We're trying to make them small enough that you don't need a data center to train them, while ensuring every prediction is traceable to its sources.
 
 ## Validation at Every Stage
 
 Each stage must have:
 - **Tests for deterministic components**—Do the rules produce correct output?
 - **Tests for learned components**—Does the model meet quality thresholds?
+- **Attribution tests**—Can we decompose predictions into rule-based vs learned?
 - **A working demo**—Shows what this stage accomplishes in isolation
 - **Integration validation**—Does the enriched AST flow correctly to the next stage?
 
-No stage is complete until you can demonstrate it working and measure its quality.
+No stage is complete until you can demonstrate it working, measure its quality, and attribute its predictions.
 
 ## Success Looks Like
 
@@ -88,7 +112,17 @@ A working system where you can:
 1. Ask a question in Esperanto
 2. Watch the AST evolve through each layer
 3. See exactly which evidence was retrieved and why
-4. Get a grammatically perfect, grounded answer
-5. Trace every step of the reasoning in the AST
+4. See what came from rules vs learned models (with percentages)
+5. Get a grammatically perfect, grounded answer
+6. Trace every step of the reasoning in the AST with full attribution
 
 All with models small enough to train on a laptop without a GPU.
+
+## The Proof of Concept Plan
+
+- **Month 1-2**: Build symbolic reasoner + deterministic features
+- **GOAL**: Answer 50 questions using ONLY deterministic processing + retrieval (zero learned reasoning)
+- **NEXT**: Add minimal 20M param reasoning core with attribution, measure improvement
+- **THESIS TEST**: If 50-100M param core with attribution gets 80%+ accuracy on Esperanto Q&A while being fully explainable and grammatically perfect, the thesis is proven
+
+This is achievable. The foundation is strong. The key shift: stop trying to learn grammar, focus learned capacity entirely on reasoning, and preserve attribution at every layer.

@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "idlergear": {
-      "command": "idlergear-mcp",
-      "args": [],
-      "type": "stdio"
-    }
-  }
-}

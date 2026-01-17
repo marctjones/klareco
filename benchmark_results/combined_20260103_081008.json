@@ -1,7 +1,0 @@
-{
-  "index_path": "data/indexes/slot_test",
-  "queries_path": "benchmark_results/queries_20260103_081008.jsonl",
-  "num_queries": 20,
-  "timestamp": "20260103_081008",
-  "solutions": []
-}

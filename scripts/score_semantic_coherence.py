@@ -149,40 +149,47 @@ def main():
                        help='Filter: only show scores above threshold')
     parser.add_argument('-i', '--interactive', action='store_true',
                        help='Interactive mode')
+    parser.add_argument('--pipe-friendly', action='store_true',
+                       help='Output only Esperanto sentence for piping (no labels)')
 
     args = parser.parse_args()
 
     # Load scorer
-    print(f"Loading embeddings from {args.embeddings}...")
+    print(f"Loading embeddings from {args.embeddings}...", file=sys.stderr)
     scorer = SemanticCoherenceScorer(args.embeddings)
-    print(f"Loaded {len(scorer.root_to_idx)} root embeddings\n")
+    print(f"Loaded {len(scorer.root_to_idx)} root embeddings\n", file=sys.stderr)
 
     def score_and_display(sentence: str):
         """Score and display results for single sentence."""
         score = scorer.score_sentence(sentence)
 
-        if score is None:
-            print(f"❌ Unable to score (< 2 content roots)")
+        if args.pipe_friendly:
+            # Pipe-friendly: just output the sentence
+            print(sentence)
         else:
-            # Determine assessment
-            if score < 0.2:
-                assessment = "❌ Very low (likely nonsense)"
-            elif score < 0.35:
-                assessment = "⚠️  Low (possibly incoherent)"
-            elif score < 0.5:
-                assessment = "✓ Moderate"
-            elif score < 0.65:
-                assessment = "✓✓ Good"
+            # Human-readable output
+            if score is None:
+                print(f"❌ Unable to score (< 2 content roots)")
             else:
-                assessment = "✓✓✓ High (very coherent)"
+                # Determine assessment
+                if score < 0.2:
+                    assessment = "❌ Very low (likely nonsense)"
+                elif score < 0.35:
+                    assessment = "⚠️  Low (possibly incoherent)"
+                elif score < 0.5:
+                    assessment = "✓ Moderate"
+                elif score < 0.65:
+                    assessment = "✓✓ Good"
+                else:
+                    assessment = "✓✓✓ High (very coherent)"
 
-            print(f"Coherence: {score:.3f} {assessment}")
+                print(f"Coherence: {score:.3f} {assessment}")
 
-        print(f"Sentence: {sentence}\n")
+            print(f"Sentence: {sentence}\n")
 
     # Batch mode
     if args.batch:
-        print(f"Processing {args.batch}...")
+        print(f"Processing {args.batch}...", file=sys.stderr)
         output_file = args.output or args.batch.with_suffix('.coherence.jsonl')
 
         with open(args.batch) as fin, open(output_file, 'w') as fout:
@@ -198,13 +205,13 @@ def main():
                         fout.write(json.dumps(entry, ensure_ascii=False) + '\n')
 
                 if line_num % 1000 == 0:
-                    print(f"  Processed {line_num} sentences...")
+                    print(f"  Processed {line_num} sentences...", file=sys.stderr)
 
-        print(f"\nResults written to {output_file}")
+        print(f"\nResults written to {output_file}", file=sys.stderr)
 
     # Interactive mode
     elif args.interactive:
-        print("Interactive mode (type 'quit' to exit)\n")
+        print("Interactive mode (type 'quit' to exit)\n", file=sys.stderr)
         while True:
             try:
                 sentence = input("Sentence: ").strip()
@@ -230,9 +237,9 @@ def main():
             ("La bela tago", "coherent - beautiful day"),
         ]
 
-        print("Example sentences:\n")
+        print("Example sentences:\n", file=sys.stderr)
         for sentence, description in examples:
-            print(f"[{description}]")
+            print(f"[{description}]", file=sys.stderr)
             score_and_display(sentence)
 
 

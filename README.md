@@ -22,51 +22,56 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - Compositional lexicon → root embeddings only (prefix/suffix as transformation vectors)
 - 16 explicit grammar rules → symbolic reasoning over AST structures
 
-## Current State (December 2025)
+## Current State (January 2026)
 
-### Production Ready
-- **Deterministic parser/deparser** (`parser.py`, `deparser.py`) - 16 Esperanto grammar rules, 91.8% parse rate
-- **Two-stage hybrid retrieval** - Structural filtering (0 params) + neural reranking
-- **Canonical slot signatures** (`canonicalizer.py`) - SUBJ/VERB/OBJ extraction
-- **Extractive responders** (`experts/extractive.py`, `experts/summarizer.py`)
-- **Compositional corpus index** (`data/corpus_index_compositional`) - 4.38M sentences
+**Architecture**: Multi-model semantic system (M0/Stage1/M1/M2/M3) - see `CURRENT_PLAN.md`
 
-### Stage 1: Semantic Model ✓ COMPLETE
+### ✅ M0: Deterministic Parser (COMPLETE)
+- **Parser/Deparser**: 16 Esperanto grammar rules, 91.8% parse rate on 4.2M sentences
+- **AST generation**: Explicit roles (subjekto, verbo, objekto, aliaj)
+- **Morpheme decomposition**: 100% deterministic
+- **Files**: `klareco/parser.py`, `klareco/deparser.py`
 
-**Phase 1: Root Embeddings** ✓
-- **Model**: 11,121 roots × 64 dimensions = 712K parameters
-- **Correlation**: 0.8871 | **Accuracy**: 97.98%
-- Synonyms: 93.1% | Antonyms: 82.7% | Hierarchy: 98.6%
-- **Demo**: `python scripts/demo_root_embeddings.py -i`
+### 🚧 Stage 1: Root Embeddings (NEEDS RETRAIN)
+- **Architecture**: 64D embeddings for content words only (~320K params)
+- **Status**: Trained but vocabulary corruption found (Issue #479 - CRITICAL)
+- **Target**: 18,928 roots from Tier 2-5 vocabulary
+- **Function words**: Excluded (handled deterministically by M0)
+- **Files**: `klareco/embeddings/compositional.py`, `models/root_embeddings/`
 
-**Phase 2: Affix Transforms V2** ✓
-- **Model**: 12 prefixes + 29 suffixes as low-rank transformations (~21K params)
-- **Anti-collapse**: mal_mean_sim = -0.03 (target < 0.5)
-- **Embedding diversity**: 1.17 (healthy spread)
-- Key insight: Affixes are *transformations*, not additive vectors
-  - `mal-` flips polarity: bon → malbon (sim=0.25, distinct)
-  - `re-` preserves meaning: fari → refari (sim=0.97, similar)
-- **Test**: `python scripts/test_affix_v2.py`
+### 🚧 M1: Selectional Preference (IN PROGRESS)
+- **Architecture**: Subject-verb-object compatibility scoring (~10M params)
+- **Status**: Model trained, object selectional preference issues (Issue #475)
+- **Accuracy**: 80.2% overall, 83% plausible detection
+- **Files**: `scripts/train_m1_selectional.py`, `tests/test_m1_model_quality.py`
 
-### Training Data
-- **Clean vocabulary**: 11,121 validated roots (Fundamento + ReVo)
-- **ReVo dictionary**: 10,766 entries with semantic relations
-- **Training pairs**: 500K affix samples from corpus
-- **Fundamento roots**: 2,067 from Universala Vortaro
+### ❌ M2: Taxonomic + Discourse (TODO)
+- **M2.1 Taxonomic**: IS-A relationships (~10M params) - Issue #443
+- **M2.2 Discourse**: Passage coherence (~30-50M params) - Issue #444
+- **Status**: Not started
 
-### Next Steps
-- Stage 2: Grammatical transforms (negation, tense, mood)
-- RAG evaluation with compositional embeddings
-- Reasoning core design (20-100M params)
+### ❌ M3: Orchestration (TODO)
+- **Components**: Multi-model coordination, Kuzu graph database (5.2GB active)
+- **Status**: Research phase - Issue #449
+- **Files**: `klareco/rag/kuzu_inverted_index.py`
+
+### Current Priorities
+1. **CRITICAL**: Fix Stage 1 vocabulary corruption (#479)
+2. **HIGH**: Improve M1 object selectional preference (#475)
+3. **NEXT**: Build M2 models (#443, #444)
+4. **FUTURE**: Research M3 orchestration (#449)
 
 ## Architecture
 
 ```
-Text → Parser (16 rules) → AST → Compositional Embeddings → Retrieval/Reasoning → Linearizer → Text
-       └─ deterministic        └─ learned (~333K params)                          └─ deterministic
+Text → M0 (Parser) → AST → Stage 1 (Roots) → M1 (Selectional) → M2 (Taxonomic+Discourse) → M3 (Orchestration) → Text
+       └─ 0 params            └─ 320K params   └─ 10M params     └─ 40-50M params            └─ 0 params
+       └─ deterministic                        └─ learned models                               └─ deterministic
 ```
 
-See `VISION.md` for the full architecture and `DESIGN.md` for technical details.
+**Total learned parameters**: ~60-70M (vs 1B+ for typical LLMs)
+
+See `CURRENT_PLAN.md` for detailed architecture, `VISION.md` for the thesis, and `DESIGN.md` for technical details.
 
 ## Setup
 
@@ -87,72 +92,46 @@ python -m klareco parse "Mi amas la hundon."
 python -m klareco translate "The dog sees the cat." --to eo
 ```
 
-### RAG Query
+### Demos
 ```bash
-python scripts/demo_rag.py --interactive
-python scripts/demo_rag.py "Kio estas Esperanto?"
+# Root embeddings demo
+python scripts/demo_root_embeddings.py
+
+# M1 selectional preference demo
+python scripts/demo_m1_selectional.py
+
+# AST-aware retrieval demo
+python scripts/demo_ast_retriever.py
+
+# Semantic retrieval demo
+python scripts/demo_semantic_retrieval.py
 ```
 
 ### Train Models
 ```bash
-# Run training pipeline (in separate terminal)
+# Train Stage 1 root embeddings (in separate terminal)
 ./scripts/train_roots.sh
 
-# Monitor progress
-tail -f logs/training/root_training_*.log
+# Train M1 selectional model
+./scripts/m1_train_selectional.sh
+
+# Validate M1 model
+./scripts/m1_validate_selectional.sh
 ```
 
-See `TRAINING_QUICKSTART.md` for the complete training guide.
-
-## Training Pipeline (TRAINING_PLAN_V3)
-
-The training follows a staged approach where each stage is frozen before the next begins:
-
-```
-STAGE 0: PARSER/DETERMINISTIC ✓ COMPLETE
-├── 16 grammar rules
-├── Morpheme decomposition
-├── Role detection (S/V/O)
-└── Negation/question type marking
-
-STAGE 1: SEMANTIC MODEL (~733K params) ✓ COMPLETE
-├── Phase 1: Root embeddings (11K roots × 64d) ✓
-├── Phase 2: Affix transforms V2 (41 affixes, low-rank) ✓
-└── Phase 3: Corpus index (4.38M sentences) ✓
-
-STAGE 2: GRAMMATICAL MODEL (~52K params) ← NEXT
-├── Negation transform
-├── Tense/mood transforms
-└── Sentence type transforms
-
-STAGE 3: DISCOURSE MODEL (~100K params)
-├── Coreference resolution
-└── Discourse relations
-
-STAGE 4: REASONING CORE (20-100M params) - FUTURE
-└── AST-to-AST reasoning
-```
-
-## Key Design Principles
-
-1. **Function Word Exclusion**: Function words (la, kaj, de, en, mi...) are handled by the AST layer, not learned. Including them causes embedding collapse.
-
-2. **Fundamento-Centered Training**: Zamenhof's original works have 100x weight vs Wikipedia. Authoritative sources define correct Esperanto.
-
-3. **Compositional Morphology**: Words are decomposed into root + affixes. Embeddings compose: `malgrandega = mal- + grand + -eg-`
-
-4. **Staged Training**: Each stage frozen before the next. No catastrophic forgetting, clear checkpoints.
+See `CURRENT_PLAN.md` for the full development roadmap.
 
 ## Documentation
 
 | Document | Purpose |
 |----------|---------|
-| `TRAINING_PLAN_V3.md` | Definitive training pipeline design |
-| `TRAINING_QUICKSTART.md` | Quick start guide for training |
-| `VISION.md` | Long-term architecture vision |
+| `CURRENT_PLAN.md` | Multi-model architecture roadmap (M0/Stage1/M1/M2/M3) |
+| `VISION.md` | Core thesis and long-term vision |
 | `DESIGN.md` | Technical architecture details |
 | `CLAUDE.md` | Development guide for Claude Code |
-| `DATA_INVENTORY.md` | Data sources and status |
+| `AGENTS.md` | IdlerGear agent instructions |
+| `16RULES.MD` | Esperanto grammar specification |
+| **Wiki** | Detailed component docs (Current-Architecture, M0, Stage1, M1, M2, M3) |
 
 ## Tests
 
@@ -166,14 +145,14 @@ python -m pytest --cov=klareco             # With coverage
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| Parser (16 rules) | ✅ Production | 91.8% parse rate |
-| Root embeddings | ✅ Complete | 0.89 correlation, 93% synonym accuracy |
-| Affix transforms V2 | ✅ Complete | 41 affixes, no collapse (mal_sim=-0.03) |
-| Corpus index | ✅ Complete | 4.38M sentences with compositional embeddings |
-| Clean vocabulary | ✅ Complete | 11,121 validated roots |
-| Grammatical model | 🔲 Next | Stage 2: negation, tense, mood |
-| Discourse model | 🔲 Designed | Stage 3 |
-| Reasoning core | 🔲 Future | Stage 4 (20-100M params) |
+| **M0: Parser** | ✅ Complete | 91.8% parse rate on 4.2M sentences |
+| **Stage 1: Root Embeddings** | 🚧 Needs retrain | Issue #479 - vocabulary corruption (CRITICAL) |
+| **M1: Selectional Preference** | 🚧 In progress | 80.2% accuracy, object preference issues (Issue #475) |
+| **M2.1: Taxonomic Model** | 🔲 TODO | Issue #443 - Pure IS-A relationships |
+| **M2.2: Discourse Coherence** | 🔲 TODO | Issue #444 - Passage ranking |
+| **M3: Orchestration** | 🔲 Research | Issue #449 - Multi-model coordination |
+| **Kuzu Graph Database** | ✅ Active | 5.2GB AST-first retrieval infrastructure |
+| **Test Suite** | 🚧 In progress | Issue #470 - Data quality + integration tests |
 
 ## License
 

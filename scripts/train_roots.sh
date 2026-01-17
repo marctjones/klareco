@@ -37,11 +37,16 @@ cd "$PROJECT_ROOT"
 
 # Parse arguments
 FRESH_START=false
+VOCAB_VERSION="old"  # "old" (10.8K Tier 2) or "tier2-5" (18K Tier 2-5)
 for arg in "$@"; do
     case $arg in
         --fresh)
             FRESH_START=true
             shift
+            ;;
+        --vocab)
+            VOCAB_VERSION="$2"
+            shift 2
             ;;
     esac
 done
@@ -79,7 +84,16 @@ else
 fi
 
 EKZERCARO_FILE="$PROJECT_ROOT/data/training/ekzercaro_sentences.jsonl"
-CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/clean_roots.json"
+
+# Select vocabulary based on --vocab flag
+if [ "$VOCAB_VERSION" = "tier2-5" ]; then
+    CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/clean_roots_tier2-5.json"
+    echo -e "${GREEN}Using expanded Tier 2-5 vocabulary (~18K roots)${NC}"
+else
+    CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/clean_roots.json"
+    echo -e "${YELLOW}Using old Tier 2 vocabulary (~10.8K roots)${NC}"
+fi
+
 FUNDAMENTO_ROOTS="$PROJECT_ROOT/data/vocabularies/fundamento_roots.json"
 REVO_DEFINITIONS="$PROJECT_ROOT/data/raw/eo/dictionaries/revo/revo_definitions_with_roots.json"
 OUTPUT_DIR="$PROJECT_ROOT/models/root_embeddings"
@@ -145,26 +159,38 @@ def extract_roots(node):
 
 count = 0
 written = 0
+consecutive_rejections = 0
+EARLY_STOP_THRESHOLD = 50000  # Stop after 50K consecutive rejections
+
 with open(corpus_path) as f_in, open(output_path, 'w') as f_out:
     for line in f_in:
         count += 1
         if count % 100000 == 0:
             print(f'  Processed {count:,} sentences, extracted {written:,}...')
 
+        # Early termination: if we hit 50K consecutive rejections, we've moved past Tier 2-5
+        if consecutive_rejections >= EARLY_STOP_THRESHOLD:
+            print(f'  Early stop: {consecutive_rejections:,} consecutive rejections (moved past Tier 2-5)')
+            break
+
         try:
             entry = json.loads(line)
         except:
+            consecutive_rejections += 1
             continue
 
-        # Only use Tier 1-3 (authoritative sources)
+        # Only use Tier 5 (books) - clean Esperanto, no Tier 2 source file garbage
+        # Tier 5 = books (clean), Tier 2 has source file pollution
         # Tier is nested in source metadata
         source_info = entry.get('source', {})
         tier = source_info.get('tier', 6) if isinstance(source_info, dict) else 6
-        if tier > 3:
+        if tier != 5:  # Only Tier 5 (books)
+            consecutive_rejections += 1
             continue
 
         ast = entry.get('ast')
         if not ast:
+            consecutive_rejections += 1
             continue
 
         roots = extract_roots(ast)
@@ -177,6 +203,7 @@ with open(corpus_path) as f_in, open(output_path, 'w') as f_out:
             }
             f_out.write(json.dumps(out_entry, ensure_ascii=False) + '\n')
             written += 1
+            consecutive_rejections = 0  # Reset on successful extraction
 
 print(f'Done! Extracted {written:,} sentences from {count:,} total')
 "

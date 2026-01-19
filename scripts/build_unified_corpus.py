@@ -345,9 +345,16 @@ def process_source_files(
     completed_files: Dict[str, int],
     resume: bool,
     overrides: dict,
-    exclusions: set
+    exclusions: set,
+    checkpoint_path: Path = None,
+    global_sentence_count: List[int] = None
 ) -> tuple:
-    """Process all files for a source type."""
+    """Process all files for a source type.
+
+    Args:
+        global_sentence_count: List with one element [count] for tracking total sentences
+                              across all sources (mutable for checkpoint updates)
+    """
     from glob import glob
 
     path_pattern = config['path']
@@ -360,6 +367,10 @@ def process_source_files(
     total_processed = 0
     total_failed = 0
 
+    # Checkpoint interval (every 150K sentences)
+    CHECKPOINT_INTERVAL = 150000
+    last_checkpoint_count = global_sentence_count[0] if global_sentence_count else 0
+
     with open(output_file, 'a', encoding='utf-8') as out_f:
         for file_path in files:
             file_name = Path(file_path).name
@@ -370,6 +381,9 @@ def process_source_files(
                 count = completed_files[file_key]
                 logger.info(f"  Skipping {file_name} (already processed: {count} sentences)")
                 total_processed += count
+                # Update global count for skipped files
+                if global_sentence_count is not None:
+                    global_sentence_count[0] += count
                 continue
 
             logger.info(f"  Processing {file_name}...")
@@ -411,6 +425,18 @@ def process_source_files(
                         out_f.write(json.dumps(corpus_entry, ensure_ascii=False) + '\n')
                         file_processed += 1
 
+                        # Update global count
+                        if global_sentence_count is not None:
+                            global_sentence_count[0] += 1
+
+                            # Save checkpoint every 150K sentences
+                            if checkpoint_path and global_sentence_count[0] - last_checkpoint_count >= CHECKPOINT_INTERVAL:
+                                logger.info(f"    ⏸️  Checkpoint: {global_sentence_count[0]:,} sentences processed (saving...)")
+                                # Update completed files with current progress
+                                completed_files[file_key] = file_processed
+                                save_checkpoint(checkpoint_path, completed_files)
+                                last_checkpoint_count = global_sentence_count[0]
+
                         # Progress update
                         if file_processed % 10000 == 0:
                             logger.info(f"    Processed {file_processed:,} sentences...")
@@ -432,6 +458,8 @@ def process_source_files(
 
             # Save checkpoint after each file
             completed_files[file_key] = file_processed
+            if checkpoint_path:
+                save_checkpoint(checkpoint_path, completed_files)
 
     return total_processed, total_failed
 
@@ -490,6 +518,9 @@ def build_corpus(
     # Process each source type
     total_stats = defaultdict(int)
 
+    # Global sentence counter for periodic checkpoints (use list for mutability)
+    global_sentence_count = [0]
+
     for source_type, config in SOURCE_CONFIGS.items():
         logger.info("")
         logger.info(f"Processing {source_type} (base: {config['base_quality']})...")
@@ -502,7 +533,9 @@ def build_corpus(
             completed_files,
             resume,
             overrides,
-            exclusions
+            exclusions,
+            checkpoint_path,
+            global_sentence_count
         )
 
         # Note: actual quality distribution will be calculated after processing

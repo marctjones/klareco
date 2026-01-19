@@ -65,16 +65,14 @@ echo "Output: $MODEL_DIR"
 echo ""
 echo "TIER PRIORITY STRATEGY:"
 echo "  1. Tier 0 (ALL) - PMEG, Krestomatio, Lingvaj Respondoj (~22K triples)"
-echo "  2. Tier 2 (ALL) - Fundamento, born-digital high quality"
-echo "  3. Tier 5 + 6 (SAMPLE) - Wikipedia + Gutenberg to fill remaining quota"
+echo "  2. Tier 5 + 6 (SAMPLE) - Wikipedia + Gutenberg to fill remaining quota"
 echo ""
 echo "This GUARANTEES tier0 inclusion even if it appears late in corpus!"
 echo ""
 echo "Expected tier distribution in training data:"
 echo "  Tier 0: ~20K (10%) ← FIXED: Previously 0!"
-echo "  Tier 2: ~20K (10%)"
-echo "  Tier 5: ~80K (40%)"
-echo "  Tier 6: ~80K (40%)"
+echo "  Tier 5: ~90K (45%)"
+echo "  Tier 6: ~90K (45%)"
 echo ""
 echo "Expected: Accuracy 87-88% (vs 86.37% without tier0)"
 echo "=============================================================================="
@@ -94,7 +92,7 @@ else
         --stage1-model models/root_embeddings_tier0/best_model.pt \
         --output-dir "$DATA_DIR" \
         --max-triples $MAX_TRIPLES \
-        --priority-tiers 0 2 \
+        --priority-tiers 0 \
         --fill-tiers 5 6 \
         --similarity-threshold 0.15 \
         --min-parse-rate 0.0 \

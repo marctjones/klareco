@@ -1,0 +1,22 @@
+2026-01-03 02:01:49,346 - INFO - ============================================================
+2026-01-03 02:01:49,346 - INFO - Loading benchmark queries
+2026-01-03 02:01:49,346 - INFO - ============================================================
+2026-01-03 02:01:49,347 - INFO - ✓ Loaded 50 queries from benchmark_results/queries_20260103_013141.jsonl
+2026-01-03 02:01:49,347 - INFO - 
+2026-01-03 02:01:49,347 - INFO - ============================================================
+2026-01-03 02:01:49,347 - INFO - Initializing indexer (loading embedding models)
+2026-01-03 02:01:49,347 - INFO - ============================================================
+2026-01-03 02:01:49,347 - INFO -   Root model: models/root_embeddings/best_model.pt
+2026-01-03 02:01:49,347 - INFO -   Affix model: models/affix_transforms_v2/best_model.pt
+2026-01-03 02:01:49,347 - INFO - Loading root embeddings from models/root_embeddings/best_model.pt
+2026-01-03 02:01:49,373 - INFO -   Loaded 11121 roots, 64d
+2026-01-03 02:01:49,373 - INFO - Loading affix transforms from models/affix_transforms_v2/best_model.pt
+2026-01-03 02:01:49,397 - INFO -   Loaded 12 prefix, 29 suffix transforms
+2026-01-03 02:01:49,400 - INFO - ✓ Indexer loaded in 0.1s
+2026-01-03 02:01:49,400 - INFO - 
+2026-01-03 02:01:49,400 - INFO - ============================================================
+2026-01-03 02:01:49,400 - INFO - Benchmarking: faiss
+2026-01-03 02:01:49,400 - INFO - ============================================================
+2026-01-03 02:01:49,401 - INFO -   Initializing faiss retriever...
+2026-01-03 02:01:49,401 - INFO - Loading FAISS index from data/indexes/slot_full
+2026-01-03 02:01:50,729 - INFO -   FAISS index: 4,229,277 vectors

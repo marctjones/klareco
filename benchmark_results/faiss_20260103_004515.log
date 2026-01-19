@@ -1,0 +1,27 @@
+2026-01-03 00:55:21,241 - INFO - ============================================================
+2026-01-03 00:55:21,241 - INFO - Loading benchmark queries
+2026-01-03 00:55:21,241 - INFO - ============================================================
+2026-01-03 00:55:21,241 - INFO - ✓ Loaded 50 queries from benchmark_results/queries_20260103_004515.jsonl
+2026-01-03 00:55:21,241 - INFO - 
+2026-01-03 00:55:21,241 - INFO - ============================================================
+2026-01-03 00:55:21,241 - INFO - Initializing indexer (loading embedding models)
+2026-01-03 00:55:21,241 - INFO - ============================================================
+2026-01-03 00:55:21,241 - INFO -   Root model: models/root_embeddings/best_model.pt
+2026-01-03 00:55:21,241 - INFO -   Affix model: models/affix_transforms_v2/best_model.pt
+2026-01-03 00:55:21,242 - INFO - Loading root embeddings from models/root_embeddings/best_model.pt
+2026-01-03 00:55:21,260 - INFO -   Loaded 11121 roots, 64d
+2026-01-03 00:55:21,260 - INFO - Loading affix transforms from models/affix_transforms_v2/best_model.pt
+2026-01-03 00:55:21,281 - INFO -   Loaded 12 prefix, 29 suffix transforms
+2026-01-03 00:55:21,283 - INFO - ✓ Indexer loaded in 0.0s
+2026-01-03 00:55:21,283 - INFO - 
+2026-01-03 00:55:21,283 - INFO - ============================================================
+2026-01-03 00:55:21,283 - INFO - Benchmarking: faiss
+2026-01-03 00:55:21,284 - INFO - ============================================================
+2026-01-03 00:55:21,284 - INFO -   Initializing faiss retriever...
+2026-01-03 00:55:21,284 - INFO - Loading FAISS index from data/indexes/slot_full
+2026-01-03 00:55:21,284 - INFO -   FAISS index not found, creating...
+2026-01-03 01:01:44,090 - INFO -   Creating FAISS index for 4,229,277 vectors
+2026-01-03 01:01:44,099 - INFO -   Training IVF index with 2056 clusters...
+2026-01-03 01:02:10,229 - INFO -   Adding vectors to index...
+2026-01-03 01:02:32,743 - INFO -   Saved FAISS index to data/indexes/slot_full/faiss/full_embeddings.index
+2026-01-03 01:02:33,472 - INFO -   FAISS index: 4,229,277 vectors

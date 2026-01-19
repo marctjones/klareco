@@ -1,0 +1,32 @@
+2026-01-03 01:05:22,243 - INFO - ============================================================
+2026-01-03 01:05:22,243 - INFO - Loading benchmark queries
+2026-01-03 01:05:22,244 - INFO - ============================================================
+2026-01-03 01:05:22,244 - INFO - ✓ Loaded 50 queries from benchmark_results/queries_20260103_004515.jsonl
+2026-01-03 01:05:22,244 - INFO - 
+2026-01-03 01:05:22,244 - INFO - ============================================================
+2026-01-03 01:05:22,244 - INFO - Initializing indexer (loading embedding models)
+2026-01-03 01:05:22,244 - INFO - ============================================================
+2026-01-03 01:05:22,244 - INFO -   Root model: models/root_embeddings/best_model.pt
+2026-01-03 01:05:22,244 - INFO -   Affix model: models/affix_transforms_v2/best_model.pt
+2026-01-03 01:05:22,244 - INFO - Loading root embeddings from models/root_embeddings/best_model.pt
+2026-01-03 01:05:22,264 - INFO -   Loaded 11121 roots, 64d
+2026-01-03 01:05:22,264 - INFO - Loading affix transforms from models/affix_transforms_v2/best_model.pt
+2026-01-03 01:05:22,288 - INFO -   Loaded 12 prefix, 29 suffix transforms
+2026-01-03 01:05:22,289 - INFO - ✓ Indexer loaded in 0.0s
+2026-01-03 01:05:22,289 - INFO - 
+2026-01-03 01:05:22,289 - INFO - ============================================================
+2026-01-03 01:05:22,289 - INFO - Benchmarking: multifaiss
+2026-01-03 01:05:22,289 - INFO - ============================================================
+2026-01-03 01:05:22,290 - INFO -   Initializing multifaiss retriever...
+2026-01-03 01:05:22,290 - INFO - Loading multi-FAISS indexes from data/indexes/slot_full
+2026-01-03 01:05:22,290 - INFO -   Multi-FAISS indexes not found, creating...
+2026-01-03 01:12:09,594 - INFO -   Creating SUBJ index: 3,424,730 vectors
+2026-01-03 01:12:09,609 - INFO -     Training IVF with 1850 clusters...
+2026-01-03 01:12:57,775 - INFO -   Creating VERB index: 3,524,479 vectors
+2026-01-03 01:12:57,823 - INFO -     Training IVF with 1877 clusters...
+2026-01-03 01:13:46,719 - INFO -   Creating OBJ index: 1,450,632 vectors
+2026-01-03 01:13:46,799 - INFO -     Training IVF with 1204 clusters...
+2026-01-03 01:14:02,964 - INFO -   Saved multi-FAISS indexes to data/indexes/slot_full/multifaiss
+2026-01-03 01:14:15,335 - INFO -   SUBJ: 3,424,730 vectors
+2026-01-03 01:14:15,903 - INFO -   VERB: 3,524,479 vectors
+2026-01-03 01:14:16,124 - INFO -   OBJ: 1,450,632 vectors

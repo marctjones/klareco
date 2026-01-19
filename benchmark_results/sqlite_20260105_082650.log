@@ -1,0 +1,81 @@
+2026-01-05 08:28:21,500 - INFO - ============================================================
+2026-01-05 08:28:21,500 - INFO - Loading benchmark queries
+2026-01-05 08:28:21,500 - INFO - ============================================================
+2026-01-05 08:28:21,500 - INFO - ✓ Loaded 50 queries from benchmark_results/queries_20260105_082650.jsonl
+2026-01-05 08:28:21,500 - INFO - 
+2026-01-05 08:28:21,500 - INFO - ============================================================
+2026-01-05 08:28:21,500 - INFO - Initializing indexer (loading embedding models)
+2026-01-05 08:28:21,500 - INFO - ============================================================
+2026-01-05 08:28:21,500 - INFO -   Root model: models/root_embeddings/best_model.pt
+2026-01-05 08:28:21,500 - INFO -   Affix model: models/affix_transforms_v2/best_model.pt
+2026-01-05 08:28:21,501 - INFO - Loading root embeddings from models/root_embeddings/best_model.pt
+2026-01-05 08:28:21,522 - INFO -   Loaded 11121 roots, 64d
+2026-01-05 08:28:21,523 - INFO - Loading affix transforms from models/affix_transforms_v2/best_model.pt
+2026-01-05 08:28:21,548 - INFO -   Loaded 12 prefix, 29 suffix transforms
+2026-01-05 08:28:21,550 - INFO - ✓ Indexer loaded in 0.0s
+2026-01-05 08:28:21,550 - INFO - 
+2026-01-05 08:28:21,550 - INFO - ============================================================
+2026-01-05 08:28:21,550 - INFO - Benchmarking: sqlite
+2026-01-05 08:28:21,550 - INFO - ============================================================
+2026-01-05 08:28:21,550 - INFO -   Found existing results for sqlite, loading from benchmark_results/sqlite_results.json
+2026-01-05 08:28:21,550 - INFO -   Initializing sqlite retriever...
+2026-01-05 08:28:21,551 - INFO - Initializing SQLite database at data/indexes/slot_full/slot_index.db
+2026-01-05 08:28:21,551 - INFO -   Database not found, creating...
+2026-01-05 08:37:23,882 - INFO -   Created SQLite database with 4,371,718 documents
+2026-01-05 08:37:24,650 - INFO -   Loaded 4,371,718 documents
+2026-01-05 08:37:24,651 - INFO -   ✓ Retriever initialized in 543.1s
+2026-01-05 08:37:24,651 - INFO - 
+2026-01-05 08:37:24,651 - INFO -   Starting benchmark run (50 queries)...
+2026-01-05 08:37:24,651 - INFO - 
+2026-01-05 08:37:24,651 - INFO - Benchmarking SQLiteSlotRetriever
+2026-01-05 08:37:25,512 - INFO -   [5/50] | Latency: 171.9ms | Recall: 0.000 | Memory: 685MB | ETA: 7s
+2026-01-05 08:37:26,549 - INFO -   [10/50] | Latency: 206.8ms | Recall: 0.000 | Memory: 685MB | ETA: 7s | 💾 checkpoint
+2026-01-05 08:37:27,433 - INFO -   [15/50] | Latency: 176.3ms | Recall: 0.000 | Memory: 685MB | ETA: 6s
+2026-01-05 08:37:28,286 - INFO -   [20/50] | Latency: 170.1ms | Recall: 0.000 | Memory: 685MB | ETA: 5s | 💾 checkpoint
+2026-01-05 08:37:29,185 - INFO -   [25/50] | Latency: 179.4ms | Recall: 0.000 | Memory: 685MB | ETA: 4s
+2026-01-05 08:37:30,211 - INFO -   [30/50] | Latency: 204.6ms | Recall: 0.000 | Memory: 685MB | ETA: 3s | 💾 checkpoint
+2026-01-05 08:37:31,075 - INFO -   [35/50] | Latency: 172.4ms | Recall: 0.000 | Memory: 685MB | ETA: 2s
+2026-01-05 08:37:31,923 - INFO -   [40/50] | Latency: 169.1ms | Recall: 0.000 | Memory: 685MB | ETA: 1s | 💾 checkpoint
+2026-01-05 08:37:32,805 - INFO -   [45/50] | Latency: 175.8ms | Recall: 0.000 | Memory: 685MB | ETA: 0s
+2026-01-05 08:37:33,769 - INFO -   [50/50] | Latency: 192.3ms | Recall: 0.000 | Memory: 685MB | ETA: 0s | 💾 checkpoint
+2026-01-05 08:37:33,780 - INFO - 
+2026-01-05 08:37:33,781 - INFO -   ✓ Benchmark completed in 9.1s
+2026-01-05 08:37:33,781 - INFO -   Saved results to benchmark_results/sqlite_results.json
+2026-01-05 08:37:33,781 - INFO - ============================================================
+2026-01-05 08:37:33,781 - INFO - RESULTS SUMMARY: sqlite
+2026-01-05 08:37:33,781 - INFO - ============================================================
+2026-01-05 08:37:33,781 - INFO - 
+2026-01-05 08:37:33,781 - INFO - Latency Metrics:
+2026-01-05 08:37:33,781 - INFO -   Mean:       181.88 ms
+2026-01-05 08:37:33,781 - INFO -   Median:     146.61 ms
+2026-01-05 08:37:33,781 - INFO -   P95:        295.44 ms
+2026-01-05 08:37:33,781 - INFO -   P99:        299.83 ms
+2026-01-05 08:37:33,781 - INFO -   Range:      117.51 - 302.48 ms
+2026-01-05 08:37:33,781 - INFO - 
+2026-01-05 08:37:33,781 - INFO - Memory Usage:
+2026-01-05 08:37:33,782 - INFO -   Peak:        684.9 MB
+2026-01-05 08:37:33,782 - INFO -   Delta:        13.7 MB (increase from baseline)
+2026-01-05 08:37:33,782 - INFO - 
+2026-01-05 08:37:33,782 - INFO - Accuracy Metrics:
+2026-01-05 08:37:33,782 - INFO -   Recall@10:   0.000 (0.0%)
+2026-01-05 08:37:33,782 - INFO -   MRR:         0.000
+2026-01-05 08:37:33,782 - INFO -   NDCG@10:     0.000
+2026-01-05 08:37:33,782 - INFO - 
+2026-01-05 08:37:33,782 - INFO - ============================================================
+2026-01-05 08:37:33,782 - INFO - 
+2026-01-05 08:37:33,782 - INFO - ============================================================
+2026-01-05 08:37:33,782 - INFO - Saving results to benchmark_results/sqlite_20260105_082650.json
+
+====================================================================================================
+FINAL BENCHMARK COMPARISON
+====================================================================================================
+
+Index: data/indexes/slot_full
+Queries: 50
+
+Solution        Mean (ms)    Median (ms)  P95 (ms)     Memory (MB)  Recall@10   
+----------------------------------------------------------------------------------------------------
+SQLiteSlotRetriever 181.88       146.61       295.44       13.7         0.000       
+
+====================================================================================================
+

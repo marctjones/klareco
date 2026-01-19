@@ -3,19 +3,25 @@
 Build Unified Corpus from All Extracted Sources
 
 This script:
-1. Reads extracted sentences from all sources (tier0-6)
+1. Reads extracted sentences from all sources (GOLD/SILVER/BRONZE quality)
 2. Parses each sentence to AST with current parser
 3. Calculates parse_rate from AST statistics
-4. Preserves tier, quality, and source metadata
+4. Preserves quality, tier (deprecated), and source metadata
 5. Outputs unified corpus in standard format
+
+Quality System (replaces confusing tier 0-6 numbering):
+- GOLD: Authoritative (PMEG, Krestomatio, Lingvaj Respondoj) ~22K sentences
+- SILVER: Encyclopedic (Wikipedia) ~3.8M sentences
+- BRONZE: Literary (Gutenberg) ~380K sentences
 
 Output format:
 {
     "text": "...",
     "source": {
-        "tier": 0-6,
+        "quality_level": "GOLD|SILVER|BRONZE",  # New quality system
+        "tier": 0|5|6,  # Backward compatibility (deprecated)
         "name": "pmeg",
-        "quality": "authoritative|high|medium|low",
+        "quality": "authoritative|encyclopedic|literary",  # Old descriptor
         "source_type": "grammar_reference|literary|encyclopedia|...",
         ...
     },
@@ -53,33 +59,35 @@ logger = logging.getLogger(__name__)
 
 
 # Source file configurations
+# Quality levels: GOLD (authoritative), SILVER (encyclopedic), BRONZE (literary)
+# tier field kept for backward compatibility (will be deprecated)
 SOURCE_CONFIGS = {
-    # Tier 0: Authoritative grammar and Q&A
-    'tier0_grammar': {
+    # GOLD: Authoritative grammar and Q&A
+    'authoritative_grammar': {
         'path': 'data/extracted/eo/tier0_filtered/grammar/*.jsonl',
-        'tier': 0,
-        'quality': 'authoritative',
+        'tier': 0,  # Backward compatibility
+        'quality': 'GOLD',  # New quality system
         'text_field': 'sentence',
     },
-    'tier0_literary': {
+    'authoritative_literary': {
         'path': 'data/extracted/eo/tier0_filtered/literary/*.jsonl',
-        'tier': 0,
-        'quality': 'authoritative',
+        'tier': 0,  # Backward compatibility
+        'quality': 'GOLD',  # New quality system
         'text_field': 'sentence',
     },
-    # Tier 5: Wikipedia (high coverage, medium quality)
+    # SILVER: Wikipedia (encyclopedic, high coverage)
     'wikipedia': {
         'path': 'data/extracted/wikipedia_sentences.jsonl',
-        'tier': 5,
-        'quality': 'medium',
+        'tier': 5,  # Backward compatibility
+        'quality': 'SILVER',  # New quality system
         'text_field': 'text',
         'source_name_field': 'article_title',
     },
-    # Tier 6: Gutenberg books (natural text, medium-low quality)
+    # BRONZE: Gutenberg books (literary, natural text)
     'gutenberg': {
         'path': 'data/extracted/books_sentences.jsonl',
-        'tier': 6,
-        'quality': 'medium',
+        'tier': 6,  # Backward compatibility
+        'quality': 'BRONZE',  # New quality system
         'text_field': 'text',
     },
 }
@@ -113,14 +121,15 @@ def save_checkpoint(checkpoint_path: Path, completed: Dict[str, int]):
 
 
 def format_tier0_entry(entry: dict, config: dict) -> dict:
-    """Format tier0 extracted sentence to unified corpus format."""
+    """Format tier0/GOLD extracted sentence to unified corpus format."""
     text = entry['sentence']
 
-    # Build source metadata (tier0 has rich metadata)
+    # Build source metadata (GOLD sources have rich metadata)
     source = {
-        'tier': entry['tier'],
+        'tier': entry['tier'],  # Backward compatibility (deprecated)
+        'quality_level': config['quality'],  # New: GOLD/SILVER/BRONZE
         'name': entry['source'],
-        'quality': entry['quality'],
+        'quality': entry['quality'],  # Old field from extraction (authoritative/high/etc)
         'source_type': entry['source_type'],
         'source_name': entry['source_title'],
         'author': entry['author'],
@@ -139,13 +148,14 @@ def format_tier0_entry(entry: dict, config: dict) -> dict:
 
 
 def format_wikipedia_entry(entry: dict, config: dict) -> dict:
-    """Format Wikipedia extracted sentence to unified corpus format."""
+    """Format Wikipedia (SILVER) extracted sentence to unified corpus format."""
     text = entry['text']
 
     source = {
-        'tier': config['tier'],
+        'tier': config['tier'],  # Backward compatibility (deprecated)
+        'quality_level': config['quality'],  # New: GOLD/SILVER/BRONZE
         'name': 'wikipedia',
-        'quality': config['quality'],
+        'quality': 'encyclopedic',  # Old field descriptor
         'source_type': 'encyclopedia',
         'source_name': entry.get('article_title', 'Unknown Article'),
         'article_id': entry.get('article_id'),
@@ -157,13 +167,14 @@ def format_wikipedia_entry(entry: dict, config: dict) -> dict:
 
 
 def format_gutenberg_entry(entry: dict, config: dict) -> dict:
-    """Format Gutenberg book sentence to unified corpus format."""
+    """Format Gutenberg (BRONZE) book sentence to unified corpus format."""
     text = entry['text']
 
     source = {
-        'tier': config['tier'],
+        'tier': config['tier'],  # Backward compatibility (deprecated)
+        'quality_level': config['quality'],  # New: GOLD/SILVER/BRONZE
         'name': 'gutenberg',
-        'quality': config['quality'],
+        'quality': 'literary',  # Old field descriptor
         'source_type': 'literary',
         'source_name': entry.get('source_name', entry.get('source', 'Unknown Book')),
         'chapter': entry.get('chapter'),
@@ -176,11 +187,11 @@ def format_gutenberg_entry(entry: dict, config: dict) -> dict:
 def format_entry(entry: dict, config: dict, source_type: str) -> Optional[tuple]:
     """Format entry based on source type."""
     try:
-        if source_type.startswith('tier0'):
+        if source_type.startswith('authoritative'):  # GOLD quality
             return format_tier0_entry(entry, config)
-        elif source_type == 'wikipedia':
+        elif source_type == 'wikipedia':  # SILVER quality
             return format_wikipedia_entry(entry, config)
-        elif source_type == 'gutenberg':
+        elif source_type == 'gutenberg':  # BRONZE quality
             return format_gutenberg_entry(entry, config)
         else:
             logger.warning(f"Unknown source type: {source_type}")

@@ -1,0 +1,275 @@
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Traceback (most recent call last):
+  File "/home/marc/Projects/klareco/scripts/evaluate_qa.py", line 177, in klareco_system
+    indexer = SlotBasedIndexer.load(index_path)
+              ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'SlotBasedIndexer' has no attribute 'load'
+Loaded 50 questions from /home/marc/Projects/klareco/data/benchmarks/datasets/qa_benchmark_v1.jsonl
+Evaluating system: klareco
+
+============================================================
+Q&A BENCHMARK EVALUATION RESULTS
+============================================================
+
+Total Questions: 50
+
+Overall Metrics:
+  Exact Match:   0.0%
+  Partial Match: 4.0%
+  F1 Score:      0.000
+  Avg Latency:   54ms
+
+By Category:
+  Category         Count    Exact  Partial       F1
+  --------------- ------ -------- -------- --------
+  definition          10    0.0%    0.0%   0.000
+  factual             10    0.0%    0.0%   0.000
+  grammar             10    0.0%   20.0%   0.000
+  negative            10    0.0%    0.0%   0.000
+  reasoning           10    0.0%    0.0%   0.000
+
+Results saved to: benchmark_results/qa/qa_benchmark_20260106_231008.json

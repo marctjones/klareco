@@ -19,7 +19,7 @@ Usage:
         --stage1-model models/root_embeddings_tier0/best_model.pt \
         --output-dir data/training/m1_semantic_tier_priority \
         --max-triples 200000 \
-        --priority-tiers 0 2
+        --priority-tiers 0
 """
 
 import argparse
@@ -186,7 +186,7 @@ def load_corpus_triples_prioritized(
     corpus_path: Path,
     max_triples: Optional[int] = None,
     min_parse_rate: float = 0.0,
-    priority_tiers: List[int] = [0, 2],
+    priority_tiers: List[int] = [0],
     fill_tiers: List[int] = [5, 6]
 ) -> Tuple[List[Dict], Dict[str, Set[str]]]:
     """
@@ -198,7 +198,7 @@ def load_corpus_triples_prioritized(
         corpus_path: Path to corpus JSONL file
         max_triples: Maximum triples to extract (None = all)
         min_parse_rate: Minimum parse rate filter
-        priority_tiers: Tiers to include fully (default: [0, 2] = tier0 and tier2)
+        priority_tiers: Tiers to include fully (default: [0] = tier0 authoritative)
         fill_tiers: Tiers to sample from to fill remaining quota (default: [5, 6])
 
     Returns:

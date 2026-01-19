@@ -1,67 +1,27 @@
+# IdlerGear data
+.idlergear/
+
+# Claude Code data
+.claude/
+
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-
-# Environment
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDEs
-.idea/
-.vscode/
-
-# Data (large files stay local)
-data/
-logs/
-*.log
-
-# Generated documentation (135MB HTML, regenerate with pdoc)
-docs/api/
-
-# Models - ignore all except trained Stage 1 models
-models/
-!models/root_embeddings/
-models/root_embeddings/*
-!models/root_embeddings/best_model.pt
-!models/affix_transforms_v2/
-models/affix_transforms_v2/*
-!models/affix_transforms_v2/best_model.pt
-
-# Test outputs and temporary files
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
 .coverage
 htmlcov/
-.pytest_cache/
-run_output.txt
-temp_*
 
-# Dependencies
-*.egg-info/
-dist/
-build/
-eggs/
-parts/
-bin/
-var/
-sdist/
-develop-eggs/
-.installed.cfg
-lib/
-lib64/
+# Data files (not in git - too large)
+data/
+models/
+logs/
 
-.gemini/
-gha-creds-*.json
-.model_backups/
+# Temp files
+*.tmp
+=2.0.0
 
-# IdlerGear daemon files (don't commit)
-.idlergear/daemon.sock
-.idlergear/daemon.pid
-.idlergear/session_state.json
-
-# Claude Code local settings (user-specific)
-.claude/settings.local.json
+# OS
+.DS_Store
+Thumbs.db

@@ -58,35 +58,125 @@ logger = logging.getLogger(__name__)
 
 # Source file configurations
 # Quality levels based on Esperanto language quality:
-#   GOLD: Authoritative (expert-written)
-#   SILVER: Literary (published books, high quality)
-#   BRONZE: Encyclopedic (crowd-sourced, variable quality)
+#   GOLD: Authoritative (expert-written) OR parse_rate >= 0.98
+#   SILVER: Literary (published books) OR parse_rate >= 0.95
+#   BRONZE: Encyclopedic (crowd-sourced) OR parse_rate >= 0.90
+#   COPPER: parse_rate < 0.90 (may be excluded)
+#
+# Default quality is baseline, but can be upgraded/downgraded by:
+#   1. Parse rate (automated)
+#   2. Manual overrides (data/quality_overrides.json)
 SOURCE_CONFIGS = {
-    # GOLD: Authoritative grammar and Q&A
+    # GOLD: Authoritative grammar and Q&A (always GOLD)
     'authoritative_grammar': {
         'path': 'data/extracted/eo/tier0_filtered/grammar/*.jsonl',
-        'quality': 'GOLD',
+        'base_quality': 'GOLD',
+        'allow_parse_rate_adjustment': False,  # Always GOLD
         'text_field': 'sentence',
     },
     'authoritative_literary': {
         'path': 'data/extracted/eo/tier0_filtered/literary/*.jsonl',
-        'quality': 'GOLD',
+        'base_quality': 'GOLD',
+        'allow_parse_rate_adjustment': False,  # Always GOLD
         'text_field': 'sentence',
     },
-    # SILVER: Gutenberg books (published literary works, high language quality)
+    # SILVER: Gutenberg books (can be adjusted by parse rate or overrides)
     'gutenberg': {
         'path': 'data/extracted/books_sentences.jsonl',
-        'quality': 'SILVER',
+        'base_quality': 'SILVER',
+        'allow_parse_rate_adjustment': True,
         'text_field': 'text',
     },
-    # BRONZE: Wikipedia (crowd-sourced, variable quality, high volume)
+    # BRONZE: Wikipedia (can be adjusted by parse rate or overrides)
     'wikipedia': {
         'path': 'data/extracted/wikipedia_sentences.jsonl',
-        'quality': 'BRONZE',
+        'base_quality': 'BRONZE',
+        'allow_parse_rate_adjustment': True,
         'text_field': 'text',
         'source_name_field': 'article_title',
     },
 }
+
+
+# Quality overrides and exclusions
+_quality_overrides = None
+_quality_exclusions = None
+
+
+def load_quality_overrides(overrides_path: Path) -> tuple:
+    """Load quality overrides and exclusions from JSON config."""
+    if not overrides_path.exists():
+        logger.info(f"No quality overrides file found at {overrides_path}")
+        return {}, {}
+
+    try:
+        with open(overrides_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        # Load overrides (only enabled ones)
+        overrides = {}
+        for key, override in config.get('overrides', {}).items():
+            if key.startswith('_'):  # Skip examples and comments
+                continue
+            if override.get('enabled', True):
+                source_name = override['source_name']
+                overrides[source_name] = override['quality']
+
+        # Load exclusions (only enabled ones)
+        exclusions = set()
+        for key, exclusion in config.get('exclude', {}).items():
+            if key.startswith('_'):  # Skip examples and comments
+                continue
+            if exclusion.get('enabled', True):
+                exclusions.add(exclusion['source_name'])
+
+        logger.info(f"Loaded {len(overrides)} quality overrides and {len(exclusions)} exclusions")
+        return overrides, exclusions
+
+    except Exception as e:
+        logger.warning(f"Failed to load quality overrides: {e}")
+        return {}, {}
+
+
+def calculate_quality_by_parse_rate(parse_rate: float, base_quality: str, allow_adjustment: bool) -> str:
+    """Calculate quality based on parse rate."""
+    if not allow_adjustment:
+        return base_quality
+
+    # Use parse rate thresholds
+    if parse_rate >= 0.98:
+        return 'GOLD'
+    elif parse_rate >= 0.95:
+        return 'SILVER'
+    elif parse_rate >= 0.90:
+        return 'BRONZE'
+    else:
+        return 'COPPER'
+
+
+def determine_final_quality(
+    source_name: str,
+    parse_rate: float,
+    base_quality: str,
+    allow_adjustment: bool,
+    overrides: dict
+) -> str:
+    """Determine final quality using hybrid approach: parse rate + overrides."""
+    # Check for manual override first
+    if source_name in overrides:
+        return overrides[source_name]
+
+    # Use parse rate if adjustment allowed
+    if allow_adjustment:
+        return calculate_quality_by_parse_rate(parse_rate, base_quality, allow_adjustment)
+
+    # Otherwise use base quality
+    return base_quality
+
+
+def is_excluded(source_name: str, exclusions: set) -> bool:
+    """Check if source should be excluded."""
+    return source_name in exclusions
 
 
 def load_checkpoint(checkpoint_path: Path) -> Dict[str, int]:
@@ -121,13 +211,15 @@ def format_authoritative_entry(entry: dict, config: dict) -> dict:
     text = entry['sentence']
 
     # Build source metadata (GOLD sources have rich metadata)
+    # Note: quality will be determined after parsing (hybrid approach)
     source = {
-        'quality': config['quality'],  # GOLD/SILVER/BRONZE
         'name': entry['source'],
         'source_type': entry['source_type'],
         'source_name': entry['source_title'],
         'author': entry['author'],
         'year': entry['year'],
+        '_base_quality': config['base_quality'],
+        '_allow_adjustment': config['allow_parse_rate_adjustment'],
     }
 
     # Add optional fields
@@ -145,14 +237,16 @@ def format_encyclopedic_entry(entry: dict, config: dict) -> dict:
     """Format encyclopedic (BRONZE) extracted sentence to unified corpus format."""
     text = entry['text']
 
+    # Note: quality will be determined after parsing (hybrid approach)
     source = {
-        'quality': config['quality'],  # GOLD/SILVER/BRONZE
         'name': 'wikipedia',
         'source_type': 'encyclopedia',
         'source_name': entry.get('article_title', 'Unknown Article'),
         'article_id': entry.get('article_id'),
         'section': entry.get('section'),
         'section_level': entry.get('section_level'),
+        '_base_quality': config['base_quality'],
+        '_allow_adjustment': config['allow_parse_rate_adjustment'],
     }
 
     return text, source
@@ -162,13 +256,15 @@ def format_literary_entry(entry: dict, config: dict) -> dict:
     """Format literary (SILVER) book sentence to unified corpus format."""
     text = entry['text']
 
+    # Note: quality will be determined after parsing (hybrid approach)
     source = {
-        'quality': config['quality'],  # GOLD/SILVER/BRONZE
         'name': 'gutenberg',
         'source_type': 'literary',
         'source_name': entry.get('source_name', entry.get('source', 'Unknown Book')),
         'chapter': entry.get('chapter'),
         'chapter_number': entry.get('chapter_number'),
+        '_base_quality': config['base_quality'],
+        '_allow_adjustment': config['allow_parse_rate_adjustment'],
     }
 
     return text, source
@@ -191,8 +287,17 @@ def format_entry(entry: dict, config: dict, source_type: str) -> Optional[tuple]
         return None
 
 
-def parse_and_build_entry(text: str, source: dict) -> dict:
-    """Parse sentence to AST and build unified corpus entry."""
+def parse_and_build_entry(text: str, source: dict, overrides: dict, exclusions: set) -> Optional[dict]:
+    """Parse sentence to AST and build unified corpus entry with hybrid quality."""
+    # Extract quality determination parameters
+    source_name = source.get('source_name', 'unknown')
+    base_quality = source.pop('_base_quality', 'BRONZE')
+    allow_adjustment = source.pop('_allow_adjustment', True)
+
+    # Check if source is excluded
+    if is_excluded(source_name, exclusions):
+        return None
+
     # Parse to AST
     try:
         ast = parser.parse(text)
@@ -213,6 +318,18 @@ def parse_and_build_entry(text: str, source: dict) -> dict:
     # Extract parse rate from AST statistics
     parse_rate = ast.get('parse_statistics', {}).get('success_rate', 0.0)
 
+    # Determine final quality using hybrid approach
+    final_quality = determine_final_quality(
+        source_name,
+        parse_rate,
+        base_quality,
+        allow_adjustment,
+        overrides
+    )
+
+    # Add quality to source metadata
+    source['quality'] = final_quality
+
     return {
         'text': text,
         'source': source,
@@ -226,7 +343,9 @@ def process_source_files(
     config: dict,
     output_file: Path,
     completed_files: Dict[str, int],
-    resume: bool
+    resume: bool,
+    overrides: dict,
+    exclusions: set
 ) -> tuple:
     """Process all files for a source type."""
     from glob import glob
@@ -276,8 +395,13 @@ def process_source_files(
                             file_failed += 1
                             continue
 
-                        # Parse and build corpus entry
-                        corpus_entry = parse_and_build_entry(text, source)
+                        # Parse and build corpus entry (with hybrid quality)
+                        corpus_entry = parse_and_build_entry(text, source, overrides, exclusions)
+
+                        # Skip if excluded
+                        if corpus_entry is None:
+                            file_failed += 1
+                            continue
 
                         # Track low parse rate
                         if corpus_entry['parse_rate'] < 0.3:
@@ -315,12 +439,26 @@ def process_source_files(
 def build_corpus(
     output_file: Path,
     resume: bool = False,
-    fresh: bool = False
+    fresh: bool = False,
+    overrides_path: Path = None
 ):
-    """Build unified corpus from all extracted sources."""
+    """Build unified corpus from all extracted sources with hybrid quality."""
     logger.info("=" * 80)
-    logger.info("BUILD UNIFIED CORPUS")
+    logger.info("BUILD UNIFIED CORPUS (Hybrid Quality System)")
     logger.info("=" * 80)
+    logger.info("")
+
+    # Load quality overrides and exclusions
+    if overrides_path is None:
+        overrides_path = Path('config/quality_overrides.json')
+
+    overrides, exclusions = load_quality_overrides(overrides_path)
+
+    logger.info("Quality System:")
+    logger.info("  GOLD:   parse_rate >= 0.98 (exceptional)")
+    logger.info("  SILVER: parse_rate >= 0.95 (high quality)")
+    logger.info("  BRONZE: parse_rate >= 0.90 (good quality)")
+    logger.info("  COPPER: parse_rate < 0.90  (fair quality)")
     logger.info("")
 
     # Checkpoint management
@@ -354,7 +492,7 @@ def build_corpus(
 
     for source_type, config in SOURCE_CONFIGS.items():
         logger.info("")
-        logger.info(f"Processing {source_type} ({config['quality']} quality)...")
+        logger.info(f"Processing {source_type} (base: {config['base_quality']})...")
         logger.info(f"  Pattern: {config['path']}")
 
         processed, failed = process_source_files(
@@ -362,12 +500,12 @@ def build_corpus(
             config,
             output_file,
             completed_files,
-            resume
+            resume,
+            overrides,
+            exclusions
         )
 
-        quality = config['quality'].lower()
-        total_stats[f'{quality}_processed'] += processed
-        total_stats[f'{quality}_failed'] += failed
+        # Note: actual quality distribution will be calculated after processing
         total_stats['total_processed'] += processed
         total_stats['total_failed'] += failed
 
@@ -381,18 +519,26 @@ def build_corpus(
     logger.info("=" * 80)
     logger.info("")
 
-    # Count lines in final corpus
-    final_count = sum(1 for _ in open(output_file, 'r', encoding='utf-8'))
+    # Count actual quality distribution in corpus
+    logger.info("Calculating actual quality distribution...")
+    quality_counts = defaultdict(int)
+    final_count = 0
+
+    with open(output_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            entry = json.loads(line)
+            quality = entry.get('source', {}).get('quality', 'UNKNOWN')
+            quality_counts[quality] += 1
+            final_count += 1
 
     logger.info(f"Total sentences in corpus: {final_count:,}")
     logger.info("")
-    logger.info("Breakdown by quality:")
-    for quality in ['gold', 'silver', 'bronze']:
-        processed = total_stats.get(f'{quality}_processed', 0)
-        if processed > 0:
-            failed = total_stats.get(f'{quality}_failed', 0)
-            pct = (processed / total_stats['total_processed'] * 100) if total_stats['total_processed'] > 0 else 0
-            logger.info(f"  {quality.upper()}: {processed:,} sentences ({pct:.1f}%)")
+    logger.info("Breakdown by actual quality (after hybrid assessment):")
+    for quality in ['GOLD', 'SILVER', 'BRONZE', 'COPPER']:
+        count = quality_counts.get(quality, 0)
+        if count > 0:
+            pct = (count / final_count * 100) if final_count > 0 else 0
+            logger.info(f"  {quality}: {count:,} sentences ({pct:.1f}%)")
 
     logger.info("")
     logger.info(f"Output: {output_file}")
@@ -430,6 +576,12 @@ def main():
         action='store_true',
         help='Start fresh, ignore checkpoint and backup existing corpus'
     )
+    parser_arg.add_argument(
+        '--overrides',
+        type=Path,
+        default=Path('config/quality_overrides.json'),
+        help='Path to quality overrides config (JSON)'
+    )
 
     args = parser_arg.parse_args()
 
@@ -442,7 +594,8 @@ def main():
         build_corpus(
             args.output,
             resume=args.resume,
-            fresh=args.fresh
+            fresh=args.fresh,
+            overrides_path=args.overrides
         )
         return 0
     except Exception as e:

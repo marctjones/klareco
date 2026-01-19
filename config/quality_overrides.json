@@ -1,0 +1,36 @@
+{
+  "_comment": "Manual quality overrides for specific sources",
+  "_description": "This file allows manual quality assignments that override the automated parse-rate-based quality. Use this for sources you know should be higher or lower quality than their parse rate suggests.",
+
+  "_thresholds": {
+    "GOLD": "parse_rate >= 0.98 (exceptional quality)",
+    "SILVER": "parse_rate >= 0.95 (high quality)",
+    "BRONZE": "parse_rate >= 0.90 (good quality)",
+    "COPPER": "parse_rate < 0.90 (fair quality)"
+  },
+
+  "overrides": {
+    "_example_upgrade": {
+      "source_name": "Example: Some Wikipedia Article",
+      "quality": "GOLD",
+      "reason": "Expertly written by known Esperantist",
+      "enabled": false
+    },
+
+    "_example_downgrade": {
+      "source_name": "Example: Some Book",
+      "quality": "BRONZE",
+      "reason": "Known to have translation errors",
+      "enabled": false
+    }
+  },
+
+  "exclude": {
+    "_comment": "Sources to completely exclude from corpus",
+    "_example": {
+      "source_name": "Example: Poor Quality Book",
+      "reason": "Machine translation, very low quality",
+      "enabled": false
+    }
+  }
+}

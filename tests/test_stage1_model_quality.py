@@ -69,6 +69,9 @@ def fundamento_roots():
         data = json.load(f)
         if isinstance(data, list):
             return set(r['root'].lower() if isinstance(r, dict) else str(r).lower() for r in data)
+        # Handle {"_comment": "...", "roots": {...}} structure
+        if isinstance(data, dict) and 'roots' in data:
+            return set(data['roots'].keys())
         return set(data.keys())
 
 

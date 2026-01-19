@@ -53,16 +53,18 @@ m1 = M1Inference(
 print("✓ Model loaded\n")
 
 # Test cases from issue #475
+# NOTE: Use BASE ROOTS only (not full words with endings)
+# Example: 'hom' not 'homo', 'libr' not 'libro'
 test_cases = [
     # Should be HIGH (plausible)
     ('hund', 'manĝ', 'viand', 'dog eats meat', True),
-    ('homo', 'leg', 'libro', 'person reads book', True),
+    ('hom', 'leg', 'libr', 'person reads book', True),
 
     # Should be LOW (implausible - selectional violations)
-    ('hund', 'manĝ', 'ideo', 'dog eats idea', False),
-    ('homo', 'leg', 'tablo', 'person reads table', False),
-    ('tablo', 'pens', 'problemo', 'table thinks problem', False),
-    ('koloro', 'aŭd', 'sono', 'color hears sound', False),
+    ('hund', 'manĝ', 'ide', 'dog eats idea', False),
+    ('hom', 'leg', 'tabl', 'person reads table', False),
+    ('tabl', 'pens', 'teori', 'table thinks theory', False),
+    ('kolor', 'aŭd', 'son', 'color hears sound', False),
 ]
 
 print("=" * 70)

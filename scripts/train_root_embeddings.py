@@ -162,12 +162,69 @@ def compute_jaccard(set1: set, set2: set) -> float:
     return intersection / union if union > 0 else 0.0
 
 
+def load_tier0_corpus(corpus_path: Path, root_to_idx: dict) -> List[dict]:
+    """
+    Load tier0 corpus sentences and extract roots from ASTs.
+
+    Returns list of sentences with extracted roots for co-occurrence.
+    """
+    if not corpus_path.exists():
+        logger.warning(f"Tier0 corpus not found: {corpus_path}")
+        return []
+
+    logger.info(f"Loading tier0 corpus from {corpus_path}...")
+    sentences = []
+
+    with open(corpus_path) as f:
+        for line in f:
+            entry = json.loads(line)
+            # Extract roots from AST
+            ast = entry.get('ast', {})
+            roots = extract_roots_from_ast(ast)
+
+            # Filter to roots in vocabulary
+            roots = [r for r in roots if r in root_to_idx]
+
+            if len(roots) >= 2:
+                sentences.append({
+                    'roots': roots,
+                    'weight': entry.get('source', {}).get('weight', 10.0)
+                })
+
+    logger.info(f"Loaded {len(sentences):,} tier0 sentences")
+    return sentences
+
+
+def extract_roots_from_ast(ast: dict) -> List[str]:
+    """Recursively extract all roots from an AST."""
+    roots = []
+
+    if isinstance(ast, dict):
+        # Direct root
+        if 'radiko' in ast:
+            root = ast['radiko'].lower()
+            if root:
+                roots.append(root)
+
+        # Recurse into all dict values
+        for value in ast.values():
+            roots.extend(extract_roots_from_ast(value))
+
+    elif isinstance(ast, list):
+        # Recurse into list items
+        for item in ast:
+            roots.extend(extract_roots_from_ast(item))
+
+    return roots
+
+
 def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
                            ekzercaro: List[dict], root_to_idx: dict,
                            negative_ratio: int = 3,
                            use_revo: bool = True,
                            use_hard_negatives: bool = False,
-                           revo_relations_path: Optional[Path] = None) -> Tuple[List, List]:
+                           revo_relations_path: Optional[Path] = None,
+                           tier0_sentences: Optional[List[dict]] = None) -> Tuple[List, List]:
     """
     Build training pairs with GRADED similarity targets.
 
@@ -256,6 +313,47 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
     logger.info(f"Created {ekz_pair_count} Ekzercaro pairs (graded 0.3-0.9)")
 
     # =========================================================================
+    # 1b. Tier0 corpus co-occurrence (BONUS - higher quality than Ekzercaro)
+    # =========================================================================
+    tier0_pair_count = 0
+    if tier0_sentences:
+        logger.info("Building tier0 corpus co-occurrence pairs (graded, high-weight)...")
+
+        tier0_cooccurrence = defaultdict(int)
+
+        for sent in tier0_sentences:
+            # Filter function words from roots
+            roots = [r for r in sent.get('roots', []) if r not in FUNCTION_WORDS]
+
+            for r in roots:
+                root_freq[r] += 1
+
+            if len(roots) < 2:
+                continue
+
+            # Only pair adjacent or nearby roots (within window of 3)
+            for i in range(len(roots)):
+                for j in range(i + 1, min(i + 4, len(roots))):
+                    r1, r2 = roots[i], roots[j]
+                    idx1, idx2 = root_to_idx[r1], root_to_idx[r2]
+                    pair_key = (min(idx1, idx2), max(idx1, idx2))
+                    tier0_cooccurrence[pair_key] += 1
+
+        # Convert co-occurrence to similarity scores
+        for pair_key, count in tier0_cooccurrence.items():
+            idx1, idx2 = pair_key
+            # Tier0 gets higher baseline similarity than Ekzercaro
+            target = min(0.95, 0.4 + 0.2 * math.log1p(count))  # Range: 0.4-0.95
+
+            if pair_key not in pair_targets or target > pair_targets[pair_key]:
+                pair_targets[pair_key] = target
+                pairs.append((idx1, idx2, target))
+                weights.append(15.0)  # Higher weight than Ekzercaro (10.0)
+                tier0_pair_count += 1
+
+        logger.info(f"Created {tier0_pair_count} tier0 pairs (graded 0.4-0.95, weight=15.0)")
+
+    # =========================================================================
     # 2. ReVo definition Jaccard similarity (baseline - this worked well)
     # =========================================================================
     revo_jaccard_count = 0
@@ -331,7 +429,11 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
             rel_pairs = revo_rels.get('relations', {}).get(rel_type, [])
             count = 0
 
-            for r1, r2 in rel_pairs:
+            for rel in rel_pairs:
+                # Extract source and target from dictionary
+                r1 = rel['source']
+                r2 = rel['target']
+
                 if r1 not in root_to_idx or r2 not in root_to_idx:
                     continue
                 if r1 in FUNCTION_WORDS or r2 in FUNCTION_WORDS:
@@ -848,8 +950,11 @@ def main():
                         default=Path('data/vocabularies/clean_roots.json'),
                         help='Clean vocabulary file (RECOMMENDED)')
     parser.add_argument('--revo-relations', type=Path,
-                        default=Path('data/revo/revo_semantic_relations.json'),
+                        default=Path('data/raw/eo/dictionaries/revo/revo_semantic_relations.json'),
                         help='ReVo curated semantic relations (synonyms, antonyms, hypernyms)')
+    parser.add_argument('--tier0-corpus', type=Path,
+                        default=Path('data/enhanced_corpus/corpus_with_tier0.jsonl'),
+                        help='Tier0 corpus for high-quality co-occurrence pairs')
 
     args = parser.parse_args()
 
@@ -905,13 +1010,21 @@ def main():
     )
     logger.info(f"Total vocabulary: {len(root_to_idx)} roots")
 
+    # Load tier0 corpus (if available)
+    tier0_sentences = []
+    if args.tier0_corpus and args.tier0_corpus.exists():
+        tier0_sentences = load_tier0_corpus(args.tier0_corpus, root_to_idx)
+    else:
+        logger.info("Tier0 corpus not provided - using only Ekzercaro/ReVo")
+
     # Build training pairs
     logger.info("\nBuilding training pairs...")
     pairs, weights = build_similarity_pairs(
         fundamento_roots, revo_entries, ekzercaro, root_to_idx,
         use_revo=not args.no_pv,
         use_hard_negatives=args.hard_negatives,
-        revo_relations_path=args.revo_relations
+        revo_relations_path=args.revo_relations,
+        tier0_sentences=tier0_sentences
     )
 
     if args.dry_run:

@@ -30,12 +30,12 @@ else
 fi
 
 # Check if training data exists
-TRAINING_DATA="data/training/m1_selectional_violations"
+TRAINING_DATA="data/training/m1_selectional_hard_only"
 if [ ! -d "$TRAINING_DATA" ]; then
     echo "❌ Training data not found: $TRAINING_DATA"
     echo ""
     echo "Generate training data first:"
-    echo "  ./scripts/m1_generate_selectional_data.sh"
+    echo "  python scripts/prepare_m1_training_data.py"
     exit 1
 fi
 

@@ -169,6 +169,10 @@ def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: M1Loss,
 
         # Backward pass
         losses['loss'].backward()
+
+        # Gradient clipping to prevent extreme weights
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         optimizer.step()
 
         # Accumulate losses
@@ -197,6 +201,7 @@ def evaluate(model: nn.Module, dataloader: DataLoader, criterion: M1Loss,
     total_triple_loss = 0.0
     correct = 0
     total = 0
+    all_scores = []  # Track score distribution
 
     with torch.no_grad():
         for batch in dataloader:
@@ -223,15 +228,28 @@ def evaluate(model: nn.Module, dataloader: DataLoader, criterion: M1Loss,
             correct += (predictions == labels).sum().item()
             total += labels.size(0)
 
+            # Collect scores for distribution analysis
+            all_scores.extend(outputs['triple_score'].squeeze().cpu().tolist())
+
     num_batches = len(dataloader)
     accuracy = correct / total if total > 0 else 0.0
+
+    # Compute score statistics
+    score_mean = sum(all_scores) / len(all_scores) if all_scores else 0.0
+    score_min = min(all_scores) if all_scores else 0.0
+    score_max = max(all_scores) if all_scores else 0.0
+    score_std = (sum((s - score_mean) ** 2 for s in all_scores) / len(all_scores)) ** 0.5 if all_scores else 0.0
 
     return {
         'loss': total_loss / num_batches,
         'subj_verb_loss': total_subj_verb_loss / num_batches,
         'verb_obj_loss': total_verb_obj_loss / num_batches,
         'triple_loss': total_triple_loss / num_batches,
-        'accuracy': accuracy
+        'accuracy': accuracy,
+        'score_mean': score_mean,
+        'score_min': score_min,
+        'score_max': score_max,
+        'score_std': score_std
     }
 
 
@@ -286,7 +304,7 @@ def main():
                         default='models/root_embeddings/best_model.pt',
                         help='Path to Stage 1 root embeddings')
     parser.add_argument('--data-dir', type=str,
-                        default='data/training/m1_selectional_hard',
+                        default='data/training/m1_selectional_hard_only',
                         help='Directory with train/val/test.jsonl')
     parser.add_argument('--output-dir', type=str,
                         default='models/m1_selectional',
@@ -414,8 +432,17 @@ def main():
             f"Epoch {epoch + 1}/{args.epochs}: "
             f"train_loss={train_metrics['loss']:.4f}, "
             f"val_loss={val_metrics['loss']:.4f}, "
-            f"val_acc={val_metrics['accuracy']:.4f}"
+            f"val_acc={val_metrics['accuracy']:.4f}, "
+            f"scores=[{val_metrics['score_min']:.3f}, {val_metrics['score_max']:.3f}], "
+            f"mean={val_metrics['score_mean']:.3f}, std={val_metrics['score_std']:.3f}"
         )
+
+        # Check for model collapse (scores stuck near 0 or 1)
+        if val_metrics['score_std'] < 0.05:
+            logger.warning(
+                f"⚠️  Low score variance (std={val_metrics['score_std']:.4f}) - "
+                f"model may be collapsing!"
+            )
 
         # Save best model
         if val_metrics['accuracy'] > best_accuracy:

@@ -35,6 +35,15 @@ lingua-language-detector  # Heavy dependency, only if rebuilding corpus
 # HTTP requests
 requests
 
+# HTML parsing for web scraping
+beautifulsoup4
+
+# PDF text extraction (fallback if pandoc unavailable)
+PyPDF2
+
+# SPARQL queries for Wikidata
+SPARQLWrapper>=2.0.0
+
 # ----------------------------------------------------------------------------
 # Development Tools (Optional)
 # ----------------------------------------------------------------------------
@@ -46,9 +55,18 @@ requests
 coverage
 
 # ----------------------------------------------------------------------------
+# Display Helpers (Optional - for demo UI only, NOT part of Klareco model)
+# ----------------------------------------------------------------------------
+
+# Helsinki-NLP MarianMT for demo translations (Esperanto → English subtitles)
+# ⚠️  DISPLAY ONLY - This is NOT used in Klareco processing/training
+# ⚠️  Klareco remains Pure Esperanto (no English in models/ASTs/embeddings)
+transformers>=4.0.0  # For MarianMT translation in demos
+sentencepiece  # Required by MarianMT tokenizer
+
+# ----------------------------------------------------------------------------
 # NOT USED (Legacy/Future)
 # ----------------------------------------------------------------------------
-# transformers  # Was for translation, now using deterministic approach
 # torch-geometric  # Was for GNN, now using simpler compositional embeddings
 # networkx  # Graph visualization
 # matplotlib  # Plotting

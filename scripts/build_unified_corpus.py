@@ -6,22 +6,20 @@ This script:
 1. Reads extracted sentences from all sources (GOLD/SILVER/BRONZE quality)
 2. Parses each sentence to AST with current parser
 3. Calculates parse_rate from AST statistics
-4. Preserves quality, tier (deprecated), and source metadata
+4. Preserves quality and source metadata
 5. Outputs unified corpus in standard format
 
-Quality System (replaces confusing tier 0-6 numbering):
+Quality System (replaces old tier 0-6 numbering):
 - GOLD: Authoritative (PMEG, Krestomatio, Lingvaj Respondoj) ~22K sentences
-- SILVER: Encyclopedic (Wikipedia) ~3.8M sentences
-- BRONZE: Literary (Gutenberg) ~380K sentences
+- SILVER: Literary (Gutenberg - high language quality) ~380K sentences
+- BRONZE: Encyclopedic (Wikipedia - variable quality) ~3.8M sentences
 
 Output format:
 {
     "text": "...",
     "source": {
-        "quality_level": "GOLD|SILVER|BRONZE",  # New quality system
-        "tier": 0|5|6,  # Backward compatibility (deprecated)
+        "quality": "GOLD|SILVER|BRONZE",
         "name": "pmeg",
-        "quality": "authoritative|encyclopedic|literary",  # Old descriptor
         "source_type": "grammar_reference|literary|encyclopedia|...",
         ...
     },
@@ -59,36 +57,34 @@ logger = logging.getLogger(__name__)
 
 
 # Source file configurations
-# Quality levels: GOLD (authoritative), SILVER (encyclopedic), BRONZE (literary)
-# tier field kept for backward compatibility (will be deprecated)
+# Quality levels based on Esperanto language quality:
+#   GOLD: Authoritative (expert-written)
+#   SILVER: Literary (published books, high quality)
+#   BRONZE: Encyclopedic (crowd-sourced, variable quality)
 SOURCE_CONFIGS = {
     # GOLD: Authoritative grammar and Q&A
     'authoritative_grammar': {
         'path': 'data/extracted/eo/tier0_filtered/grammar/*.jsonl',
-        'tier': 0,  # Backward compatibility
-        'quality': 'GOLD',  # New quality system
+        'quality': 'GOLD',
         'text_field': 'sentence',
     },
     'authoritative_literary': {
         'path': 'data/extracted/eo/tier0_filtered/literary/*.jsonl',
-        'tier': 0,  # Backward compatibility
-        'quality': 'GOLD',  # New quality system
+        'quality': 'GOLD',
         'text_field': 'sentence',
     },
-    # SILVER: Wikipedia (encyclopedic, high coverage)
-    'wikipedia': {
-        'path': 'data/extracted/wikipedia_sentences.jsonl',
-        'tier': 5,  # Backward compatibility
-        'quality': 'SILVER',  # New quality system
-        'text_field': 'text',
-        'source_name_field': 'article_title',
-    },
-    # BRONZE: Gutenberg books (literary, natural text)
+    # SILVER: Gutenberg books (published literary works, high language quality)
     'gutenberg': {
         'path': 'data/extracted/books_sentences.jsonl',
-        'tier': 6,  # Backward compatibility
-        'quality': 'BRONZE',  # New quality system
+        'quality': 'SILVER',
         'text_field': 'text',
+    },
+    # BRONZE: Wikipedia (crowd-sourced, variable quality, high volume)
+    'wikipedia': {
+        'path': 'data/extracted/wikipedia_sentences.jsonl',
+        'quality': 'BRONZE',
+        'text_field': 'text',
+        'source_name_field': 'article_title',
     },
 }
 
@@ -120,16 +116,14 @@ def save_checkpoint(checkpoint_path: Path, completed: Dict[str, int]):
             temp_path.unlink()
 
 
-def format_tier0_entry(entry: dict, config: dict) -> dict:
-    """Format tier0/GOLD extracted sentence to unified corpus format."""
+def format_authoritative_entry(entry: dict, config: dict) -> dict:
+    """Format authoritative (GOLD) extracted sentence to unified corpus format."""
     text = entry['sentence']
 
     # Build source metadata (GOLD sources have rich metadata)
     source = {
-        'tier': entry['tier'],  # Backward compatibility (deprecated)
-        'quality_level': config['quality'],  # New: GOLD/SILVER/BRONZE
+        'quality': config['quality'],  # GOLD/SILVER/BRONZE
         'name': entry['source'],
-        'quality': entry['quality'],  # Old field from extraction (authoritative/high/etc)
         'source_type': entry['source_type'],
         'source_name': entry['source_title'],
         'author': entry['author'],
@@ -147,15 +141,13 @@ def format_tier0_entry(entry: dict, config: dict) -> dict:
     return text, source
 
 
-def format_wikipedia_entry(entry: dict, config: dict) -> dict:
-    """Format Wikipedia (SILVER) extracted sentence to unified corpus format."""
+def format_encyclopedic_entry(entry: dict, config: dict) -> dict:
+    """Format encyclopedic (BRONZE) extracted sentence to unified corpus format."""
     text = entry['text']
 
     source = {
-        'tier': config['tier'],  # Backward compatibility (deprecated)
-        'quality_level': config['quality'],  # New: GOLD/SILVER/BRONZE
+        'quality': config['quality'],  # GOLD/SILVER/BRONZE
         'name': 'wikipedia',
-        'quality': 'encyclopedic',  # Old field descriptor
         'source_type': 'encyclopedia',
         'source_name': entry.get('article_title', 'Unknown Article'),
         'article_id': entry.get('article_id'),
@@ -166,15 +158,13 @@ def format_wikipedia_entry(entry: dict, config: dict) -> dict:
     return text, source
 
 
-def format_gutenberg_entry(entry: dict, config: dict) -> dict:
-    """Format Gutenberg (BRONZE) book sentence to unified corpus format."""
+def format_literary_entry(entry: dict, config: dict) -> dict:
+    """Format literary (SILVER) book sentence to unified corpus format."""
     text = entry['text']
 
     source = {
-        'tier': config['tier'],  # Backward compatibility (deprecated)
-        'quality_level': config['quality'],  # New: GOLD/SILVER/BRONZE
+        'quality': config['quality'],  # GOLD/SILVER/BRONZE
         'name': 'gutenberg',
-        'quality': 'literary',  # Old field descriptor
         'source_type': 'literary',
         'source_name': entry.get('source_name', entry.get('source', 'Unknown Book')),
         'chapter': entry.get('chapter'),
@@ -188,11 +178,11 @@ def format_entry(entry: dict, config: dict, source_type: str) -> Optional[tuple]
     """Format entry based on source type."""
     try:
         if source_type.startswith('authoritative'):  # GOLD quality
-            return format_tier0_entry(entry, config)
-        elif source_type == 'wikipedia':  # SILVER quality
-            return format_wikipedia_entry(entry, config)
-        elif source_type == 'gutenberg':  # BRONZE quality
-            return format_gutenberg_entry(entry, config)
+            return format_authoritative_entry(entry, config)
+        elif source_type == 'gutenberg':  # SILVER quality
+            return format_literary_entry(entry, config)
+        elif source_type == 'wikipedia':  # BRONZE quality
+            return format_encyclopedic_entry(entry, config)
         else:
             logger.warning(f"Unknown source type: {source_type}")
             return None
@@ -364,7 +354,7 @@ def build_corpus(
 
     for source_type, config in SOURCE_CONFIGS.items():
         logger.info("")
-        logger.info(f"Processing {source_type} (Tier {config['tier']})...")
+        logger.info(f"Processing {source_type} ({config['quality']} quality)...")
         logger.info(f"  Pattern: {config['path']}")
 
         processed, failed = process_source_files(
@@ -375,8 +365,9 @@ def build_corpus(
             resume
         )
 
-        total_stats[f'tier{config["tier"]}_processed'] += processed
-        total_stats[f'tier{config["tier"]}_failed'] += failed
+        quality = config['quality'].lower()
+        total_stats[f'{quality}_processed'] += processed
+        total_stats[f'{quality}_failed'] += failed
         total_stats['total_processed'] += processed
         total_stats['total_failed'] += failed
 
@@ -395,14 +386,13 @@ def build_corpus(
 
     logger.info(f"Total sentences in corpus: {final_count:,}")
     logger.info("")
-    logger.info("Breakdown by tier:")
-    for key in sorted(total_stats.keys()):
-        if key.startswith('tier') and key.endswith('_processed'):
-            tier = key.split('_')[0]
-            processed = total_stats[key]
-            failed = total_stats.get(f"{tier}_failed", 0)
+    logger.info("Breakdown by quality:")
+    for quality in ['gold', 'silver', 'bronze']:
+        processed = total_stats.get(f'{quality}_processed', 0)
+        if processed > 0:
+            failed = total_stats.get(f'{quality}_failed', 0)
             pct = (processed / total_stats['total_processed'] * 100) if total_stats['total_processed'] > 0 else 0
-            logger.info(f"  {tier}: {processed:,} sentences ({pct:.1f}%)")
+            logger.info(f"  {quality.upper()}: {processed:,} sentences ({pct:.1f}%)")
 
     logger.info("")
     logger.info(f"Output: {output_file}")
@@ -411,7 +401,7 @@ def build_corpus(
     logger.info("Next steps:")
     logger.info("  1. Rebuild Kuzu index:")
     logger.info("     ./scripts/index_kuzu.sh --fresh")
-    logger.info("  2. Train M1 with tier priority:")
+    logger.info("  2. Train M1 with quality priority:")
     logger.info("     ./scripts/train_m1_semantic_tier_priority.sh")
     logger.info("")
 

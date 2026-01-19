@@ -8,13 +8,13 @@
 
 ## Overview
 
-Klareco uses a **3-level quality system** based on data source characteristics:
+Klareco uses a **3-level quality system** based on Esperanto language quality:
 
 | Level | Name | Description | Sources | Size |
 |-------|------|-------------|---------|------|
 | **GOLD** | Authoritative | Expert-written grammar, Q&A, pedagogy | PMEG, Krestomatio, Lingvaj Respondoj | ~22K sentences |
-| **SILVER** | Encyclopedic | Community-edited encyclopedia | Wikipedia | ~3.8M sentences |
-| **BRONZE** | Literary | Published literature (variable quality) | Project Gutenberg | ~380K sentences |
+| **SILVER** | Literary | Published literature (high language quality) | Project Gutenberg | ~380K sentences |
+| **BRONZE** | Encyclopedic | Community-edited (variable quality) | Wikipedia | ~3.8M sentences |
 
 ---
 
@@ -38,27 +38,11 @@ Klareco uses a **3-level quality system** based on data source characteristics:
 - Grammar pattern learning
 - Authoritative examples for RAG
 
-### SILVER: Encyclopedic
-**Characteristics**:
-- Community-edited with editorial oversight
-- Factual/informational content
-- High coverage of topics and vocabulary
-- Medium grammatical quality (~85-95%)
-
-**Sources**:
-- **Wikipedia** (Esperanto edition)
-
-**Use cases**:
-- Broad vocabulary coverage
-- Domain-specific terminology
-- General knowledge corpus
-- High-volume training data
-
-### BRONZE: Literary
+### SILVER: Literary
 **Characteristics**:
 - Published literary works
 - Natural, idiomatic language
-- Variable quality (author-dependent)
+- High grammatical quality (~90-95%)
 - Rich in narrative/descriptive language
 
 **Sources**:
@@ -68,7 +52,24 @@ Klareco uses a **3-level quality system** based on data source characteristics:
 - Natural language patterns
 - Discourse-level features
 - Stylistic variation
+- High-quality training data
 - Long-form text
+
+### BRONZE: Encyclopedic
+**Characteristics**:
+- Community-edited with variable editorial oversight
+- Factual/informational content
+- High coverage of topics and vocabulary
+- Variable grammatical quality (~80-90%)
+
+**Sources**:
+- **Wikipedia** (Esperanto edition)
+
+**Use cases**:
+- Broad vocabulary coverage
+- Domain-specific terminology
+- General knowledge corpus
+- High-volume training data
 
 ---
 
@@ -82,11 +83,10 @@ Each sentence in the corpus includes quality metadata:
 {
   "text": "Esperanto estas planlingvo...",
   "source": {
-    "quality": "GOLD",           // Quality level
+    "quality": "GOLD",           // Quality level (GOLD/SILVER/BRONZE)
     "name": "pmeg",              // Specific source
     "source_name": "PMEG 2023",  // Full source title
-    "source_type": "grammar_reference",
-    "tier": 0  // DEPRECATED: kept for backward compatibility
+    "source_type": "grammar_reference"
   },
   "ast": {...},
   "parse_rate": 0.95
@@ -105,8 +105,8 @@ fill_qualities = ['SILVER', 'BRONZE']
 # Option 2: Weighted sampling
 quality_weights = {
     'GOLD': 0.15,    # 15% from authoritative sources
-    'SILVER': 0.50,  # 50% from encyclopedic
-    'BRONZE': 0.35   # 35% from literary
+    'SILVER': 0.35,  # 35% from literary (high quality)
+    'BRONZE': 0.50   # 50% from encyclopedic (volume)
 }
 
 # Option 3: Filtering
@@ -115,67 +115,15 @@ min_quality = 'SILVER'  # Exclude BRONZE for high-precision task
 
 ---
 
-## Migration Path
-
-### Phase 1: Add Quality Field (Backward Compatible)
-**Status**: IN PROGRESS
-
-Keep existing `tier` field, add new `quality` field:
-```python
-SOURCE_CONFIGS = {
-    'authoritative_grammar': {
-        'tier': 0,  # Keep for compatibility
-        'quality': 'GOLD',  # New field
-        ...
-    },
-    'wikipedia': {
-        'tier': 5,  # Keep for compatibility
-        'quality': 'SILVER',  # New field
-        ...
-    },
-    'gutenberg': {
-        'tier': 6,  # Keep for compatibility
-        'quality': 'BRONZE',  # New field
-        ...
-    },
-}
-```
-
-### Phase 2: Update Training Scripts
-**Status**: PLANNED
-
-Add quality-based parameters alongside tier parameters:
-```bash
-# Old style (still works)
---priority-tiers 0
---fill-tiers 5 6
-
-# New style (preferred)
---priority-qualities GOLD
---fill-qualities SILVER BRONZE
-```
-
-### Phase 3: Deprecate Tiers (Future)
-**Status**: PLANNED
-
-After all scripts use quality-based filtering:
-1. Mark `tier` field as deprecated
-2. Update documentation
-3. Eventually remove (breaking change)
-
----
-
 ## Mapping: Old Tiers → New Quality
+
+The old tier system (0, 2, 5, 6) has been completely replaced:
 
 | Old Tier | New Quality | Notes |
 |----------|-------------|-------|
-| 0 | GOLD | Authoritative sources |
-| 1 | *(unused)* | Reserved for future |
-| 2 | GOLD | Was Krestomatio, now part of tier 0/GOLD |
-| 3 | *(unused)* | Reserved for future |
-| 4 | *(unused)* | Reserved for future |
-| 5 | SILVER | Wikipedia |
-| 6 | BRONZE | Gutenberg |
+| 0, 2 | GOLD | Authoritative sources (PMEG, Krestomatio, etc) |
+| 6 | SILVER | Literary (Gutenberg books - high language quality) |
+| 5 | BRONZE | Encyclopedic (Wikipedia - variable quality) |
 
 ---
 
@@ -217,5 +165,5 @@ Expand only if clear use case emerges.
 ---
 
 **Document Status**: APPROVED
-**Implementation Status**: Phase 1 (add quality field)
-**Migration Timeline**: Phase 2 (Q1 2026), Phase 3 (Q2 2026)
+**Implementation Status**: COMPLETE (quality field replaces tier system)
+**Effective Date**: 2026-01-19

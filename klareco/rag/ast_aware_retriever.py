@@ -144,9 +144,9 @@ class ASTAwareRetriever:
             logger.info(f"  Synonyms (Embedding): {stats.embedding_synonyms[:3]}...")
         logger.info(f"  Results: {len(results)}")
 
-        # Apply compound word filtering to improve query disambiguation
-        results = self._filter_standalone_vs_compound(query_ast, results)
-        logger.info(f"  After compound filtering: {len(results)}")
+        # Apply role-based ranking to improve query disambiguation
+        results = self._apply_root_role_ranking(query_ast, results)
+        logger.info(f"  After role ranking: {len(results)}")
 
         # Convert to expected format (score, doc, stats)
         output = []
@@ -195,22 +195,32 @@ class ASTAwareRetriever:
 
         return hints
 
-    def _filter_standalone_vs_compound(self, query_ast: Dict, results: List) -> List:
+    def _apply_root_role_ranking(self, query_ast: Dict, results: List) -> List:
         """
-        Filter results to match standalone vs compound object types.
+        Apply role-based ranking to improve query disambiguation.
 
         Problem: Query "Kiu fondis Esperanton?" (Who founded Esperanto?)
-        - "Esperanto" is standalone proper noun (the language)
-        - Should NOT match "Esperanto-klubon" (compound: Esperanto club)
+        - "esperant" is the HEAD (main concept)
+        - Should prefer results where "esperant" is also HEAD
+        - Should downrank results where "esperant" is just a MODIFIER
 
-        Solution: If query object is standalone, exclude compound results.
+        Examples:
+        - "Zamenhof fondis Esperanton" → HEAD match (good)
+        - "Esperanto-movado kreskis" → HEAD match if "esperant" is head (good)
+        - "Schmidt fondis Esperanto-klubon" → MODIFIER match (downrank)
+
+        Solution: Extract query root, check role in result compounds, apply penalty.
+
+        Scoring:
+        - Query root is result HEAD (radiko): 1.0x (no penalty)
+        - Query root is result MODIFIER (kunmetajhoj): 0.3x (penalty)
 
         Args:
             query_ast: Parsed query AST
             results: List of SearchResult objects from root_index.search()
 
         Returns:
-            Filtered list of SearchResult objects
+            List of SearchResult objects with adjusted scores
         """
         query_obj = query_ast.get('objekto', {})
 
@@ -220,21 +230,20 @@ class ASTAwareRetriever:
         else:
             query_kerno = query_obj
 
-        # Check if query object core is standalone (not compound)
-        is_query_compound = query_kerno.get('estas_kunmetita', False)
-
-        if is_query_compound:
-            # Query is compound - no filtering needed
+        # Extract query root
+        query_root = query_kerno.get('radiko', '').lower()
+        if not query_root:
+            # No root to match on - return as-is
             return results
 
         # Check if query is a proper noun or substantivo (where disambiguation matters)
         query_vortspeco = query_kerno.get('vortspeco', '')
         if query_vortspeco not in ['propra_nomo', 'substantivo']:
-            # Not a noun - no filtering needed
+            # Not a noun - no role ranking needed
             return results
 
-        # Filter: exclude compounds if query is standalone noun/proper noun
-        filtered = []
+        # Apply role-based scoring
+        ranked_results = []
         for result in results:
             doc = self.root_index.get_document(result.doc_id)
             if not doc:
@@ -249,17 +258,32 @@ class ASTAwareRetriever:
             else:
                 result_kerno = result_obj
 
-            # Check if result object is compound
-            is_result_compound = result_kerno.get('estas_kunmetita', False)
+            # Check role of query root in result
+            result_head = result_kerno.get('radiko', '').lower()
+            result_modifiers = result_kerno.get('kunmetajhoj', [])
+            modifier_roots = [m.get('radiko', '').lower() for m in result_modifiers if isinstance(m, dict)]
 
-            if not is_result_compound:
-                # Result is standalone - keep it
-                filtered.append(result)
+            # Calculate role match score
+            if result_head == query_root:
+                # Query root is HEAD in result → perfect match
+                role_score = 1.0
+                logger.debug(f"  HEAD match: {query_root} in {result_kerno.get('plena_vorto', '')}")
+            elif query_root in modifier_roots:
+                # Query root is MODIFIER in result → penalty
+                role_score = 0.3
+                logger.debug(f"  MODIFIER match: {query_root} in {result_kerno.get('plena_vorto', '')} (penalty)")
             else:
-                # Result is compound - filter it out
-                logger.debug(f"  Filtering compound: {result_kerno.get('plena_vorto', '')}")
+                # Query root not in object at all (matched on subject/verb) → neutral
+                role_score = 1.0
 
-        return filtered
+            # Apply role score
+            result.score *= role_score
+            ranked_results.append(result)
+
+        # Re-sort by adjusted scores
+        ranked_results.sort(key=lambda r: r.score, reverse=True)
+
+        return ranked_results
 
     def search_simple(
         self,

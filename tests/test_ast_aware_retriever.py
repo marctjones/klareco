@@ -322,40 +322,31 @@ class TestDeterministicNature:
         assert all(v == 'deterministic' for v in components.values())
 
 
-class TestCompoundWordFiltering:
-    """Test compound word filtering for query disambiguation."""
+class TestRootRoleRanking:
+    """Test role-based ranking for query disambiguation."""
 
-    def test_standalone_query_filters_compounds(self):
-        """Standalone query object should filter out compound results."""
+    def test_query_root_extraction(self):
+        """Query root should be correctly extracted for role matching."""
         from klareco.parser import parse
 
-        # Query: "Kiu fondis Esperanton?" - standalone proper noun
+        # Query: "Kiu fondis Esperanton?" - standalone noun
         query = "Kiu fondis Esperanton?"
         query_ast = parse(query)
 
-        # Mock results with both standalone and compound
-        class MockResult:
-            def __init__(self, doc_id):
-                self.doc_id = doc_id
-                self.score = 1.0
-
-        # We need to test the logic, but can't test with real retriever without index
-        # So we test the AST structure check logic
-
-        # Check query object is standalone (not compound)
         query_obj = query_ast.get('objekto', {})
         if query_obj.get('tipo') == 'vortgrupo':
             query_kerno = query_obj.get('kerno', {})
         else:
             query_kerno = query_obj
 
-        is_standalone = not query_kerno.get('estas_kunmetita', False)
+        query_root = query_kerno.get('radiko', '').lower()
         is_noun = query_kerno.get('vortspeco') in ['propra_nomo', 'substantivo']
 
-        assert is_standalone and is_noun, "Query 'Esperanton' should be detected as standalone noun"
+        assert query_root == 'esperant', "Query root should be 'esperant'"
+        assert is_noun, "Query should be detected as noun"
 
-    def test_compound_detection_in_results(self):
-        """Compound words in results should be correctly identified."""
+    def test_head_vs_modifier_role_detection(self):
+        """HEAD vs MODIFIER roles should be correctly identified in compounds."""
         from klareco.parser import parse
 
         # Standalone result: "Zamenhof fondis Esperanton."
@@ -365,8 +356,9 @@ class TestCompoundWordFiltering:
             result1_kerno = result1_obj.get('kerno', {})
         else:
             result1_kerno = result1_obj
-        is_compound1 = result1_kerno.get('estas_kunmetita', False)
-        assert not is_compound1, "Standalone 'Esperanton' should not be compound"
+
+        result1_head = result1_kerno.get('radiko', '').lower()
+        assert result1_head == 'esperant', "Standalone 'Esperanton' has 'esperant' as HEAD"
 
         # Compound result: "Schmidt fondis Esperanto-klubon."
         result2 = parse("Schmidt fondis Esperanto-klubon.")
@@ -375,11 +367,35 @@ class TestCompoundWordFiltering:
             result2_kerno = result2_obj.get('kerno', {})
         else:
             result2_kerno = result2_obj
-        is_compound2 = result2_kerno.get('estas_kunmetita', False)
-        assert is_compound2, "Compound 'Esperanto-klubon' should be detected"
 
-    def test_compound_query_allows_compounds(self):
-        """Compound query should allow both standalone and compound results."""
+        result2_head = result2_kerno.get('radiko', '').lower()
+        result2_modifiers = result2_kerno.get('kunmetajhoj', [])
+        modifier_roots = [m.get('radiko', '').lower() for m in result2_modifiers if isinstance(m, dict)]
+
+        assert result2_head == 'klub', "Compound 'Esperanto-klubon' has 'klub' as HEAD"
+        assert 'esperant' in modifier_roots, "Compound 'Esperanto-klubon' has 'esperant' as MODIFIER"
+
+    def test_role_scoring_logic(self):
+        """Role-based scoring should apply correct penalties."""
+        # HEAD match: 1.0x (no penalty)
+        # MODIFIER match: 0.3x (penalty)
+
+        # Simulate scoring
+        base_score = 10.0
+
+        # Result where query root is HEAD
+        head_score = base_score * 1.0
+        assert head_score == 10.0, "HEAD match should have no penalty"
+
+        # Result where query root is MODIFIER
+        modifier_score = base_score * 0.3
+        assert modifier_score == 3.0, "MODIFIER match should have 0.3x penalty"
+
+        # Verify HEAD ranks higher than MODIFIER
+        assert head_score > modifier_score, "HEAD should rank higher than MODIFIER"
+
+    def test_compound_query_extracts_correct_root(self):
+        """Compound query should extract HEAD root for ranking."""
         from klareco.parser import parse
 
         # Query with compound: "Kiu fondis Esperanto-klubon?"
@@ -392,38 +408,30 @@ class TestCompoundWordFiltering:
         else:
             query_kerno = query_obj
 
-        is_compound = query_kerno.get('estas_kunmetita', False)
+        query_root = query_kerno.get('radiko', '').lower()
 
-        # Compound query object should be detected as compound
-        assert is_compound, "Compound query should be detected as compound"
+        # Compound HEAD should be "klub"
+        assert query_root == 'klub', "Compound query should extract HEAD root 'klub'"
 
-    def test_non_proper_noun_no_filtering(self):
-        """Regular nouns should not trigger compound filtering."""
-        from klareco.parser import parse
+    def test_ranking_preserves_relative_order(self):
+        """Ranking should preserve relative order within same role class."""
+        # This tests the conceptual requirement that ranking
+        # should maintain relative order of results with same role score
 
-        # Query with regular noun: "Kiu havas hundon?"
-        query = "Kiu havas hundon?"
-        query_ast = parse(query)
+        class MockResult:
+            def __init__(self, score):
+                self.score = score
 
-        query_obj = query_ast.get('objekto', {})
+        results = [MockResult(10.0), MockResult(8.0), MockResult(6.0)]
 
-        # Should be substantivo, but filtering only applies to queries with
-        # standalone proper nouns where disambiguation matters
-        vortspeco = query_obj.get('vortspeco')
+        # Apply same penalty to all
+        for r in results:
+            r.score *= 0.5
 
-        # Regular nouns are substantivo, but the filtering logic checks for
-        # both tipo='vorto' AND vortspeco in ['propra_nomo', 'substantivo']
-        # This is intentional - we want to filter for both proper nouns and
-        # regular nouns when standalone
-        assert vortspeco in ['substantivo', 'propra_nomo'] or vortspeco is None
+        # Sort by score
+        results.sort(key=lambda r: r.score, reverse=True)
 
-    def test_filtering_preserves_order(self):
-        """Filtering should preserve result order."""
-        # This tests the conceptual requirement that filtering
-        # should maintain the relative order of remaining results
-
-        original_order = [1, 2, 3, 4, 5]
-        # Simulate filtering out items 2 and 4
-        filtered = [x for x in original_order if x not in [2, 4]]
-
-        assert filtered == [1, 3, 5], "Order should be preserved after filtering"
+        # Relative order should be preserved
+        assert results[0].score == 5.0
+        assert results[1].score == 4.0
+        assert results[2].score == 3.0

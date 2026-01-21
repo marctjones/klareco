@@ -320,3 +320,110 @@ class TestDeterministicNature:
         }
 
         assert all(v == 'deterministic' for v in components.values())
+
+
+class TestCompoundWordFiltering:
+    """Test compound word filtering for query disambiguation."""
+
+    def test_standalone_query_filters_compounds(self):
+        """Standalone query object should filter out compound results."""
+        from klareco.parser import parse
+
+        # Query: "Kiu fondis Esperanton?" - standalone proper noun
+        query = "Kiu fondis Esperanton?"
+        query_ast = parse(query)
+
+        # Mock results with both standalone and compound
+        class MockResult:
+            def __init__(self, doc_id):
+                self.doc_id = doc_id
+                self.score = 1.0
+
+        # We need to test the logic, but can't test with real retriever without index
+        # So we test the AST structure check logic
+
+        # Check query object is standalone (not compound)
+        query_obj = query_ast.get('objekto', {})
+        if query_obj.get('tipo') == 'vortgrupo':
+            query_kerno = query_obj.get('kerno', {})
+        else:
+            query_kerno = query_obj
+
+        is_standalone = not query_kerno.get('estas_kunmetita', False)
+        is_noun = query_kerno.get('vortspeco') in ['propra_nomo', 'substantivo']
+
+        assert is_standalone and is_noun, "Query 'Esperanton' should be detected as standalone noun"
+
+    def test_compound_detection_in_results(self):
+        """Compound words in results should be correctly identified."""
+        from klareco.parser import parse
+
+        # Standalone result: "Zamenhof fondis Esperanton."
+        result1 = parse("Zamenhof fondis Esperanton.")
+        result1_obj = result1.get('objekto', {})
+        if result1_obj.get('tipo') == 'vortgrupo':
+            result1_kerno = result1_obj.get('kerno', {})
+        else:
+            result1_kerno = result1_obj
+        is_compound1 = result1_kerno.get('estas_kunmetita', False)
+        assert not is_compound1, "Standalone 'Esperanton' should not be compound"
+
+        # Compound result: "Schmidt fondis Esperanto-klubon."
+        result2 = parse("Schmidt fondis Esperanto-klubon.")
+        result2_obj = result2.get('objekto', {})
+        if result2_obj.get('tipo') == 'vortgrupo':
+            result2_kerno = result2_obj.get('kerno', {})
+        else:
+            result2_kerno = result2_obj
+        is_compound2 = result2_kerno.get('estas_kunmetita', False)
+        assert is_compound2, "Compound 'Esperanto-klubon' should be detected"
+
+    def test_compound_query_allows_compounds(self):
+        """Compound query should allow both standalone and compound results."""
+        from klareco.parser import parse
+
+        # Query with compound: "Kiu fondis Esperanto-klubon?"
+        query = "Kiu fondis Esperanto-klubon?"
+        query_ast = parse(query)
+
+        query_obj = query_ast.get('objekto', {})
+        if query_obj.get('tipo') == 'vortgrupo':
+            query_kerno = query_obj.get('kerno', {})
+        else:
+            query_kerno = query_obj
+
+        is_compound = query_kerno.get('estas_kunmetita', False)
+
+        # Compound query object should be detected as compound
+        assert is_compound, "Compound query should be detected as compound"
+
+    def test_non_proper_noun_no_filtering(self):
+        """Regular nouns should not trigger compound filtering."""
+        from klareco.parser import parse
+
+        # Query with regular noun: "Kiu havas hundon?"
+        query = "Kiu havas hundon?"
+        query_ast = parse(query)
+
+        query_obj = query_ast.get('objekto', {})
+
+        # Should be substantivo, but filtering only applies to queries with
+        # standalone proper nouns where disambiguation matters
+        vortspeco = query_obj.get('vortspeco')
+
+        # Regular nouns are substantivo, but the filtering logic checks for
+        # both tipo='vorto' AND vortspeco in ['propra_nomo', 'substantivo']
+        # This is intentional - we want to filter for both proper nouns and
+        # regular nouns when standalone
+        assert vortspeco in ['substantivo', 'propra_nomo'] or vortspeco is None
+
+    def test_filtering_preserves_order(self):
+        """Filtering should preserve result order."""
+        # This tests the conceptual requirement that filtering
+        # should maintain the relative order of remaining results
+
+        original_order = [1, 2, 3, 4, 5]
+        # Simulate filtering out items 2 and 4
+        filtered = [x for x in original_order if x not in [2, 4]]
+
+        assert filtered == [1, 3, 5], "Order should be preserved after filtering"

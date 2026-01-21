@@ -144,6 +144,10 @@ class ASTAwareRetriever:
             logger.info(f"  Synonyms (Embedding): {stats.embedding_synonyms[:3]}...")
         logger.info(f"  Results: {len(results)}")
 
+        # Apply compound word filtering to improve query disambiguation
+        results = self._filter_standalone_vs_compound(query_ast, results)
+        logger.info(f"  After compound filtering: {len(results)}")
+
         # Convert to expected format (score, doc, stats)
         output = []
         for result in results:
@@ -190,6 +194,72 @@ class ASTAwareRetriever:
                 hints['tempo'] = verb['tempo']
 
         return hints
+
+    def _filter_standalone_vs_compound(self, query_ast: Dict, results: List) -> List:
+        """
+        Filter results to match standalone vs compound object types.
+
+        Problem: Query "Kiu fondis Esperanton?" (Who founded Esperanto?)
+        - "Esperanto" is standalone proper noun (the language)
+        - Should NOT match "Esperanto-klubon" (compound: Esperanto club)
+
+        Solution: If query object is standalone, exclude compound results.
+
+        Args:
+            query_ast: Parsed query AST
+            results: List of SearchResult objects from root_index.search()
+
+        Returns:
+            Filtered list of SearchResult objects
+        """
+        query_obj = query_ast.get('objekto', {})
+
+        # Get the core word from vortgrupo
+        if query_obj.get('tipo') == 'vortgrupo':
+            query_kerno = query_obj.get('kerno', {})
+        else:
+            query_kerno = query_obj
+
+        # Check if query object core is standalone (not compound)
+        is_query_compound = query_kerno.get('estas_kunmetita', False)
+
+        if is_query_compound:
+            # Query is compound - no filtering needed
+            return results
+
+        # Check if query is a proper noun or substantivo (where disambiguation matters)
+        query_vortspeco = query_kerno.get('vortspeco', '')
+        if query_vortspeco not in ['propra_nomo', 'substantivo']:
+            # Not a noun - no filtering needed
+            return results
+
+        # Filter: exclude compounds if query is standalone noun/proper noun
+        filtered = []
+        for result in results:
+            doc = self.root_index.get_document(result.doc_id)
+            if not doc:
+                continue
+
+            result_ast = doc.get('ast', {})
+            result_obj = result_ast.get('objekto', {})
+
+            # Get the core word from result vortgrupo
+            if result_obj.get('tipo') == 'vortgrupo':
+                result_kerno = result_obj.get('kerno', {})
+            else:
+                result_kerno = result_obj
+
+            # Check if result object is compound
+            is_result_compound = result_kerno.get('estas_kunmetita', False)
+
+            if not is_result_compound:
+                # Result is standalone - keep it
+                filtered.append(result)
+            else:
+                # Result is compound - filter it out
+                logger.debug(f"  Filtering compound: {result_kerno.get('plena_vorto', '')}")
+
+        return filtered
 
     def search_simple(
         self,

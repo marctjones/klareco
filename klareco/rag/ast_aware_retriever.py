@@ -27,6 +27,7 @@ from klareco.parser import parse
 from klareco.rag.question_classifier import QuestionClassifier, QuestionType
 from klareco.rag.entity_recognizer import EntityRecognizer
 from klareco.rag.kuzu_inverted_index import KuzuInvertedIndex, FallbackMode, RetrievalStats
+from klareco.entity_classifier import EntityClassifier, EntityType
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,10 @@ class ASTAwareRetriever:
         self.entity_recognizer = EntityRecognizer()
         logger.info("  ✓ EntityRecognizer initialized")
 
+        # Initialize entity classifier
+        self.entity_classifier = EntityClassifier()
+        logger.info("  ✓ EntityClassifier initialized")
+
         # Initialize Kuzu inverted index
         # Note: Embedding fallback was removed - pure deterministic lookup
         # has equal recall with lower latency (see A/B test in issue #246)
@@ -100,6 +105,7 @@ class ASTAwareRetriever:
         query: str,
         top_k: int = 10,
         fallback_mode: Optional[FallbackMode] = None,
+        filter_by_entity_type: bool = False,
     ) -> List[Tuple[float, Dict, RetrievalStats]]:
         """
         Search for relevant documents using AST-aware root-based retrieval.
@@ -108,6 +114,7 @@ class ASTAwareRetriever:
             query: Query string (Esperanto)
             top_k: Number of results to return
             fallback_mode: Override default fallback mode for this search
+            filter_by_entity_type: If True, filter results by entity type match
 
         Returns:
             List of (score, document, stats) tuples sorted by relevance
@@ -147,6 +154,11 @@ class ASTAwareRetriever:
         # Apply role-based ranking to improve query disambiguation
         results = self._apply_root_role_ranking(query_ast, results)
         logger.info(f"  After role ranking: {len(results)}")
+
+        # Apply entity type filtering if requested
+        if filter_by_entity_type:
+            results = self._filter_by_entity_type(query_ast, results)
+            logger.info(f"  After entity type filtering: {len(results)}")
 
         # Convert to expected format (score, doc, stats)
         output = []
@@ -302,6 +314,83 @@ class ASTAwareRetriever:
         logger.info(f"  Role ranking summary: {head_matches} HEAD, {modifier_matches} MODIFIER (penalized), {neutral_matches} neutral")
 
         return ranked_results
+
+    def _filter_by_entity_type(self, query_ast: Dict, results: List) -> List:
+        """
+        Filter results by entity type match.
+
+        Problem: Query "Kiu fondis Esperanton?" asks about founding a LANGUAGE
+        - Should match: "Zamenhof fondis Esperanton" (LANGUAGE)
+        - Should NOT match: "Schmidt fondis Esperanto-klubon" (ORGANIZATION)
+
+        Solution: Classify query and result entities, filter by type match.
+
+        Args:
+            query_ast: Parsed query AST
+            results: List of SearchResult objects from root_index.search()
+
+        Returns:
+            Filtered list of SearchResult objects
+        """
+        query_obj = query_ast.get('objekto')
+
+        # Check if query has an object
+        if not query_obj:
+            return results
+
+        # Get the core word from vortgrupo
+        if query_obj.get('tipo') == 'vortgrupo':
+            query_kerno = query_obj.get('kerno', {})
+        else:
+            query_kerno = query_obj
+
+        # Classify query entity type
+        query_entity_type = self.entity_classifier.classify(query_kerno)
+
+        # If query entity type is UNKNOWN, don't filter
+        if query_entity_type == EntityType.UNKNOWN:
+            logger.info(f"  Query entity type UNKNOWN - skipping entity type filtering")
+            return results
+
+        logger.info(f"  Query entity type: {query_entity_type}")
+
+        # Filter results by entity type
+        filtered_results = []
+        type_matches = 0
+        type_mismatches = 0
+
+        for result in results:
+            doc = self.root_index.get_document(result.doc_id)
+            if not doc:
+                continue
+
+            result_ast = doc.get('ast', {})
+            result_obj = result_ast.get('objekto', {})
+
+            # Get the core word from result vortgrupo
+            if result_obj.get('tipo') == 'vortgrupo':
+                result_kerno = result_obj.get('kerno', {})
+            else:
+                result_kerno = result_obj
+
+            # Classify result entity type
+            result_entity_type = self.entity_classifier.classify(result_kerno)
+
+            # Check if types match
+            if result_entity_type == query_entity_type:
+                type_matches += 1
+                filtered_results.append(result)
+                logger.debug(f"    ✓ Match: {query_entity_type} == {result_entity_type} ({result_kerno.get('plena_vorto', '')})")
+            elif result_entity_type == EntityType.UNKNOWN:
+                # Keep UNKNOWN results (might be correct, just can't classify)
+                filtered_results.append(result)
+            else:
+                type_mismatches += 1
+                logger.info(f"    ✗ Filtered: {query_entity_type} != {result_entity_type} ({result_kerno.get('plena_vorto', '')})")
+
+        logger.info(f"  Entity type filter: {type_matches} matches, {type_mismatches} filtered out")
+
+        return filtered_results
 
     def search_simple(
         self,

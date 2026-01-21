@@ -529,8 +529,12 @@ class KuzuIndexBuilder:
         self._save_progress()
 
     def _bulk_load_csvs(self):
-        """Bulk load CSV files into Kuzu using COPY FROM."""
+        """Bulk load CSV files into Kuzu using COPY FROM or batched INSERT."""
         start_time = datetime.now()
+
+        # Memory threshold: files larger than this use batched loading (MB)
+        BATCH_THRESHOLD_MB = 500
+        BATCH_SIZE = 50000  # Rows per batch for large files
 
         # Helper function to run COPY with timing
         def copy_csv(table_name: str, csv_file: str, is_node: bool = True):
@@ -539,9 +543,14 @@ class KuzuIndexBuilder:
                 logger.warning(f"  CSV file not found: {csv_path}")
                 return 0
 
-            file_size = csv_path.stat().st_size / 1024 / 1024
-            logger.info(f"  Loading {table_name} from {csv_file} ({file_size:.1f} MB)...")
+            file_size_mb = csv_path.stat().st_size / 1024 / 1024
+            logger.info(f"  Loading {table_name} from {csv_file} ({file_size_mb:.1f} MB)...")
 
+            # Use batched loading for large files
+            if file_size_mb > BATCH_THRESHOLD_MB:
+                return batch_load_csv(table_name, csv_path, file_size_mb)
+
+            # Fast path: COPY FROM for small files
             t0 = datetime.now()
             try:
                 self.conn.execute(f"COPY {table_name} FROM '{csv_path}' (header=true)")
@@ -550,6 +559,69 @@ class KuzuIndexBuilder:
                 return 1
             except Exception as e:
                 logger.error(f"    Error: {e}")
+                return 0
+
+        def batch_load_csv(table_name: str, csv_path: Path, file_size_mb: float):
+            """Load large CSV in chunks to avoid memory issues."""
+            logger.info(f"    Large file detected - splitting into chunks (batches of {BATCH_SIZE:,} rows)")
+
+            t0 = datetime.now()
+            total_rows = 0
+            chunk_count = 0
+
+            try:
+                with open(csv_path, 'r', encoding='utf-8') as f:
+                    reader = csv.reader(f)
+                    header = next(reader)  # Read header
+
+                    chunk_num = 0
+                    while True:
+                        # Read batch_size rows into a chunk file
+                        chunk_rows = []
+                        for _ in range(BATCH_SIZE):
+                            try:
+                                row = next(reader)
+                                chunk_rows.append(row)
+                            except StopIteration:
+                                break
+
+                        if not chunk_rows:
+                            break  # No more rows
+
+                        # Write chunk to temporary CSV
+                        chunk_file = self.temp_dir / f"{csv_path.stem}_chunk_{chunk_num}.csv"
+                        with open(chunk_file, 'w', newline='', encoding='utf-8') as cf:
+                            writer = csv.writer(cf)
+                            writer.writerow(header)  # Write header
+                            writer.writerows(chunk_rows)
+
+                        # Load chunk using COPY FROM (fast!)
+                        try:
+                            self.conn.execute(f"COPY {table_name} FROM '{chunk_file}' (header=true)")
+                            total_rows += len(chunk_rows)
+                            chunk_count += 1
+
+                            # Log progress
+                            elapsed = (datetime.now() - t0).total_seconds()
+                            rate = total_rows / elapsed if elapsed > 0 else 0
+                            logger.info(f"    Chunk {chunk_count}: {total_rows:,} rows loaded ({rate:.0f} rows/sec)")
+
+                        except Exception as e:
+                            logger.error(f"    Chunk {chunk_count} failed: {e}")
+                            # Continue with next chunk
+
+                        # Clean up chunk file to save disk space
+                        chunk_file.unlink()
+                        chunk_num += 1
+
+                elapsed = (datetime.now() - t0).total_seconds()
+                logger.info(f"    Done in {elapsed:.1f}s ({total_rows:,} rows, {chunk_count} chunks)")
+                return 1
+
+            except Exception as e:
+                logger.error(f"    Batch loading error: {e}")
+                import traceback
+                traceback.print_exc()
                 return 0
 
         # Load node tables first
@@ -642,9 +714,9 @@ class KuzuIndexBuilder:
             writer = csv.writer(f)
             writer.writerow(['root1', 'root2'])
 
-            for root1, root2 in synonyms:
-                root1 = root1.lower()
-                root2 = root2.lower()
+            for syn in synonyms:
+                root1 = syn['source'].lower()
+                root2 = syn['target'].lower()
 
                 # Only add if both roots exist in index
                 if root1 in existing_roots and root2 in existing_roots:
@@ -664,9 +736,9 @@ class KuzuIndexBuilder:
             writer = csv.writer(f)
             writer.writerow(['specific', 'general'])
 
-            for specific, general in hypernyms:
-                specific = specific.lower()
-                general = general.lower()
+            for hyp in hypernyms:
+                specific = hyp['source'].lower()
+                general = hyp['target'].lower()
 
                 if specific in existing_roots and general in existing_roots:
                     writer.writerow([specific, general])
@@ -683,9 +755,9 @@ class KuzuIndexBuilder:
             writer = csv.writer(f)
             writer.writerow(['root1', 'root2'])
 
-            for root1, root2 in antonyms:
-                root1 = root1.lower()
-                root2 = root2.lower()
+            for ant in antonyms:
+                root1 = ant['source'].lower()
+                root2 = ant['target'].lower()
 
                 if root1 in existing_roots and root2 in existing_roots:
                     # Bidirectional antonym edges

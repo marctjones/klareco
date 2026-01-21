@@ -282,6 +282,54 @@ def clean_mediawiki_markup(text: str) -> str:
     return clean_text.strip()
 
 
+def split_markdown_lists(text: str) -> list[str]:
+    """
+    Split markdown lists into separate text chunks.
+
+    Handles:
+    - Bullet lists: * Item or -- Item
+    - Year lists: 1234: Item (common in Wikipedia biographical articles)
+    - Mixed content: Preserves non-list text as separate chunks
+
+    Args:
+        text: Input text potentially containing markdown lists
+
+    Returns:
+        List of text chunks (each list item or paragraph becomes separate chunk)
+
+    Example:
+        Input: "Intro text. * Item 1 * Item 2 More text."
+        Output: ["Intro text.", "Item 1", "Item 2", "More text."]
+    """
+    import re
+
+    # Pattern: Match list markers
+    # - Bullet: * or -- followed by space
+    # - Year: 3-4 digits followed by : and space
+    # Match at: start of text, after period, or after whitespace
+    list_marker_pattern = r'(?:^|\.\s+|\s+)(?:\*|--|\d{3,4}:)\s+'
+
+    # Split on list markers, preserving the split points
+    chunks = re.split(list_marker_pattern, text)
+
+    # Clean and filter chunks
+    cleaned_chunks = []
+    for chunk in chunks:
+        chunk = chunk.strip()
+        # Skip empty chunks and pure punctuation
+        if chunk and len(chunk) > 2:
+            # Remove leading asterisks or dashes that may remain
+            chunk = re.sub(r'^[\*\-\s]+', '', chunk)
+            if chunk:
+                cleaned_chunks.append(chunk)
+
+    # If no splits occurred, return original text as single chunk
+    if not cleaned_chunks:
+        return [text.strip()] if text.strip() else []
+
+    return cleaned_chunks
+
+
 def extract_sentences(text: str) -> list[str]:
     """
     Extract sentences from text with proper handling of abbreviations.
@@ -411,23 +459,29 @@ def process_wikipedia_dump(
                     # Clean markup for this section's content
                     section_text = ' '.join(section['content'])
                     clean_section_text = clean_mediawiki_markup(section_text)
-                    sentences = extract_sentences(clean_section_text)
 
-                    for sentence in sentences:
-                        entry = {
-                            'text': sentence,
-                            'source': 'wikipedia',
-                            'source_name': 'Vikipedio Esperanto',
-                            'article_title': article_title,
-                            'article_id': article_id,
-                            'section': section['section_name'],
-                            'section_level': section['section_level'],
-                            'timestamp': article.get('timestamp')
-                        }
+                    # Split markdown lists into separate chunks
+                    list_chunks = split_markdown_lists(clean_section_text)
 
-                        out.write(json.dumps(entry, ensure_ascii=False) + '\n')
-                        article_sentence_count += 1
-                        total_sentences += 1
+                    # Process each chunk (list item or paragraph) separately
+                    for chunk in list_chunks:
+                        sentences = extract_sentences(chunk)
+
+                        for sentence in sentences:
+                            entry = {
+                                'text': sentence,
+                                'source': 'wikipedia',
+                                'source_name': 'Vikipedio Esperanto',
+                                'article_title': article_title,
+                                'article_id': article_id,
+                                'section': section['section_name'],
+                                'section_level': section['section_level'],
+                                'timestamp': article.get('timestamp')
+                            }
+
+                            out.write(json.dumps(entry, ensure_ascii=False) + '\n')
+                            article_sentence_count += 1
+                            total_sentences += 1
 
                 total_articles += 1
                 processed_articles.add(article_id)

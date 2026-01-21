@@ -247,7 +247,13 @@ class ASTAwareRetriever:
             return results
 
         # Apply role-based scoring
+        logger.info(f"  Applying role-based ranking for query root: '{query_root}'")
+
         ranked_results = []
+        head_matches = 0
+        modifier_matches = 0
+        neutral_matches = 0
+
         for result in results:
             doc = self.root_index.get_document(result.doc_id)
             if not doc:
@@ -267,18 +273,24 @@ class ASTAwareRetriever:
             result_modifiers = result_kerno.get('kunmetajhoj', [])
             modifier_roots = [m.get('radiko', '').lower() for m in result_modifiers if isinstance(m, dict)]
 
+            original_score = result.score
+
             # Calculate role match score
             if result_head == query_root:
                 # Query root is HEAD in result → perfect match
                 role_score = 1.0
-                logger.debug(f"  HEAD match: {query_root} in {result_kerno.get('plena_vorto', '')}")
+                head_matches += 1
+                logger.info(f"    ✓ HEAD match: '{query_root}' in '{result_kerno.get('plena_vorto', '')}' (score: {original_score:.3f} × 1.0 = {original_score:.3f})")
             elif query_root in modifier_roots:
                 # Query root is MODIFIER in result → penalty
                 role_score = 0.3
-                logger.debug(f"  MODIFIER match: {query_root} in {result_kerno.get('plena_vorto', '')} (penalty)")
+                modifier_matches += 1
+                new_score = original_score * role_score
+                logger.info(f"    ⚠ MODIFIER match: '{query_root}' in '{result_kerno.get('plena_vorto', '')}' (score: {original_score:.3f} × 0.3 = {new_score:.3f})")
             else:
                 # Query root not in object at all (matched on subject/verb) → neutral
                 role_score = 1.0
+                neutral_matches += 1
 
             # Apply role score
             result.score *= role_score
@@ -286,6 +298,8 @@ class ASTAwareRetriever:
 
         # Re-sort by adjusted scores
         ranked_results.sort(key=lambda r: r.score, reverse=True)
+
+        logger.info(f"  Role ranking summary: {head_matches} HEAD, {modifier_matches} MODIFIER (penalized), {neutral_matches} neutral")
 
         return ranked_results
 

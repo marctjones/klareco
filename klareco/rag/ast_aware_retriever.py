@@ -222,7 +222,11 @@ class ASTAwareRetriever:
         Returns:
             List of SearchResult objects with adjusted scores
         """
-        query_obj = query_ast.get('objekto', {})
+        query_obj = query_ast.get('objekto')
+
+        # Check if query has an object (some queries don't, like "Kio estas X?")
+        if not query_obj:
+            return results
 
         # Get the core word from vortgrupo
         if query_obj.get('tipo') == 'vortgrupo':

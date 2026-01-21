@@ -9,8 +9,9 @@
 # - Can be run in background or foreground
 #
 # Usage:
-#   ./scripts/run_wikipedia_extraction.sh           # Run in foreground
-#   ./scripts/run_wikipedia_extraction.sh &         # Run in background
+#   ./scripts/extract_wikipedia.sh           # Resume from checkpoint (if exists)
+#   ./scripts/extract_wikipedia.sh --fresh   # Start fresh (delete checkpoint and output)
+#   ./scripts/extract_wikipedia.sh &         # Run in background
 
 set -e  # Exit on error
 
@@ -73,11 +74,19 @@ WIKI_SIZE=$(du -h "$WIKI_DUMP" | cut -f1)
 echo -e "${GREEN}✓${NC} Wikipedia dump found: $WIKI_SIZE"
 echo ""
 
-# Check if resuming from checkpoint
+# Parse command line arguments
+FRESH_FLAG=""
+if [[ "$1" == "--fresh" ]]; then
+    FRESH_FLAG="--fresh"
+    echo -e "${YELLOW}⚠${NC}  Fresh start requested - will delete checkpoint and output"
+    echo ""
+fi
+
+# Check if resuming from checkpoint (only if not fresh)
 CHECKPOINT="data/extracted/wikipedia_checkpoint.json"
-if [ -f "$CHECKPOINT" ]; then
+if [ -f "$CHECKPOINT" ] && [ -z "$FRESH_FLAG" ]; then
     echo -e "${YELLOW}⚠${NC}  Checkpoint found - will resume from previous run"
-    echo -e "${YELLOW}→${NC} To start fresh, delete: $CHECKPOINT"
+    echo -e "${YELLOW}→${NC} To start fresh, run: ./scripts/extract_wikipedia.sh --fresh"
     echo ""
 fi
 
@@ -95,7 +104,8 @@ python scripts/extract_wikipedia.py \
     --xml "$WIKI_DUMP" \
     --output data/extracted/wikipedia_sentences.jsonl \
     --checkpoint "$CHECKPOINT" \
-    --checkpoint-interval 1000
+    --checkpoint-interval 1000 \
+    $FRESH_FLAG
 
 # Check exit status
 if [ $? -eq 0 ]; then

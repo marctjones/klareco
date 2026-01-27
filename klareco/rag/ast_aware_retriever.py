@@ -28,6 +28,7 @@ from klareco.rag.question_classifier import QuestionClassifier, QuestionType
 from klareco.rag.entity_recognizer import EntityRecognizer
 from klareco.rag.kuzu_inverted_index import KuzuInvertedIndex, FallbackMode, RetrievalStats
 from klareco.entity_classifier import EntityClassifier, EntityType
+from klareco.utils.ast_utils import extract_word_structure
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ class ASTAwareRetriever:
         self,
         index_path: Optional[Path] = None,
         fallback_mode: FallbackMode = FallbackMode.NONE,
+        m1_model = None,  # Optional M1Inference instance
     ):
         """
         Initialize AST-aware retriever.
@@ -64,11 +66,17 @@ class ASTAwareRetriever:
             index_path: Path to Kuzu index directory.
                         Defaults to data/indexes/kuzu_index.
             fallback_mode: Fallback mode (default: NONE for pure deterministic)
+            m1_model: Optional M1Inference model for query expansion filtering.
+                     If provided, enables semantic plausibility filtering of
+                     synonym expansions BEFORE search (M1's intended purpose).
         """
         # Set default path
         if index_path is None:
             index_path = Path("data/indexes/kuzu_index")
         self.index_path = Path(index_path)
+
+        # Store M1 model for query expansion
+        self.m1 = m1_model
 
         logger.info("Initializing AST-aware retriever (Kuzu backend)...")
 
@@ -98,7 +106,153 @@ class ASTAwareRetriever:
         else:
             logger.warning(f"  ! KuzuInvertedIndex not loaded from {self.index_path}")
 
+        if self.m1:
+            logger.info("  ✓ M1 model enabled for query expansion filtering")
+
         logger.info("AST-aware retriever initialized")
+
+    def expand_query_with_m1(
+        self,
+        query_ast: Dict,
+        min_plausibility: float = 0.5,
+        max_synonyms: int = 10,
+    ) -> List[Dict]:
+        """
+        Expand query with verb synonym substitution, filtered by M1 plausibility.
+
+        This is M1's INTENDED PURPOSE: filter query expansions BEFORE search
+        to avoid retrieving nonsense documents.
+
+        Example:
+            Query: "Kiu manĝas insektojn?" (Who eats insects?)
+            Verb synonyms: manĝ, konsum, absorb, nutr, devorar
+            M1 filtering:
+              ✓ manĝ (0.95) - plausible
+              ✓ konsum (0.87) - plausible
+              ✗ absorb (0.12) - implausible (liquids absorb, not eat)
+              ✓ nutr (0.82) - plausible
+            → Search with: [manĝ, konsum, nutr] only
+
+        Args:
+            query_ast: Parsed query AST
+            min_plausibility: Minimum M1 score to keep expansion (0.0-1.0)
+            max_synonyms: Maximum number of synonyms to consider per verb
+
+        Returns:
+            List of query expansion dicts with:
+            - 'query_ast': Modified query AST with synonym verb
+            - 'verb_root': Synonym verb root
+            - 'm1_score': Plausibility score
+            - 'is_original': True if this is the original query
+        """
+        if not self.m1:
+            # No M1 model - return original query only
+            return [{
+                'query_ast': query_ast,
+                'verb_root': query_ast.get('verbo', {}).get('radiko', ''),
+                'm1_score': 1.0,
+                'is_original': True
+            }]
+
+        # Extract S-V-O from query
+        if not all(k in query_ast for k in ['subjekto', 'verbo', 'objekto']):
+            # Incomplete query - no expansion
+            logger.warning("Query missing S-V-O structure - skipping expansion")
+            return [{
+                'query_ast': query_ast,
+                'verb_root': query_ast.get('verbo', {}).get('radiko', ''),
+                'm1_score': 1.0,
+                'is_original': True
+            }]
+
+        subj = query_ast['subjekto']
+        verb = query_ast['verbo']
+        obj = query_ast['objekto']
+
+        # Extract word structures (with case normalization)
+        # Handle vortgrupo (extract kerno)
+        def get_word(node):
+            if node.get('tipo') == 'vortgrupo':
+                return node.get('kerno', {})
+            return node
+
+        subj_word = get_word(subj)
+        verb_word = get_word(verb)
+        obj_word = get_word(obj)
+
+        # Extract morphological structures
+        subj_struct = extract_word_structure(subj_word, strip_case=True)
+        verb_struct = extract_word_structure(verb_word, strip_case=True)
+        obj_struct = extract_word_structure(obj_word, strip_case=True)
+
+        original_verb_root = verb_struct['root']
+
+        # Get synonyms for verb (most impactful for expansion)
+        # Use graph-based transitive synonym expansion
+        verb_synonyms = self.get_synonyms_transitive(original_verb_root, max_hops=2)
+
+        # Add original verb
+        verb_synonyms = {original_verb_root} | verb_synonyms
+
+        # Limit to max_synonyms
+        verb_synonyms = list(verb_synonyms)[:max_synonyms]
+
+        logger.info(f"Query expansion: '{original_verb_root}' → {len(verb_synonyms)} synonyms")
+
+        # Score all verb replacements with M1
+        candidates = []
+        for syn_verb in verb_synonyms:
+            # Create modified verb structure
+            syn_verb_struct = {**verb_struct, 'root': syn_verb}
+
+            # Score with M1
+            try:
+                score = self.m1.score_triple_full(subj_struct, syn_verb_struct, obj_struct)
+            except Exception as e:
+                logger.warning(f"M1 scoring failed for '{syn_verb}': {e}")
+                score = 0.0
+
+            is_original = (syn_verb == original_verb_root)
+
+            if score >= min_plausibility or is_original:
+                # Keep if plausible OR if it's the original query
+                candidates.append({
+                    'verb_root': syn_verb,
+                    'm1_score': score,
+                    'is_original': is_original
+                })
+
+                status = "✓" if score >= min_plausibility else "○"
+                logger.info(f"  {status} {syn_verb}: {score:.3f} {'(original)' if is_original else ''}")
+            else:
+                logger.info(f"  ✗ {syn_verb}: {score:.3f} (implausible - filtered)")
+
+        # Sort by plausibility (original query always included regardless of score)
+        candidates.sort(key=lambda x: x['m1_score'], reverse=True)
+
+        # Create query variants with substituted verbs
+        expansions = []
+        for candidate in candidates:
+            # Create modified query AST (shallow copy with verb replacement)
+            modified_ast = {**query_ast}
+            modified_verb = {**verb_word, 'radiko': candidate['verb_root']}
+            modified_ast['verbo'] = modified_verb
+
+            expansions.append({
+                'query_ast': modified_ast,
+                'verb_root': candidate['verb_root'],
+                'm1_score': candidate['m1_score'],
+                'is_original': candidate['is_original']
+            })
+
+        logger.info(f"Query expansion: {len(expansions)} plausible variants (min_plausibility={min_plausibility})")
+
+        return expansions if expansions else [{
+            'query_ast': query_ast,
+            'verb_root': original_verb_root,
+            'm1_score': 1.0,
+            'is_original': True
+        }]
 
     def search(
         self,
@@ -106,15 +260,23 @@ class ASTAwareRetriever:
         top_k: int = 10,
         fallback_mode: Optional[FallbackMode] = None,
         filter_by_entity_type: bool = False,
+        use_m1_expansion: bool = True,
+        m1_min_plausibility: float = 0.5,
     ) -> List[Tuple[float, Dict, RetrievalStats]]:
         """
         Search for relevant documents using AST-aware root-based retrieval.
+
+        With M1 model enabled (via constructor), this performs query expansion
+        with plausibility filtering BEFORE search (M1's intended purpose).
 
         Args:
             query: Query string (Esperanto)
             top_k: Number of results to return
             fallback_mode: Override default fallback mode for this search
             filter_by_entity_type: If True, filter results by entity type match
+            use_m1_expansion: If True and M1 available, expand query with
+                             plausibility filtering (default: True)
+            m1_min_plausibility: Minimum M1 score for keeping expansions (0.0-1.0)
 
         Returns:
             List of (score, document, stats) tuples sorted by relevance
@@ -133,13 +295,68 @@ class ASTAwareRetriever:
         logger.info(f"Query: \"{query}\"")
         logger.info(f"  Question type: {question_type.value}")
 
-        # Search using root inverted index
-        mode = fallback_mode if fallback_mode is not None else self.root_index.fallback_mode
-        results, stats = self.root_index.search(
-            query_ast=query_ast,
-            max_results=top_k,
-            fallback_mode=mode,
-        )
+        # M1-based query expansion (if enabled)
+        if use_m1_expansion and self.m1:
+            logger.info("M1 query expansion enabled")
+            expansions = self.expand_query_with_m1(
+                query_ast,
+                min_plausibility=m1_min_plausibility,
+                max_synonyms=10
+            )
+
+            # Search with each plausible expansion
+            all_results = {}  # doc_id -> (score, doc, m1_weight)
+            combined_stats = None
+
+            for expansion in expansions:
+                exp_ast = expansion['query_ast']
+                m1_score = expansion['m1_score']
+                is_original = expansion['is_original']
+
+                # Search with expanded query
+                mode = fallback_mode if fallback_mode is not None else self.root_index.fallback_mode
+                exp_results, exp_stats = self.root_index.search(
+                    query_ast=exp_ast,
+                    max_results=top_k * 2,  # Get more for merging
+                    fallback_mode=mode,
+                )
+
+                # Store stats from first expansion (they're similar)
+                if combined_stats is None:
+                    combined_stats = exp_stats
+
+                # Weight results by M1 score
+                for result in exp_results:
+                    doc_id = result.doc_id
+                    weighted_score = result.score * m1_score
+
+                    # Take max score across expansions (best match wins)
+                    if doc_id not in all_results or weighted_score > all_results[doc_id][0]:
+                        doc = self.root_index.get_document(doc_id)
+                        if doc:
+                            all_results[doc_id] = (weighted_score, doc, m1_score)
+
+            # Convert to SearchResult-like objects for ranking
+            class SearchResult:
+                def __init__(self, doc_id, score):
+                    self.doc_id = doc_id
+                    self.score = score
+
+            results = [SearchResult(doc_id, score) for doc_id, (score, _, _) in all_results.items()]
+            results.sort(key=lambda r: r.score, reverse=True)
+            stats = combined_stats
+
+            logger.info(f"  M1 expansions: {len(expansions)} variants")
+            logger.info(f"  Merged results: {len(results)} unique documents")
+
+        else:
+            # Original search without M1 expansion
+            mode = fallback_mode if fallback_mode is not None else self.root_index.fallback_mode
+            results, stats = self.root_index.search(
+                query_ast=query_ast,
+                max_results=top_k,
+                fallback_mode=mode,
+            )
 
         # Log stats
         logger.info(f"  Roots found: {len(stats.roots_found_in_index)}")
@@ -147,9 +364,16 @@ class ASTAwareRetriever:
             logger.info(f"  Roots not found: {stats.roots_not_found}")
         if stats.graph_expansions:
             logger.info(f"  Graph expansions: {stats.graph_expansions}")
+            # Show ConceptNet expansions if available
+            if hasattr(stats, 'conceptnet_expansions') and stats.conceptnet_expansions:
+                logger.info(f"  ConceptNet: {stats.conceptnet_expansions[:5]}...")
         if stats.embedding_synonyms:
             logger.info(f"  Synonyms (Embedding): {stats.embedding_synonyms[:3]}...")
         logger.info(f"  Results: {len(results)}")
+
+        # Apply entity-aware scoring (boost docs with query entities)
+        results = self._apply_entity_boost(query_ast, results)
+        logger.info(f"  After entity boost: {len(results)}")
 
         # Apply role-based ranking to improve query disambiguation
         results = self._apply_root_role_ranking(query_ast, results)
@@ -206,6 +430,133 @@ class ASTAwareRetriever:
                 hints['tempo'] = verb['tempo']
 
         return hints
+
+    def _apply_entity_boost(self, query_ast: Dict, results: List) -> List:
+        """
+        Apply entity-aware scoring based on question type and expected answer entities.
+
+        Strategy:
+        1. WHO questions → Boost documents with PERSON entities
+        2. WHERE questions → Boost documents with PLACE entities
+        3. WHEN questions → Boost documents with TIME entities (dates, years)
+        4. For all questions → Boost documents with SPECIFIC query entities (but not overly common ones)
+
+        This is more effective than just boosting query entities, because:
+        - In Esperanto corpus, "Esperanto" appears everywhere (not discriminative)
+        - WHO questions need documents with person names (Zamenhof, etc.)
+        - WHERE questions need documents with place names
+        - WHEN questions need documents with dates
+
+        Scoring:
+        - Document contains expected entity type for question: 2.5x boost
+        - Document contains specific query entity: 1.5x boost (lower weight)
+        - Document contains both: 2.5x × 1.5x = 3.75x combined boost
+
+        Args:
+            query_ast: Parsed query AST
+            results: List of SearchResult objects from root_index.search()
+
+        Returns:
+            List of SearchResult objects with adjusted scores
+        """
+        # Classify question to determine expected answer type
+        classification = self.question_classifier.classify("", query_ast)
+        question_type = classification['question_type']
+
+        # Extract entities from query (to check for specific entities)
+        query_entities = self.entity_recognizer.recognize_entities(query_ast)
+
+        # Determine expected entity type based on question type
+        from klareco.rag.entity_recognizer import EntityType
+        from klareco.rag.question_classifier import QuestionType
+
+        expected_entity_type = None
+        if question_type == QuestionType.WHO:
+            expected_entity_type = EntityType.PERSON
+        elif question_type == QuestionType.WHERE:
+            expected_entity_type = EntityType.PLACE
+        elif question_type == QuestionType.WHEN:
+            expected_entity_type = EntityType.TIME
+
+        if not expected_entity_type and not query_entities:
+            # No entity-based boosting needed
+            return results
+
+        logger.info(f"  Applying entity-aware boost:")
+        if expected_entity_type:
+            logger.info(f"    Expected entity type: {expected_entity_type.value}")
+        if query_entities:
+            entity_summary = [f"{e.text} ({e.entity_type.value})" for e in query_entities]
+            logger.info(f"    Query entities: {', '.join(entity_summary)}")
+
+        # Apply entity boost
+        boosted_results = []
+        type_matches = 0
+        entity_matches = 0
+
+        ENTITY_TYPE_BOOST = 2.5  # Boost for expected entity type
+        SPECIFIC_ENTITY_BOOST = 1.5  # Smaller boost for specific entity match
+
+        for result in results:
+            doc = self.root_index.get_document(result.doc_id)
+            if not doc:
+                continue
+
+            doc_text = doc.get('text', '')
+            doc_text_lower = doc_text.lower()
+            original_score = result.score
+            boost_multiplier = 1.0
+            reasons = []
+
+            # Check if document contains expected entity type
+            if expected_entity_type:
+                # Parse document on-the-fly to extract entities
+                # Note: This is slower but necessary since docs don't have pre-parsed ASTs
+                try:
+                    from klareco.parser import parse
+                    doc_ast = parse(doc_text)
+                    doc_entities = self.entity_recognizer.recognize_entities(doc_ast)
+                    has_expected_type = any(e.entity_type == expected_entity_type for e in doc_entities)
+
+                    if has_expected_type:
+                        boost_multiplier *= ENTITY_TYPE_BOOST
+                        type_matches += 1
+                        reasons.append(f"contains {expected_entity_type.value}")
+                except Exception as e:
+                    # Parsing failed - skip entity type check for this doc
+                    logger.debug(f"Failed to parse document {result.doc_id}: {e}")
+
+            # Check if document contains specific query entities
+            # But SKIP overly common entities like "Esperanto" in Esperanto corpus
+            for entity in query_entities:
+                # Skip if entity is the word "Esperanto" (too common in this corpus)
+                if entity.root.lower() in {'esperant', 'esper'}:
+                    continue
+
+                entity_text = entity.text.lower()
+                entity_root = entity.root.lower() if entity.root else None
+
+                # Check for exact text or root match
+                if entity_text in doc_text_lower or (entity_root and entity_root in doc_text_lower):
+                    boost_multiplier *= SPECIFIC_ENTITY_BOOST
+                    entity_matches += 1
+                    reasons.append(f"contains {entity.text}")
+                    break  # Only count once per document
+
+            # Apply boost if any reason found
+            if boost_multiplier > 1.0:
+                result.score *= boost_multiplier
+                logger.info(f"    ✓ {', '.join(reasons)} → "
+                           f"score: {original_score:.3f} × {boost_multiplier:.2f} = {result.score:.3f}")
+
+            boosted_results.append(result)
+
+        # Re-sort by adjusted scores
+        boosted_results.sort(key=lambda r: r.score, reverse=True)
+
+        logger.info(f"  Entity boost summary: {type_matches} with expected type, {entity_matches} with specific entities")
+
+        return boosted_results
 
     def _apply_root_role_ranking(self, query_ast: Dict, results: List) -> List:
         """

@@ -375,6 +375,10 @@ class ASTAwareRetriever:
         results = self._apply_entity_boost(query_ast, results)
         logger.info(f"  After entity boost: {len(results)}")
 
+        # Apply document quality filtering (penalize low-quality docs)
+        results = self._apply_document_quality_filter(results)
+        logger.info(f"  After quality filter: {len(results)}")
+
         # Apply role-based ranking to improve query disambiguation
         results = self._apply_root_role_ranking(query_ast, results)
         logger.info(f"  After role ranking: {len(results)}")
@@ -557,6 +561,105 @@ class ASTAwareRetriever:
         logger.info(f"  Entity boost summary: {type_matches} with expected type, {entity_matches} with specific entities")
 
         return boosted_results
+
+    def _apply_document_quality_filter(self, results: List) -> List:
+        """
+        Apply document quality filtering to penalize low-quality documents.
+
+        Problem: Some documents are indices, tables, or lists that match many queries
+        but don't contain meaningful answers.
+
+        Example: A 3429-word document with 736 clauses (likely an index):
+        ```
+        "Dato...............................53, 367, 384, 385
+        N-finaĵo...................................384, 385..."
+        ```
+
+        This ranks #1 for many queries because it contains many keywords,
+        but it's not actually an answer.
+
+        Solution: Detect and penalize low-quality documents based on:
+        1. Excessive length (>1000 words → likely index/appendix)
+        2. Extreme clause count (>100 clauses → likely list/table)
+        3. High punctuation density (>0.15 → likely table/reference)
+        4. Very short documents (<10 words → likely fragment)
+
+        Scoring:
+        - Normal document: 1.0x (no penalty)
+        - Long document (>1000 words): 0.5x penalty
+        - Extreme clauses (>100): 0.5x penalty
+        - High punctuation (>0.15): 0.7x penalty
+        - Very short (<10 words): 0.6x penalty
+        - Penalties are multiplicative
+
+        Args:
+            results: List of SearchResult objects
+
+        Returns:
+            List of SearchResult objects with adjusted scores
+        """
+        filtered_results = []
+        penalized_count = 0
+
+        for result in results:
+            doc = self.root_index.get_document(result.doc_id)
+            if not doc:
+                continue
+
+            doc_text = doc.get('text', '')
+            original_score = result.score
+            penalty_multiplier = 1.0
+            reasons = []
+
+            # Count words
+            word_count = len(doc_text.split())
+
+            # Count clauses (rough estimate using punctuation)
+            clause_markers = doc_text.count(',') + doc_text.count(';') + doc_text.count(':')
+            estimated_clauses = 1 + clause_markers
+
+            # Calculate punctuation density
+            punctuation_count = sum(1 for c in doc_text if c in ',.;:!?-–—')
+            punctuation_density = punctuation_count / len(doc_text) if doc_text else 0
+
+            # Apply penalties
+
+            # 1. Very short documents (fragments)
+            if word_count < 10:
+                penalty_multiplier *= 0.6
+                reasons.append(f"very short ({word_count} words)")
+
+            # 2. Excessively long documents (likely index/appendix)
+            if word_count > 1000:
+                penalty_multiplier *= 0.5
+                reasons.append(f"very long ({word_count} words)")
+
+            # 3. Extreme clause count (likely list/table)
+            if estimated_clauses > 100:
+                penalty_multiplier *= 0.5
+                reasons.append(f"extreme clauses ({estimated_clauses})")
+
+            # 4. High punctuation density (likely table/reference)
+            if punctuation_density > 0.15:
+                penalty_multiplier *= 0.7
+                reasons.append(f"high punctuation ({punctuation_density:.2%})")
+
+            # Apply penalty if any reason found
+            if penalty_multiplier < 1.0:
+                result.score *= penalty_multiplier
+                penalized_count += 1
+                logger.info(f"    ⚠ Low quality: {', '.join(reasons)} → "
+                           f"score: {original_score:.3f} × {penalty_multiplier:.2f} = {result.score:.3f}")
+
+            filtered_results.append(result)
+
+        # Re-sort by adjusted scores
+        filtered_results.sort(key=lambda r: r.score, reverse=True)
+
+        if penalized_count > 0:
+            logger.info(f"  Quality filter: {penalized_count} documents penalized")
+
+        return filtered_results
 
     def _apply_root_role_ranking(self, query_ast: Dict, results: List) -> List:
         """

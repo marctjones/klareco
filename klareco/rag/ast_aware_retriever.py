@@ -622,27 +622,42 @@ class ASTAwareRetriever:
             punctuation_count = sum(1 for c in doc_text if c in ',.;:!?-–—')
             punctuation_density = punctuation_count / len(doc_text) if doc_text else 0
 
-            # Apply penalties
+            # Apply penalties (graduated for extreme cases)
 
             # 1. Very short documents (fragments)
             if word_count < 10:
                 penalty_multiplier *= 0.6
                 reasons.append(f"very short ({word_count} words)")
 
-            # 2. Excessively long documents (likely index/appendix)
-            if word_count > 1000:
+            # 2. Length penalties (graduated)
+            if word_count > 2000:
+                penalty_multiplier *= 0.2
+                reasons.append(f"extremely long ({word_count} words)")
+            elif word_count > 1000:
                 penalty_multiplier *= 0.5
                 reasons.append(f"very long ({word_count} words)")
 
-            # 3. Extreme clause count (likely list/table)
-            if estimated_clauses > 100:
+            # 3. Clause count penalties (graduated)
+            if estimated_clauses > 500:
+                penalty_multiplier *= 0.1
+                reasons.append(f"extremely high clauses ({estimated_clauses})")
+            elif estimated_clauses > 100:
                 penalty_multiplier *= 0.5
-                reasons.append(f"extreme clauses ({estimated_clauses})")
+                reasons.append(f"high clauses ({estimated_clauses})")
 
-            # 4. High punctuation density (likely table/reference)
-            if punctuation_density > 0.15:
+            # 4. Punctuation density penalties (graduated)
+            if punctuation_density > 0.20:
+                penalty_multiplier *= 0.5
+                reasons.append(f"very high punctuation ({punctuation_density:.2%})")
+            elif punctuation_density > 0.15:
                 penalty_multiplier *= 0.7
                 reasons.append(f"high punctuation ({punctuation_density:.2%})")
+
+            # 5. Index/table document detection (combined signals)
+            # Index documents have: long length + extreme clauses + high punctuation
+            if word_count > 1000 and estimated_clauses > 200 and punctuation_density > 0.15:
+                penalty_multiplier *= 0.1
+                reasons.append("likely index/table document")
 
             # Apply penalty if any reason found
             if penalty_multiplier < 1.0:

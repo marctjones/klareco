@@ -91,6 +91,7 @@ class ASTAnswerExtractor:
         query_ast: Dict,
         doc_ast: Dict,
         doc_text: str,
+        use_subclause_scoring: bool = True,
     ) -> Optional[Dict]:
         """
         Extract answer from document AST based on query pattern.
@@ -99,12 +100,14 @@ class ASTAnswerExtractor:
             query_ast: Parsed query AST
             doc_ast: Parsed document AST
             doc_text: Original document text
+            use_subclause_scoring: If True, decompose complex sentences into subclauses
+                                  and extract from best-matching subclause (default: True)
 
         Returns:
             {
                 'text': str,           # Answer text
                 'confidence': float,   # [0-1] confidence score
-                'method': str,         # 'ast_pattern_match'
+                'method': str,         # 'ast_pattern_match' or 'subclause_match'
                 'explanation': str,    # Why this was extracted
                 'ast': Dict,          # Full AST of answer
                 'span': Tuple[int, int]  # Character offsets in doc_text (if available)
@@ -119,7 +122,22 @@ class ASTAnswerExtractor:
 
         logger.debug(f"Question type: {question_type}")
 
-        # Extract answer based on question type
+        # Check if sentence is complex (should try subclause decomposition)
+        is_complex = self._is_complex_sentence(doc_ast)
+
+        if use_subclause_scoring and is_complex:
+            logger.debug("Complex sentence detected, using subclause scoring")
+            answer = self._extract_from_best_subclause(
+                query_ast, doc_ast, doc_text, question_type
+            )
+            # If subclause extraction succeeded, return it
+            if answer:
+                return answer
+
+            # Otherwise fall back to whole-sentence extraction
+            logger.debug("Subclause extraction failed, falling back to whole sentence")
+
+        # Extract answer based on question type (whole sentence)
         answer = None
         if question_type == 'WHO':
             answer = self._extract_who(query_ast, doc_ast, doc_text)
@@ -153,6 +171,105 @@ class ASTAnswerExtractor:
                 return None
 
         return answer
+
+    def _is_complex_sentence(self, doc_ast: Dict) -> bool:
+        """
+        Check if sentence is complex (has multiple clauses).
+
+        Heuristic: Count clause boundaries in aliaj.
+        Complex if has 1+ clause boundaries (coordination, subordination, etc.).
+
+        Args:
+            doc_ast: Document AST
+
+        Returns:
+            True if complex sentence
+        """
+        aliaj = doc_ast.get('aliaj', [])
+        clause_boundary_count = sum(1 for word in aliaj if self._is_clause_boundary(word))
+
+        return clause_boundary_count >= 1
+
+    def _extract_from_best_subclause(
+        self,
+        query_ast: Dict,
+        doc_ast: Dict,
+        doc_text: str,
+        question_type: str,
+    ) -> Optional[Dict]:
+        """
+        Extract answer from best-matching subclause.
+
+        Strategy:
+        1. Decompose document into subclauses
+        2. Score each subclause against query
+        3. Extract from top-scoring subclause
+        4. Add subclause scoring info to result
+
+        Args:
+            query_ast: Query AST
+            doc_ast: Document AST
+            doc_text: Document text
+            question_type: Question type (WHO, WHAT, etc.)
+
+        Returns:
+            Answer dict or None
+        """
+        # Extract subclauses
+        subclauses = self._extract_subclauses(doc_ast)
+
+        if len(subclauses) <= 1:
+            logger.debug("No subclauses found (simple sentence)")
+            return None
+
+        # Score each subclause
+        scored_subclauses = []
+        for i, subclause in enumerate(subclauses):
+            score = self._score_subclause(query_ast, subclause)
+            scored_subclauses.append({
+                'index': i,
+                'score': score,
+                'subclause': subclause,
+                'type': subclause.get('subclause_type', 'unknown'),
+            })
+
+        # Sort by score
+        scored_subclauses.sort(key=lambda x: x['score'], reverse=True)
+
+        logger.debug(f"Subclause scores: {[(s['index'], s['type'], s['score']) for s in scored_subclauses[:3]]}")
+
+        # Try extraction from top-scoring subclauses
+        for ranked_subclause in scored_subclauses:
+            if ranked_subclause['score'] == 0:
+                break  # No point trying subclauses with zero score
+
+            subclause = ranked_subclause['subclause']
+
+            # Call appropriate extraction method on subclause
+            answer = None
+            if question_type == 'WHO':
+                answer = self._extract_who(query_ast, subclause, doc_text)
+            elif question_type == 'WHAT':
+                answer = self._extract_what(query_ast, subclause, doc_text)
+            elif question_type == 'WHERE':
+                answer = self._extract_where(query_ast, subclause, doc_text)
+            elif question_type == 'WHEN':
+                answer = self._extract_when(query_ast, subclause, doc_text)
+            elif question_type == 'HOW_MANY':
+                answer = self._extract_how_many(query_ast, subclause, doc_text)
+
+            if answer:
+                # Add subclause info to answer
+                answer['method'] = 'subclause_match'
+                answer['explanation'] = (
+                    f"{answer['explanation']} "
+                    f"(from {ranked_subclause['type']} subclause, score: {ranked_subclause['score']:.1f})"
+                )
+                logger.debug(f"Extracted from subclause #{ranked_subclause['index']}: {answer['text']}")
+                return answer
+
+        logger.debug("No valid extraction from any subclause")
+        return None
 
     def _detect_question_type(self, query_ast: Dict) -> Optional[str]:
         """
@@ -834,6 +951,243 @@ class ASTAnswerExtractor:
                 return False
 
         return True
+
+    # -------------------------------------------------------------------------
+    # Subclause Decomposition (for complex sentences)
+    # -------------------------------------------------------------------------
+
+    def _is_clause_boundary(self, word: Dict) -> bool:
+        """
+        Check if word marks a clause boundary.
+
+        Clause boundaries are indicated by:
+        - Participles (fondita, kreita → participial clause)
+        - Relative pronouns (kiu, kio, kia, kie, kiam, etc.)
+        - Coordinating conjunctions (kaj, sed, aŭ)
+        - Subordinating conjunctions (ke, ĉar, se, kvankam)
+
+        Args:
+            word: AST word node
+
+        Returns:
+            True if word marks clause boundary
+        """
+        if word.get('tipo') != 'vorto':
+            return False
+
+        # Participles (indicate participial clauses)
+        if word.get('participo_tempo'):
+            return True
+
+        # Relative/interrogative correlatives
+        radiko = word.get('radiko', '').lower()
+        if radiko in {'kiu', 'kio', 'kia', 'kie', 'kiam', 'kiel', 'kial', 'kiom', 'kies'}:
+            return True
+
+        # Coordinating conjunctions
+        if word.get('vortspeco') == 'konjunkcio':
+            if radiko in {'kaj', 'sed', 'aŭ', 'nek'}:
+                return True
+
+        # Subordinating conjunctions/particles
+        if word.get('vortspeco') in ['konjunkcio', 'partiklo']:
+            if radiko in {'ke', 'ĉar', 'se', 'kvankam', 'dum', 'post', 'antaŭ'}:
+                return True
+
+        return False
+
+    def _extract_subclauses(self, doc_ast: Dict) -> List[Dict]:
+        """
+        Extract subclauses from complex sentence using AST structure.
+
+        Strategy:
+        1. Main clause (subjekto-verbo-objekto) always included
+        2. Scan aliaj for clause boundaries (participles, conjunctions, relative pronouns)
+        3. Group consecutive words between boundaries into subclauses
+
+        Args:
+            doc_ast: Document AST (frazo)
+
+        Returns:
+            List of subclause dicts with structure similar to full AST
+        """
+        subclauses = []
+
+        # Main clause (always included)
+        main_clause = {
+            'tipo': 'subclause',
+            'subclause_type': 'main',
+            'subjekto': doc_ast.get('subjekto'),
+            'verbo': doc_ast.get('verbo'),
+            'objekto': doc_ast.get('objekto'),
+            'aliaj': [],  # Will add non-clause-boundary modifiers
+        }
+
+        # Collect aliaj that are NOT clause boundaries (belong to main clause)
+        aliaj = doc_ast.get('aliaj', [])
+        current_subclause_words = []
+
+        for word in aliaj:
+            # Check if this starts a new subclause
+            if self._is_clause_boundary(word):
+                # Save current subclause if it has content
+                if current_subclause_words:
+                    subclause = self._make_subclause(current_subclause_words)
+                    subclauses.append(subclause)
+                    current_subclause_words = []
+
+                # Start new subclause with boundary word
+                current_subclause_words.append(word)
+            else:
+                # Add to current subclause (or main clause if empty)
+                if current_subclause_words:
+                    current_subclause_words.append(word)
+                else:
+                    # Belongs to main clause
+                    main_clause['aliaj'].append(word)
+
+        # Add final subclause
+        if current_subclause_words:
+            subclause = self._make_subclause(current_subclause_words)
+            subclauses.append(subclause)
+
+        # Prepend main clause
+        subclauses.insert(0, main_clause)
+
+        return subclauses
+
+    def _make_subclause(self, words: List[Dict]) -> Dict:
+        """
+        Create subclause dict from list of words.
+
+        Attempts to identify subject/verb/object structure within the subclause.
+
+        Args:
+            words: List of word AST nodes
+
+        Returns:
+            Subclause dict
+        """
+        subclause = {
+            'tipo': 'subclause',
+            'subclause_type': 'subordinate',
+            'subjekto': None,
+            'verbo': None,
+            'objekto': None,
+            'aliaj': [],
+        }
+
+        # Try to find verb in subclause
+        for word in words:
+            if word.get('tipo') == 'vorto':
+                vortspeco = word.get('vortspeco')
+
+                # Identify verb
+                if vortspeco == 'verbo' and not subclause['verbo']:
+                    subclause['verbo'] = word
+
+                # Identify substantives (potential subject/object)
+                elif vortspeco == 'substantivo':
+                    # If no subject yet, assume this is subject
+                    if not subclause['subjekto']:
+                        subclause['subjekto'] = word
+                    # Otherwise assume object
+                    elif not subclause['objekto']:
+                        subclause['objekto'] = word
+                    else:
+                        subclause['aliaj'].append(word)
+
+                # Everything else goes in aliaj
+                else:
+                    subclause['aliaj'].append(word)
+
+        return subclause
+
+    def _score_subclause(self, query_ast: Dict, subclause: Dict) -> float:
+        """
+        Score subclause relevance to query.
+
+        Uses same method as sentence retrieval:
+        - Extract roots from both
+        - Count matches
+        - Weight by role (verb > subject > object)
+
+        Args:
+            query_ast: Query AST
+            subclause: Subclause dict
+
+        Returns:
+            Relevance score (higher is better)
+        """
+        score = 0.0
+
+        # Verb match (highest weight)
+        query_verb = self._get_verb_root(query_ast)
+        subclause_verb = self._get_verb_root(subclause)
+
+        if query_verb and subclause_verb:
+            if query_verb == subclause_verb:
+                score += 5.0
+            elif query_verb[:4] == subclause_verb[:4] and len(query_verb) >= 4:
+                score += 3.0  # Partial match
+
+        # Root matches (subject/object)
+        query_roots = self._extract_roots(query_ast)
+        subclause_roots = self._extract_roots(subclause)
+
+        matches = set(query_roots) & set(subclause_roots)
+        score += len(matches) * 2.0
+
+        return score
+
+    def _extract_roots(self, ast: Dict) -> List[str]:
+        """
+        Extract all content roots from AST.
+
+        Args:
+            ast: AST dict (frazo or subclause)
+
+        Returns:
+            List of root strings
+        """
+        roots = []
+
+        # Extract from subject
+        if ast.get('subjekto'):
+            roots.extend(self._extract_roots_from_node(ast['subjekto']))
+
+        # Extract from verb
+        if ast.get('verbo'):
+            roots.extend(self._extract_roots_from_node(ast['verbo']))
+
+        # Extract from object
+        if ast.get('objekto'):
+            roots.extend(self._extract_roots_from_node(ast['objekto']))
+
+        # Extract from aliaj
+        for modifier in ast.get('aliaj', []):
+            roots.extend(self._extract_roots_from_node(modifier))
+
+        return roots
+
+    def _extract_roots_from_node(self, node: Dict) -> List[str]:
+        """Extract roots from AST node (vorto or vortgrupo)."""
+        roots = []
+
+        if node.get('tipo') == 'vorto':
+            radiko = node.get('radiko', '').lower()
+            if radiko:
+                roots.append(radiko)
+
+        elif node.get('tipo') == 'vortgrupo':
+            kerno = node.get('kerno')
+            if kerno:
+                roots.extend(self._extract_roots_from_node(kerno))
+
+            for priskribo in node.get('priskriboj', []):
+                roots.extend(self._extract_roots_from_node(priskribo))
+
+        return roots
 
     # -------------------------------------------------------------------------
     # Helper Methods

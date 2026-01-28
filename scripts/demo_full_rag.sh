@@ -1,16 +1,16 @@
 #!/bin/bash
 #
-# Demo: Full RAG Pipeline with M1 Filtering + Reranking
+# Demo: Full RAG Pipeline with Reranking
 #
 # This script demonstrates the complete Klareco RAG pipeline:
 #   1. AST-aware retrieval (structural matching)
-#   2. M1 plausibility filtering (removes nonsense from synonym expansion)
-#   3. Neural reranking (learned relevance scoring)
+#   2. Neural reranking (learned relevance scoring)
+#   3. M1 plausibility filtering (optional - removes nonsense from synonym expansion)
 #
 # Usage:
-#   ./scripts/demo_full_rag.sh                      # Run example queries
+#   ./scripts/demo_full_rag.sh                      # Run example queries (M1 disabled by default)
 #   ./scripts/demo_full_rag.sh "Kiu fondis Esperanton?"  # Single query
-#   ./scripts/demo_full_rag.sh --no-m1              # Skip M1 filtering
+#   ./scripts/demo_full_rag.sh --use-m1             # Enable M1 filtering
 #   ./scripts/demo_full_rag.sh --no-rerank          # Skip reranking
 #
 
@@ -64,23 +64,50 @@ if [ ! -f "$M1_MODEL" ]; then
     echo ""
 fi
 
+# Parse arguments to check for --use-m1
+USE_M1=false
+EXTRA_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" == "--use-m1" ]; then
+        USE_M1=true
+    else
+        EXTRA_ARGS+=("$arg")
+    fi
+done
+
 echo "=============================================================================="
 echo "Full RAG Pipeline Demo"
 echo "=============================================================================="
-echo "Pipeline: Retrieval → M1 Filtering → Reranking"
+if [ "$USE_M1" == "true" ]; then
+    echo "Pipeline: Retrieval → M1 Filtering → Reranking"
+else
+    echo "Pipeline: Retrieval → Reranking (M1 disabled by default)"
+fi
 echo ""
 echo "Models:"
 echo "  Index:    $INDEX"
-echo "  M1:       $M1_MODEL"
+if [ "$USE_M1" == "true" ]; then
+    echo "  M1:       $M1_MODEL (enabled)"
+else
+    echo "  M1:       disabled (use --use-m1 to enable)"
+fi
 echo "  Stage 1:  $STAGE1_MODEL"
 echo "  Reranker: models/reranker/best_model.pt"
 echo ""
 echo "=============================================================================="
 echo ""
 
-# Run demo with all arguments passed through
-PYTHONPATH=. python scripts/demo_reranked_rag.py \
-    --m1-model "$M1_MODEL" \
-    --stage1-model "$STAGE1_MODEL" \
-    --index-dir "$INDEX" \
-    "$@"
+# Run demo with arguments
+if [ "$USE_M1" == "true" ]; then
+    PYTHONPATH=. python scripts/demo_reranked_rag.py \
+        --m1-model "$M1_MODEL" \
+        --stage1-model "$STAGE1_MODEL" \
+        --index-dir "$INDEX" \
+        "${EXTRA_ARGS[@]}"
+else
+    PYTHONPATH=. python scripts/demo_reranked_rag.py \
+        --no-m1 \
+        --stage1-model "$STAGE1_MODEL" \
+        --index-dir "$INDEX" \
+        "${EXTRA_ARGS[@]}"
+fi

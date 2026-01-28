@@ -15,6 +15,9 @@ numpy
 # Vector search for RAG retrieval
 faiss-cpu  # Use faiss-gpu if you have CUDA
 
+# Graph database for structured retrieval
+kuzu
+
 # Progress bars
 tqdm
 

@@ -550,8 +550,11 @@ class ASTAwareRetriever:
             # Apply boost if any reason found
             if boost_multiplier > 1.0:
                 result.score *= boost_multiplier
+                # Show snippet of document being boosted (for verbose mode)
+                doc_snippet = doc_text[:60] + "..." if len(doc_text) > 60 else doc_text
                 logger.info(f"    ✓ {', '.join(reasons)} → "
                            f"score: {original_score:.3f} × {boost_multiplier:.2f} = {result.score:.3f}")
+                logger.info(f"       Doc: {doc_snippet}")
 
             boosted_results.append(result)
 
@@ -648,8 +651,11 @@ class ASTAwareRetriever:
             if penalty_multiplier < 1.0:
                 result.score *= penalty_multiplier
                 penalized_count += 1
+                # Show snippet of document being penalized (for verbose mode)
+                doc_snippet = doc_text[:60] + "..." if len(doc_text) > 60 else doc_text
                 logger.info(f"    ⚠ Low quality: {', '.join(reasons)} → "
                            f"score: {original_score:.3f} × {penalty_multiplier:.2f} = {result.score:.3f}")
+                logger.info(f"       Doc: {doc_snippet}")
 
             filtered_results.append(result)
 

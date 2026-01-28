@@ -29,9 +29,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
-# Import M1 model
+# Import M1 model and CompositionalEmbedding
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from klareco.models.m1_selectional import M1SelectionalPreference, M1Loss
+from klareco.embeddings.compositional import CompositionalEmbedding
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,48 +54,75 @@ def setup_file_logging(log_path: Path):
 # =============================================================================
 
 class M1Dataset(Dataset):
-    """Dataset for M1 selectional preference training."""
+    """
+    Memory-efficient streaming dataset for M1 selectional preference training.
 
-    def __init__(self, data_path: Path, root_embeddings: torch.Tensor,
-                 root_to_idx: Dict[str, int]):
+    Uses CompositionalEmbedding to encode full word structures on-the-fly.
+    This leverages morphological information (suffixes, endings) for better
+    semantic plausibility learning.
+
+    Instead of loading all examples into RAM, stores only file offsets
+    and reads lines on-demand. This reduces memory usage.
+    """
+
+    def __init__(self, data_path: Path, compositional_emb: CompositionalEmbedding):
         """
         Initialize dataset.
 
         Args:
-            data_path: Path to train/val/test.jsonl
-            root_embeddings: Stage 1 embeddings [vocab_size, embedding_dim]
-            root_to_idx: Root to index mapping
+            data_path: Path to train/val/test.jsonl with word structures
+            compositional_emb: CompositionalEmbedding for encoding words
         """
-        self.root_embeddings = root_embeddings
-        self.root_to_idx = root_to_idx
-        self.examples = []
+        self.data_path = data_path
+        self.comp_emb = compositional_emb
 
-        # Load examples
-        with open(data_path) as f:
+        # Build line offset index (minimal memory: ~8 bytes per example)
+        self.offsets = []
+        logger.info(f"Building offset index for {data_path.name}...")
+        with open(data_path, 'rb') as f:
+            offset = 0
             for line in f:
-                example = json.loads(line)
-                self.examples.append(example)
+                self.offsets.append(offset)
+                offset += len(line)
+
+        logger.info(f"  Indexed {len(self.offsets):,} examples (offsets: {len(self.offsets)*8/1024/1024:.1f}MB)")
 
     def __len__(self):
-        return len(self.examples)
+        return len(self.offsets)
 
     def __getitem__(self, idx):
-        example = self.examples[idx]
+        # Read single line on-demand (memory efficient)
+        with open(self.data_path, 'r') as f:
+            f.seek(self.offsets[idx])
+            line = f.readline()
+            example = json.loads(line)
 
-        # Get embeddings for each role
-        subj = example['subject_root'].lower()
-        verb = example['verb_root'].lower()
-        obj = example['object_root'].lower()
+        # Extract word structures (already case-normalized in data)
+        subj = example['subject']
+        verb = example['verb']
+        obj = example['object']
         label = float(example['label'])
 
-        # Lookup embeddings (use zero vector if not found)
-        subj_idx = self.root_to_idx.get(subj, 0)
-        verb_idx = self.root_to_idx.get(verb, 0)
-        obj_idx = self.root_to_idx.get(obj, 0)
-
-        subj_emb = self.root_embeddings[subj_idx]
-        verb_emb = self.root_embeddings[verb_idx]
-        obj_emb = self.root_embeddings[obj_idx]
+        # Encode with CompositionalEmbedding (on-the-fly)
+        with torch.no_grad():
+            subj_emb = self.comp_emb.encode_word(
+                root=subj['root'],
+                prefixes=subj['prefixes'],
+                suffixes=subj['suffixes'],
+                ending=subj['ending']
+            )
+            verb_emb = self.comp_emb.encode_word(
+                root=verb['root'],
+                prefixes=verb['prefixes'],
+                suffixes=verb['suffixes'],
+                ending=verb['ending']
+            )
+            obj_emb = self.comp_emb.encode_word(
+                root=obj['root'],
+                prefixes=obj['prefixes'],
+                suffixes=obj['suffixes'],
+                ending=obj['ending']
+            )
 
         return {
             'subject_emb': subj_emb,
@@ -108,28 +136,106 @@ class M1Dataset(Dataset):
 # Training Functions
 # =============================================================================
 
-def load_root_embeddings(model_path: Path) -> Tuple[torch.Tensor, Dict, Dict]:
-    """Load Stage 1 root embeddings."""
-    logger.info(f"Loading Stage 1 embeddings from {model_path}")
+def load_compositional_embedding(comp_model_path: Path) -> CompositionalEmbedding:
+    """Load pre-trained CompositionalEmbedding."""
+    logger.info(f"Loading CompositionalEmbedding from {comp_model_path}")
 
-    checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
+    checkpoint = torch.load(comp_model_path, map_location='cpu', weights_only=False)
 
-    embeddings = checkpoint['model_state_dict']['embeddings.weight']
-    root_to_idx = checkpoint['root_to_idx']
-    idx_to_root = checkpoint['idx_to_root']
+    # Check if this is a new-format CompositionalEmbedding or old Stage 1 checkpoint
+    if 'root_vocab' in checkpoint:
+        # New format - direct load
+        comp_emb = CompositionalEmbedding(
+            root_vocab=checkpoint['root_vocab'],
+            prefix_vocab=checkpoint['prefix_vocab'],
+            suffix_vocab=checkpoint['suffix_vocab'],
+            embed_dim=checkpoint['embed_dim'],
+            composition_method=checkpoint.get('composition_method', 'sum'),
+        )
+        comp_emb.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        # Old Stage 1 format - build vocabularies from root_to_idx
+        logger.info("  Converting Stage 1 checkpoint to CompositionalEmbedding format...")
 
-    logger.info(f"Loaded {len(root_to_idx):,} root embeddings (dim={embeddings.shape[1]})")
+        root_vocab = checkpoint['root_to_idx']
+        embed_dim = checkpoint['embedding_dim']
 
-    return embeddings, root_to_idx, idx_to_root
+        # Build standard Esperanto affix vocabularies
+        prefix_vocab = {
+            '<NONE>': 0,
+            'mal': 1,   # opposite
+            're': 2,    # again/back
+            'dis': 3,   # apart/asunder
+            'ge': 4,    # both sexes
+            'pra': 5,   # ancient/primeval
+            'bo': 6,    # in-law
+            'ek': 7,    # sudden action
+        }
+
+        suffix_vocab = {
+            '<NONE>': 0,
+            'aĉ': 1,    # pejorative
+            'ad': 2,    # continuous action
+            'aĵ': 3,    # thing/concrete
+            'an': 4,    # member
+            'ar': 5,    # collection
+            'ebl': 6,   # possible
+            'ec': 7,    # quality
+            'eg': 8,    # augmentative
+            'ej': 9,    # place
+            'em': 10,   # tendency
+            'end': 11,  # must/should
+            'er': 12,   # fragment
+            'estr': 13, # leader
+            'et': 14,   # diminutive
+            'id': 15,   # offspring
+            'ig': 16,   # cause to be
+            'iĝ': 17,   # become
+            'il': 18,   # tool
+            'in': 19,   # feminine
+            'ind': 20,  # worthy
+            'ing': 21,  # holder
+            'ism': 22,  # doctrine
+            'ist': 23,  # professional
+            'obl': 24,  # multiple
+            'on': 25,   # fraction
+            'op': 26,   # collective
+            'uj': 27,   # container
+            'ul': 28,   # person characterized by
+            'um': 29,   # indefinite relation
+        }
+
+        # Create CompositionalEmbedding with standard vocabularies
+        comp_emb = CompositionalEmbedding(
+            root_vocab=root_vocab,
+            prefix_vocab=prefix_vocab,
+            suffix_vocab=suffix_vocab,
+            embed_dim=embed_dim,
+            composition_method='sum',
+        )
+
+        # Load only the root embeddings from Stage 1 checkpoint
+        # Other embeddings (prefix, suffix, ending) will be randomly initialized
+        state_dict = comp_emb.state_dict()
+        state_dict['root_embed.weight'] = checkpoint['model_state_dict']['embeddings.weight']
+        comp_emb.load_state_dict(state_dict)
+
+        logger.info(f"  Initialized from Stage 1: {len(root_vocab):,} roots")
+        logger.info(f"  Added affixes: {len(prefix_vocab)} prefixes, {len(suffix_vocab)} suffixes")
+
+    comp_emb.eval()  # Freeze for M1 training
+
+    logger.info(f"Loaded CompositionalEmbedding: {comp_emb.embed_dim}D, {len(comp_emb.root_vocab):,} roots")
+    return comp_emb
 
 
 def create_dataloaders(train_path: Path, val_path: Path, test_path: Path,
-                       root_embeddings: torch.Tensor, root_to_idx: Dict[str, int],
+                       comp_emb: CompositionalEmbedding,
                        batch_size: int = 32) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """Create train/val/test dataloaders."""
-    train_dataset = M1Dataset(train_path, root_embeddings, root_to_idx)
-    val_dataset = M1Dataset(val_path, root_embeddings, root_to_idx)
-    test_dataset = M1Dataset(test_path, root_embeddings, root_to_idx)
+    train_dataset = M1Dataset(train_path, comp_emb)
+    val_dataset = M1Dataset(val_path, comp_emb)
+    test_dataset = M1Dataset(test_path, comp_emb)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
@@ -153,7 +259,11 @@ def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: M1Loss,
     total_triple_loss = 0.0
     num_batches = 0
 
-    for batch in dataloader:
+    # Progress tracking
+    total_batches = len(dataloader)
+    log_interval = max(1, total_batches // 10)  # Log ~10 times per epoch
+
+    for batch_idx, batch in enumerate(dataloader):
         # Move to device
         subject_emb = batch['subject_emb'].to(device)
         verb_emb = batch['verb_emb'].to(device)
@@ -181,6 +291,15 @@ def train_epoch(model: nn.Module, dataloader: DataLoader, criterion: M1Loss,
         total_verb_obj_loss += losses['verb_obj_loss'].item()
         total_triple_loss += losses['triple_loss'].item()
         num_batches += 1
+
+        # Log progress periodically
+        if (batch_idx + 1) % log_interval == 0 or (batch_idx + 1) == total_batches:
+            avg_loss = total_loss / num_batches
+            pct = 100.0 * (batch_idx + 1) / total_batches
+            logger.info(
+                f"  Batch {batch_idx + 1}/{total_batches} ({pct:.1f}%) - "
+                f"loss={avg_loss:.4f}"
+            )
 
     return {
         'loss': total_loss / num_batches,
@@ -254,7 +373,7 @@ def evaluate(model: nn.Module, dataloader: DataLoader, criterion: M1Loss,
 
 
 def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, epoch: int,
-                    best_accuracy: float, output_dir: Path):
+                    best_accuracy: float, output_dir: Path, comp_model_path: str):
     """Save model checkpoint."""
     checkpoint = {
         'epoch': epoch,
@@ -262,7 +381,8 @@ def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, epoch: i
         'optimizer_state_dict': optimizer.state_dict(),
         'best_accuracy': best_accuracy,
         'embedding_dim': model.embedding_dim,
-        'hidden_dim': model.hidden_dim
+        'hidden_dim': model.hidden_dim,
+        'comp_model_path': comp_model_path  # Store path for inference
     }
 
     # Atomic save
@@ -297,17 +417,23 @@ def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer,
 # =============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description='Train M1 Selectional Preference Model')
+    parser = argparse.ArgumentParser(description='Train M1 Selectional Preference Model v2 (Compositional)')
 
     # Paths
-    parser.add_argument('--stage1-model', type=str,
-                        default='models/root_embeddings/best_model.pt',
-                        help='Path to Stage 1 root embeddings')
-    parser.add_argument('--data-dir', type=str,
-                        default='data/training/m1_selectional_hard_only',
-                        help='Directory with train/val/test.jsonl')
+    parser.add_argument('--comp-model', type=str,
+                        default='models/root_embeddings_tier0/best_model.pt',
+                        help='Path to CompositionalEmbedding model')
+    parser.add_argument('--train-data', type=str,
+                        default='data/training/m1_compositional/train.jsonl',
+                        help='Path to training data')
+    parser.add_argument('--val-data', type=str,
+                        default='data/training/m1_compositional/val.jsonl',
+                        help='Path to validation data')
+    parser.add_argument('--test-data', type=str,
+                        default='data/training/m1_compositional/test.jsonl',
+                        help='Path to test data')
     parser.add_argument('--output-dir', type=str,
-                        default='models/m1_selectional',
+                        default='models/m1_compositional',
                         help='Output directory for model checkpoints')
     parser.add_argument('--log-dir', type=str,
                         default='logs/training',
@@ -349,7 +475,7 @@ def main():
     setup_file_logging(log_file)
 
     logger.info("=" * 60)
-    logger.info("M1 Selectional Preference Training")
+    logger.info("M1 Selectional Preference Training v2 (Compositional)")
     logger.info("=" * 60)
     logger.info(f"Hidden dim: {args.hidden_dim}")
     logger.info(f"Dropout: {args.dropout}")
@@ -358,30 +484,29 @@ def main():
     logger.info(f"Learning rate: {args.learning_rate}")
     logger.info("")
 
-    # Load Stage 1 root embeddings
-    stage1_path = Path(args.stage1_model)
-    if not stage1_path.exists():
-        logger.error(f"Stage 1 model not found: {stage1_path}")
-        logger.error("Train Stage 1 first: ./scripts/train_roots.sh")
+    # Load CompositionalEmbedding
+    comp_model_path = Path(args.comp_model)
+    if not comp_model_path.exists():
+        logger.error(f"CompositionalEmbedding not found: {comp_model_path}")
+        logger.error("Train compositional embeddings first: ./scripts/train_roots.sh")
         return 1
 
-    root_embeddings, root_to_idx, idx_to_root = load_root_embeddings(stage1_path)
-    embedding_dim = root_embeddings.shape[1]
+    comp_emb = load_compositional_embedding(comp_model_path)
+    embedding_dim = comp_emb.embed_dim
 
     # Load training data
-    data_dir = Path(args.data_dir)
-    train_path = data_dir / 'train.jsonl'
-    val_path = data_dir / 'val.jsonl'
-    test_path = data_dir / 'test.jsonl'
+    train_path = Path(args.train_data)
+    val_path = Path(args.val_data)
+    test_path = Path(args.test_data)
 
     if not train_path.exists():
         logger.error(f"Training data not found: {train_path}")
-        logger.error("Generate M1 data first: python scripts/prepare_m1_training_data_hard_negatives.py")
+        logger.error("Generate M1 data first: python scripts/prepare_m1_training_data_tier_priority.py")
         return 1
 
     train_loader, val_loader, test_loader = create_dataloaders(
         train_path, val_path, test_path,
-        root_embeddings, root_to_idx,
+        comp_emb,
         batch_size=args.batch_size
     )
 
@@ -421,6 +546,9 @@ def main():
     logger.info("Starting training...")
 
     for epoch in range(start_epoch, args.epochs):
+        # Log epoch start
+        logger.info(f"Epoch {epoch + 1}/{args.epochs} - Training...")
+
         # Train
         train_metrics = train_epoch(model, train_loader, criterion, optimizer, args.device)
 
@@ -447,7 +575,7 @@ def main():
         # Save best model
         if val_metrics['accuracy'] > best_accuracy:
             best_accuracy = val_metrics['accuracy']
-            save_checkpoint(model, optimizer, epoch, best_accuracy, output_dir)
+            save_checkpoint(model, optimizer, epoch, best_accuracy, output_dir, str(comp_model_path))
             logger.info(f"Saved new best model (accuracy: {best_accuracy:.4f})")
             patience_counter = 0
         else:

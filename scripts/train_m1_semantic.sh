@@ -51,7 +51,7 @@ done
 
 # Setup paths based on corpus choice
 if [ "$USE_FULL_CORPUS" = true ]; then
-    CORPUS_PATH="data/enhanced_corpus/corpus_full_with_tier0.jsonl"
+    CORPUS_PATH="data/enhanced_corpus/corpus_with_metadata.jsonl"
     DATA_DIR="data/training/m1_semantic_full"
     MODEL_DIR="models/m1_semantic_full"
     MAX_TRIPLES=200000

@@ -61,7 +61,7 @@ class RAGWithM1:
         # Initialize M1 inference
         self.m1 = M1Inference(
             model_path=m1_model_path,
-            stage1_path=stage1_path,
+            comp_model_path=stage1_path,  # Name kept as stage1_path for backward compat in RAGWithM1
             device='cpu'
         )
         print(f"  ✓ M1 model loaded")
@@ -367,7 +367,9 @@ def main():
     parser.add_argument('--m1-model', type=str, default='models/m1_semantic_full/best_model.pt',
                         help='M1 model path')
     parser.add_argument('--stage1', type=str, default='models/root_embeddings_tier0/best_model.pt',
-                        help='Stage 1 embeddings path')
+                        help='Stage 1 embeddings path (deprecated, use --comp-model)')
+    parser.add_argument('--comp-model', type=str, default=None,
+                        help='CompositionalEmbedding path (replaces --stage1)')
     parser.add_argument('--top-k', type=int, default=10, help='Number of results to retrieve')
     parser.add_argument('--no-translate', action='store_true',
                         help='Disable English translations (show only Esperanto)')
@@ -376,7 +378,9 @@ def main():
 
     index_path = Path(args.index)
     m1_model_path = Path(args.m1_model)
-    stage1_path = Path(args.stage1)
+
+    # Use comp-model if specified, otherwise fall back to stage1
+    comp_model_path = Path(args.comp_model) if args.comp_model else Path(args.stage1)
 
     # Check paths exist
     if not (index_path / "kuzu.db").exists():
@@ -389,9 +393,9 @@ def main():
         print("Train M1: ./scripts/train_m1_semantic.sh")
         sys.exit(1)
 
-    if not stage1_path.exists():
-        print(f"Error: Stage 1 model not found at {stage1_path}")
-        print("Train Stage 1: ./scripts/train_roots.sh")
+    if not comp_model_path.exists():
+        print(f"Error: CompositionalEmbedding not found at {comp_model_path}")
+        print("Train embeddings: ./scripts/train_roots.sh")
         sys.exit(1)
 
     # Initialize RAG system
@@ -399,7 +403,7 @@ def main():
         rag = RAGWithM1(
             index_path=index_path,
             m1_model_path=m1_model_path,
-            stage1_path=stage1_path,
+            stage1_path=comp_model_path,
         )
     except Exception as e:
         print(f"Error initializing RAG: {e}")

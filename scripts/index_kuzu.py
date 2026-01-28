@@ -235,6 +235,23 @@ class KuzuIndexBuilder:
             )
         """)
 
+        # Predicate table for fast structural matching
+        self.conn.execute("""
+            CREATE NODE TABLE IF NOT EXISTS Predicate (
+                id STRING,
+                verb STRING,
+                subj STRING,
+                obj STRING,
+                PRIMARY KEY (id)
+            )
+        """)
+
+        self.conn.execute("""
+            CREATE REL TABLE IF NOT EXISTS HAS_PREDICATE (
+                FROM Sentence TO Predicate
+            )
+        """)
+
         logger.info("  Schema created successfully")
 
     def _extract_roots_from_ast(self, ast: Dict) -> List[Tuple[str, str, Dict]]:
@@ -285,6 +302,285 @@ class KuzuIndexBuilder:
 
         extract(ast, 'unknown')
         return results
+
+    def _extract_predicate_from_ast(self, ast: Dict) -> Optional[Tuple[str, Optional[str], Optional[str]]]:
+        """
+        Extract predicate (subject-verb-object) from AST.
+
+        Returns (verb, subject, object) tuple where verb is required, subject and object are optional.
+        For compounds, preserves suffix structure to distinguish (e.g., "esperant" vs "esperant-rond").
+
+        Returns None if no verb found.
+        """
+        if not ast or not isinstance(ast, dict):
+            return None
+
+        def get_root(node):
+            """Extract root from a node (handling vortgrupo)."""
+            if not node or not isinstance(node, dict):
+                return None
+
+            if node.get('tipo') == 'vortgrupo':
+                kerno = node.get('kerno', {})
+                return kerno.get('radiko', '').lower() if isinstance(kerno, dict) else None
+            elif node.get('tipo') == 'vorto':
+                return node.get('radiko', '').lower()
+
+            return None
+
+        def get_word_with_compounds(node):
+            """
+            Extract word preserving compound structure for semantic disambiguation.
+
+            Examples:
+            - "Esperanto" → "esperant"
+            - "Esperanto-rondo" → "esperant-rond" (compound preserved)
+            - "esperantisto" → "esperant-ist" (derivational suffix preserved)
+
+            Issue #550: Preserve compounds to distinguish language from organizations.
+            """
+            if not node or not isinstance(node, dict):
+                return None
+
+            # Handle vortgrupo by extracting kerno
+            if node.get('tipo') == 'vortgrupo':
+                node = node.get('kerno', {})
+                if not isinstance(node, dict):
+                    return None
+
+            # Extract root
+            root = node.get('radiko', '').lower()
+            if not root:
+                return None
+
+            # Build compound structure
+            parts = []
+
+            # 1. Check for compound words (kunmetajhoj - using h not ĵ)
+            if node.get('estas_kunmetita') and 'kunmetajhoj' in node:
+                # Extract roots from compound components
+                semantic_suffixes = ['ist', 'ul', 'ej', 'ar', 'aĵ', 'ism', 'an', 'estr', 'il', 'uj']
+                for component in node.get('kunmetajhoj', []):
+                    if isinstance(component, dict):
+                        comp_root = component.get('radiko', '').lower()
+                        if comp_root:
+                            parts.append(comp_root)
+                        # Also extract semantic suffixes from components
+                        comp_sufixes = component.get('sufiksoj', [])
+                        if comp_sufixes:
+                            preserved = [suf for suf in comp_sufixes if suf in semantic_suffixes]
+                            parts.extend(preserved)
+
+            # 2. Add main root
+            parts.append(root)
+
+            # 3. Check for derivational suffixes (semantic type changers)
+            sufiksoj = node.get('sufiksoj', [])
+            if sufiksoj:
+                # Keep: -ist, -ul, -ej, -ar, -aĵ, -ism, -an (semantic type changers)
+                # Skip: -in (gender), -et/-eg (size), -ĉj/-nj (affectionate)
+                semantic_suffixes = ['ist', 'ul', 'ej', 'ar', 'aĵ', 'ism', 'an', 'estr', 'il', 'uj']
+                preserved = [suf for suf in sufiksoj if suf in semantic_suffixes]
+                parts.extend(preserved)
+
+            # Join all parts with hyphen
+            if len(parts) > 1:
+                return '-'.join(parts)
+
+            return root
+
+        # Extract verb (required) - just root, no compounds
+        verb = get_root(ast.get('verbo'))
+        if not verb:
+            return None
+
+        # Extract subject - just root (names/nouns are simple)
+        subj = get_root(ast.get('subjekto'))
+
+        # Extract object - preserve compounds for disambiguation
+        obj = get_word_with_compounds(ast.get('objekto'))
+
+        return (verb, subj, obj)
+
+    def _extract_virtual_predicates_from_noun_phrases(
+        self, ast: Dict
+    ) -> List[Tuple[str, Optional[str], Optional[str]]]:
+        """
+        Extract virtual predicates from participial noun phrases.
+
+        Esperanto commonly expresses facts using participles as nouns/adjectives:
+        - "Zamenhof, la kreinto de Esperanto" (Zamenhof, the creator of Esperanto)
+        - "La fondinto de Esperanto estis Zamenhof" (The founder of Esperanto was Zamenhof)
+
+        These should be indexed as virtual predicates for retrieval.
+
+        Patterns recognized:
+        1. "X-into/anto/onto de Y" → (X, ?, Y)
+        2. "A estas B-into/anto/onto de C" → (B, A, C)
+        3. Subject with participle + prepositional phrase → virtual predicate
+
+        Issue #549: Most encyclopedia-style facts use participles, not verb predicates.
+
+        Returns:
+            List of (verb, subj, obj) virtual predicate tuples
+        """
+        if not ast or not isinstance(ast, dict):
+            return []
+
+        virtual_predicates = []
+
+        # Helper to extract word with participle info
+        def get_word_info(node):
+            """Get word root, suffixes, and participle metadata."""
+            if not node or not isinstance(node, dict):
+                return None
+
+            # Handle vortgrupo
+            if node.get('tipo') == 'vortgrupo':
+                node = node.get('kerno', {})
+                if not isinstance(node, dict):
+                    return None
+
+            if node.get('tipo') != 'vorto':
+                return None
+
+            root = node.get('radiko', '').lower()
+            sufiksoj = node.get('sufiksoj', [])
+            participo_voĉo = node.get('participo_voĉo')
+            participo_tempo = node.get('participo_tempo')
+
+            return {
+                'root': root,
+                'sufiksoj': sufiksoj,
+                'participo_voĉo': participo_voĉo,
+                'participo_tempo': participo_tempo,
+                'full_node': node
+            }
+
+        # Helper to find "de X" prepositional phrases in aliaj
+        def find_de_phrase_object(aliaj_list):
+            """Find object of 'de' prepositional phrase in aliaj."""
+            if not aliaj_list:
+                return None
+
+            # Look for pattern: "de" followed by noun
+            for i, word in enumerate(aliaj_list):
+                if not isinstance(word, dict):
+                    continue
+
+                # Check if this is "de" preposition
+                if (word.get('tipo') == 'vorto' and
+                    word.get('radiko', '').lower() == 'de' and
+                    word.get('vortspeco') == 'prepozicio'):
+
+                    # Next word should be the object
+                    if i + 1 < len(aliaj_list):
+                        next_word = aliaj_list[i + 1]
+                        if isinstance(next_word, dict) and next_word.get('tipo') == 'vorto':
+                            root = next_word.get('radiko', '').lower()
+                            if root:
+                                return root
+
+            return None
+
+        # Pattern 1: Subject with participle + "de Y"
+        # "La kreinto de Esperanto..." → (kre, ?, esperant)
+        subjekto = ast.get('subjekto')
+        if subjekto:
+            subj_info = get_word_info(subjekto)
+            if subj_info and 'int' in subj_info['sufiksoj']:
+                # Subject has past participle (-int)
+                verb_root = subj_info['root']
+
+                # Look for "de X" in aliaj
+                de_object = find_de_phrase_object(ast.get('aliaj', []))
+                if de_object:
+                    # Virtual predicate: verb from participle, unknown subject, de-object
+                    virtual_predicates.append((verb_root, None, de_object))
+
+        # Pattern 2: "A estas B-into de C" → (B, A, C)
+        # "Zamenhof estas kreinto de Esperanto" → (kre, zamenhof, esperant)
+        verbo = ast.get('verbo')
+        if verbo and isinstance(verbo, dict):
+            verb_root = verbo.get('radiko', '').lower()
+
+            # Check if verb is "est" (to be)
+            if verb_root == 'est':
+                # Check if objekto or aliaj contains participle noun
+                aliaj = ast.get('aliaj', [])
+
+                for word in aliaj:
+                    if not isinstance(word, dict):
+                        continue
+
+                    word_info = get_word_info(word)
+                    if word_info and 'int' in word_info['sufiksoj']:
+                        # Found participle noun in predicate nominative
+                        pred_verb = word_info['root']
+
+                        # Subject is the agent
+                        subj_info = get_word_info(ast.get('subjekto'))
+                        pred_subj = subj_info['root'] if subj_info else None
+
+                        # Object from "de X" phrase
+                        de_object = find_de_phrase_object(aliaj)
+
+                        if pred_verb and pred_subj:
+                            virtual_predicates.append((pred_verb, pred_subj, de_object))
+
+        # Pattern 3: Participial adjective modifying noun
+        # "la fondinto Zamenhof" → (fond, zamenhof, ?)
+        # This is less common, but handle if subject has participle descriptor
+        if subjekto and isinstance(subjekto, dict) and subjekto.get('tipo') == 'vortgrupo':
+            priskriboj = subjekto.get('priskriboj', [])
+            kerno = subjekto.get('kerno', {})
+            kerno_root = kerno.get('radiko', '').lower() if isinstance(kerno, dict) else None
+
+            for priskribo in priskriboj:
+                if not isinstance(priskribo, dict):
+                    continue
+
+                pri_info = get_word_info(priskribo)
+                if pri_info and 'int' in pri_info['sufiksoj']:
+                    # Participle adjective modifying subject
+                    verb_root = pri_info['root']
+
+                    if kerno_root:
+                        # Virtual predicate: participle verb, modified noun as subject
+                        virtual_predicates.append((verb_root, kerno_root, None))
+
+        return virtual_predicates
+
+    def _resolve_pronoun_subject(
+        self,
+        subj_root: Optional[str],
+        document_context: List[str]
+    ) -> Optional[str]:
+        """
+        Resolve pronoun subject to nearest mentioned entity.
+
+        Simple heuristic for Issue #551: If subject is pronoun (li, ŝi, ĝi, ili),
+        return the last proper noun mentioned in document context.
+
+        Args:
+            subj_root: Subject root (may be pronoun)
+            document_context: List of proper nouns mentioned in this document so far
+
+        Returns:
+            Resolved subject (entity name) or original if not pronoun/no resolution
+        """
+        # Check if subject is pronoun
+        pronouns = {'li', 'ŝi', 'ĝi', 'ili', 'mi', 'vi', 'ni'}
+        if not subj_root or subj_root.lower() not in pronouns:
+            return subj_root
+
+        # Resolve to last mentioned entity
+        if document_context:
+            # Return most recent proper noun
+            return document_context[-1]
+
+        # No context, return original
+        return subj_root
 
     def phase1_build_inverted_index(
         self,
@@ -355,6 +651,7 @@ class KuzuIndexBuilder:
         # Track unique entities
         roots_seen: Set[str] = set()
         docs_seen: Set[int] = set()
+        predicates_seen: Set[str] = set()  # Track unique predicate IDs
 
         # Track root statistics during streaming (memory efficient)
         root_doc_freq: Dict[str, int] = defaultdict(int)  # root → doc count
@@ -368,6 +665,8 @@ class KuzuIndexBuilder:
             'has_root': open(self.temp_dir / 'has_root.csv', 'w', newline='', encoding='utf-8'),
             'in_document': open(self.temp_dir / 'in_document.csv', 'w', newline='', encoding='utf-8'),
             'next_sentence': open(self.temp_dir / 'next_sentence.csv', 'w', newline='', encoding='utf-8'),
+            'predicates': open(self.temp_dir / 'predicates.csv', 'w', newline='', encoding='utf-8'),
+            'has_predicate': open(self.temp_dir / 'has_predicate.csv', 'w', newline='', encoding='utf-8'),
         }
 
         csv_writers = {
@@ -377,6 +676,8 @@ class KuzuIndexBuilder:
             'has_root': csv.writer(csv_files['has_root']),
             'in_document': csv.writer(csv_files['in_document']),
             'next_sentence': csv.writer(csv_files['next_sentence']),
+            'predicates': csv.writer(csv_files['predicates']),
+            'has_predicate': csv.writer(csv_files['has_predicate']),
         }
 
         # Write headers - must match all columns in table schema
@@ -386,9 +687,14 @@ class KuzuIndexBuilder:
         csv_writers['has_root'].writerow(['sent_id', 'root', 'role', 'grammar'])
         csv_writers['in_document'].writerow(['sent_id', 'doc_id'])
         csv_writers['next_sentence'].writerow(['prev_id', 'next_id'])
+        csv_writers['predicates'].writerow(['id', 'verb', 'subj', 'obj'])
+        csv_writers['has_predicate'].writerow(['sent_id', 'pred_id'])
 
         # Track for NEXT_SENTENCE edges
         prev_sent_by_source: Dict[str, int] = {}  # source_key → last sent_id
+
+        # Track document context for pronoun resolution (Issue #551)
+        doc_context_by_source: Dict[str, List[str]] = {}  # source_key → [proper nouns]
 
         # For document text output
         docs_file = self.output_path / "documents.jsonl"
@@ -480,6 +786,63 @@ class KuzuIndexBuilder:
                 for root in roots_in_this_doc:
                     root_doc_freq[root] += 1
 
+                # Track proper nouns for pronoun resolution (Issue #551)
+                # Get document context for this source
+                source_key = f"{source_type}:{source_name}"
+                if source_key not in doc_context_by_source:
+                    doc_context_by_source[source_key] = []
+
+                # Extract proper nouns from subject position (names that can be referenced)
+                subjekto = ast.get('subjekto')
+                if subjekto and isinstance(subjekto, dict):
+                    # Get kerno if vortgrupo
+                    node = subjekto if subjekto.get('tipo') == 'vorto' else subjekto.get('kerno', {})
+                    if isinstance(node, dict):
+                        root = node.get('radiko', '').lower()
+                        # Check if proper noun (capitalized in original, or marked as proper name)
+                        if root and (
+                            node.get('plena_vorto', '')[0].isupper() or
+                            root not in {'mi', 'vi', 'li', 'ŝi', 'ĝi', 'ni', 'ili'}
+                        ):
+                            # Add to context (keep last 10 for recency)
+                            doc_context_by_source[source_key].append(root)
+                            if len(doc_context_by_source[source_key]) > 10:
+                                doc_context_by_source[source_key].pop(0)
+
+                # Extract predicates (both verb predicates and virtual predicates from participles)
+                all_predicates = []
+
+                # 1. Extract standard verb predicate
+                predicate = self._extract_predicate_from_ast(ast)
+                if predicate:
+                    all_predicates.append(predicate)
+
+                # 2. Extract virtual predicates from participial noun phrases (Issue #549)
+                virtual_predicates = self._extract_virtual_predicates_from_noun_phrases(ast)
+                all_predicates.extend(virtual_predicates)
+
+                # Create nodes and edges for all predicates (with pronoun resolution)
+                for verb, subj, obj in all_predicates:
+                    # Resolve pronoun subject to entity (Issue #551)
+                    subj_resolved = self._resolve_pronoun_subject(
+                        subj,
+                        doc_context_by_source.get(source_key, [])
+                    )
+
+                    # Create predicate ID (hash of verb+subj+obj)
+                    # Use empty string for None values
+                    subj_str = subj_resolved or ''
+                    obj_str = obj or ''
+                    pred_id = f"{verb}|{subj_str}|{obj_str}"
+
+                    # Add Predicate node if not seen
+                    if pred_id not in predicates_seen:
+                        csv_writers['predicates'].writerow([pred_id, verb, subj_str, obj_str])
+                        predicates_seen.add(pred_id)
+
+                    # Add HAS_PREDICATE edge
+                    csv_writers['has_predicate'].writerow([sent_id, pred_id])
+
                 sent_id += 1
                 processed += 1
 
@@ -491,7 +854,7 @@ class KuzuIndexBuilder:
                     pct = processed / total_docs * 100
                     logger.info(
                         f"  Processed {processed:,}/{total_docs:,} ({pct:.1f}%) - "
-                        f"{len(roots_seen):,} roots - {rate:.0f} docs/sec"
+                        f"{len(roots_seen):,} roots, {len(predicates_seen):,} predicates - {rate:.0f} docs/sec"
                     )
                     last_log_time = now
 
@@ -534,7 +897,7 @@ class KuzuIndexBuilder:
 
         # Memory threshold: files larger than this use batched loading (MB)
         BATCH_THRESHOLD_MB = 500
-        BATCH_SIZE = 50000  # Rows per batch for large files
+        BATCH_SIZE = 200000  # Rows per batch for large files (increased for performance)
 
         # Helper function to run COPY with timing
         def copy_csv(table_name: str, csv_file: str, is_node: bool = True):
@@ -563,7 +926,14 @@ class KuzuIndexBuilder:
 
         def batch_load_csv(table_name: str, csv_path: Path, file_size_mb: float):
             """Load large CSV in chunks to avoid memory issues."""
-            logger.info(f"    Large file detected - splitting into chunks (batches of {BATCH_SIZE:,} rows)")
+            # Check for checkpoint (chunk number only, no byte offset due to csv.reader limitation)
+            checkpoint_key = f"last_completed_chunk_{table_name}"
+            start_chunk = self.progress.get(checkpoint_key, 0)
+
+            if start_chunk > 0:
+                logger.info(f"    Resuming from checkpoint: chunk {start_chunk + 1}")
+            else:
+                logger.info(f"    Large file detected - splitting into chunks (batches of {BATCH_SIZE:,} rows)")
 
             t0 = datetime.now()
             total_rows = 0
@@ -588,6 +958,11 @@ class KuzuIndexBuilder:
                         if not chunk_rows:
                             break  # No more rows
 
+                        # Skip already-completed chunks (resume from checkpoint)
+                        if chunk_num < start_chunk:
+                            chunk_num += 1
+                            continue
+
                         # Write chunk to temporary CSV
                         chunk_file = self.temp_dir / f"{csv_path.stem}_chunk_{chunk_num}.csv"
                         with open(chunk_file, 'w', newline='', encoding='utf-8') as cf:
@@ -601,13 +976,17 @@ class KuzuIndexBuilder:
                             total_rows += len(chunk_rows)
                             chunk_count += 1
 
-                            # Log progress
+                            # Save checkpoint after each successful chunk (chunk number only)
+                            self.progress[checkpoint_key] = chunk_num
+                            self._save_progress()
+
+                            # Log progress (show absolute chunk number, not count)
                             elapsed = (datetime.now() - t0).total_seconds()
                             rate = total_rows / elapsed if elapsed > 0 else 0
-                            logger.info(f"    Chunk {chunk_count}: {total_rows:,} rows loaded ({rate:.0f} rows/sec)")
+                            logger.info(f"    Chunk {chunk_num + 1}: {total_rows:,} rows loaded ({rate:.0f} rows/sec)")
 
                         except Exception as e:
-                            logger.error(f"    Chunk {chunk_count} failed: {e}")
+                            logger.error(f"    Chunk {chunk_num + 1} failed: {e}")
                             # Continue with next chunk
 
                         # Clean up chunk file to save disk space
@@ -637,6 +1016,12 @@ class KuzuIndexBuilder:
         copy_csv("IN_DOCUMENT", "in_document.csv", is_node=False)
         copy_csv("NEXT_SENTENCE", "next_sentence.csv", is_node=False)
 
+        # Load predicate tables
+        logger.info("")
+        logger.info("  Loading predicate tables...")
+        copy_csv("Predicate", "predicates.csv", is_node=True)
+        copy_csv("HAS_PREDICATE", "has_predicate.csv", is_node=False)
+
         elapsed = (datetime.now() - start_time).total_seconds()
         logger.info(f"  Bulk loading complete in {elapsed:.1f}s")
 
@@ -659,14 +1044,16 @@ class KuzuIndexBuilder:
         self,
         revo_path: Path,
         curated_path: Optional[Path] = None,
+        conceptnet_path: Optional[Path] = None,
     ):
         """
         Phase 2: Load semantic relations into Kuzu using CSV bulk loading.
 
         Creates:
-        - IS_SYNONYM edges
-        - IS_HYPERNYM edges
-        - IS_ANTONYM edges
+        - IS_SYNONYM edges (from ReVo + curated)
+        - IS_HYPERNYM edges (from ReVo)
+        - IS_ANTONYM edges (from ReVo)
+        - ConceptNet relations (CN_IS_A, CN_SYNONYM, etc.) - optional
         """
         if self.progress.get('phase2_complete'):
             logger.info("Phase 2 already complete, skipping...")
@@ -818,12 +1205,63 @@ class KuzuIndexBuilder:
         self.stats['hypernym_edges'] = hypernym_count
         self.stats['antonym_edges'] = antonym_count * 2
 
+        # Load ConceptNet relations if provided
+        if conceptnet_path and conceptnet_path.exists():
+            logger.info("")
+            logger.info("Loading ConceptNet relations...")
+            self._load_conceptnet(conceptnet_path)
+        elif conceptnet_path:
+            logger.warning(f"ConceptNet data not found at {conceptnet_path}, skipping")
+
         # Mark phase 2 complete
         self.progress['phase2_complete'] = True
         self._save_progress()
 
         elapsed = (datetime.now() - start_time).total_seconds()
         logger.info(f"Phase 2 complete in {elapsed:.1f}s")
+
+    def _load_conceptnet(self, conceptnet_path: Path):
+        """Load ConceptNet relations by calling the specialized loader script."""
+        import subprocess
+
+        script_path = Path(__file__).parent / "load_conceptnet_to_kuzu.py"
+        if not script_path.exists():
+            logger.warning(f"ConceptNet loader script not found: {script_path}")
+            return
+
+        # Close database connection to avoid lock conflict with subprocess
+        logger.info("  Closing database connection for subprocess...")
+        self.close()
+
+        # Call the loader script
+        cmd = [
+            sys.executable,
+            str(script_path),
+            "--kuzu-db", str(self.db_path),
+            "--conceptnet-csv", str(conceptnet_path),
+            "--temp-dir", str(self.temp_dir / "conceptnet"),
+        ]
+
+        logger.info(f"  Running: {' '.join(cmd)}")
+        try:
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            logger.info("  ConceptNet loading complete")
+            # Log any output
+            if result.stdout:
+                for line in result.stdout.split('\n'):
+                    if line.strip():
+                        logger.info(f"    {line}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"  ConceptNet loading failed: {e}")
+            if e.stdout:
+                logger.error(f"  stdout: {e.stdout}")
+            if e.stderr:
+                logger.error(f"  stderr: {e.stderr}")
+        finally:
+            # Reopen database connection
+            logger.info("  Reopening database connection...")
+            self.db = kuzu.Database(str(self.db_path))
+            self.conn = kuzu.Connection(self.db)
 
     def phase3_verify_counts(self):
         """
@@ -953,10 +1391,29 @@ class KuzuIndexBuilder:
 
     def close(self):
         """Close database connection."""
+        import gc
+
+        # Explicitly close connection and database before releasing references
         if self.conn:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
             self.conn = None
+
         if self.db:
+            try:
+                self.db.close()
+            except Exception:
+                pass
             self.db = None
+
+        # Force garbage collection to release database locks immediately
+        gc.collect()
+
+        # Small delay to ensure OS releases file locks
+        import time
+        time.sleep(0.1)
 
 
 def build_index(
@@ -964,6 +1421,7 @@ def build_index(
     output_path: Path,
     revo_path: Path,
     curated_path: Optional[Path] = None,
+    conceptnet_path: Optional[Path] = None,
     limit: Optional[int] = None,
     fresh: bool = False,
     phase: Optional[int] = None,
@@ -972,13 +1430,15 @@ def build_index(
     logger.info("=" * 60)
     logger.info("Building Kuzu Graph Index (CSV Bulk Loading)")
     logger.info("=" * 60)
-    logger.info(f"Corpus: {corpus_path}")
-    logger.info(f"Output: {output_path}")
-    logger.info(f"ReVo:   {revo_path}")
+    logger.info(f"Corpus:     {corpus_path}")
+    logger.info(f"Output:     {output_path}")
+    logger.info(f"ReVo:       {revo_path}")
+    if conceptnet_path:
+        logger.info(f"ConceptNet: {conceptnet_path}")
     if limit:
-        logger.info(f"Limit:  {limit:,} documents")
+        logger.info(f"Limit:      {limit:,} documents")
     if phase:
-        logger.info(f"Phase:  {phase}")
+        logger.info(f"Phase:      {phase}")
     logger.info("")
 
     builder = KuzuIndexBuilder(output_path)
@@ -991,9 +1451,9 @@ def build_index(
         if phase is None or phase == 1:
             builder.phase1_build_inverted_index(corpus_path, limit=limit)
 
-        # Phase 2: Load semantic relations
+        # Phase 2: Load semantic relations (ReVo + ConceptNet)
         if phase is None or phase == 2:
-            builder.phase2_load_semantic_relations(revo_path, curated_path)
+            builder.phase2_load_semantic_relations(revo_path, curated_path, conceptnet_path)
 
         # Phase 3: Verify counts
         if phase is None or phase == 3:
@@ -1038,6 +1498,12 @@ def main():
         help="Path to curated synonyms (optional)",
     )
     parser.add_argument(
+        "--conceptnet",
+        type=Path,
+        default=Path("data/external/conceptnet/conceptnet-assertions-5.7.0.csv.gz"),
+        help="Path to ConceptNet assertions CSV (optional)",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -1070,6 +1536,7 @@ def main():
         output_path=args.output,
         revo_path=args.revo,
         curated_path=args.curated if args.curated.exists() else None,
+        conceptnet_path=args.conceptnet if args.conceptnet.exists() else None,
         limit=args.limit,
         fresh=args.fresh,
         phase=args.phase,

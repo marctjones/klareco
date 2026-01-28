@@ -103,11 +103,20 @@ python scripts/index_kuzu.py \
 
 ### RAG Demo
 ```bash
-# Interactive retrieval demo
-python scripts/demo_rag.py --interactive
+# Full pipeline: Retrieval → M1 Filtering → Reranking
+./scripts/demo_full_rag.sh                              # Example queries
+./scripts/demo_full_rag.sh "Kiu fondis Esperanton?"    # Single query
+./scripts/demo_full_rag.sh --no-m1                      # Skip M1 filtering
+./scripts/demo_full_rag.sh --no-rerank                  # Skip reranking
 
-# Single query
-python scripts/demo_rag.py "Kio estas la Unu Ringo?"
+# M1 filtering only (no reranker)
+./scripts/test_m1_rag_now.sh                            # Test current M1 checkpoint
+./scripts/test_m1_rag_now.sh -i                         # Interactive mode
+./scripts/test_m1_rag.sh                                # Test final M1 model
+
+# Basic AST-aware retrieval (no M1, no reranker)
+python scripts/demo_ast_retriever.py -i                 # Interactive mode
+python scripts/demo_ast_retriever.py "Kiu fondis Esperanton?"
 ```
 
 ## Critical Implementation Details

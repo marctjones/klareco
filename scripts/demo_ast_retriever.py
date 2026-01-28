@@ -74,11 +74,12 @@ def compact_ast(ast: dict) -> dict:
     return compact
 
 
-def format_result(rank: int, score: float, doc: dict, show_ast: str = None) -> str:
+def format_result(rank: int, score: float, doc: dict, show_ast: str = None, translator=None) -> str:
     """Format a single result for display.
 
     Args:
         show_ast: None (no AST), 'compact', or 'full'
+        translator: Optional EsperantoTranslator instance for EN translation
     """
     import json
     from klareco.parser import parse
@@ -87,6 +88,15 @@ def format_result(rank: int, score: float, doc: dict, show_ast: str = None) -> s
     source = doc.get('source', {}).get('name', 'unknown')
 
     lines = [f"  {rank}. [{score:.3f}] {text}"]
+
+    # Add English translation if translator provided
+    if translator:
+        try:
+            translation = translator.translate(text)
+            lines.append(f"     EN: {translation}")
+        except Exception as e:
+            lines.append(f"     EN: (translation error: {e})")
+
     lines.append(f"     Source: {source}")
 
     if show_ast:
@@ -104,11 +114,12 @@ def format_result(rank: int, score: float, doc: dict, show_ast: str = None) -> s
     return '\n'.join(lines)
 
 
-def run_query(retriever, query: str, top_k: int = 5, show_ast: str = None):
+def run_query(retriever, query: str, top_k: int = 5, show_ast: str = None, translator=None):
     """Run a single query and display results.
 
     Args:
         show_ast: None, 'compact', or 'full'
+        translator: Optional EsperantoTranslator for EN translations
     """
     print(f"\nQuery: {query}")
     print("-" * 60)
@@ -125,7 +136,7 @@ def run_query(retriever, query: str, top_k: int = 5, show_ast: str = None):
         print(f"  Found {len(results)} results in {elapsed:.2f}s\n")
 
         for i, (score, doc, stats) in enumerate(results[:top_k], 1):
-            print(format_result(i, score, doc, show_ast))
+            print(format_result(i, score, doc, show_ast, translator))
             print()
 
     except Exception as e:
@@ -134,11 +145,12 @@ def run_query(retriever, query: str, top_k: int = 5, show_ast: str = None):
         traceback.print_exc()
 
 
-def interactive_mode(retriever, show_ast: str = None):
+def interactive_mode(retriever, show_ast: str = None, translator=None):
     """Run interactive query loop.
 
     Args:
         show_ast: None, 'compact', or 'full'
+        translator: Optional EsperantoTranslator for EN translations
     """
     print("\n" + "=" * 60)
     print("AST-Aware Retriever - Interactive Mode")
@@ -178,7 +190,7 @@ def interactive_mode(retriever, show_ast: str = None):
             print("  quit   - Quit")
             continue
 
-        run_query(retriever, query, show_ast=show_ast)
+        run_query(retriever, query, show_ast=show_ast, translator=translator)
 
 
 def main():
@@ -203,6 +215,8 @@ Examples:
     parser.add_argument('--top-k', type=int, default=5, help='Number of results')
     parser.add_argument('--ast', type=str, nargs='?', const='compact', choices=['compact', 'full'],
                         help='Show AST: compact (default) or full JSON')
+    parser.add_argument('--translate', action='store_true',
+                        help='Add English translations to results (requires transformers)')
 
     args = parser.parse_args()
 
@@ -213,6 +227,24 @@ Examples:
         print(f"Error: Kuzu index not found at {index_path}/kuzu.db")
         print("Run: ./scripts/build_kuzu_index.sh")
         sys.exit(1)
+
+    # Initialize translator if requested
+    translator = None
+    if args.translate:
+        print("Loading Esperanto→English translator...")
+        try:
+            # Import translator inline to avoid dependency if not used
+            sys.path.insert(0, str(Path(__file__).parent))
+            from translate_eo_inline import EsperantoTranslator
+            translator = EsperantoTranslator()
+            print("  Translator ready!")
+        except ImportError as e:
+            print(f"  Error: {e}")
+            print("  Install with: pip install transformers sentencepiece")
+            sys.exit(1)
+        except Exception as e:
+            print(f"  Error loading translator: {e}")
+            sys.exit(1)
 
     # Parse fallback mode
     fallback_modes = {
@@ -242,9 +274,9 @@ Examples:
 
     # Interactive or single query
     if args.interactive:
-        interactive_mode(retriever, show_ast=args.ast)
+        interactive_mode(retriever, show_ast=args.ast, translator=translator)
     elif args.query:
-        run_query(retriever, args.query, top_k=args.top_k, show_ast=args.ast)
+        run_query(retriever, args.query, top_k=args.top_k, show_ast=args.ast, translator=translator)
     else:
         # Default: run example queries
         example_queries = [
@@ -254,7 +286,7 @@ Examples:
         ]
         print("Running example queries (use -i for interactive mode):\n")
         for query in example_queries:
-            run_query(retriever, query, top_k=3, show_ast=args.ast)
+            run_query(retriever, query, top_k=3, show_ast=args.ast, translator=translator)
 
 
 if __name__ == '__main__':

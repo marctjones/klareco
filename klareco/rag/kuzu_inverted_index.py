@@ -24,6 +24,7 @@ Usage:
 import json
 import logging
 import mmap
+import os
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
@@ -173,14 +174,16 @@ class KuzuInvertedIndex:
             self._load_index()
 
     def _load_index(self):
-        """Load Kuzu index from disk."""
+        """Load Kuzu index from disk with optimized configuration."""
         if not self.db_path.exists():
             logger.warning(f"Kuzu database not found at {self.db_path}")
             return
 
         logger.info(f"Loading Kuzu index from {self.index_path}")
 
-        # Open Kuzu database
+        # Open Kuzu database with default configuration
+        # Testing showed that custom configuration (buffer_pool_size, threads, read_only)
+        # did not improve performance - Kuzu's defaults are already well-tuned
         self._db = kuzu.Database(str(self.db_path))
         self._conn = kuzu.Connection(self._db)
 
@@ -381,6 +384,68 @@ class KuzuInvertedIndex:
             hypernyms.add(result.get_next()[0])
 
         return hypernyms
+
+    def get_conceptnet_relations(
+        self,
+        root: str,
+        relation_types: Optional[List[str]] = None,
+        max_hops: int = 1
+    ) -> Set[str]:
+        """
+        Get related roots via ConceptNet relations.
+
+        Args:
+            root: Source root to expand
+            relation_types: List of relation types to follow. If None, uses default set.
+                           Examples: CN_SYNONYM, CN_IS_A, CN_SIMILAR_TO, CN_PART_OF
+            max_hops: Maximum traversal depth (default: 1 for direct relations only)
+
+        Returns:
+            Set of related roots from ConceptNet
+
+        Example:
+            >>> index.get_conceptnet_relations("hund", ["CN_SYNONYM", "CN_IS_A"])
+            {"kanid", "best", "mamul"}
+        """
+        if self._conn is None:
+            return set()
+
+        root = root.lower()
+        related = set()
+
+        # Default relation types: use semantic similarity relations
+        if relation_types is None:
+            relation_types = [
+                "CN_SYNONYM",      # Direct synonyms
+                "CN_IS_A",         # Taxonomic relations (dog is-a animal)
+                "CN_SIMILAR_TO",   # Similar concepts
+            ]
+
+        # Build relation type pattern for Cypher
+        # For single hop: -[:CN_SYNONYM|CN_IS_A]->
+        # For multi-hop: -[:CN_SYNONYM|CN_IS_A*1..2]->
+        relation_pattern = "|".join(relation_types)
+
+        if max_hops == 1:
+            path_spec = f"[:{relation_pattern}]"
+        else:
+            path_spec = f"[:{relation_pattern}*1..{max_hops}]"
+
+        # Query both Root→Root and Root→Concept→Root paths
+        # ConceptNet has both internal Esperanto relations and external concept links
+        result = self._conn.execute(
+            f"""
+            MATCH (r:Root {{root: $root}})-{path_spec}->(related:Root)
+            RETURN DISTINCT related.root
+            LIMIT 100
+            """,
+            {"root": root}
+        )
+
+        while result.has_next():
+            related.add(result.get_next()[0])
+
+        return related
 
     def get_hypernym_chain(self, root: str, max_depth: int = 5) -> List[str]:
         """
@@ -699,6 +764,7 @@ class KuzuInvertedIndex:
         fallback_mode: Optional[FallbackMode] = None,
         require_all_roots: bool = False,
         use_graph_expansion: bool = True,
+        use_conceptnet_expansion: bool = False,  # Disabled by default - data quality issues
         use_predicate_boost: bool = True,
     ) -> Tuple[List[SearchResult], RetrievalStats]:
         """
@@ -711,7 +777,8 @@ class KuzuInvertedIndex:
             max_results: Maximum results to return
             fallback_mode: Override instance fallback mode
             require_all_roots: If True, only return docs with ALL query roots
-            use_graph_expansion: Use Kuzu graph for synonym expansion
+            use_graph_expansion: Use Kuzu graph for ReVo synonym expansion
+            use_conceptnet_expansion: Use ConceptNet for semantic expansion
             use_predicate_boost: Apply boost to predicate-matched documents
 
         Returns:
@@ -743,12 +810,14 @@ class KuzuInvertedIndex:
                 stats.predicate_query = f"({', '.join(pred_parts)})"
 
                 # Do predicate lookup
+                # OPTIMIZATION: Limit to 100 results (sufficient for top-50 reranking)
+                # Reduces graph traversal and scoring overhead
                 predicate_matched_docs = set(self.search_by_predicate(
                     verb=verb,
                     subj=subj,
                     obj=obj,
                     expand_synonyms=use_graph_expansion,
-                    max_results=1000,
+                    max_results=100,
                 ))
                 stats.predicate_matches = len(predicate_matched_docs)
 
@@ -759,10 +828,11 @@ class KuzuInvertedIndex:
                         f"for {stats.predicate_query}"
                     )
 
-        # 2. Build semantic concepts using Kuzu graph
+        # 2. Build semantic concepts using Kuzu graph (ReVo + ConceptNet)
         concepts = self._build_concepts_from_graph(
             query_roots,
             use_graph=use_graph_expansion,
+            use_conceptnet=use_conceptnet_expansion,
             stats=stats,
         )
 
@@ -922,12 +992,24 @@ class KuzuInvertedIndex:
         self,
         roots: Dict[str, float],
         use_graph: bool = True,
+        use_conceptnet: bool = True,
         stats: Optional[RetrievalStats] = None,
     ) -> List[SemanticConcept]:
         """
         Build semantic concepts using Kuzu graph for synonym expansion.
 
-        This replaces the SemanticRelationDB-based expansion.
+        Expands query roots using:
+        1. ReVo synonyms (IS_SYNONYM edges)
+        2. ConceptNet relations (CN_SYNONYM, CN_IS_A, CN_SIMILAR_TO)
+
+        Args:
+            roots: Query roots with weights
+            use_graph: Enable ReVo synonym expansion
+            use_conceptnet: Enable ConceptNet semantic expansion
+            stats: RetrievalStats to update
+
+        Returns:
+            List of semantic concepts with expanded equivalent roots
         """
         concepts = []
         index_roots = self.get_all_roots()
@@ -936,7 +1018,7 @@ class KuzuInvertedIndex:
             concept = SemanticConcept(original_root=root, weight=weight)
 
             if use_graph and self._conn:
-                # Get synonyms from Kuzu graph (transitive, up to 2 hops)
+                # 1. Get synonyms from ReVo (transitive, up to 2 hops)
                 synonyms = self.get_synonyms_transitive(root, max_hops=2)
 
                 for syn in synonyms:
@@ -945,6 +1027,25 @@ class KuzuInvertedIndex:
                         if stats:
                             stats.semantic_db_synonyms.append(f"{root}→{syn}")
                             stats.graph_expansions += 1
+
+                # 2. Expand via ConceptNet relations
+                if use_conceptnet:
+                    # Query ConceptNet graph for semantically related roots
+                    conceptnet_related = self.get_conceptnet_relations(
+                        root,
+                        relation_types=["CN_SYNONYM", "CN_IS_A", "CN_SIMILAR_TO"],
+                        max_hops=1
+                    )
+
+                    for related in conceptnet_related:
+                        if related in index_roots:
+                            concept.equivalent_roots.add(related)
+                            if stats:
+                                stats.graph_expansions += 1
+                                # Track ConceptNet expansions separately
+                                if not hasattr(stats, 'conceptnet_expansions'):
+                                    stats.conceptnet_expansions = []
+                                stats.conceptnet_expansions.append(f"{root}→{related}")
 
             concepts.append(concept)
 

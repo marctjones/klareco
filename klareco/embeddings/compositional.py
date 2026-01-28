@@ -207,6 +207,24 @@ class CompositionalEmbedding(nn.Module):
             return ENDINGS.get('<NONE>', 0)
         return ENDINGS.get(ending, ENDINGS.get('<NONE>', 0))
 
+    def get_root_embedding(self, root: str) -> Optional[torch.Tensor]:
+        """
+        Get embedding for a single root (for reranker compatibility).
+
+        Args:
+            root: Root string
+
+        Returns:
+            Root embedding tensor (embed_dim,) or None if root not in vocabulary
+        """
+        if root not in self.root_vocab:
+            return None
+
+        root_idx = self.get_root_idx(root)
+        device = self.root_embed.weight.device
+        root_idx_tensor = torch.tensor([root_idx], device=device)
+        return self.root_embed(root_idx_tensor).squeeze(0)
+
     def encode_word(
         self,
         root: str,

@@ -22,6 +22,9 @@ tqdm
 pytest
 pytest-cov
 
+# System resource monitoring (for Kuzu buffer pool optimization)
+psutil>=5.9.0
+
 # ----------------------------------------------------------------------------
 # Corpus Building (Optional - only needed for rebuilding corpus)
 # ----------------------------------------------------------------------------

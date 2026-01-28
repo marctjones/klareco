@@ -1,14 +1,24 @@
 #!/bin/bash
 #
-# Complete M1 Training Pipeline with Tier Priority
+# Complete M1 Training Pipeline with Quality Priority + Smart Role-Swap Negatives
 #
 # This script:
-# 1. Generates training data with TIER PRIORITY (tier0 first, then tier2, then sample 5/6)
-# 2. Trains M1 with the improved data
+# 1. Generates training data with QUALITY PRIORITY (GOLD first, then sample BRONZE/COPPER)
+# 2. Includes SMART ROLE-SWAP negatives to teach role-dependent selectional restrictions
+# 3. Trains M1 with the improved data
 #
-# FIXES ISSUE #12: Tier0 was excluded because max_triples limit was reached
-#                  before tier0 appeared in corpus. This version processes
-#                  tier0 FIRST to guarantee inclusion.
+# FIXES ISSUE #12: GOLD quality was excluded because max_triples limit was reached
+#                  before GOLD appeared in corpus. This version processes
+#                  GOLD FIRST to guarantee inclusion.
+#
+# Smart Role-Swap Enhancement:
+#   - Checks corpus before swapping: only creates negatives for asymmetric relations
+#   - Skips symmetric relations: if both (A,verb,B) and (B,verb,A) exist, both are valid
+#   - Examples:
+#     * "man fucks woman" ↔ "woman fucks man" → BOTH valid (symmetric) → no role-swap
+#     * "dog eats food" exists, "food eats dog" doesn't → asymmetric → create role-swap
+#   - Addresses synonym expansion issues where roots are valid but roles are wrong
+#   - Data-driven: learns from corpus which verbs are symmetric vs asymmetric
 #
 # Usage:
 #   ./scripts/train_m1_semantic_tier_priority.sh                # Generate data + train
@@ -34,21 +44,34 @@ fi
 
 # Parse arguments
 SKIP_DATA=false
+FRESH=false
 
-for arg in "$@"; do
-    case $arg in
+while [[ $# -gt 0 ]]; do
+    case $1 in
         --skip-data)
             SKIP_DATA=true
             shift
+            ;;
+        --fresh)
+            FRESH=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--skip-data] [--fresh]"
+            echo "  --skip-data: Skip data generation (use existing)"
+            echo "  --fresh: Start from scratch (ignore checkpoints)"
+            exit 1
             ;;
     esac
 done
 
 # Setup paths
-CORPUS_PATH="data/enhanced_corpus/corpus_full_with_tier0.jsonl"
-DATA_DIR="data/training/m1_semantic_tier_priority"
-MODEL_DIR="models/m1_semantic_tier_priority"
-MAX_TRIPLES=200000
+CORPUS_PATH="data/enhanced_corpus/corpus_with_metadata.jsonl"
+DATA_DIR="data/training/m1_compositional"
+MODEL_DIR="models/m1_compositional"
+COMP_MODEL="models/root_embeddings_tier0/best_model.pt"
+MAX_TRIPLES=500000
 
 # Setup logging
 LOG_DIR="logs/training"
@@ -58,44 +81,61 @@ DATA_LOG="$LOG_DIR/prepare_m1_tier_priority_${TIMESTAMP}.log"
 TRAIN_LOG="$LOG_DIR/train_m1_tier_priority_${TIMESTAMP}.log"
 
 echo "=============================================================================="
-echo "M1 Semantic-Distance Training Pipeline with Tier Priority"
+echo "M1 v2 Compositional Training Pipeline with Quality Priority"
 echo "=============================================================================="
 echo "Corpus: $CORPUS_PATH"
 echo "Output: $MODEL_DIR"
 echo ""
-echo "TIER PRIORITY STRATEGY:"
-echo "  1. Tier 0 (ALL) - PMEG, Krestomatio, Lingvaj Respondoj (~22K triples)"
-echo "  2. Tier 5 + 6 (SAMPLE) - Wikipedia + Gutenberg to fill remaining quota"
+echo "QUALITY PRIORITY STRATEGY (OPTIMIZED FOR SPEED):"
+echo "  Using 500K triples for faster training (<14 hour total time)"
 echo ""
-echo "This GUARANTEES tier0 inclusion even if it appears late in corpus!"
+echo "  1. GOLD+SILVER (priority) - sample to fill 500K quota"
+echo "  2. BRONZE+COPPER (fill) - if quota not met"
 echo ""
-echo "Expected tier distribution in training data:"
-echo "  Tier 0: ~20K (10%) ← FIXED: Previously 0!"
-echo "  Tier 5: ~90K (45%)"
-echo "  Tier 6: ~90K (45%)"
+echo "Expected quality distribution in training data:"
+echo "  Mostly GOLD+SILVER (~100% high-quality authoritative sources)"
 echo ""
-echo "Expected: Accuracy 87-88% (vs 86.37% without tier0)"
+echo "Total: 500K triples"
+echo "Negative generation: ~2-4 hours"
+echo "Model training: ~2-3 hours"
+echo "Total pipeline time: ~5-7 hours (well under 14-hour limit!)"
+echo "Expected: Accuracy 87-89% with excellent quality"
 echo "=============================================================================="
 echo ""
 
-# Step 1: Generate tier-prioritized training data (unless skipped)
+# Step 1: Generate quality-prioritized training data (unless skipped)
 if [ "$SKIP_DATA" = true ]; then
     echo "Skipping data generation (using existing data)..."
     echo ""
 else
-    echo "Step 1: Generating tier-prioritized training data..."
+    echo "Step 1: Generating quality-prioritized training data..."
     echo "  Logging to: $DATA_LOG"
+    echo ""
+
+    # Determine checkpoint flag
+    DATA_CHECKPOINT="$DATA_DIR/data_generation_checkpoint.json"
+    DATA_FLAG=""
+    if [ "$FRESH" = true ]; then
+        DATA_FLAG="--fresh"
+        echo "  Mode: Fresh start (ignoring checkpoints)"
+    elif [ -f "$DATA_CHECKPOINT" ]; then
+        DATA_FLAG="--resume"
+        echo "  Mode: Resuming from checkpoint"
+    else
+        echo "  Mode: Starting new generation"
+    fi
     echo ""
 
     if python scripts/prepare_m1_training_data_tier_priority.py \
         --corpus "$CORPUS_PATH" \
-        --stage1-model models/root_embeddings_tier0/best_model.pt \
+        --stage1-model "$COMP_MODEL" \
         --output-dir "$DATA_DIR" \
         --max-triples $MAX_TRIPLES \
-        --priority-tiers 0 \
-        --fill-tiers 5 6 \
+        --priority-qualities GOLD SILVER \
+        --fill-qualities BRONZE COPPER \
         --similarity-threshold 0.15 \
         --min-parse-rate 0.0 \
+        $DATA_FLAG \
         2>&1 | tee "$DATA_LOG"; then
         echo ""
         echo "✓ Data generation complete"
@@ -115,40 +155,56 @@ if [ ! -f "$DATA_DIR/train.jsonl" ]; then
     exit 1
 fi
 
-# Verify tier0 is included
-echo "Verifying tier0 is included in training data..."
-TIER0_COUNT=$(jq -r 'select(.source.tier == 0)' "$DATA_DIR/train.jsonl" | wc -l)
-echo "  Tier0 examples in training data: $TIER0_COUNT"
+# Verify GOLD quality is included
+echo "Verifying GOLD quality is included in training data..."
+GOLD_COUNT=$(jq -r 'select(.source.quality == "GOLD")' "$DATA_DIR/train.jsonl" | wc -l)
+echo "  GOLD examples in training data: $GOLD_COUNT"
 
-if [ "$TIER0_COUNT" -eq 0 ]; then
+if [ "$GOLD_COUNT" -eq 0 ]; then
     echo ""
-    echo "⚠️  WARNING: Still no tier0 in training data!"
-    echo "    This should not happen with tier priority."
+    echo "⚠️  WARNING: No GOLD quality examples in training data!"
+    echo "    This should not happen with quality priority."
     echo "    Check the data generation log: $DATA_LOG"
     echo ""
 else
-    echo "  ✓ Tier0 successfully included!"
+    echo "  ✓ GOLD quality successfully included!"
     echo ""
 fi
 
-# Step 2: Train M1 with tier-prioritized data
-echo "Step 2: Training M1 with tier-prioritized data..."
+# Step 2: Train M1 with quality-prioritized data
+echo "Step 2: Training M1 with quality-prioritized data..."
 echo "  Logging to: $TRAIN_LOG"
 echo ""
 
+# Determine training checkpoint flag
+MODEL_CHECKPOINT="$MODEL_DIR/best_model.pt"
+TRAIN_FLAG=""
+if [ "$FRESH" = true ]; then
+    TRAIN_FLAG="--fresh"
+    echo "  Mode: Fresh training (ignoring checkpoints)"
+elif [ -f "$MODEL_CHECKPOINT" ]; then
+    TRAIN_FLAG="--resume"
+    echo "  Mode: Resuming from checkpoint"
+else
+    echo "  Mode: Starting new training"
+fi
+echo ""
+
 if python scripts/train_m1_selectional.py \
-    --stage1-model models/root_embeddings_tier0/best_model.pt \
-    --data-dir "$DATA_DIR" \
+    --comp-model "$COMP_MODEL" \
+    --train-data "$DATA_DIR/train.jsonl" \
+    --val-data "$DATA_DIR/val.jsonl" \
+    --test-data "$DATA_DIR/test.jsonl" \
     --output-dir "$MODEL_DIR" \
     --hidden-dim 256 \
     --dropout 0.2 \
     --patience 20 \
     --epochs 50 \
-    --fresh \
+    $TRAIN_FLAG \
     2>&1 | tee "$TRAIN_LOG"; then
     echo ""
     echo "=============================================================================="
-    echo "✓ M1 tier-prioritized training complete!"
+    echo "✓ M1 quality-prioritized training complete!"
     echo "=============================================================================="
     echo ""
     echo "Results:"
@@ -156,13 +212,13 @@ if python scripts/train_m1_selectional.py \
     echo "  Data log: $DATA_LOG"
     echo "  Train log: $TRAIN_LOG"
     echo ""
-    echo "Tier0 in training: $TIER0_COUNT examples"
+    echo "GOLD quality in training: $GOLD_COUNT examples"
     echo ""
     echo "Next steps:"
     echo "  1. Check test accuracy in log above"
     echo "  2. Compare to baseline:"
-    echo "     - Without tier0:  86.37%"
-    echo "     - With tier0:     [see above]"
+    echo "     - Without GOLD:  86.37%"
+    echo "     - With GOLD:     [see above]"
     echo "  3. Test with demo:"
     echo "     python scripts/demo_rag_with_m1.py --m1-model $MODEL_DIR/best_model.pt"
     echo ""

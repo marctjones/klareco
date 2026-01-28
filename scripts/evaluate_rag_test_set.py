@@ -360,27 +360,63 @@ class RAGEvaluator:
             extracted_answer = None
             extraction_confidence = 0.0
             extraction_method = None
+            extraction_source_rank = None
 
             if self.use_extraction and passages:
                 try:
-                    # Parse query and top document
+                    # Parse query once
                     query_ast = parse(question)
-                    top_doc_text = passages[0]['text']
-                    top_doc_ast = parse(top_doc_text)
 
-                    # Extract answer
-                    extraction_result = self.extractor.extract_answer(
-                        query_ast, top_doc_ast, top_doc_text
-                    )
+                    # Extract from top-N documents and rank by confidence
+                    # This hedges against reranker errors - if wrong doc is at #1,
+                    # we still have chance to extract correct answer from #2-10
+                    extract_from_top_n = min(10, len(passages))
+                    extraction_candidates = []
 
-                    if extraction_result:
-                        extracted_answer = extraction_result['text']
-                        extraction_confidence = extraction_result['confidence']
-                        extraction_method = extraction_result['method']
+                    for i, passage in enumerate(passages[:extract_from_top_n]):
+                        try:
+                            doc_text = passage['text']
+                            doc_ast = parse(doc_text)
+
+                            # Extract answer (disable subclause decomposition - it picks wrong clauses)
+                            extraction_result = self.extractor.extract_answer(
+                                query_ast, doc_ast, doc_text,
+                                use_subclause_scoring=False
+                            )
+
+                            if extraction_result:
+                                extraction_candidates.append({
+                                    'text': extraction_result['text'],
+                                    'confidence': extraction_result['confidence'],
+                                    'method': extraction_result['method'],
+                                    'rank': i + 1,
+                                    'document': doc_text[:100] + '...'
+                                })
+                        except Exception as e:
+                            logger.debug(f"  Extraction failed from rank #{i+1}: {e}")
+                            continue
+
+                    # Rank candidates by confidence and select best
+                    if extraction_candidates:
+                        # Sort by confidence (descending)
+                        extraction_candidates.sort(key=lambda x: x['confidence'], reverse=True)
+                        best = extraction_candidates[0]
+
+                        extracted_answer = best['text']
+                        extraction_confidence = best['confidence']
+                        extraction_method = best['method']
+                        extraction_source_rank = best['rank']
                         pipeline_parts.append('extraction')
-                        logger.info(f"  ✓ Extracted: '{extracted_answer}' ({extraction_method}, conf={extraction_confidence:.2f})")
+
+                        logger.info(f"  ✓ Extracted: '{extracted_answer}' (from rank #{extraction_source_rank}, {extraction_method}, conf={extraction_confidence:.2f})")
+
+                        # Log other candidates if multiple found
+                        if len(extraction_candidates) > 1:
+                            logger.debug(f"  Other extraction candidates:")
+                            for i, cand in enumerate(extraction_candidates[1:4], 2):  # Show top 3 alternates
+                                logger.debug(f"    {i}. '{cand['text']}' (rank #{cand['rank']}, conf={cand['confidence']:.2f})")
                     else:
-                        logger.info("  ⚠ No answer extracted, returning full document")
+                        logger.info(f"  ⚠ No answer extracted from top-{extract_from_top_n} documents")
                 except Exception as e:
                     logger.info(f"  ⚠ Extraction failed: {e}")
 

@@ -1,0 +1,70 @@
+{
+  "test_set": "data/evaluation/rag_test_set.jsonl",
+  "num_questions": 0,
+  "results": [
+    {
+      "retrieval_weight": 0.3,
+      "reranker_weight": 0.7,
+      "metrics": {
+        "top1_accuracy": 0,
+        "top3_accuracy": 0,
+        "exact_match": 0,
+        "partial_match": 0,
+        "no_answer": 0,
+        "total": 0
+      }
+    },
+    {
+      "retrieval_weight": 0.2,
+      "reranker_weight": 0.8,
+      "metrics": {
+        "top1_accuracy": 0,
+        "top3_accuracy": 0,
+        "exact_match": 0,
+        "partial_match": 0,
+        "no_answer": 0,
+        "total": 0
+      }
+    },
+    {
+      "retrieval_weight": 0.4,
+      "reranker_weight": 0.6,
+      "metrics": {
+        "top1_accuracy": 0,
+        "top3_accuracy": 0,
+        "exact_match": 0,
+        "partial_match": 0,
+        "no_answer": 0,
+        "total": 0
+      }
+    },
+    {
+      "retrieval_weight": 0.1,
+      "reranker_weight": 0.9,
+      "metrics": {
+        "top1_accuracy": 0,
+        "top3_accuracy": 0,
+        "exact_match": 0,
+        "partial_match": 0,
+        "no_answer": 0,
+        "total": 0
+      }
+    },
+    {
+      "retrieval_weight": 0.5,
+      "reranker_weight": 0.5,
+      "metrics": {
+        "top1_accuracy": 0,
+        "top3_accuracy": 0,
+        "exact_match": 0,
+        "partial_match": 0,
+        "no_answer": 0,
+        "total": 0
+      }
+    }
+  ],
+  "best_weights": {
+    "retrieval": 0.3,
+    "reranker": 0.7
+  }
+}

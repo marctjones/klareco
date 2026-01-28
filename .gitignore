@@ -31,3 +31,6 @@ Thumbs.db
 venv/
 ENV/
 env/
+
+# Generated API documentation
+docs/api/

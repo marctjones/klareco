@@ -341,12 +341,12 @@ class ASTAnswerExtractor:
         doc_text: str
     ) -> Optional[Dict]:
         """
-        Extract WHO answer (person/agent).
+        Extract WHO answer (person/agent) with multi-candidate ranking.
 
         Strategy:
-        1. If query verb matches doc verb → extract subject
-        2. If subject is inanimate → extract object (passive construction)
-        3. Look for person indicators: names, -ul suffix, -ist suffix
+        1. Collect ALL person candidates (subject, proper nouns, -ul/-ist words)
+        2. Score each: pattern_score + proximity_score + validation_score
+        3. Return highest-scoring candidate
 
         Args:
             query_ast: Query AST
@@ -361,38 +361,127 @@ class ASTAnswerExtractor:
 
         # Check if verbs match (or are synonyms - future enhancement)
         if not query_verb or not doc_verb:
-            return None
+            # No verb to match, fall back to collecting any person candidates
+            verb_match = False
+        else:
+            verb_match = (query_verb == doc_verb)
 
-        verb_match = (query_verb == doc_verb)
+            if not verb_match:
+                # Try relaxed matching (check if roots share prefix)
+                # This handles cases like "fond" vs "fondi"
+                if query_verb[:4] == doc_verb[:4] and len(query_verb) >= 4:
+                    verb_match = True
 
-        if not verb_match:
-            # Try relaxed matching (check if roots share prefix)
-            # This handles cases like "fond" vs "fondi"
-            if query_verb[:4] == doc_verb[:4] and len(query_verb) >= 4:
-                verb_match = True
+        # Collect all person candidates
+        candidates = []
 
-        if not verb_match:
-            return None
-
-        # Extract subject as answer candidate
+        # Candidate 1: Subject (if verb matches and looks like person)
         subjekto = doc_ast.get('subjekto')
         if subjekto:
             answer_text = self._vortgrupo_to_text(subjekto)
-            if answer_text:
-                # Check if subject looks like a person
-                is_person = self._is_person(subjekto)
-
-                confidence = 0.9 if is_person else 0.7
-
-                return {
-                    'text': answer_text,
-                    'confidence': confidence,
-                    'method': 'ast_pattern_match',
-                    'explanation': f'Subject of verb "{doc_verb}" matching query verb "{query_verb}"',
+            if answer_text and self._is_person(subjekto):
+                candidates.append({
                     'ast': subjekto,
-                }
+                    'text': answer_text,
+                    'pattern_score': 0.9 if verb_match else 0.5,  # High score if verb matches
+                    'source': 'subject',
+                })
 
-        return None
+        # Candidate 2: Check for passive voice agent ("de X")
+        # Look for "de" + person in aliaj
+        aliaj = doc_ast.get('aliaj', [])
+        for i, modifier in enumerate(aliaj):
+            if modifier.get('tipo') == 'vorto':
+                if modifier.get('vortspeco') == 'prepozicio' and modifier.get('radiko') == 'de':
+                    # Check next item
+                    if i + 1 < len(aliaj):
+                        agent = aliaj[i + 1]
+                        agent_text = self._vortgrupo_to_text(agent)
+                        if agent_text and self._is_person(agent):
+                            # Check if verb is passive (participle)
+                            doc_verb_node = doc_ast.get('verbo')
+                            is_passive = doc_verb_node and doc_verb_node.get('participo_tempo')
+
+                            candidates.append({
+                                'ast': agent,
+                                'text': agent_text,
+                                'pattern_score': 0.95 if is_passive else 0.7,  # Higher if passive
+                                'source': 'passive_agent',
+                            })
+
+        # Candidate 3: Other proper nouns in aliaj (not after "de")
+        used_positions = set()  # Track positions already added as passive agents
+        for i, modifier in enumerate(aliaj):
+            if i in used_positions:
+                continue
+
+            # Check if previous word was "de" (already handled)
+            if i > 0 and aliaj[i-1].get('radiko') == 'de':
+                used_positions.add(i)
+                continue
+
+            modifier_text = self._vortgrupo_to_text(modifier)
+            if modifier_text and self._is_person(modifier):
+                candidates.append({
+                    'ast': modifier,
+                    'text': modifier_text,
+                    'pattern_score': 0.6,  # Lower score - not grammatical role
+                    'source': 'proper_noun',
+                })
+
+        # Candidate 4: Object (if subject doesn't look like person)
+        objekto = doc_ast.get('objekto')
+        if objekto:
+            objekto_text = self._vortgrupo_to_text(objekto)
+            if objekto_text and self._is_person(objekto):
+                candidates.append({
+                    'ast': objekto,
+                    'text': objekto_text,
+                    'pattern_score': 0.7 if verb_match else 0.4,
+                    'source': 'object',
+                })
+
+        if not candidates:
+            return None
+
+        # Score each candidate
+        for candidate in candidates:
+            # Proximity score: how close to query terms?
+            candidate['proximity_score'] = self._score_candidate_proximity(
+                candidate['ast'], query_ast, doc_ast
+            )
+
+            # Validation score: does it pass type validation?
+            is_valid = self._validate_answer('WHO', candidate['text'], candidate['ast'])
+            candidate['validation_score'] = 1.0 if is_valid else 0.0
+
+            # Total score (weighted combination)
+            candidate['total_score'] = (
+                candidate['pattern_score'] * 0.4 +
+                candidate['proximity_score'] * 0.4 +
+                candidate['validation_score'] * 0.2
+            )
+
+        # Return best candidate
+        best = max(candidates, key=lambda c: c['total_score'])
+
+        # Log candidates for debugging
+        if len(candidates) > 1:
+            logger.debug(f"WHO candidates ranked:")
+            for i, c in enumerate(sorted(candidates, key=lambda x: x['total_score'], reverse=True)):
+                logger.debug(f"  {i+1}. '{c['text']}' (score={c['total_score']:.3f}, "
+                           f"pattern={c['pattern_score']:.2f}, "
+                           f"proximity={c['proximity_score']:.2f}, "
+                           f"valid={c['validation_score']:.0f}, "
+                           f"source={c['source']})")
+
+        return {
+            'text': best['text'],
+            'confidence': best['total_score'],
+            'method': 'ast_ranked_match',
+            'explanation': f"{best['source'].replace('_', ' ').title()} (pattern={best['pattern_score']:.2f}, proximity={best['proximity_score']:.2f})",
+            'ast': best['ast'],
+        }
 
     def _extract_what(
         self,
@@ -401,12 +490,12 @@ class ASTAnswerExtractor:
         doc_text: str
     ) -> Optional[Dict]:
         """
-        Extract WHAT answer (thing/concept).
+        Extract WHAT answer (thing/concept) with multi-candidate ranking.
 
         Strategy:
-        1. If query has object → extract doc object
-        2. If query asks "Kio estas X?" → extract predicate/definition (in aliaj)
-        3. Otherwise → extract subject
+        1. Collect ALL thing/concept candidates (predicates, objects, subjects)
+        2. Score each by pattern + proximity + validation
+        3. Return highest-scoring candidate
 
         Args:
             query_ast: Query AST
@@ -419,14 +508,12 @@ class ASTAnswerExtractor:
         query_verb = self._get_verb_root(query_ast)
         doc_verb = self._get_verb_root(doc_ast)
 
+        candidates = []
+
         # Check for "estas" questions (definitions)
         if query_verb == 'est' and doc_verb == 'est':
-            # Extract predicate - in Esperanto, predicate nominative is in aliaj
-            # Strategy: Prefer substantives over adjectives, skip ordinals
+            # Candidate 1: Predicates after "estas" in aliaj
             aliaj = doc_ast.get('aliaj', [])
-
-            # Collect all candidates with priority
-            candidates = []
             for modifier in aliaj:
                 if modifier.get('tipo') == 'vorto':
                     vortspeco = modifier.get('vortspeco')
@@ -436,85 +523,111 @@ class ASTAnswerExtractor:
                     if radiko in self.ORDINALS:
                         continue
 
-                    # Collect substantives (high priority)
+                    # Substantives (high priority)
                     if vortspeco == 'substantivo':
                         answer_text = self._vortgrupo_to_text(modifier)
                         if answer_text:
                             candidates.append({
-                                'text': answer_text,
                                 'ast': modifier,
-                                'priority': 2,  # High priority
-                                'confidence': 0.9,
-                                'explanation': 'Substantive predicate after "estas"',
+                                'text': answer_text,
+                                'pattern_score': 0.9,  # High - substantive predicate
+                                'source': 'predicate_noun',
                             })
 
-                    # Collect adjectives (low priority)
+                    # Adjectives (lower priority)
                     elif vortspeco == 'adjektivo':
                         answer_text = self._vortgrupo_to_text(modifier)
                         if answer_text:
                             candidates.append({
-                                'text': answer_text,
                                 'ast': modifier,
-                                'priority': 1,  # Low priority
-                                'confidence': 0.75,
-                                'explanation': 'Adjective predicate after "estas"',
+                                'text': answer_text,
+                                'pattern_score': 0.75,  # Medium - adjective predicate
+                                'source': 'predicate_adj',
                             })
 
-            # Return best candidate (prefer substantives)
-            if candidates:
-                best = max(candidates, key=lambda x: x['priority'])
-                return {
-                    'text': best['text'],
-                    'confidence': best['confidence'],
-                    'method': 'ast_pattern_match',
-                    'explanation': best['explanation'],
-                    'ast': best['ast'],
-                }
-
-            # Fallback: try object
+            # Candidate 2: Object (fallback for "estas")
             objekto = doc_ast.get('objekto')
             if objekto:
                 answer_text = self._vortgrupo_to_text(objekto)
                 if answer_text:
-                    return {
-                        'text': answer_text,
-                        'confidence': 0.75,
-                        'method': 'ast_pattern_match',
-                        'explanation': 'Object after "estas"',
+                    candidates.append({
                         'ast': objekto,
-                    }
+                        'text': answer_text,
+                        'pattern_score': 0.7,  # Lower - less typical
+                        'source': 'object_estas',
+                    })
 
-        # Check if verbs match
-        if query_verb and doc_verb and query_verb == doc_verb:
-            # If query has object placeholder (kio) → extract doc object
+        # Check if verbs match (non-estas questions)
+        verb_match = False
+        if query_verb and doc_verb:
+            verb_match = (query_verb == doc_verb)
+            if not verb_match and len(query_verb) >= 4 and len(doc_verb) >= 4:
+                verb_match = (query_verb[:4] == doc_verb[:4])
+
+        if verb_match:
+            # Candidate 3: Object (if query has "kio" as object)
             query_obj = query_ast.get('objekto')
             if query_obj and self._is_correlative(query_obj, 'kio'):
                 objekto = doc_ast.get('objekto')
                 if objekto:
                     answer_text = self._vortgrupo_to_text(objekto)
                     if answer_text:
-                        return {
-                            'text': answer_text,
-                            'confidence': 0.9,
-                            'method': 'ast_pattern_match',
-                            'explanation': f'Object of verb "{doc_verb}"',
+                        candidates.append({
                             'ast': objekto,
-                        }
+                            'text': answer_text,
+                            'pattern_score': 0.9,  # High - object matches pattern
+                            'source': 'object',
+                        })
 
-            # Otherwise extract subject
+            # Candidate 4: Subject (if not already added)
             subjekto = doc_ast.get('subjekto')
             if subjekto:
                 answer_text = self._vortgrupo_to_text(subjekto)
-                if answer_text:
-                    return {
-                        'text': answer_text,
-                        'confidence': 0.8,
-                        'method': 'ast_pattern_match',
-                        'explanation': f'Subject of verb "{doc_verb}"',
+                if answer_text and not any(c['text'] == answer_text for c in candidates):
+                    candidates.append({
                         'ast': subjekto,
-                    }
+                        'text': answer_text,
+                        'pattern_score': 0.8,  # Medium-high
+                        'source': 'subject',
+                    })
 
-        return None
+        if not candidates:
+            return None
+
+        # Score each candidate
+        for candidate in candidates:
+            candidate['proximity_score'] = self._score_candidate_proximity(
+                candidate['ast'], query_ast, doc_ast
+            )
+
+            is_valid = self._validate_answer('WHAT', candidate['text'], candidate['ast'])
+            candidate['validation_score'] = 1.0 if is_valid else 0.0
+
+            candidate['total_score'] = (
+                candidate['pattern_score'] * 0.4 +
+                candidate['proximity_score'] * 0.4 +
+                candidate['validation_score'] * 0.2
+            )
+
+        # Return best candidate
+        best = max(candidates, key=lambda c: c['total_score'])
+
+        # Log for debugging
+        if len(candidates) > 1:
+            logger.debug(f"WHAT candidates ranked:")
+            for i, c in enumerate(sorted(candidates, key=lambda x: x['total_score'], reverse=True)):
+                logger.debug(f"  {i+1}. '{c['text']}' (score={c['total_score']:.3f}, "
+                           f"pattern={c['pattern_score']:.2f}, "
+                           f"proximity={c['proximity_score']:.2f}, "
+                           f"source={c['source']})")
+
+        return {
+            'text': best['text'],
+            'confidence': best['total_score'],
+            'method': 'ast_ranked_match',
+            'explanation': f"{best['source'].replace('_', ' ').title()} (pattern={best['pattern_score']:.2f}, proximity={best['proximity_score']:.2f})",
+            'ast': best['ast'],
+        }
 
     def _extract_where(
         self,
@@ -523,12 +636,12 @@ class ASTAnswerExtractor:
         doc_text: str
     ) -> Optional[Dict]:
         """
-        Extract WHERE answer (location).
+        Extract WHERE answer (location) with multi-candidate ranking.
 
         Strategy:
-        1. Look for location prepositions (en, sur, apud, etc.) followed by object
-        2. Look for location suffixes (-ej = place for)
-        3. Look for place names (proper nouns)
+        1. Collect ALL location candidates (prepositional phrases, -ej words, place names)
+        2. Score each by pattern + proximity + validation
+        3. Return highest-scoring candidate
 
         Args:
             query_ast: Query AST
@@ -542,43 +655,102 @@ class ASTAnswerExtractor:
         LOCATION_PREPS = {'en', 'sur', 'apud', 'ĉe', 'antaŭ', 'post', 'sub',
                           'super', 'inter', 'ekster', 'ĉirkaŭ', 'trans'}
 
-        # Check aliaj for location modifiers
-        # In parser output, preposition and object are separate consecutive items
+        candidates = []
+
+        # Candidate 1: Prepositional phrases with location prepositions
         aliaj = doc_ast.get('aliaj', [])
         for i, modifier in enumerate(aliaj):
             if modifier.get('tipo') == 'vorto':
-                # Check if it's a location preposition
                 if modifier.get('vortspeco') == 'prepozicio':
                     radiko = modifier.get('radiko')
                     if radiko in LOCATION_PREPS:
-                        # Get next item (the object of preposition)
-                        if i + 1 < len(aliaj):
-                            next_item = aliaj[i + 1]
-                            answer_text = self._vortgrupo_to_text(next_item)
-                            if answer_text:
-                                return {
-                                    'text': answer_text,
-                                    'confidence': 0.95,
-                                    'method': 'ast_pattern_match',
-                                    'explanation': f'Location after preposition "{radiko}"',
-                                    'ast': next_item,
-                                }
+                        # Look ahead for object (skip function words)
+                        j = i + 1
+                        while j < len(aliaj):
+                            next_item = aliaj[j]
 
-        # Check for -ej suffix (place for)
+                            # Skip function words and punctuation
+                            next_radiko = next_item.get('radiko', '')
+                            if next_radiko in {'la', ',', '.', 'kaj', 'sed'}:
+                                j += 1
+                                continue
+
+                            # Found potential location object
+                            answer_text = self._vortgrupo_to_text(next_item)
+                            if answer_text and self._is_place(next_item):
+                                candidates.append({
+                                    'ast': next_item,
+                                    'text': answer_text,
+                                    'pattern_score': 0.95,  # High - prepositional phrase
+                                    'source': f'prep_{radiko}',
+                                })
+                            break
+
+        # Candidate 2: Words with -ej suffix (place for)
         for key in ['subjekto', 'objekto']:
             node = doc_ast.get(key)
             if node and 'ej' in self._get_suffixes(node):
                 answer_text = self._vortgrupo_to_text(node)
                 if answer_text:
-                    return {
-                        'text': answer_text,
-                        'confidence': 0.85,
-                        'method': 'ast_pattern_match',
-                        'explanation': 'Word with -ej suffix (place)',
+                    candidates.append({
                         'ast': node,
-                    }
+                        'text': answer_text,
+                        'pattern_score': 0.85,  # Medium - suffix indicator
+                        'source': 'suffix_ej',
+                    })
 
-        return None
+        # Candidate 3: Place names in subject/object
+        for key in ['subjekto', 'objekto']:
+            node = doc_ast.get(key)
+            if node:
+                answer_text = self._vortgrupo_to_text(node)
+                if answer_text and self._is_place(node):
+                    # Check if not already added
+                    if not any(c['text'] == answer_text for c in candidates):
+                        candidates.append({
+                            'ast': node,
+                            'text': answer_text,
+                            'pattern_score': 0.7,  # Lower - no preposition
+                            'source': key,
+                        })
+
+        if not candidates:
+            return None
+
+        # Score each candidate
+        for candidate in candidates:
+            candidate['proximity_score'] = self._score_candidate_proximity(
+                candidate['ast'], query_ast, doc_ast
+            )
+
+            is_valid = self._validate_answer('WHERE', candidate['text'], candidate['ast'])
+            candidate['validation_score'] = 1.0 if is_valid else 0.0
+
+            candidate['total_score'] = (
+                candidate['pattern_score'] * 0.4 +
+                candidate['proximity_score'] * 0.4 +
+                candidate['validation_score'] * 0.2
+            )
+
+        # Return best candidate
+        best = max(candidates, key=lambda c: c['total_score'])
+
+        # Log for debugging
+        if len(candidates) > 1:
+            logger.debug(f"WHERE candidates ranked:")
+            for i, c in enumerate(sorted(candidates, key=lambda x: x['total_score'], reverse=True)):
+                logger.debug(f"  {i+1}. '{c['text']}' (score={c['total_score']:.3f}, "
+                           f"pattern={c['pattern_score']:.2f}, "
+                           f"proximity={c['proximity_score']:.2f}, "
+                           f"source={c['source']})")
+
+        return {
+            'text': best['text'],
+            'confidence': best['total_score'],
+            'method': 'ast_ranked_match',
+            'explanation': f"{best['source'].replace('_', ' ').title()} (pattern={best['pattern_score']:.2f}, proximity={best['proximity_score']:.2f})",
+            'ast': best['ast'],
+        }
 
     def _extract_when(
         self,
@@ -1226,13 +1398,16 @@ class ASTAnswerExtractor:
 
     def _is_person(self, node: Dict) -> bool:
         """
-        Check if node represents a person.
+        Check if node represents a person (enhanced validation).
 
         Heuristics:
         - Has -ul suffix (person characterized by)
         - Has -ist suffix (professional)
-        - Is a proper noun (starts with capital)
-        - Is a correlative with 'u' (kiu)
+        - Has -in suffix (feminine)
+        - Is a proper noun (starts with capital) BUT NOT:
+          - Compound words ending in -o (things like "Esperanto-versio")
+          - Place-indicating suffixes (-ej = place)
+          - Common place names
 
         Args:
             node: AST node
@@ -1241,17 +1416,95 @@ class ASTAnswerExtractor:
             True if likely a person
         """
         suffixes = self._get_suffixes(node)
+
+        # Strong person indicators (suffixes)
         if 'ul' in suffixes or 'ist' in suffixes or 'in' in suffixes:
             return True
 
-        # Check if proper noun
         text = self._vortgrupo_to_text(node)
-        if text and text[0].isupper():
+        if not text:
+            return False
+
+        # Reject compound words ending in -o (things, not people)
+        # "Esperanto-versio", "radio-stacio", etc.
+        if '-' in text and text.endswith('o'):
+            return False
+
+        # Reject place-indicating suffixes
+        place_suffixes = {'ej'}  # -ejo = place for
+        if any(suf in suffixes for suf in place_suffixes):
+            return False
+
+        # Reject common place names (cities, countries)
+        # This is a small gazetteer - can be expanded
+        place_names = {
+            # Cities
+            'Barcelono', 'Varsovio', 'Parizo', 'Berlino', 'Londono', 'Romo',
+            'Moskvo', 'Pekino', 'Tokio', 'Nov-Jorko', 'Bjalistoko', 'Suwałki',
+            # Countries
+            'Pollando', 'Francio', 'Germanio', 'Anglio', 'Italio', 'Rusio',
+            'Ĉinio', 'Japanio', 'Usono', 'Hispanio', 'Britio',
+            # Regions
+            'Eŭropo', 'Azio', 'Afriko', 'Ameriko',
+        }
+        if text in place_names:
+            return False
+
+        # Check if proper noun (after exclusions)
+        if text[0].isupper():
             return True
 
         # Check if correlative (kiu)
         if node.get('tipo') == 'vorto':
             if node.get('korelativo_sufikso') == 'u':
+                return True
+
+        return False
+
+    def _is_place(self, node: Dict) -> bool:
+        """
+        Check if node represents a place/location.
+
+        Heuristics:
+        - Has -ej suffix (place for)
+        - Is in place name gazetteer
+        - Is a proper noun with location indicators
+
+        Args:
+            node: AST node
+
+        Returns:
+            True if likely a place
+        """
+        suffixes = self._get_suffixes(node)
+
+        # Strong place indicator (-ejo)
+        if 'ej' in suffixes:
+            return True
+
+        text = self._vortgrupo_to_text(node)
+        if not text:
+            return False
+
+        # Check place name gazetteer
+        place_names = {
+            # Cities
+            'Barcelono', 'Varsovio', 'Parizo', 'Berlino', 'Londono', 'Romo',
+            'Moskvo', 'Pekino', 'Tokio', 'Nov-Jorko', 'Bjalistoko', 'Suwałki',
+            # Countries
+            'Pollando', 'Francio', 'Germanio', 'Anglio', 'Italio', 'Rusio',
+            'Ĉinio', 'Japanio', 'Usono', 'Hispanio', 'Britio',
+            # Regions
+            'Eŭropo', 'Azio', 'Afriko', 'Ameriko',
+        }
+        if text in place_names:
+            return True
+
+        # Check for location-related words
+        location_roots = {'urb', 'vilaĝ', 'land', 'region', 'loko', 'teren'}
+        if node.get('tipo') == 'vorto':
+            radiko = node.get('radiko', '').lower()
+            if any(radiko.startswith(loc) for loc in location_roots):
                 return True
 
         return False
@@ -1327,3 +1580,259 @@ class ASTAnswerExtractor:
             'multe', 'malmulte', 'kelke', 'sufiĉe'
         }
         return radiko.lower() in number_words
+
+    # -------------------------------------------------------------------------
+    # Position Tracking and Proximity Scoring (for multi-candidate ranking)
+    # -------------------------------------------------------------------------
+
+    def _get_word_position(self, target_node: Dict, doc_ast: Dict) -> Optional[int]:
+        """
+        Get the position index of a word/node in the document AST.
+
+        Args:
+            target_node: AST node to find
+            doc_ast: Document AST
+
+        Returns:
+            Position index (0-based) or None if not found
+        """
+        position = 0
+
+        # Check subjekto
+        if doc_ast.get('subjekto'):
+            pos = self._find_node_position(target_node, doc_ast['subjekto'], position)
+            if pos is not None:
+                return pos
+            position += self._count_words(doc_ast['subjekto'])
+
+        # Check verbo
+        if doc_ast.get('verbo'):
+            if self._nodes_equal(target_node, doc_ast['verbo']):
+                return position
+            position += 1
+
+        # Check objekto
+        if doc_ast.get('objekto'):
+            pos = self._find_node_position(target_node, doc_ast['objekto'], position)
+            if pos is not None:
+                return pos
+            position += self._count_words(doc_ast['objekto'])
+
+        # Check aliaj
+        for modifier in doc_ast.get('aliaj', []):
+            pos = self._find_node_position(target_node, modifier, position)
+            if pos is not None:
+                return pos
+            position += self._count_words(modifier)
+
+        return None
+
+    def _find_node_position(self, target_node: Dict, search_node: Dict, start_pos: int) -> Optional[int]:
+        """
+        Recursively find target node within search node.
+
+        Args:
+            target_node: Node to find
+            search_node: Node to search within
+            start_pos: Starting position offset
+
+        Returns:
+            Position or None
+        """
+        if self._nodes_equal(target_node, search_node):
+            return start_pos
+
+        # If search_node is vortgrupo, check within it
+        if search_node.get('tipo') == 'vortgrupo':
+            pos = start_pos
+
+            # Check priskriboj (modifiers)
+            for priskribo in search_node.get('priskriboj', []):
+                result = self._find_node_position(target_node, priskribo, pos)
+                if result is not None:
+                    return result
+                pos += self._count_words(priskribo)
+
+            # Check kerno
+            if search_node.get('kerno'):
+                result = self._find_node_position(target_node, search_node['kerno'], pos)
+                if result is not None:
+                    return result
+
+        return None
+
+    def _nodes_equal(self, node1: Dict, node2: Dict) -> bool:
+        """
+        Check if two AST nodes represent the same word.
+
+        Args:
+            node1: First node
+            node2: Second node
+
+        Returns:
+            True if same word
+        """
+        if node1.get('tipo') != node2.get('tipo'):
+            return False
+
+        if node1.get('tipo') == 'vorto':
+            # Compare by full word text
+            return node1.get('plena_vorto') == node2.get('plena_vorto')
+
+        return False
+
+    def _count_words(self, node: Dict) -> int:
+        """
+        Count number of words in AST node.
+
+        Args:
+            node: AST node
+
+        Returns:
+            Word count
+        """
+        if not node:
+            return 0
+
+        if node.get('tipo') == 'vorto':
+            return 1
+
+        if node.get('tipo') == 'vortgrupo':
+            count = 0
+            for priskribo in node.get('priskriboj', []):
+                count += self._count_words(priskribo)
+            if node.get('kerno'):
+                count += self._count_words(node['kerno'])
+            return count
+
+        return 0
+
+    def _find_root_positions(self, root: str, doc_ast: Dict) -> List[int]:
+        """
+        Find all positions where a root appears in document.
+
+        Args:
+            root: Root string to find
+            doc_ast: Document AST
+
+        Returns:
+            List of position indices
+        """
+        positions = []
+        position = 0
+
+        # Check subjekto
+        if doc_ast.get('subjekto'):
+            positions.extend(self._find_root_in_node(root, doc_ast['subjekto'], position))
+            position += self._count_words(doc_ast['subjekto'])
+
+        # Check verbo
+        if doc_ast.get('verbo'):
+            verbo = doc_ast['verbo']
+            if verbo.get('tipo') == 'vorto' and verbo.get('radiko', '').lower() == root:
+                positions.append(position)
+            position += 1
+
+        # Check objekto
+        if doc_ast.get('objekto'):
+            positions.extend(self._find_root_in_node(root, doc_ast['objekto'], position))
+            position += self._count_words(doc_ast['objekto'])
+
+        # Check aliaj
+        for modifier in doc_ast.get('aliaj', []):
+            positions.extend(self._find_root_in_node(root, modifier, position))
+            position += self._count_words(modifier)
+
+        return positions
+
+    def _find_root_in_node(self, root: str, node: Dict, start_pos: int) -> List[int]:
+        """
+        Find root in AST node recursively.
+
+        Args:
+            root: Root to find
+            node: Node to search
+            start_pos: Starting position
+
+        Returns:
+            List of positions
+        """
+        positions = []
+
+        if node.get('tipo') == 'vorto':
+            if node.get('radiko', '').lower() == root:
+                positions.append(start_pos)
+
+        elif node.get('tipo') == 'vortgrupo':
+            pos = start_pos
+
+            # Check priskriboj
+            for priskribo in node.get('priskriboj', []):
+                positions.extend(self._find_root_in_node(root, priskribo, pos))
+                pos += self._count_words(priskribo)
+
+            # Check kerno
+            if node.get('kerno'):
+                positions.extend(self._find_root_in_node(root, node['kerno'], pos))
+
+        return positions
+
+    def _score_candidate_proximity(
+        self,
+        candidate_ast: Dict,
+        query_ast: Dict,
+        doc_ast: Dict
+    ) -> float:
+        """
+        Score candidate by proximity to query terms in document.
+
+        Strategy:
+        - Find candidate position in document
+        - Find positions of all query roots
+        - Measure average distance to query roots
+        - Return: 1.0 / (1 + avg_distance)
+
+        Args:
+            candidate_ast: Candidate answer node
+            query_ast: Query AST
+            doc_ast: Document AST
+
+        Returns:
+            Proximity score (0.0-1.0, higher is better)
+        """
+        candidate_position = self._get_word_position(candidate_ast, doc_ast)
+        if candidate_position is None:
+            return 0.5  # Couldn't find position, use neutral score
+
+        # Extract query roots (excluding question words)
+        query_roots = []
+        for root in self._extract_roots(query_ast):
+            # Skip correlatives (kiu, kio, etc.)
+            if root not in {'kiu', 'kio', 'kie', 'kiam', 'kial', 'kiel', 'kiom', 'kies'}:
+                query_roots.append(root)
+
+        if not query_roots:
+            return 0.5  # No content roots in query
+
+        # Find distances to each query root
+        distances = []
+        for root in query_roots:
+            root_positions = self._find_root_positions(root, doc_ast)
+            if root_positions:
+                # Use minimum distance to this root
+                min_dist = min(abs(candidate_position - pos) for pos in root_positions)
+                distances.append(min_dist)
+
+        if not distances:
+            return 0.3  # Query roots not found in document
+
+        # Average distance
+        avg_distance = sum(distances) / len(distances)
+
+        # Convert to score: closer = higher score
+        # Distance 0 → score 1.0
+        # Distance 5 → score 0.167
+        # Distance 10 → score 0.091
+        proximity_score = 1.0 / (1 + avg_distance)
+
+        return proximity_score

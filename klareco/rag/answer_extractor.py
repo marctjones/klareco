@@ -68,6 +68,20 @@ class ASTAnswerExtractor:
         'es': 'WHOSE',   # kies (whose possession)
     }
 
+    # Ordinals to skip when extracting WHAT answers (predicate extraction)
+    ORDINALS = {
+        'unua', 'dua', 'tria', 'kvara', 'kvina', 'sesa', 'sepa', 'oka', 'naŭa', 'deka',
+        'unue', 'due', 'trie', 'kvare', 'kvine', 'sese', 'sepe', 'oke', 'naŭe', 'deke',
+        # Cardinal numbers (for HOW_MANY validation)
+        'unu', 'du', 'tri', 'kvar', 'kvin', 'ses', 'sep', 'ok', 'naŭ', 'dek',
+    }
+
+    # Pronouns to reject for WHO questions
+    PRONOUNS = {
+        'mi', 'vi', 'li', 'ŝi', 'ĝi', 'ni', 'ili',
+        'si', 'oni', 'mem',
+    }
+
     def __init__(self):
         """Initialize answer extractor."""
         pass
@@ -106,27 +120,39 @@ class ASTAnswerExtractor:
         logger.debug(f"Question type: {question_type}")
 
         # Extract answer based on question type
+        answer = None
         if question_type == 'WHO':
-            return self._extract_who(query_ast, doc_ast, doc_text)
+            answer = self._extract_who(query_ast, doc_ast, doc_text)
         elif question_type == 'WHAT':
-            return self._extract_what(query_ast, doc_ast, doc_text)
+            answer = self._extract_what(query_ast, doc_ast, doc_text)
         elif question_type == 'WHERE':
-            return self._extract_where(query_ast, doc_ast, doc_text)
+            answer = self._extract_where(query_ast, doc_ast, doc_text)
         elif question_type == 'WHEN':
-            return self._extract_when(query_ast, doc_ast, doc_text)
+            answer = self._extract_when(query_ast, doc_ast, doc_text)
         elif question_type == 'HOW_MANY':
-            return self._extract_how_many(query_ast, doc_ast, doc_text)
+            answer = self._extract_how_many(query_ast, doc_ast, doc_text)
         elif question_type == 'WHY':
-            return self._extract_why(query_ast, doc_ast, doc_text)
+            answer = self._extract_why(query_ast, doc_ast, doc_text)
         elif question_type == 'HOW':
-            return self._extract_how(query_ast, doc_ast, doc_text)
+            answer = self._extract_how(query_ast, doc_ast, doc_text)
         elif question_type == 'WHICH':
-            return self._extract_which(query_ast, doc_ast, doc_text)
+            answer = self._extract_which(query_ast, doc_ast, doc_text)
         elif question_type == 'WHOSE':
-            return self._extract_whose(query_ast, doc_ast, doc_text)
+            answer = self._extract_whose(query_ast, doc_ast, doc_text)
         else:
             logger.warning(f"Unsupported question type: {question_type}")
             return None
+
+        # Validate answer before returning
+        if answer:
+            answer_text = answer.get('text', '')
+            answer_ast = answer.get('ast')
+
+            if not self._validate_answer(question_type, answer_text, answer_ast):
+                logger.debug(f"Answer validation failed for '{answer_text}'")
+                return None
+
+        return answer
 
     def _detect_question_type(self, query_ast: Dict) -> Optional[str]:
         """
@@ -279,21 +305,54 @@ class ASTAnswerExtractor:
         # Check for "estas" questions (definitions)
         if query_verb == 'est' and doc_verb == 'est':
             # Extract predicate - in Esperanto, predicate nominative is in aliaj
+            # Strategy: Prefer substantives over adjectives, skip ordinals
             aliaj = doc_ast.get('aliaj', [])
+
+            # Collect all candidates with priority
+            candidates = []
             for modifier in aliaj:
                 if modifier.get('tipo') == 'vorto':
-                    # Look for substantive or adjective (predicate)
                     vortspeco = modifier.get('vortspeco')
-                    if vortspeco in ['substantivo', 'adjektivo']:
+                    radiko = modifier.get('radiko', '').lower()
+
+                    # Skip ordinals (unua, dua, etc.)
+                    if radiko in self.ORDINALS:
+                        continue
+
+                    # Collect substantives (high priority)
+                    if vortspeco == 'substantivo':
                         answer_text = self._vortgrupo_to_text(modifier)
                         if answer_text:
-                            return {
+                            candidates.append({
                                 'text': answer_text,
-                                'confidence': 0.85,
-                                'method': 'ast_pattern_match',
-                                'explanation': 'Definition/predicate after "estas"',
                                 'ast': modifier,
-                            }
+                                'priority': 2,  # High priority
+                                'confidence': 0.9,
+                                'explanation': 'Substantive predicate after "estas"',
+                            })
+
+                    # Collect adjectives (low priority)
+                    elif vortspeco == 'adjektivo':
+                        answer_text = self._vortgrupo_to_text(modifier)
+                        if answer_text:
+                            candidates.append({
+                                'text': answer_text,
+                                'ast': modifier,
+                                'priority': 1,  # Low priority
+                                'confidence': 0.75,
+                                'explanation': 'Adjective predicate after "estas"',
+                            })
+
+            # Return best candidate (prefer substantives)
+            if candidates:
+                best = max(candidates, key=lambda x: x['priority'])
+                return {
+                    'text': best['text'],
+                    'confidence': best['confidence'],
+                    'method': 'ast_pattern_match',
+                    'explanation': best['explanation'],
+                    'ast': best['ast'],
+                }
 
             # Fallback: try object
             objekto = doc_ast.get('objekto')
@@ -701,6 +760,80 @@ class ASTAnswerExtractor:
                                 }
 
         return None
+
+    # -------------------------------------------------------------------------
+    # Answer Validation
+    # -------------------------------------------------------------------------
+
+    def _validate_answer(
+        self,
+        question_type: str,
+        answer_text: str,
+        answer_ast: Optional[Dict] = None
+    ) -> bool:
+        """
+        Validate extracted answer matches expected answer type.
+
+        This is a deterministic sanity check to reject clearly wrong extractions.
+
+        Args:
+            question_type: Question type (WHO, WHAT, WHERE, etc.)
+            answer_text: Extracted answer text
+            answer_ast: Optional AST of answer
+
+        Returns:
+            True if answer is valid, False if clearly wrong
+        """
+        answer_lower = answer_text.lower()
+
+        # WHO questions should not return pronouns
+        if question_type == 'WHO':
+            # Check if answer is a pronoun
+            if answer_lower in self.PRONOUNS:
+                logger.debug(f"Rejecting pronoun '{answer_text}' for WHO question")
+                return False
+
+            # Check for generic words that aren't person names
+            generic_non_persons = {'komparo', 'grupo', 'aro', 'afero', 'io'}
+            if answer_lower in generic_non_persons:
+                logger.debug(f"Rejecting generic non-person '{answer_text}' for WHO question")
+                return False
+
+        # HOW_MANY questions should contain numbers
+        elif question_type == 'HOW_MANY':
+            # Check if answer contains digits or number words
+            has_digit = any(c.isdigit() for c in answer_text)
+            is_number_word = self._is_number_word(answer_lower)
+
+            if not (has_digit or is_number_word):
+                logger.debug(f"Rejecting non-numeric '{answer_text}' for HOW_MANY question")
+                return False
+
+            # Reject index-style answers (all caps, single word)
+            if answer_text.isupper() and len(answer_text.split()) == 1:
+                logger.debug(f"Rejecting index entry '{answer_text}' for HOW_MANY question")
+                return False
+
+        # WHEN questions should look like time
+        elif question_type == 'WHEN':
+            if not self._looks_like_time(answer_text):
+                logger.debug(f"Rejecting non-time '{answer_text}' for WHEN question")
+                return False
+
+        # WHAT questions should not be pronouns or ordinals
+        elif question_type == 'WHAT':
+            # Already handled ordinals in extraction, but double-check
+            radiko = answer_ast.get('radiko', '').lower() if answer_ast else ''
+            if radiko in self.ORDINALS:
+                logger.debug(f"Rejecting ordinal '{answer_text}' for WHAT question")
+                return False
+
+            # Reject pronouns
+            if answer_lower in self.PRONOUNS:
+                logger.debug(f"Rejecting pronoun '{answer_text}' for WHAT question")
+                return False
+
+        return True
 
     # -------------------------------------------------------------------------
     # Helper Methods

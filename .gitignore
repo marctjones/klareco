@@ -25,3 +25,9 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/

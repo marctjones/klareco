@@ -30,10 +30,20 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 
 ## Current State (January 2026)
 
+**✅ Working RAG System**: Full retrieval pipeline with AST-aware search + neural reranking operational on 5.3M sentence corpus
+
 **Architecture**: Multi-model semantic system (M0/Stage1/M1/M2/M3)
 - 📋 **[GitHub Project Board](https://github.com/users/marctjones/projects/16)** - Track current work
 - 📚 **[Wiki: Current-Architecture](https://github.com/marctjones/klareco/wiki/Current-Architecture)** - Architecture details
 - 🎯 **[Epic #453](https://github.com/marctjones/klareco/issues/453)** - Overall progress tracking
+
+### ✅ RAG System: Question Answering (WORKING)
+- **Corpus**: 5.3M Esperanto sentences from Wikipedia + books
+- **Pipeline**: AST-aware retrieval → Neural reranking → Answer extraction
+- **Reranker**: 180K param model with frozen compositional embeddings
+- **Entity-aware**: Question type detection, entity recognition, relevance boosting
+- **Demo**: `./scripts/demo_full_rag.sh` - Try "Kiu fondis Esperanton?" and see it work!
+- **Files**: `klareco/rag/ast_aware_retriever.py`, `klareco/rag/kuzu_inverted_index.py`
 
 ### ✅ M0: Deterministic Parser (COMPLETE)
 - **Parser/Deparser**: 16 Esperanto grammar rules, 91.8% parse rate on 4.2M sentences
@@ -66,30 +76,38 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 
 ### Development Stage
 
-**Current Focus**: Building specialized semantic models on validated foundation
+**Milestone Achieved**: Working RAG system answering Esperanto questions with 500K learned parameters!
 
 After 2 years of exploration (documented in [Development History](https://github.com/marctjones/klareco/wiki/Klareco-Development-History)), we've validated the core thesis:
 - ✅ **Parser works**: 91.8% parse rate on 4.2M sentences proves deterministic grammar is viable
 - ✅ **Compositional embeddings work**: 320K params covers 18,928 roots with perfect generalization
-- ✅ **Small models work**: 10M param M1 achieves 80%+ accuracy on selectional preference
-- 🚧 **Now**: Building remaining semantic models (M2 taxonomic + discourse)
-- 🔮 **Next**: M3 orchestration to compose models for end-to-end Q&A
+- ✅ **RAG system works**: 500K total params answering real questions on 5.3M sentence corpus
+- ✅ **AST-aware retrieval works**: Entity detection, question classification, relevance ranking operational
+- 🎯 **Now**: Improving answer extraction and multi-document reasoning
+- 🔮 **Next**: Expanding to conversational Q&A with context management
 
 ### Current Priorities
-1. **CRITICAL**: Fix Stage 1 vocabulary corruption (#479)
-2. **HIGH**: Improve M1 object selectional preference (#475)
-3. **NEXT**: Build M2 models (#443, #444)
-4. **FUTURE**: Research M3 orchestration (#449)
+1. **WORKING**: RAG system operational - try `./scripts/demo_full_rag.sh`!
+2. **NEXT**: Improve answer extraction quality and multi-document reasoning
+3. **FUTURE**: Add conversational context and multi-turn Q&A
+4. **RESEARCH**: Expand semantic models (M1/M2) for enhanced understanding
 
 ## Architecture
 
 ```
-Text → M0 (Parser) → AST → Stage 1 (Roots) → M1 (Selectional) → M2 (Taxonomic+Discourse) → M3 (Orchestration) → Text
-       └─ 0 params            └─ 320K params   └─ 10M params     └─ 40-50M params            └─ 0 params
-       └─ deterministic                        └─ learned models                               └─ deterministic
+Text → M0 (Parser) → AST → Compositional Embeddings → Retrieval → Reranker → Answer
+       └─ 0 params            └─ 320K params            └─ deterministic  └─ 180K params
+       └─ deterministic       └─ learned                                  └─ learned
+
+RAG Pipeline (WORKING):
+  Query → AST Parse → Entity Detection → Kuzu Graph Search (5.3M docs)
+       → Entity Boost → Quality Filter → Neural Reranking → Top Results
 ```
 
-**Total learned parameters**: ~60-70M (vs 1B+ for typical LLMs)
+**Current learned parameters**:
+- Compositional embeddings: 320K params (root + affix embeddings)
+- Reranker: 180K params (relevance scoring)
+- **Total: 500K params** serving real Q&A queries on 5.3M sentence corpus
 
 See the [Wiki](https://github.com/marctjones/klareco/wiki/Current-Architecture) for detailed architecture, `VISION.md` for the thesis, and `DESIGN.md` for technical details.
 
@@ -113,6 +131,20 @@ python -m klareco translate "The dog sees the cat." --to eo
 ```
 
 ### Demos
+
+**⭐ Try the RAG System:**
+```bash
+# Full pipeline: Retrieval → Reranking (recommended)
+./scripts/demo_full_rag.sh
+
+# Single question
+./scripts/demo_full_rag.sh "Kiu fondis Esperanton?"
+
+# With M1 filtering (optional, slower)
+./scripts/demo_full_rag.sh --use-m1
+```
+
+**Other demos:**
 ```bash
 # Root embeddings demo
 python scripts/demo_root_embeddings.py
@@ -120,11 +152,8 @@ python scripts/demo_root_embeddings.py
 # M1 selectional preference demo
 python scripts/demo_m1_selectional.py
 
-# AST-aware retrieval demo
-python scripts/demo_ast_retriever.py
-
-# Semantic retrieval demo
-python scripts/demo_semantic_retrieval.py
+# Basic AST retrieval (no reranking)
+python scripts/demo_ast_retriever.py -i
 ```
 
 ### Train Models
@@ -167,14 +196,15 @@ python -m pytest --cov=klareco             # With coverage
 
 | Component | Status | Details |
 |-----------|--------|---------|
+| **RAG System** | ✅ **WORKING** | Q&A on 5.3M sentences, AST-aware + neural reranking |
 | **M0: Parser** | ✅ Complete | 91.8% parse rate on 4.2M sentences |
-| **Stage 1: Root Embeddings** | 🚧 Needs retrain | Issue #479 - vocabulary corruption (CRITICAL) |
-| **M1: Selectional Preference** | 🚧 In progress | 80.2% accuracy, object preference issues (Issue #475) |
-| **M2.1: Taxonomic Model** | 🔲 TODO | Issue #443 - Pure IS-A relationships |
-| **M2.2: Discourse Coherence** | 🔲 TODO | Issue #444 - Passage ranking |
-| **M3: Orchestration** | 🔲 Research | Issue #449 - Multi-model coordination |
+| **Compositional Embeddings** | ✅ Complete | 320K params, frozen for reranking |
+| **Reranker** | ✅ Complete | 180K params, learned relevance scoring |
 | **Kuzu Graph Database** | ✅ Active | 5.2GB AST-first retrieval infrastructure |
-| **Test Suite** | 🚧 In progress | Issue #470 - Data quality + integration tests |
+| **Entity Detection** | ✅ Working | Question classification, entity recognition, boosting |
+| **Answer Extraction** | 🚧 In progress | AST-based extraction with multi-document support |
+| **M1: Selectional Preference** | 🔲 Future | Optional enhancement for query expansion |
+| **Test Suite** | 🚧 In progress | Integration tests for RAG pipeline |
 
 ## License
 

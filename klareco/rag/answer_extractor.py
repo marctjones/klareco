@@ -45,6 +45,9 @@ Example:
 from typing import Dict, Optional, List, Tuple, Set
 import logging
 
+# Import parser for multi-document extraction
+from klareco.parser import parse
+
 logger = logging.getLogger(__name__)
 
 
@@ -293,6 +296,168 @@ class ASTAnswerExtractor:
                 return None
 
         return answer
+
+    def extract_answer_from_multiple_docs(
+        self,
+        query_ast: Dict,
+        ranked_docs: List[Tuple[float, Dict, Dict]],
+        top_n: int = 3,
+    ) -> Optional[Dict]:
+        """
+        Extract answer by aggregating evidence from top-N documents.
+
+        Strategy:
+        1. Extract from each top-N document independently
+        2. Aggregate candidates: count occurrences + weighted scores
+        3. Prefer entities appearing in multiple documents (higher confidence)
+        4. Return highest-scoring aggregated candidate
+
+        This handles cases where:
+        - Answer is in top-3 but not top-1 (36% of cases per #555)
+        - Multiple documents provide partial evidence
+        - Need to combine evidence for confidence
+
+        Args:
+            query_ast: Parsed query AST
+            ranked_docs: List of (score, doc, stats) tuples from retrieval
+            top_n: Number of top documents to extract from (default: 3)
+
+        Returns:
+            Answer dict with aggregated confidence, or None
+        """
+        from collections import defaultdict
+
+        if not ranked_docs:
+            return None
+
+        question_type = self._detect_question_type(query_ast)
+        if not question_type:
+            return None
+
+        # Extract from each document
+        candidates = []
+        doc_sources = []  # Track which doc each candidate came from
+
+        for i, (score, doc, stats) in enumerate(ranked_docs[:top_n]):
+            try:
+                doc_text = doc.get('text', '')
+                doc_ast = parse(doc_text)
+
+                # Extract answer from this document
+                answer = self.extract_answer(query_ast, doc_ast, doc_text)
+
+                if answer:
+                    answer_text = answer['text'].lower().strip()
+                    candidates.append({
+                        'text': answer_text,
+                        'original_text': answer['text'],
+                        'confidence': answer['confidence'],
+                        'doc_rank': i + 1,  # 1-indexed
+                        'doc_score': score,
+                        'ast': answer['ast'],
+                        'explanation': answer['explanation'],
+                    })
+                    doc_sources.append(i + 1)
+
+            except Exception as e:
+                logger.debug(f"Failed to extract from doc {i+1}: {e}")
+                continue
+
+        if not candidates:
+            logger.debug("No candidates extracted from any document")
+            return None
+
+        # Aggregate candidates by normalized text
+        entity_agg = defaultdict(lambda: {
+            'count': 0,
+            'total_confidence': 0.0,
+            'total_doc_score': 0.0,
+            'doc_ranks': [],
+            'best_candidate': None,
+        })
+
+        for candidate in candidates:
+            key = candidate['text']
+            agg = entity_agg[key]
+            agg['count'] += 1
+            agg['total_confidence'] += candidate['confidence']
+            agg['total_doc_score'] += candidate['doc_score']
+            agg['doc_ranks'].append(candidate['doc_rank'])
+
+            # Keep the candidate from highest-ranked doc
+            if agg['best_candidate'] is None or candidate['doc_rank'] < agg['best_candidate']['doc_rank']:
+                agg['best_candidate'] = candidate
+
+        # Score aggregated entities
+        scored_entities = []
+        for text, agg in entity_agg.items():
+            # Scoring factors:
+            # 1. Occurrence count (appears in multiple docs = high confidence)
+            # 2. Average confidence across extractions
+            # 3. Average document retrieval score
+            # 4. Rank of first appearance (earlier = better)
+
+            count_score = min(agg['count'] / top_n, 1.0)  # Normalize by top_n
+            avg_confidence = agg['total_confidence'] / agg['count']
+            avg_doc_score = agg['total_doc_score'] / agg['count']
+            first_rank = min(agg['doc_ranks'])
+            rank_score = 1.0 / first_rank  # Earlier ranks score higher
+
+            # Weighted combination
+            # - Multi-doc appearance is STRONG signal (50%)
+            # - Extraction confidence (25%)
+            # - Retrieval quality (15%)
+            # - Early appearance (10%)
+            aggregated_score = (
+                0.50 * count_score +
+                0.25 * avg_confidence +
+                0.15 * avg_doc_score +
+                0.10 * rank_score
+            )
+
+            scored_entities.append({
+                'text': text,
+                'score': aggregated_score,
+                'count': agg['count'],
+                'doc_ranks': agg['doc_ranks'],
+                'avg_confidence': avg_confidence,
+                'best_candidate': agg['best_candidate'],
+            })
+
+        # Sort by aggregated score
+        scored_entities.sort(key=lambda x: x['score'], reverse=True)
+
+        # Log aggregation results
+        if len(scored_entities) > 1:
+            logger.debug(f"Multi-doc aggregation: {len(candidates)} extractions → {len(scored_entities)} unique entities")
+            for i, entity in enumerate(scored_entities[:3]):
+                logger.debug(f"  {i+1}. '{entity['text']}' (score={entity['score']:.3f}, "
+                           f"count={entity['count']}/{top_n}, "
+                           f"ranks={entity['doc_ranks']}, "
+                           f"avg_conf={entity['avg_confidence']:.2f})")
+
+        # Return best aggregated entity
+        best = scored_entities[0]
+        best_candidate = best['best_candidate']
+
+        return {
+            'text': best_candidate['original_text'],
+            'confidence': best['score'],
+            'method': 'multi_doc_aggregation',
+            'explanation': (
+                f"{best_candidate['explanation']} "
+                f"(aggregated from {best['count']}/{top_n} docs, "
+                f"ranks: {best['doc_ranks']})"
+            ),
+            'ast': best_candidate['ast'],
+            'aggregation_stats': {
+                'num_docs_extracted': len(candidates),
+                'num_unique_entities': len(scored_entities),
+                'occurrence_count': best['count'],
+                'doc_ranks': best['doc_ranks'],
+                'avg_confidence': best['avg_confidence'],
+            },
+        }
 
     def _is_complex_sentence(self, doc_ast: Dict) -> bool:
         """

@@ -42,7 +42,7 @@ Example:
     }
 """
 
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Set
 import logging
 
 logger = logging.getLogger(__name__)
@@ -82,9 +82,131 @@ class ASTAnswerExtractor:
         'si', 'oni', 'mem',
     }
 
-    def __init__(self):
-        """Initialize answer extractor."""
-        pass
+    # Manual verb synonyms (high-priority pairs not in ReVo)
+    # Format: root -> set of synonymous roots
+    MANUAL_VERB_SYNONYMS = {
+        'fond': {'kre', 'establ', 'komenc'},       # found ≈ create ≈ establish ≈ begin
+        'kre': {'fond', 'far', 'produk'},          # create ≈ found ≈ make ≈ produce
+        'establ': {'fond', 'kre', 'starigt'},      # establish ≈ found ≈ create ≈ start
+        'komenc': {'fond', 'start', 'ekig'},       # begin ≈ found ≈ start ≈ initiate
+        'naski': {'nask', 'genat'},                # born ≈ birth ≈ beget
+        'mort': {'perdiĝ', 'forpas'},              # die ≈ perish ≈ pass away
+        'viv': {'ekzist', 'log', 'rest'},          # live ≈ exist ≈ reside ≈ stay
+        'far': {'kre', 'produk', 'fabrik'},        # make ≈ create ≈ produce ≈ manufacture
+        'skrib': {'redakt', 'kompoz', 'ver'},      # write ≈ edit ≈ compose ≈ author
+        'dir': {'parol', 'ekster', 'ekspr'},       # say ≈ speak ≈ utter ≈ express
+        'pens': {'opini', 'kred', 'konsider'},     # think ≈ opine ≈ believe ≈ consider
+        'vid': {'rimark', 'observ', 'pert'},       # see ≈ notice ≈ observe ≈ perceive
+    }
+
+    def __init__(self, revo_path: Optional[str] = None):
+        """
+        Initialize answer extractor with verb synonym support.
+
+        Args:
+            revo_path: Optional path to ReVo semantic relations JSON
+                      (defaults to data/raw/eo/dictionaries/revo/revo_semantic_relations.json)
+        """
+        # Load ReVo synonym relations
+        self.verb_synonyms = self._load_verb_synonyms(revo_path)
+        logger.info(f"Loaded {len(self.verb_synonyms)} verb roots with synonym relations")
+
+    def _load_verb_synonyms(self, revo_path: Optional[str] = None) -> Dict[str, Set[str]]:
+        """
+        Load verb synonyms from ReVo + manual additions.
+
+        Combines:
+        1. ReVo synonym relations (1,027 pairs from dictionary)
+        2. Manual high-priority verb synonyms (12 pairs)
+
+        Args:
+            revo_path: Path to ReVo semantic relations JSON
+
+        Returns:
+            Dict mapping root -> set of synonym roots
+        """
+        import json
+        from pathlib import Path
+
+        synonyms = {}
+
+        # Start with manual synonyms
+        for root, syns in self.MANUAL_VERB_SYNONYMS.items():
+            synonyms[root] = set(syns)
+
+        # Load ReVo synonyms
+        if revo_path is None:
+            # Default path
+            project_root = Path(__file__).parent.parent.parent
+            revo_path = project_root / "data/raw/eo/dictionaries/revo/revo_semantic_relations.json"
+        else:
+            revo_path = Path(revo_path)
+
+        if revo_path.exists():
+            try:
+                with open(revo_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                # Extract synonym relations
+                for relation in data.get('relations', {}).get('synonym', []):
+                    source = relation['source']
+                    target = relation['target']
+
+                    # Add bidirectional relation
+                    if source not in synonyms:
+                        synonyms[source] = set()
+                    synonyms[source].add(target)
+
+                    if target not in synonyms:
+                        synonyms[target] = set()
+                    synonyms[target].add(source)
+
+                logger.debug(f"Loaded {len(data['relations']['synonym'])} synonym pairs from ReVo")
+            except Exception as e:
+                logger.warning(f"Failed to load ReVo synonyms: {e}")
+        else:
+            logger.warning(f"ReVo semantic relations not found at {revo_path}")
+
+        return synonyms
+
+    def _are_verbs_similar(self, verb1: str, verb2: str) -> bool:
+        """
+        Check if two verb roots are semantically similar.
+
+        Uses:
+        1. Exact match
+        2. 4-character prefix match (handles inflections: fond/fondi)
+        3. ReVo + manual synonym relations
+
+        Args:
+            verb1: First verb root
+            verb2: Second verb root
+
+        Returns:
+            True if verbs are similar
+        """
+        if not verb1 or not verb2:
+            return False
+
+        # Exact match
+        if verb1 == verb2:
+            return True
+
+        # 4-char prefix match (existing heuristic)
+        if len(verb1) >= 4 and len(verb2) >= 4:
+            if verb1[:4] == verb2[:4]:
+                return True
+
+        # Synonym relation check
+        # Check both 4-char prefix (for inflections) and full root
+        for v1 in [verb1, verb1[:4] if len(verb1) >= 4 else verb1]:
+            if v1 in self.verb_synonyms:
+                syns = self.verb_synonyms[v1]
+                for v2 in [verb2, verb2[:4] if len(verb2) >= 4 else verb2]:
+                    if v2 in syns:
+                        return True
+
+        return False
 
     def extract_answer(
         self,
@@ -359,18 +481,12 @@ class ASTAnswerExtractor:
         query_verb = self._get_verb_root(query_ast)
         doc_verb = self._get_verb_root(doc_ast)
 
-        # Check if verbs match (or are synonyms - future enhancement)
+        # Check if verbs match (using synonym support)
         if not query_verb or not doc_verb:
             # No verb to match, fall back to collecting any person candidates
             verb_match = False
         else:
-            verb_match = (query_verb == doc_verb)
-
-            if not verb_match:
-                # Try relaxed matching (check if roots share prefix)
-                # This handles cases like "fond" vs "fondi"
-                if query_verb[:4] == doc_verb[:4] and len(query_verb) >= 4:
-                    verb_match = True
+            verb_match = self._are_verbs_similar(query_verb, doc_verb)
 
         # Collect all person candidates
         candidates = []
@@ -557,12 +673,10 @@ class ASTAnswerExtractor:
                         'source': 'object_estas',
                     })
 
-        # Check if verbs match (non-estas questions)
+        # Check if verbs match (non-estas questions, using synonym support)
         verb_match = False
         if query_verb and doc_verb:
-            verb_match = (query_verb == doc_verb)
-            if not verb_match and len(query_verb) >= 4 and len(doc_verb) >= 4:
-                verb_match = (query_verb[:4] == doc_verb[:4])
+            verb_match = self._are_verbs_similar(query_verb, doc_verb)
 
         if verb_match:
             # Candidate 3: Object (if query has "kio" as object)
@@ -1293,15 +1407,14 @@ class ASTAnswerExtractor:
         """
         score = 0.0
 
-        # Verb match (highest weight)
+        # Verb match (highest weight, with synonym support)
         query_verb = self._get_verb_root(query_ast)
         subclause_verb = self._get_verb_root(subclause)
 
         if query_verb and subclause_verb:
-            if query_verb == subclause_verb:
-                score += 5.0
-            elif query_verb[:4] == subclause_verb[:4] and len(query_verb) >= 4:
-                score += 3.0  # Partial match
+            if self._are_verbs_similar(query_verb, subclause_verb):
+                # Full similarity (exact, prefix, or synonym)
+                score += 5.0 if query_verb == subclause_verb else 4.0
 
         # Root matches (subject/object)
         query_roots = self._extract_roots(query_ast)

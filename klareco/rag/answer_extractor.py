@@ -514,9 +514,10 @@ class ASTAnswerExtractor:
                         agent = aliaj[i + 1]
                         agent_text = self._vortgrupo_to_text(agent)
                         if agent_text and self._is_person(agent):
-                            # Check if verb is passive (participle)
-                            doc_verb_node = doc_ast.get('verbo')
-                            is_passive = doc_verb_node and doc_verb_node.get('participo_tempo')
+                            # Check if this is a passive voice construction
+                            # In Esperanto passive: "Esperanto estis fondita de Zamenhof"
+                            # Parser puts participle "fondita" as priskribo of subject
+                            is_passive = self._is_passive_voice(doc_ast)
 
                             candidates.append({
                                 'ast': agent,
@@ -1484,6 +1485,51 @@ class ASTAnswerExtractor:
         if verbo and verbo.get('tipo') == 'vorto':
             return verbo.get('radiko')
         return None
+
+    def _is_passive_voice(self, ast: Dict) -> bool:
+        """
+        Check if sentence uses passive voice construction.
+
+        In Esperanto passive voice, the participle appears as a priskribo (modifier)
+        of the subject: "Esperanto estis fondita de Zamenhof"
+
+        AST structure:
+        - verbo: "estis" (to be)
+        - subjekto.priskriboj: contains passive participle "fondita"
+          - participo_voĉo: "pasiva"
+          - participo_tempo: "pasinteco" (past participle)
+
+        Args:
+            ast: AST dict (frazo or subclause)
+
+        Returns:
+            True if passive voice construction detected
+        """
+        # Check if verb is "esti" (to be)
+        verbo = ast.get('verbo')
+        if not verbo or verbo.get('tipo') != 'vorto':
+            return False
+
+        verb_root = verbo.get('radiko', '')
+        if verb_root != 'est':
+            return False
+
+        # Check if subject has passive participle modifier
+        subjekto = ast.get('subjekto')
+        if not subjekto or subjekto.get('tipo') != 'vortgrupo':
+            return False
+
+        # Look for passive participle in priskriboj
+        for priskribo in subjekto.get('priskriboj', []):
+            if priskribo.get('tipo') == 'vorto':
+                # Check for passive participle markers
+                if priskribo.get('participo_voĉo') == 'pasiva':
+                    return True
+                # Also check suffix 'it' (passive participle suffix)
+                if 'it' in priskribo.get('sufiksoj', []):
+                    return True
+
+        return False
 
     def _vortgrupo_to_text(self, node: Dict) -> Optional[str]:
         """

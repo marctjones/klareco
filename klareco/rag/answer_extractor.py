@@ -670,26 +670,30 @@ class ASTAnswerExtractor:
 
         # Candidate 2: Check for passive voice agent ("de X")
         # Look for "de" + person in aliaj
+        # IMPORTANT: Only consider "de X" as an agent if this is a passive voice construction
+        # Otherwise "de" is possessive/descriptive (e.g., "la kreinto de Esperanto" = creator OF Esperanto)
         aliaj = doc_ast.get('aliaj', [])
-        for i, modifier in enumerate(aliaj):
-            if modifier.get('tipo') == 'vorto':
-                if modifier.get('vortspeco') == 'prepozicio' and modifier.get('radiko') == 'de':
-                    # Check next item
-                    if i + 1 < len(aliaj):
-                        agent = aliaj[i + 1]
-                        agent_text = self._vortgrupo_to_text(agent)
-                        if agent_text and self._is_person(agent):
-                            # Check if this is a passive voice construction
-                            # In Esperanto passive: "Esperanto estis fondita de Zamenhof"
-                            # Parser puts participle "fondita" as priskribo of subject
-                            is_passive = self._is_passive_voice(doc_ast)
 
-                            candidates.append({
-                                'ast': agent,
-                                'text': agent_text,
-                                'pattern_score': 0.95 if is_passive else 0.7,  # Higher if passive
-                                'source': 'passive_agent',
-                            })
+        # First check if this is passive voice
+        is_passive = self._is_passive_voice(doc_ast)
+
+        if is_passive:
+            # Only look for "de X" agents in passive constructions
+            for i, modifier in enumerate(aliaj):
+                if modifier.get('tipo') == 'vorto':
+                    if modifier.get('vortspeco') == 'prepozicio' and modifier.get('radiko') == 'de':
+                        # Check next item
+                        if i + 1 < len(aliaj):
+                            agent = aliaj[i + 1]
+                            agent_text = self._vortgrupo_to_text(agent)
+                            if agent_text and self._is_person(agent):
+                                # This is a genuine passive agent
+                                candidates.append({
+                                    'ast': agent,
+                                    'text': agent_text,
+                                    'pattern_score': 0.95,  # High score for passive agent
+                                    'source': 'passive_agent',
+                                })
 
         # Candidate 3: Other proper nouns in aliaj (not after "de")
         used_positions = set()  # Track positions already added as passive agents
@@ -1728,6 +1732,7 @@ class ASTAnswerExtractor:
         - Has -ul suffix (person characterized by)
         - Has -ist suffix (professional)
         - Has -in suffix (feminine)
+        - Has -int/-ant participle suffix (agent: kreinto=creator, helpanto=helper)
         - Is a proper noun (starts with capital) BUT NOT:
           - Compound words ending in -o (things like "Esperanto-versio")
           - Place-indicating suffixes (-ej = place)
@@ -1739,10 +1744,31 @@ class ASTAnswerExtractor:
         Returns:
             True if likely a person
         """
+        # Handle vortgrupo - check kerno
+        if node.get('tipo') == 'vortgrupo':
+            kerno = node.get('kerno')
+            if kerno:
+                return self._is_person(kerno)
+            return False
+
+        # From here on, we're dealing with a vorto
+        if node.get('tipo') != 'vorto':
+            return False
+
         suffixes = self._get_suffixes(node)
 
         # Strong person indicators (suffixes)
         if 'ul' in suffixes or 'ist' in suffixes or 'in' in suffixes:
+            return True
+
+        # Participle suffixes indicating agents (people who do actions)
+        # -int = past active participle: kreinto (creator), fondinto (founder)
+        # -ant = present active participle: helpanto (helper), instruanto (teacher)
+        participo_voco = node.get('participo_voĉo')
+        vortspeco = node.get('vortspeco')
+
+        # Active participles that are substantives indicate persons (agents)
+        if participo_voco == 'aktiva' and vortspeco == 'substantivo':
             return True
 
         text = self._vortgrupo_to_text(node)
@@ -1772,6 +1798,12 @@ class ASTAnswerExtractor:
             'Eŭropo', 'Azio', 'Afriko', 'Ameriko',
         }
         if text in place_names:
+            return False
+
+        # Reject function words that may be capitalized (sentence-initial position)
+        # These are never person names
+        vortspeco = node.get('vortspeco')
+        if vortspeco in ['prepozicio', 'konjunkcio', 'partiklo', 'artikolo']:
             return False
 
         # Check if proper noun (after exclusions)

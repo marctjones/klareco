@@ -10,6 +10,7 @@ Quick reference for running Klareco benchmarks.
 | **M1 Impact** | `benchmark_m1_impact.py` | Compare with/without M1 | ~1 min |
 | **Reranker** | `benchmark_reranker.py` | Test reranker quality | ~2 min |
 | **RAG E2E** | `evaluate_rag_test_set.py` | Test full pipeline (30Q) | ~5 min |
+| **Progress Tracking** | `track_evaluation_progress.py` | Track metrics over time | instant |
 
 ## Quick Start
 
@@ -252,6 +253,51 @@ python scripts/evaluate_rag_test_set.py \
 diff -u results/baseline.jsonl results/with_m1.jsonl
 diff -u results/with_m1.jsonl results/stage3.jsonl
 ```
+
+## Progress Tracking
+
+Track evaluation metrics over time with granular scoring:
+
+```bash
+# Show current metrics
+python scripts/track_evaluation_progress.py
+
+# Save snapshot with descriptive name
+python scripts/track_evaluation_progress.py --save --name "after_extraction_fix"
+
+# Compare all snapshots
+python scripts/track_evaluation_progress.py --compare
+```
+
+### Granular Scoring
+
+Unlike binary pass/fail, granular scoring gives partial credit:
+
+- **Retrieval (R)**: Where is answer in retrieved docs? (top-1=1.0, top-10=0.4)
+- **Extraction (E)**: Was correct answer extracted? (exact=1.0, fuzzy=0.5)
+- **Alignment (A)**: From which rank was answer extracted?
+- **Robustness (B)**: How many top-5 docs have the answer?
+
+**Formula**: `0.40×R + 0.30×E + 0.20×A + 0.10×B`
+
+**Example**: System retrieves answer in top-3 (R=0.8) but extracts wrong entity (E=0.0):
+- Binary: ✗ Incorrect (0%)
+- Granular: 0.32 (32%) - shows retrieval is working!
+
+### Current Baseline (2026-02-01)
+
+After extraction fixes (commit 15316ce):
+```
+Granular:    0.487 / 1.000
+  Retrieval: 0.967 (excellent)
+  Extraction: 0.000 (bottleneck)  ← needs work
+  Alignment:  0.503 (moderate)
+  Robustness: 0.000 (no multi-doc)
+
+Binary: 0% (0/30 correct)
+```
+
+**Key insight**: Retrieval works (97% in top-10), extraction fails (0% exact matches)
 
 ## See Also
 

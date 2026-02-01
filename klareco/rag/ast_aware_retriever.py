@@ -26,6 +26,7 @@ from typing import Dict, List, Optional, Tuple
 from klareco.parser import parse
 from klareco.rag.question_classifier import QuestionClassifier, QuestionType
 from klareco.rag.entity_recognizer import EntityRecognizer
+from klareco.rag.query_analyzer import QueryAnalyzer
 from klareco.rag.kuzu_inverted_index import KuzuInvertedIndex, FallbackMode, RetrievalStats
 from klareco.entity_classifier import EntityClassifier, EntityType
 from klareco.utils.ast_utils import extract_word_structure
@@ -91,6 +92,10 @@ class ASTAwareRetriever:
         # Initialize entity classifier
         self.entity_classifier = EntityClassifier()
         logger.info("  ✓ EntityClassifier initialized")
+
+        # Initialize query analyzer (Issue #577)
+        self.query_analyzer = QueryAnalyzer()
+        logger.info("  ✓ QueryAnalyzer initialized")
 
         # Initialize Kuzu inverted index
         # Note: Embedding fallback was removed - pure deterministic lookup
@@ -382,6 +387,10 @@ class ASTAwareRetriever:
         # Apply role-based ranking to improve query disambiguation
         results = self._apply_root_role_ranking(query_ast, results)
         logger.info(f"  After role ranking: {len(results)}")
+
+        # Apply query-target boosting (Issue #577)
+        results = self._apply_query_target_boost(query_ast, results, classification['question_type'])
+        logger.info(f"  After query-target boost: {len(results)}")
 
         # Apply entity type filtering if requested
         if filter_by_entity_type:
@@ -774,6 +783,90 @@ class ASTAwareRetriever:
         logger.info(f"  Role ranking summary: {head_matches} HEAD, {modifier_matches} MODIFIER (penalized), {neutral_matches} neutral")
 
         return ranked_results
+
+    def _apply_query_target_boost(
+        self,
+        query_ast: Dict,
+        results: List,
+        question_type: str
+    ) -> List:
+        """
+        Apply query-target-based boosting (Issue #577).
+
+        This complements _apply_root_role_ranking by understanding query semantics:
+        - Identifies which entity in query is the TARGET
+        - Identifies expected semantic role (PATIENT, AGENT, etc.)
+        - Boosts/penalizes docs based on role match
+
+        Example:
+            Query: "Kiu kreis Esperanton?"
+            - Target: "Esperanton" (PATIENT)
+            - Expected: OBJECT or PREP_ARG
+            - Boost: docs where "Esperanton" is OBJECT (3.0x)
+            - Penalize: docs where "Esperanto" is MODIFIER (0.2x)
+
+        Args:
+            query_ast: Parsed query AST
+            results: List of SearchResult objects
+            question_type: Question type (WHO, WHAT, WHERE, etc.)
+
+        Returns:
+            List of SearchResult objects with adjusted scores
+        """
+        # Identify query target
+        query_target = self.query_analyzer.identify_target(query_ast, question_type)
+
+        if not query_target or not query_target.entity_root:
+            # No clear target - skip boosting
+            return results
+
+        logger.info(f"  Query target: '{query_target.entity_root}' "
+                   f"(role: {query_target.semantic_role.value}, "
+                   f"expected: {query_target.expected_doc_roles})")
+
+        # Apply role-based boosting
+        boosted_results = []
+        strong_matches = 0
+        penalties = 0
+
+        for result in results:
+            doc = self.root_index.get_document(result.doc_id)
+            if not doc:
+                continue
+
+            # Parse document if not already parsed
+            doc_ast = doc.get('ast')
+            if not doc_ast:
+                try:
+                    doc_text = doc.get('text', '')
+                    doc_ast = parse(doc_text)
+                except Exception:
+                    # Parsing failed - keep original score
+                    boosted_results.append(result)
+                    continue
+
+            # Check role match
+            role_multiplier = self.query_analyzer.check_role_match(query_target, doc_ast)
+
+            if role_multiplier > 1.5:
+                strong_matches += 1
+                logger.debug(f"    ✓ Strong match: '{query_target.entity_root}' in expected role "
+                           f"(score: {result.score:.3f} × {role_multiplier:.1f} = {result.score * role_multiplier:.3f})")
+            elif role_multiplier < 0.5:
+                penalties += 1
+                logger.debug(f"    ⚠ Penalty: '{query_target.entity_root}' as modifier "
+                           f"(score: {result.score:.3f} × {role_multiplier:.1f} = {result.score * role_multiplier:.3f})")
+
+            # Apply multiplier
+            result.score *= role_multiplier
+            boosted_results.append(result)
+
+        # Re-sort by adjusted scores
+        boosted_results.sort(key=lambda r: r.score, reverse=True)
+
+        logger.info(f"  Query-target boost: {strong_matches} strong matches, {penalties} penalties")
+
+        return boosted_results
 
     def _filter_by_entity_type(self, query_ast: Dict, results: List) -> List:
         """

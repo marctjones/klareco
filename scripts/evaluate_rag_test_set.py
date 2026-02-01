@@ -31,7 +31,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 
@@ -50,6 +50,37 @@ logging.basicConfig(
     format='%(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def parse_expected_answer_pattern(pattern: str) -> Tuple[str, List[str]]:
+    """
+    Parse expected answer pattern from test set.
+
+    Handles formats:
+    - "X / Y" → alternatives [X, Y]
+    - "[definition]" → extract keywords from pattern type
+    - "exact answer" → single answer
+
+    Returns:
+        (primary_answer, alternative_keywords)
+    """
+    pattern = pattern.strip()
+
+    # Pattern-based answers (e.g., "[definition]", "[explanation]")
+    if pattern.startswith('[') and pattern.endswith(']'):
+        # Extract pattern type
+        pattern_type = pattern[1:-1].lower()
+        # Return pattern type as keyword
+        return '', [pattern_type]
+
+    # Alternative answers (e.g., "X / Y / Z")
+    if ' / ' in pattern:
+        alternatives = [alt.strip().lower() for alt in pattern.split(' / ')]
+        # Return first as primary, all as keywords
+        return alternatives[0], alternatives
+
+    # Single answer
+    return pattern.lower(), [pattern.lower()]
 
 
 def check_answer_in_documents(passages: List[Dict], expected_answer: str, expected_keywords: List[str]) -> Dict:
@@ -504,9 +535,14 @@ def evaluate_answer(result: Dict, expected: Dict) -> Dict:
             'notes': "No answer found"
         }
 
-    # Get expected answer
+    # Parse expected answer from pattern
+    expected_pattern = expected.get('expected_answer_pattern', '')
     expected_answer = expected.get('answer', '').lower()
     expected_keywords = [kw.lower() for kw in expected.get('expected_keywords', [])]
+
+    # If no explicit answer, parse from pattern
+    if not expected_answer and expected_pattern:
+        expected_answer, expected_keywords = parse_expected_answer_pattern(expected_pattern)
 
     answer_lower = answer.lower().strip()
 
@@ -517,40 +553,63 @@ def evaluate_answer(result: Dict, expected: Dict) -> Dict:
     if is_extracted:
         # Evaluation for extracted answers (short spans)
 
+        # Skip evaluation if no expected answer (pattern-based without concrete answer)
+        if not expected_answer and not expected_keywords:
+            return {
+                'correct': False,
+                'partial': False,
+                'confidence': result.get('extraction_confidence', result.get('confidence', 0.0)),
+                'notes': f"Cannot evaluate: no expected answer specified (pattern: {expected_pattern})"
+            }
+
         # 1. Exact match (case-insensitive)
-        if answer_lower == expected_answer:
+        if expected_answer and answer_lower == expected_answer:
             return {
                 'correct': True,
                 'partial': False,
                 'confidence': result.get('extraction_confidence', result.get('confidence', 0.0)),
-                'notes': f"Exact match: '{answer}' == '{expected.get('answer', '')}'"
+                'notes': f"Exact match: '{answer}' == '{expected_answer}'"
             }
 
-        # 2. Fuzzy match: answer contains expected or vice versa
-        if expected_answer in answer_lower or answer_lower in expected_answer:
-            return {
-                'correct': True,
-                'partial': False,
-                'confidence': result.get('extraction_confidence', result.get('confidence', 0.0)),
-                'notes': f"Fuzzy match: '{answer}' ~= '{expected.get('answer', '')}'"
-            }
+        # 2. Alternative match: answer matches any alternative
+        if expected_keywords:
+            for alt in expected_keywords:
+                if alt and answer_lower == alt:
+                    return {
+                        'correct': True,
+                        'partial': False,
+                        'confidence': result.get('extraction_confidence', result.get('confidence', 0.0)),
+                        'notes': f"Alternative match: '{answer}' == '{alt}'"
+                    }
 
-        # 3. Keyword match: answer matches any expected keyword
-        for keyword in expected_keywords:
-            if keyword in answer_lower or answer_lower in keyword:
+        # 3. Fuzzy match: answer contains expected or vice versa (only if both non-empty)
+        if expected_answer and len(expected_answer) > 2:
+            if expected_answer in answer_lower or answer_lower in expected_answer:
                 return {
-                    'correct': False,
-                    'partial': True,
+                    'correct': True,
+                    'partial': False,
                     'confidence': result.get('extraction_confidence', result.get('confidence', 0.0)),
-                    'notes': f"Keyword match: '{answer}' contains '{keyword}'"
+                    'notes': f"Fuzzy match: '{answer}' ~= '{expected_answer}'"
                 }
 
-        # 4. No match
+        # 4. Keyword partial match: answer contains keywords
+        if expected_keywords:
+            for keyword in expected_keywords:
+                if keyword and len(keyword) > 2 and keyword in answer_lower:
+                    return {
+                        'correct': False,
+                        'partial': True,
+                        'confidence': result.get('extraction_confidence', result.get('confidence', 0.0)),
+                        'notes': f"Partial match: '{answer}' contains keyword '{keyword}'"
+                    }
+
+        # 5. No match
+        expected_str = expected_answer if expected_answer else f"[pattern: {expected_pattern}]"
         return {
             'correct': False,
             'partial': False,
             'confidence': result.get('extraction_confidence', result.get('confidence', 0.0)),
-            'notes': f"No match: '{answer}' != '{expected.get('answer', '')}' (keywords: {expected_keywords})"
+            'notes': f"No match: '{answer}' != '{expected_str}' (alternatives: {expected_keywords})"
         }
 
     else:

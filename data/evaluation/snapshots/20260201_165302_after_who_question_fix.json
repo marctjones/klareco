@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-02-01T16:53:02.871090",
+  "total_questions": 30,
+  "binary": {
+    "correct": 0,
+    "partial": 0,
+    "incorrect": 29,
+    "errors": 1,
+    "accuracy": 0.0,
+    "partial_accuracy": 0.0
+  },
+  "granular": {
+    "overall_score": 0.49000000000000005,
+    "retrieval": 0.9666666666666667,
+    "extraction": 0.0,
+    "alignment": 0.5166666666666667,
+    "robustness": 0.0
+  },
+  "retrieval": {
+    "answer_in_top_1": 29,
+    "answer_in_top_3": 29,
+    "answer_in_top_10": 29,
+    "top_1_rate": 0.9666666666666667,
+    "top_3_rate": 0.9666666666666667,
+    "top_10_rate": 0.9666666666666667
+  },
+  "extraction": {
+    "successful": 18,
+    "exact_matches": 18,
+    "fuzzy_matches": 0,
+    "success_rate": 0.6,
+    "exact_rate": 0.6,
+    "fuzzy_rate": 0.0
+  }
+}

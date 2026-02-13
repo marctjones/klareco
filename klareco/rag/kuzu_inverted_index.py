@@ -1103,7 +1103,7 @@ class KuzuInvertedIndex:
                 synonyms = self.get_synonyms_transitive(root, max_hops=2)
 
                 for syn in synonyms:
-                    if syn in index_roots:
+                    if syn in index_roots and syn not in self.STOPWORD_ROOTS:
                         concept.equivalent_roots.add(syn)
                         if stats:
                             stats.semantic_db_synonyms.append(f"{root}→{syn}")

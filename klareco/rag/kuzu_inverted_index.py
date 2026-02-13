@@ -37,6 +37,13 @@ try:
 except ImportError:
     kuzu = None
 
+try:
+    import torch
+    import torch.nn.functional as F
+except ImportError:
+    torch = None
+    F = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -175,9 +182,15 @@ class KuzuInvertedIndex:
         # Average document length (will be computed on load)
         self.avg_doc_length = 20.0  # Default estimate (words per sentence)
 
+        # AI models for semantic constraints (#588, #589)
+        self.root_embeddings: Optional[torch.Tensor] = None
+        self.root_to_idx: Optional[Dict[str, int]] = None
+        self.embedding_dim: int = 64
+
         # Load if exists
         if self.index_path.exists():
             self._load_index()
+            self._load_semantic_models()
 
     def _load_index(self):
         """Load Kuzu index from disk with optimized configuration."""
@@ -243,6 +256,39 @@ class KuzuInvertedIndex:
                 self._doc_mmap = mmap.mmap(
                     self._doc_file.fileno(), 0, access=mmap.ACCESS_READ
                 )
+
+    def _load_semantic_models(self):
+        """Load AI models for semantic constraints (#588, #589)."""
+        if torch is None:
+            logger.warning("PyTorch not available, skipping semantic model loading")
+            return
+
+        # Load root embeddings (#589)
+        model_path = Path("models/root_embeddings/best_model.pt")
+        if not model_path.exists():
+            logger.warning(f"Root embeddings not found at {model_path}")
+            return
+
+        logger.info(f"Loading root embeddings from {model_path}")
+        try:
+            checkpoint = torch.load(model_path, map_location='cpu')
+
+            # Extract embeddings and vocabulary mapping
+            self.embedding_dim = checkpoint.get('embedding_dim', 64)
+            self.root_to_idx = checkpoint.get('root_to_idx', {})
+
+            # Get embeddings tensor from model state dict
+            model_state = checkpoint.get('model_state_dict', {})
+            if 'embeddings.weight' in model_state:
+                self.root_embeddings = model_state['embeddings.weight']
+                logger.info(f"  Loaded {self.root_embeddings.shape[0]:,} root embeddings ({self.embedding_dim}d)")
+            else:
+                logger.warning("  No embeddings.weight found in checkpoint")
+
+        except Exception as e:
+            logger.error(f"Failed to load root embeddings: {e}")
+            self.root_embeddings = None
+            self.root_to_idx = None
 
     def has_root(self, root: str) -> bool:
         """Check if a root exists in the index (O(1) using cached set)."""
@@ -1303,7 +1349,40 @@ class KuzuInvertedIndex:
                     predicate_boost = self.PREDICATE_BOOST * verb_pos_multiplier
                     grammar_matches['predicate'] = True
 
-            final_score = (bm25_score + grammar_bonus) * predicate_boost
+            # Semantic Root Similarity (#589)
+            # Use root embeddings to compute semantic similarity between query and doc roots
+            semantic_sim_boost = 1.0
+            if self.root_embeddings is not None and self.root_to_idx is not None and torch is not None:
+                # Get embeddings for query roots
+                query_root_embeddings = []
+                for concept in concepts:
+                    root = concept.original_root
+                    if root in self.root_to_idx:
+                        idx = self.root_to_idx[root]
+                        query_root_embeddings.append(self.root_embeddings[idx])
+
+                # Get embeddings for document roots
+                doc_root_embeddings = []
+                for root in matched_roots:
+                    if root in self.root_to_idx:
+                        idx = self.root_to_idx[root]
+                        doc_root_embeddings.append(self.root_embeddings[idx])
+
+                # Compute max cosine similarity between any query root and any doc root
+                if query_root_embeddings and doc_root_embeddings:
+                    max_sim = 0.0
+                    for q_emb in query_root_embeddings:
+                        for d_emb in doc_root_embeddings:
+                            # Cosine similarity
+                            sim = F.cosine_similarity(q_emb.unsqueeze(0), d_emb.unsqueeze(0)).item()
+                            max_sim = max(max_sim, sim)
+
+                    # Apply boost if similarity exceeds threshold
+                    if max_sim > 0.7:
+                        semantic_sim_boost = 1.0 + (max_sim - 0.7) * 0.5  # Up to 1.15x boost for sim=1.0
+                        grammar_matches['semantic_sim'] = True
+
+            final_score = (bm25_score + grammar_bonus) * predicate_boost * semantic_sim_boost
             scored.append((doc_id, final_score, matched_roots, grammar_matches))
 
         scored.sort(key=lambda x: -x[1])

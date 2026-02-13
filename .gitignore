@@ -35,3 +35,4 @@ env/
 # Generated API documentation
 docs/api/
 =*
+annotations.json

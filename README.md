@@ -64,6 +64,15 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - **Accuracy**: 80.2% overall, 83% plausible detection
 - **Files**: `scripts/train_m1_selectional.py`, `tests/test_m1_model_quality.py`
 
+### ✅ Semantic Enrichment: Three-Tier Entity Taxonomy (NEW)
+- **Architecture**: Deterministic + learned semantic annotation (~5M params)
+- **Three-tier hierarchy**: Aristotelian (6) → NER-compatible (18) → Fine-grained (286)
+- **Tier 1 (100% deterministic)**: From vortspeco alone (entity, attribute, quantity, relation, spacetime, action)
+- **Tier 2 (70% deterministic)**: From correlatives + affixes (person, organization, location, etc.)
+- **Tier 3 (30% deterministic)**: GNN-based classifier for fine-grained types (besto:mamulo, ŝtato:eŭropa)
+- **Function word exclusion**: Only content words get learned embeddings (prevents embedding collapse)
+- **Files**: `klareco/semantic_enrichment/`, `klareco/models/entity_classifier.py`
+
 ### ❌ M2: Taxonomic + Discourse (TODO)
 - **M2.1 Taxonomic**: IS-A relationships (~10M params) - Issue #443
 - **M2.2 Discourse**: Passage coherence (~30-50M params) - Issue #444
@@ -107,7 +116,8 @@ RAG Pipeline (WORKING):
 **Current learned parameters**:
 - Compositional embeddings: 320K params (root + affix embeddings)
 - Reranker: 180K params (relevance scoring)
-- **Total: 500K params** serving real Q&A queries on 5.3M sentence corpus
+- Entity classifier: ~5M params (Tier 3 fine-grained semantic types)
+- **Total: ~5.5M params** serving real Q&A queries on 5.3M sentence corpus with semantic enrichment
 
 See the [Wiki](https://github.com/marctjones/klareco/wiki/Current-Architecture) for detailed architecture, `VISION.md` for the thesis, and `DESIGN.md` for technical details.
 
@@ -154,6 +164,13 @@ python scripts/demo_m1_selectional.py
 
 # Basic AST retrieval (no reranking)
 python scripts/demo_ast_retriever.py -i
+
+# Semantic enrichment demo
+python -c "from klareco.semantic_enrichment import ASTSemanticEnricher; \
+from klareco.parser import parse; \
+enricher = ASTSemanticEnricher(); \
+ast = parse('La hundo kurtas.'); \
+print(enricher.enrich(ast))"
 ```
 
 ### Train Models
@@ -166,6 +183,12 @@ python scripts/demo_ast_retriever.py -i
 
 # Validate M1 model
 ./scripts/m1_validate_selectional.sh
+
+# Train entity classifier (Tier 3 semantic enrichment)
+./scripts/train_entity_classifier.sh
+
+# Generate training data for entity classifier
+./scripts/generate_entity_training_data.sh
 ```
 
 See the [GitHub Project Board](https://github.com/users/marctjones/projects/16) for current work and the [Wiki](https://github.com/marctjones/klareco/wiki) for architecture details.

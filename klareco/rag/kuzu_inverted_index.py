@@ -166,8 +166,14 @@ class KuzuInvertedIndex:
         self.total_roots = 0
 
         # BM25 parameters
-        self.bm25_k1 = 1.2
-        self.bm25_b = 0.75
+        # k1 reduced from 1.2 to 0.7 to reduce term frequency saturation
+        # (helps concise factual sentences compete with verbose documents)
+        self.bm25_k1 = 0.7
+        # b increased from 0.75 to 0.9 for more aggressive length normalization
+        # (penalizes long documents more heavily)
+        self.bm25_b = 0.9
+        # Average document length (will be computed on load)
+        self.avg_doc_length = 20.0  # Default estimate (words per sentence)
 
         # Load if exists
         if self.index_path.exists():
@@ -195,6 +201,26 @@ class KuzuInvertedIndex:
         result = self._conn.execute("MATCH (s:Sentence) RETURN count(s)")
         self.total_docs = result.get_next()[0]
         logger.info(f"  Loaded {self.total_docs:,} sentences")
+
+        # Estimate average document length (sample 1000 docs for efficiency)
+        logger.info("  Computing average document length...")
+        sample_size = min(1000, self.total_docs)
+        result = self._conn.execute(
+            f"MATCH (s:Sentence) RETURN s.text LIMIT {sample_size}"
+        )
+        total_length = 0
+        count = 0
+        while result.has_next():
+            text = result.get_next()[0]
+            # Approximate word count (split on whitespace)
+            total_length += len(text.split())
+            count += 1
+        if count > 0:
+            self.avg_doc_length = total_length / count
+            logger.info(f"  Average document length: {self.avg_doc_length:.1f} words (sample={count})")
+        else:
+            self.avg_doc_length = 20.0  # Fallback
+            logger.info(f"  Average document length: {self.avg_doc_length:.1f} words (default)")
 
         # Cache all root names for fast lookup
         logger.info("  Caching root names...")
@@ -986,6 +1012,15 @@ class KuzuInvertedIndex:
             grammar['negita'] = True
         if ast.get('fraztipo'):
             grammar['fraztipo'] = ast['fraztipo']
+
+        # Detect WHO questions (kiu = who/which person)
+        # Check subjekto for "kiu" or korelativo_sufikso "u"
+        subjekto = ast.get('subjekto', {})
+        if isinstance(subjekto, dict):
+            kerno = subjekto.get('kerno', {})
+            if kerno.get('radiko') == 'kiu' or kerno.get('korelativo_sufikso') == 'u':
+                grammar['is_who_question'] = True
+
         return grammar
 
     def _build_concepts_from_graph(
@@ -1140,6 +1175,10 @@ class KuzuInvertedIndex:
             grammar_matches = {}
             grammar_bonus = 0.0
 
+            # Get document for length normalization and quality detection
+            doc = self.get_document(doc_id)
+            doc_length = len(doc['text'].split()) if doc else 20.0
+
             # Track matched concepts
             matched_concepts: Dict[str, int] = {}
             for root in matched_roots:
@@ -1149,13 +1188,68 @@ class KuzuInvertedIndex:
                         matched_concepts.get(concept.original_root, 0) + 1
                     )
 
-            # Compute BM25 score
+            # Compute BM25 score with length normalization
             for concept_root, tf in matched_concepts.items():
                 idf = concept_idf.get(concept_root, 0.0)
-                tf_component = tf / (tf + self.bm25_k1)
+
+                # BM25 with length normalization: tf / (tf + k1 * (1 - b + b * (dl / avgdl)))
+                length_norm = (1 - self.bm25_b) + self.bm25_b * (doc_length / self.avg_doc_length)
+                tf_component = tf / (tf + self.bm25_k1 * length_norm)
+
                 concept = next((c for c in concepts if c.original_root == concept_root), None)
                 weight = concept.weight if concept else 1.0
                 bm25_score += idf * tf_component * weight
+
+            # AST-based quality detection: Penalize fragments (titles, labels, incomplete sentences)
+            # Fragments lack verbs - they're noun phrases like "Fondaĵo pri Esperantaj Studoj"
+            # Complete sentences have verbs - even short ones like "Zamenhof kreis Esperanton"
+            if doc:
+                from klareco.parser import parse
+                ast = parse(doc['text'])
+                if ast:
+                    has_verb = bool(ast.get('verbo'))
+                    if not has_verb:
+                        # Fragment penalty: titles, labels, metadata get heavily penalized
+                        fragment_penalty = 0.3  # 70% penalty for fragments without verbs
+                        bm25_score *= fragment_penalty
+                        grammar_matches['fragment'] = True
+
+            # Option 4: Proper noun boost for WHO questions
+            # Use query_grammar to detect WHO questions
+            # Boost documents containing proper nouns (capitalized words like names)
+            is_who_question = query_grammar.get('is_who_question', False)
+
+            if is_who_question and doc:
+                # Count proper nouns (capitalized words that aren't sentence-initial)
+                words = doc['text'].split()
+                proper_noun_count = 0
+                for i, word in enumerate(words):
+                    # Skip first word (sentence-initial caps don't count)
+                    if i > 0 and word and word[0].isupper():
+                        proper_noun_count += 1
+
+                if proper_noun_count > 0:
+                    # Boost by 50% for each proper noun (up to 2x total)
+                    proper_noun_boost = min(1.0 + (proper_noun_count * 0.5), 2.0)
+                    bm25_score *= proper_noun_boost
+                    grammar_matches['proper_nouns'] = True
+
+            # WHO-Question Subject Boosting (#586)
+            # For WHO questions, boost sentences where PERSON NAME is the subject
+            # This promotes "Zamenhof kreis..." over "li kreis..." or passive "kreiĝis..."
+            if is_who_question and ast:
+                subj_node = ast.get('subjekto', {})
+                if subj_node:
+                    kerno = subj_node.get('kerno', {})
+                    subj_word = kerno.get('plena_vorto', '')
+                    subj_root = kerno.get('radiko', '')
+
+                    # Check if subject is a PERSON name (proper noun, not pronoun)
+                    if subj_word and subj_word[0].isupper() and subj_root not in ['li', 'ŝi', 'ili', 'mi', 'vi', 'ni']:
+                        # Named person as subject → direct answer to WHO question
+                        who_answer_boost = 1.4
+                        bm25_score *= who_answer_boost
+                        grammar_matches['who_answer'] = True
 
             # Grammar matching
             for occ in occurrences:
@@ -1164,11 +1258,50 @@ class KuzuInvertedIndex:
                         grammar_matches['tempo'] = True
                         grammar_bonus += 0.1
 
-            # Apply predicate boost if document matches predicate structure
+            # Apply predicate boost with object role analysis (#585) and POS constraint (#587)
             predicate_boost = 1.0
             if doc_id in predicate_matched_docs:
-                predicate_boost = self.PREDICATE_BOOST
-                grammar_matches['predicate'] = True
+                # Part-of-Speech Constraint (#587)
+                # Check if verb is actually VERB form vs NOUN form (kreinto, fondinto)
+                verb_pos_multiplier = 1.0
+                if ast and ast.get('verbo'):
+                    verb_node = ast.get('verbo')
+                    vortspeco = verb_node.get('vortspeco')
+                    if vortspeco == 'verbo':
+                        verb_pos_multiplier = 1.0  # Full boost for verb form
+                        grammar_matches['verb_form'] = True
+                    elif vortspeco in ['substantivo', 'adjektivo']:
+                        verb_pos_multiplier = 0.8  # Partial boost for noun/adj form (kreinto)
+                        grammar_matches['noun_form'] = True
+
+                # Object Role Analysis (#585)
+                # Check if object is MAIN thing being acted upon vs MODIFIER
+                # Example: "kreis Esperanton" (main object) vs "kreis esperantan grupon" (modifier)
+                if ast and ast.get('objekto'):
+                    obj_node = ast.get('objekto')
+                    kerno = obj_node.get('kerno', {})
+                    obj_word = kerno.get('plena_vorto', '').lower()
+
+                    # Check if object word is the actual noun vs an adjective modifier
+                    # "esperanton" (accusative noun) vs "esperantan" (adjective)
+                    if obj_word in ['esperanton', 'esperanto']:
+                        # Main object is the language itself - STRONG boost
+                        predicate_boost = 2.0 * verb_pos_multiplier
+                        grammar_matches['predicate'] = True
+                        grammar_matches['object_main'] = True
+                    elif 'esperant' in obj_word and obj_word not in ['esperanton', 'esperanto']:
+                        # It's a modifier (esperantan grupon, esperantistan socion) - PENALTY
+                        predicate_boost = 0.5 * verb_pos_multiplier
+                        grammar_matches['predicate'] = True
+                        grammar_matches['object_modifier'] = True
+                    else:
+                        # Neutral - predicate matches but object doesn't match query
+                        predicate_boost = self.PREDICATE_BOOST * verb_pos_multiplier
+                        grammar_matches['predicate'] = True
+                else:
+                    # No AST or no object - use default predicate boost with POS multiplier
+                    predicate_boost = self.PREDICATE_BOOST * verb_pos_multiplier
+                    grammar_matches['predicate'] = True
 
             final_score = (bm25_score + grammar_bonus) * predicate_boost
             scored.append((doc_id, final_score, matched_roots, grammar_matches))

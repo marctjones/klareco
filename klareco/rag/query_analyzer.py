@@ -17,6 +17,9 @@ Usage:
 
 from typing import Dict, List, Optional, Union
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 from klareco.rag.question_classifier import QuestionType as QType
 
@@ -55,13 +58,14 @@ class QueryAnalyzer:
     """Analyzes queries to identify target entities and expected roles."""
 
     # Verbs that create/found entities (patient = thing created)
-    CREATION_VERBS = {'krei', 'fondi', 'fari', 'konstrui', 'starigi', 'establi'}
+    # Note: Use root forms (without infinitive -i)
+    CREATION_VERBS = {'kre', 'fond', 'far', 'konstru', 'starig', 'establ'}
 
     # Verbs about communication/discussion (topic = thing discussed)
-    COMMUNICATION_VERBS = {'paroli', 'skribi', 'diri', 'rakonti', 'klarigi', 'priskribi'}
+    COMMUNICATION_VERBS = {'parol', 'skrib', 'dir', 'rakont', 'klar ig', 'priskrib'}
 
     # Verbs about location/birth (location = place)
-    LOCATION_VERBS = {'naskiĝi', 'loĝi', 'vivi', 'morti', 'okazi', 'esti'}
+    LOCATION_VERBS = {'naskiĝ', 'loĝ', 'viv', 'mort', 'okaz', 'est'}
 
     def identify_target(
         self,
@@ -84,31 +88,57 @@ class QueryAnalyzer:
         else:
             question_type = str(question_type).upper()
 
+        logger.info(f"[DEBUG identify_target] question_type={question_type}, type={type(question_type)}")
+
         if question_type == 'WHO':
             # WHO questions ask about the AGENT (doer)
-            # Target: the missing subject
-            # Expected: SUBJECT or passive agent ("de X")
-            return QueryTarget(
-                entity_root=None,  # We're asking WHO
-                semantic_role=SemanticRole.AGENT,
-                expected_doc_roles=['subjekto', 'passive_agent']
-            )
+            # But we need to track the OBJECT to disambiguate context
+            # Example: "Kiu fondis Esperanton?" - track "Esperanton" to distinguish
+            #   "Zamenhof fondis Esperanton" (OBJECT - language) from
+            #   "Schmidt fondis Esperanto-grupon" (MODIFIER - organization)
+
+            verb_root = self._get_verb_root(query_ast)
+            objekto = query_ast.get('objekto')
+
+            logger.info(f"[DEBUG identify_target] WHO branch -> verb_root={verb_root}, has_objekto={objekto is not None}")
+
+            # If query has object + creation verb, track the object for disambiguation
+            if objekto and verb_root in self.CREATION_VERBS:
+                entity_root = self._get_entity_root(objekto)
+                logger.info(f"[DEBUG identify_target] WHO+CREATION -> entity_root={entity_root}, role=PATIENT")
+                return QueryTarget(
+                    entity_root=entity_root,
+                    semantic_role=SemanticRole.PATIENT,  # Track the thing being created
+                    expected_doc_roles=['objekto', 'prep_arg']
+                )
+            else:
+                # Generic WHO question without clear target
+                logger.info(f"[DEBUG identify_target] WHO+GENERIC -> entity_root=None, role=AGENT")
+                return QueryTarget(
+                    entity_root=None,
+                    semantic_role=SemanticRole.AGENT,
+                    expected_doc_roles=['subjekto', 'passive_agent']
+                )
 
         elif question_type == 'WHAT':
             # WHAT questions can ask about different things
             # Check the verb to determine semantic role
             verb_root = self._get_verb_root(query_ast)
             objekto = query_ast.get('objekto')
+            logger.info(f"[DEBUG identify_target] WHAT branch -> verb_root={verb_root}, objekto={objekto is not None}")
 
             if not objekto:
                 # No object in query (e.g., "Kio okazis?")
+                logger.info(f"[DEBUG identify_target] WHAT branch -> no objekto, returning None")
                 return None
 
             entity_root = self._get_entity_root(objekto)
+            logger.info(f"[DEBUG identify_target] WHAT branch -> entity_root={entity_root}")
 
             if verb_root in self.CREATION_VERBS:
                 # "Kiu kreis X?" → X is PATIENT (thing created)
                 # Expected in doc: OBJECT or PREP_ARG
+                logger.info(f"[DEBUG identify_target] WHAT+CREATION -> entity_root={entity_root}, role=PATIENT, expected=['objekto', 'prep_arg']")
                 return QueryTarget(
                     entity_root=entity_root,
                     semantic_role=SemanticRole.PATIENT,
@@ -116,6 +146,7 @@ class QueryAnalyzer:
                 )
             else:
                 # Generic WHAT question
+                logger.info(f"[DEBUG identify_target] WHAT+GENERIC -> entity_root={entity_root}, role=PATIENT, expected=['objekto', 'subjekto']")
                 return QueryTarget(
                     entity_root=entity_root,
                     semantic_role=SemanticRole.PATIENT,
@@ -128,11 +159,13 @@ class QueryAnalyzer:
             subjekto = query_ast.get('subjekto')
             if subjekto:
                 entity_root = self._get_entity_root(subjekto)
+                logger.info(f"[DEBUG identify_target] WHERE -> entity_root={entity_root}, role=LOCATION")
                 return QueryTarget(
                     entity_root=entity_root,
                     semantic_role=SemanticRole.LOCATION,
                     expected_doc_roles=['subjekto', 'objekto']
                 )
+            logger.info(f"[DEBUG identify_target] WHERE -> no subjekto, returning None")
 
         elif question_type == 'WHEN':
             # WHEN questions ask about TIME
@@ -140,12 +173,15 @@ class QueryAnalyzer:
             subjekto = query_ast.get('subjekto')
             if subjekto:
                 entity_root = self._get_entity_root(subjekto)
+                logger.info(f"[DEBUG identify_target] WHEN -> entity_root={entity_root}, role=TIME")
                 return QueryTarget(
                     entity_root=entity_root,
                     semantic_role=SemanticRole.TIME,
                     expected_doc_roles=['subjekto', 'objekto']
                 )
+            logger.info(f"[DEBUG identify_target] WHEN -> no subjekto, returning None")
 
+        logger.info(f"[DEBUG identify_target] No match for question_type={question_type}, returning None")
         return None
 
     def _get_verb_root(self, ast: Dict) -> Optional[str]:
@@ -196,14 +232,23 @@ class QueryAnalyzer:
         if not query_target or not query_target.entity_root:
             return 1.0  # No target to match
 
+        # Defensive check: ensure doc_ast is valid
+        if not doc_ast or not isinstance(doc_ast, dict):
+            logger.warning(f"[DEBUG check_role_match] INVALID doc_ast (type={type(doc_ast)}), returning 1.0")
+            return 1.0
+
         entity_root = query_target.entity_root
         expected_roles = query_target.expected_doc_roles
+
+        logger.debug(f"[DEBUG check_role_match] entity_root={entity_root}, expected_roles={expected_roles}")
 
         # Check if entity appears in expected roles
         for role in expected_roles:
             if role == 'objekto':
                 objekto = doc_ast.get('objekto')
+                logger.debug(f"[DEBUG check_role_match] Checking objekto: has_objekto={bool(objekto)}")
                 if self._entity_in_node(entity_root, objekto, check_compound=False):
+                    logger.debug(f"[DEBUG check_role_match] STRONG MATCH in objekto -> returning 3.0")
                     return 3.0  # STRONG MATCH: entity in object role
 
             elif role == 'subjekto':
@@ -224,8 +269,10 @@ class QueryAnalyzer:
         for role in ['objekto', 'subjekto']:
             node = doc_ast.get(role)
             if self._entity_in_node(entity_root, node, check_compound=True, compound_only=True):
+                logger.debug(f"[DEBUG check_role_match] PENALTY - entity in {role} kunmetajhoj -> returning 0.2")
                 return 0.2  # PENALTY: entity is just a modifier
 
+        logger.debug(f"[DEBUG check_role_match] NEUTRAL - entity not found -> returning 1.0")
         return 1.0  # Neutral (entity not found)
 
     def _entity_in_node(

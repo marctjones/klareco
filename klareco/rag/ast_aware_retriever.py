@@ -705,8 +705,12 @@ class ASTAwareRetriever:
         """
         query_obj = query_ast.get('objekto')
 
+        logger.info(f"[DEBUG _apply_root_role_ranking] query_obj exists: {bool(query_obj)}")
+        logger.info(f"[DEBUG _apply_root_role_ranking] query_obj keys: {list(query_obj.keys()) if query_obj else None}")
+
         # Check if query has an object (some queries don't, like "Kio estas X?")
         if not query_obj:
+            logger.info(f"[DEBUG _apply_root_role_ranking] No query_obj, skipping")
             return results
 
         # Get the core word from vortgrupo
@@ -715,16 +719,23 @@ class ASTAwareRetriever:
         else:
             query_kerno = query_obj
 
+        logger.info(f"[DEBUG _apply_root_role_ranking] query_kerno exists: {bool(query_kerno)}")
+        logger.info(f"[DEBUG _apply_root_role_ranking] query_kerno keys: {list(query_kerno.keys()) if isinstance(query_kerno, dict) else None}")
+
         # Extract query root
         query_root = query_kerno.get('radiko', '').lower()
+        logger.info(f"[DEBUG _apply_root_role_ranking] query_root={query_root}")
         if not query_root:
             # No root to match on - return as-is
+            logger.info(f"[DEBUG _apply_root_role_ranking] No query_root, skipping")
             return results
 
         # Check if query is a proper noun or substantivo (where disambiguation matters)
         query_vortspeco = query_kerno.get('vortspeco', '')
+        logger.info(f"[DEBUG _apply_root_role_ranking] query_vortspeco={query_vortspeco}")
         if query_vortspeco not in ['propra_nomo', 'substantivo']:
             # Not a noun - no role ranking needed
+            logger.info(f"[DEBUG _apply_root_role_ranking] Not a noun, skipping")
             return results
 
         # Apply role-based scoring
@@ -740,8 +751,36 @@ class ASTAwareRetriever:
             if not doc:
                 continue
 
-            result_ast = doc.get('ast', {})
+            # Parse document if not already parsed
+            result_ast = doc.get('ast')
+            if not result_ast:
+                try:
+                    doc_text = doc.get('text', '')
+                    result_ast = parse(doc_text)
+                except Exception as e:
+                    # Parsing failed - keep original score and continue
+                    logger.warning(f"[DEBUG _apply_root_role_ranking] doc_id={result.doc_id} - parsing failed: {e}")
+                    neutral_matches += 1
+                    ranked_results.append(result)
+                    continue
+
+            # Defensive check: ensure result_ast is valid after parsing
+            if not result_ast or not isinstance(result_ast, dict):
+                logger.warning(f"[DEBUG _apply_root_role_ranking] doc_id={result.doc_id} - INVALID result_ast (type={type(result_ast)}), skipping")
+                neutral_matches += 1
+                ranked_results.append(result)
+                continue
+
             result_obj = result_ast.get('objekto', {})
+            # Handle None explicitly (parser sets objekto: None when not found)
+            if result_obj is None:
+                result_obj = {}
+
+            # Debug logging for first few results - show AST structure
+            if result.doc_id and result.doc_id < 3:
+                logger.info(f"[DEBUG _apply_root_role_ranking] doc_id={result.doc_id} - parsed AST, has_objekto={bool(result_obj)}")
+                logger.info(f"[DEBUG _apply_root_role_ranking] doc_id={result.doc_id} - result_obj keys: {list(result_obj.keys()) if result_obj else None}")
+                logger.info(f"[DEBUG _apply_root_role_ranking] doc_id={result.doc_id} - result_obj.tipo={result_obj.get('tipo') if result_obj else None}")
 
             # Get the core word from result vortgrupo
             if result_obj.get('tipo') == 'vortgrupo':
@@ -753,6 +792,12 @@ class ASTAwareRetriever:
             result_head = result_kerno.get('radiko', '').lower()
             result_modifiers = result_kerno.get('kunmetajhoj', [])
             modifier_roots = [m.get('radiko', '').lower() for m in result_modifiers if isinstance(m, dict)]
+
+            # Debug logging for first few results
+            if result.doc_id and result.doc_id < 3:
+                logger.info(f"[DEBUG _apply_root_role_ranking] doc_id={result.doc_id} - result_kerno keys: {list(result_kerno.keys()) if result_kerno else None}")
+                logger.info(f"[DEBUG _apply_root_role_ranking] doc_id={result.doc_id} - result_head={result_head}, modifier_roots={modifier_roots}, query_root={query_root}")
+                logger.info(f"[DEBUG _apply_root_role_ranking] doc_id={result.doc_id} - HEAD_match={result_head == query_root}, MOD_match={query_root in modifier_roots}")
 
             original_score = result.score
 
@@ -816,8 +861,13 @@ class ASTAwareRetriever:
         # Identify query target
         query_target = self.query_analyzer.identify_target(query_ast, question_type)
 
+        logger.info(f"[DEBUG _apply_query_target_boost] query_target={query_target}")
+        logger.info(f"[DEBUG _apply_query_target_boost] query_target.entity_root={query_target.entity_root if query_target else None}")
+        logger.info(f"[DEBUG _apply_query_target_boost] question_type={question_type}")
+
         if not query_target or not query_target.entity_root:
             # No clear target - skip boosting
+            logger.info(f"[DEBUG _apply_query_target_boost] SKIPPING BOOST - entity_root is None or missing")
             return results
 
         logger.info(f"  Query target: '{query_target.entity_root}' "
@@ -836,17 +886,30 @@ class ASTAwareRetriever:
 
             # Parse document if not already parsed
             doc_ast = doc.get('ast')
+            has_pre_parsed_ast = doc_ast is not None
             if not doc_ast:
                 try:
                     doc_text = doc.get('text', '')
                     doc_ast = parse(doc_text)
-                except Exception:
+                    if result.doc_id and result.doc_id < 5:  # Log first few docs
+                        logger.info(f"[DEBUG _apply_query_target_boost] doc_id={result.doc_id} - parsing on-the-fly (no pre-parsed AST)")
+                except Exception as e:
                     # Parsing failed - keep original score
+                    logger.warning(f"[DEBUG _apply_query_target_boost] doc_id={result.doc_id} - parsing failed: {e}")
                     boosted_results.append(result)
                     continue
 
+            # Defensive check: ensure doc_ast is valid after parsing
+            if not doc_ast or not isinstance(doc_ast, dict):
+                logger.warning(f"[DEBUG _apply_query_target_boost] doc_id={result.doc_id} - INVALID doc_ast (type={type(doc_ast)}), skipping boost")
+                boosted_results.append(result)
+                continue
+
             # Check role match
             role_multiplier = self.query_analyzer.check_role_match(query_target, doc_ast)
+
+            if result.doc_id and result.doc_id < 5:  # Log first few docs
+                logger.info(f"[DEBUG _apply_query_target_boost] doc_id={result.doc_id} - role_multiplier={role_multiplier:.2f} (pre_parsed={has_pre_parsed_ast})")
 
             if role_multiplier > 1.5:
                 strong_matches += 1

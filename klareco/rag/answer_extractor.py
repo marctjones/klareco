@@ -85,6 +85,21 @@ class ASTAnswerExtractor:
         'si', 'oni', 'mem',
     }
 
+    # Correlatives (Esperanto correlative table words) - function words that should never be answers
+    # These are grammatical reference words, not entity names
+    CORRELATIVES = {
+        # ki- (interrogative/relative)
+        'kiu', 'kio', 'kia', 'kie', 'kiam', 'kial', 'kiel', 'kiom', 'kies',
+        # ti- (demonstrative)
+        'tiu', 'tio', 'tia', 'tie', 'tiam', 'tial', 'tiel', 'tiom', 'ties',
+        # ĉi- (proximal/universal)
+        'ĉiu', 'ĉio', 'ĉia', 'ĉie', 'ĉiam', 'ĉial', 'ĉiel', 'ĉiom', 'ĉies',
+        # neni- (negative)
+        'neniu', 'nenio', 'nenia', 'nenie', 'neniam', 'nenial', 'neniel', 'neniom', 'nenies',
+        # i- (indefinite)
+        'iu', 'io', 'ia', 'ie', 'iam', 'ial', 'iel', 'iom', 'ies',
+    }
+
     # Manual verb synonyms (high-priority pairs not in ReVo)
     # Format: root -> set of synonymous roots
     MANUAL_VERB_SYNONYMS = {
@@ -1359,6 +1374,12 @@ class ASTAnswerExtractor:
         """
         answer_lower = answer_text.lower()
 
+        # GLOBAL: Never return correlatives for ANY question type
+        # Correlatives are function words (kiu, tio, etc.) that reference entities but are not entities themselves
+        if answer_lower in self.CORRELATIVES:
+            logger.debug(f"Rejecting correlative '{answer_text}' (function word, not entity)")
+            return False
+
         # WHO questions should not return pronouns
         if question_type == 'WHO':
             # Check if answer is a pronoun
@@ -1803,7 +1824,11 @@ class ASTAnswerExtractor:
         # Reject function words that may be capitalized (sentence-initial position)
         # These are never person names
         vortspeco = node.get('vortspeco')
-        if vortspeco in ['prepozicio', 'konjunkcio', 'partiklo', 'artikolo']:
+        if vortspeco in ['prepozicio', 'konjunkcio', 'partiklo', 'artikolo', 'korelativo']:
+            return False
+
+        # Also reject by text match (in case vortspeco is missing or wrong)
+        if text.lower() in self.CORRELATIVES:
             return False
 
         # Check if proper noun (after exclusions)

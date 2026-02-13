@@ -189,6 +189,12 @@ def print_metrics(metrics: Dict, label: str = "Current"):
     if binary['errors'] > 0:
         print(f"  ❌ Errors:    {binary['errors']:2d}/{total}")
 
+    print(f"\n🔍 Document Ranking Performance:")
+    retrieval = metrics['retrieval']
+    print(f"  Answer in Top-1:  {retrieval['answer_in_top_1']:2d}/{total} ({retrieval['top_1_rate']*100:5.1f}%)")
+    print(f"  Answer in Top-3:  {retrieval['answer_in_top_3']:2d}/{total} ({retrieval['top_3_rate']*100:5.1f}%)")
+    print(f"  Answer in Top-10: {retrieval['answer_in_top_10']:2d}/{total} ({retrieval['top_10_rate']*100:5.1f}%)")
+
     print(f"\n📈 Granular Scores (weighted: 40%R + 30%E + 20%A + 10%B):")
     granular = metrics['granular']
     print(f"  Overall:    {granular['overall_score']:.3f} / 1.000")
@@ -196,12 +202,6 @@ def print_metrics(metrics: Dict, label: str = "Current"):
     print(f"  Extraction: {granular['extraction']:.3f} (30% weight)")
     print(f"  Alignment:  {granular['alignment']:.3f} (20% weight)")
     print(f"  Robustness: {granular['robustness']:.3f} (10% weight)")
-
-    print(f"\n🔍 Retrieval Breakdown:")
-    retrieval = metrics['retrieval']
-    print(f"  Top-1:  {retrieval['answer_in_top_1']:2d}/{total} ({retrieval['top_1_rate']*100:5.1f}%)")
-    print(f"  Top-3:  {retrieval['answer_in_top_3']:2d}/{total} ({retrieval['top_3_rate']*100:5.1f}%)")
-    print(f"  Top-10: {retrieval['answer_in_top_10']:2d}/{total} ({retrieval['top_10_rate']*100:5.1f}%)")
 
     print(f"\n✂️  Extraction Breakdown:")
     extraction = metrics['extraction']
@@ -265,21 +265,29 @@ def compare_snapshots(snapshots: List[Tuple[str, Dict]]):
 
     print()
 
-    # Binary accuracy
-    print(f"{'Binary Accuracy':<30} ", end='')
-    for _, m in recent:
-        print(f"{m['binary']['accuracy']*100:>15.1f}%", end=' ')
-    print()
-
-    # Retrieval metrics
-    print(f"{'Answer in Top-1':<30} ", end='')
+    # Document Ranking Performance
+    print(f"{'Document Ranking':<30}")
+    print(f"{'  Answer in Top-1':<30} ", end='')
     for _, m in recent:
         print(f"{m['retrieval']['top_1_rate']*100:>15.1f}%", end=' ')
     print()
 
-    print(f"{'Answer in Top-10':<30} ", end='')
+    print(f"{'  Answer in Top-3':<30} ", end='')
+    for _, m in recent:
+        print(f"{m['retrieval']['top_3_rate']*100:>15.1f}%", end=' ')
+    print()
+
+    print(f"{'  Answer in Top-10':<30} ", end='')
     for _, m in recent:
         print(f"{m['retrieval']['top_10_rate']*100:>15.1f}%", end=' ')
+    print()
+
+    print()
+
+    # Binary accuracy
+    print(f"{'Binary Accuracy':<30} ", end='')
+    for _, m in recent:
+        print(f"{m['binary']['accuracy']*100:>15.1f}%", end=' ')
     print()
 
     # Extraction metrics

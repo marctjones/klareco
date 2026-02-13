@@ -486,6 +486,7 @@ class RAGEvaluator:
                 'extracted_answer': extracted_answer,
                 'extraction_confidence': extraction_confidence,
                 'extraction_method': extraction_method,
+                'extraction_rank': extraction_source_rank if extracted_answer else None,
                 'retrieved_passages': passages,
                 'confidence': passages[0]['score'] if passages else 0.0,
                 'pipeline_used': pipeline_used,
@@ -493,7 +494,9 @@ class RAGEvaluator:
             }
 
         except Exception as e:
+            import traceback
             logger.error(f"RAG query failed: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {
                 'answer': None,
                 'retrieved_passages': [],
@@ -501,6 +504,114 @@ class RAGEvaluator:
                 'pipeline_used': 'error',
                 'error': str(e)
             }
+
+
+def compute_granular_score(
+    result: Dict,
+    expected: Dict,
+    quality_metrics: Dict
+) -> Dict:
+    """
+    Compute granular accuracy score with partial credit.
+
+    Components:
+    1. Retrieval Score (R): Where does correct answer appear in ranking?
+       - Top-1: 1.0, Top-2: 0.9, Top-3: 0.8, Top-5: 0.6, Top-10: 0.4, Missing: 0.0
+    2. Extraction Score (E): Is extracted answer correct?
+       - Exact match: 1.0, Partial match: 0.5, Wrong: 0.0
+    3. Alignment Score (A): Does extraction come from best-ranked doc?
+       - From top-1: 1.0, Top-2: 0.9, Top-3: 0.8, Top-5: 0.6, Top-10: 0.4
+    4. Robustness Score (B): Multiple good docs in top-5?
+       - Count of top-5 containing answer / 5.0
+
+    Final Score: 0.4*R + 0.3*E + 0.2*A + 0.1*B
+
+    Args:
+        result: RAG result with extracted answer
+        expected: Expected answer pattern
+        quality_metrics: Retrieval quality metrics
+
+    Returns:
+        {
+            'retrieval_score': float (0-1),
+            'extraction_score': float (0-1),
+            'alignment_score': float (0-1),
+            'robustness_score': float (0-1),
+            'combined_score': float (0-1),
+            'breakdown': str (explanation)
+        }
+    """
+    # 1. Retrieval Score
+    answer_rank = quality_metrics.get('answer_in_rank')
+    if answer_rank == 1:
+        retrieval_score = 1.0
+    elif answer_rank == 2:
+        retrieval_score = 0.9
+    elif answer_rank == 3:
+        retrieval_score = 0.8
+    elif answer_rank and answer_rank <= 5:
+        retrieval_score = 0.6
+    elif answer_rank and answer_rank <= 10:
+        retrieval_score = 0.4
+    else:
+        retrieval_score = 0.0
+
+    # 2. Extraction Score
+    evaluation = evaluate_answer(result, expected)
+    if evaluation['correct']:
+        extraction_score = 1.0
+    elif evaluation['partial']:
+        extraction_score = 0.5
+    else:
+        extraction_score = 0.0
+
+    # 3. Alignment Score (where was answer extracted from?)
+    extraction_rank = result.get('extraction_rank', None)
+    if extraction_rank == 1:
+        alignment_score = 1.0
+    elif extraction_rank == 2:
+        alignment_score = 0.9
+    elif extraction_rank == 3:
+        alignment_score = 0.8
+    elif extraction_rank and extraction_rank <= 5:
+        alignment_score = 0.6
+    elif extraction_rank and extraction_rank <= 10:
+        alignment_score = 0.4
+    else:
+        alignment_score = 0.2 if extraction_rank else 0.0
+
+    # 4. Robustness Score (how many top-5 have answer?)
+    passages = result.get('retrieved_passages', [])
+    expected_answer = expected.get('answer', expected.get('expected_answer_pattern', ''))
+    if expected_answer:
+        count_with_answer = 0
+        for passage in passages[:5]:
+            if expected_answer.lower() in passage.get('text', '').lower():
+                count_with_answer += 1
+        robustness_score = count_with_answer / 5.0
+    else:
+        robustness_score = 0.0
+
+    # Combined score: weighted average
+    combined_score = (
+        0.4 * retrieval_score +
+        0.3 * extraction_score +
+        0.2 * alignment_score +
+        0.1 * robustness_score
+    )
+
+    # Breakdown explanation
+    breakdown = f"R={retrieval_score:.2f} E={extraction_score:.2f} A={alignment_score:.2f} B={robustness_score:.2f}"
+
+    return {
+        'retrieval_score': retrieval_score,
+        'extraction_score': extraction_score,
+        'alignment_score': alignment_score,
+        'robustness_score': robustness_score,
+        'combined_score': combined_score,
+        'breakdown': breakdown,
+        'binary_evaluation': evaluation,  # Keep original for backwards compat
+    }
 
 
 def evaluate_answer(result: Dict, expected: Dict) -> Dict:
@@ -661,8 +772,9 @@ def run_evaluation(
         'partial': 0,
         'incorrect': 0,
         'errors': 0,
-        'by_category': defaultdict(lambda: {'total': 0, 'correct': 0, 'partial': 0}),
-        'by_performance': defaultdict(lambda: {'total': 0, 'correct': 0, 'partial': 0}),
+        'granular_scores': [],  # Track all granular scores for averaging
+        'by_category': defaultdict(lambda: {'total': 0, 'correct': 0, 'partial': 0, 'granular_scores': []}),
+        'by_performance': defaultdict(lambda: {'total': 0, 'correct': 0, 'partial': 0, 'granular_scores': []}),
     }
 
     logger.info(f"Running evaluation on {len(test_set)} questions...")
@@ -679,7 +791,6 @@ def run_evaluation(
         # Run RAG
         try:
             rag_result = rag_evaluator.run_query(question)
-            evaluation = evaluate_answer(rag_result, test_q)
 
             # Check where answer appears in retrieved documents
             passages = rag_result.get('retrieved_passages', [])
@@ -701,6 +812,10 @@ def run_evaluation(
                 quality_metrics['answer_in_top_3'] = answer_check['answer_in_rank'] and answer_check['answer_in_rank'] <= 3
                 quality_metrics['answer_in_top_5'] = answer_check['answer_in_rank'] and answer_check['answer_in_rank'] <= 5
 
+            # Compute granular score with partial credit
+            granular_score = compute_granular_score(rag_result, test_q, quality_metrics)
+            evaluation = granular_score['binary_evaluation']  # Keep for backwards compat
+
             result = {
                 'question_id': question_id,
                 'question': question,
@@ -710,18 +825,22 @@ def run_evaluation(
                 'extracted_answer': rag_result.get('extracted_answer'),
                 'extraction_confidence': rag_result.get('extraction_confidence'),
                 'extraction_method': rag_result.get('extraction_method'),
+                'extraction_rank': rag_result.get('extraction_rank'),
                 'pipeline_used': rag_result.get('pipeline_used'),
                 'pipeline_diagnostics': rag_result.get('pipeline_diagnostics', {}),
                 'quality_metrics': quality_metrics,
                 'expected_answer_pattern': test_q['expected_answer_pattern'],
                 'evaluation': evaluation,
+                'granular_score': granular_score,
                 'retrieved_passages': rag_result.get('retrieved_passages', []),
             }
 
-            # Log compact status line
+            # Log compact status line with granular score
             symbol = "✓" if evaluation['correct'] else ("⚠" if evaluation['partial'] else "✗")
+            combined = granular_score['combined_score']
+            breakdown = granular_score['breakdown']
             status_line = format_status_line(rag_result.get('pipeline_diagnostics', {}), evaluation)
-            logger.info(f"{symbol} Q{question_id} | {status_line}")
+            logger.info(f"{symbol} Q{question_id} | Score: {combined:.2f} ({breakdown}) | {status_line}")
 
             # Log top document (show what was selected after all processing)
             if passages:
@@ -759,6 +878,11 @@ def run_evaluation(
 
             stats['by_category'][category]['total'] += 1
             stats['by_performance'][expected_perf]['total'] += 1
+
+            # Track granular scores
+            stats['granular_scores'].append(granular_score['combined_score'])
+            stats['by_category'][category]['granular_scores'].append(granular_score['combined_score'])
+            stats['by_performance'][expected_perf]['granular_scores'].append(granular_score['combined_score'])
 
         except Exception as e:
             logger.error(f"  ❌ Error: {e}")
@@ -842,6 +966,9 @@ def print_statistics(stats: Dict, results: List[Dict]):
     accuracy = (correct / total * 100) if total > 0 else 0
     partial_accuracy = ((correct + partial) / total * 100) if total > 0 else 0
 
+    # Compute average granular score
+    avg_granular = sum(stats['granular_scores']) / len(stats['granular_scores']) if stats['granular_scores'] else 0
+
     # Overall performance
     print("OVERALL PERFORMANCE:")
     print(f"  Total questions:     {total}")
@@ -851,7 +978,11 @@ def print_statistics(stats: Dict, results: List[Dict]):
     if errors > 0:
         print(f"  Errors:              {errors}")
     print()
-    print(f"  Partial accuracy:    {partial_accuracy:.1f}% (correct + partial)")
+    print(f"  Binary accuracy:     {partial_accuracy:.1f}% (correct + partial)")
+    print(f"  Granular score:      {avg_granular:.3f} / 1.000 ({avg_granular*100:.1f}%)")
+    print()
+    print("  Granular components: R=Retrieval, E=Extraction, A=Alignment, B=Robustness")
+    print(f"                       Weights: 40% R + 30% E + 20% A + 10% B")
     print()
     print()
 
@@ -969,10 +1100,11 @@ def print_statistics(stats: Dict, results: List[Dict]):
         cat_partial = cat_stats['partial']
         cat_incorrect = cat_total - cat_correct - cat_partial
         cat_acc = (cat_correct / cat_total * 100) if cat_total > 0 else 0
+        cat_granular = sum(cat_stats['granular_scores']) / len(cat_stats['granular_scores']) if cat_stats['granular_scores'] else 0
 
         symbol = "✓" if cat_acc >= 70 else ("⚠" if cat_acc >= 40 else "✗")
         print(f"  {category} ({cat_total} questions):")
-        print(f"    {symbol} {cat_correct}/{cat_total} correct ({cat_acc:.0f}%)")
+        print(f"    {symbol} {cat_correct}/{cat_total} correct ({cat_acc:.0f}%), granular: {cat_granular:.3f}")
         if cat_partial > 0:
             print(f"    ⚠ {cat_partial}/{cat_total} partial")
         if cat_incorrect > 0:
@@ -987,10 +1119,11 @@ def print_statistics(stats: Dict, results: List[Dict]):
         perf_correct = perf_stats['correct']
         perf_partial = perf_stats['partial']
         perf_acc = (perf_correct / perf_total * 100) if perf_total > 0 else 0
+        perf_granular = sum(perf_stats['granular_scores']) / len(perf_stats['granular_scores']) if perf_stats['granular_scores'] else 0
         symbol = {"works": "✅", "partial": "⚠️", "fails": "❌"}.get(perf, "?")
 
         print(f"  Expected: '{perf}' ({perf_total} questions)")
-        print(f"    {symbol} Achieved {perf_correct}/{perf_total} correct ({perf_acc:.0f}%)")
+        print(f"    {symbol} Achieved {perf_correct}/{perf_total} correct ({perf_acc:.0f}%), granular: {perf_granular:.3f}")
         if perf_partial > 0:
             print(f"    ⚠ {perf_partial}/{perf_total} partial")
     print()

@@ -269,6 +269,13 @@ class RAGEvaluator:
             }
         """
         try:
+            # AST cache to avoid triple-parsing (M1, reranker, extraction)
+            # Key: document text, Value: parsed AST
+            ast_cache = {}
+
+            # Parse query once (used in reranking + extraction)
+            query_ast = parse(question)
+
             # Stage 1: Retrieval (retrieve more than rerank_top_k to allow for M1 filtering)
             retrieve_k = max(50, rerank_top_k * 2)
             candidates = self.retriever.search(question, top_k=retrieve_k)
@@ -288,7 +295,10 @@ class RAGEvaluator:
                 for score, doc, stats in candidates:
                     try:
                         doc_text = doc.get('text', '')
-                        doc_ast = parse(doc_text)
+                        # Use cached AST or parse once
+                        if doc_text not in ast_cache:
+                            ast_cache[doc_text] = parse(doc_text)
+                        doc_ast = ast_cache[doc_text]
                         subj, verb, obj = self.extract_svo_triple(doc_ast)
 
                         if subj and verb and obj:
@@ -316,18 +326,19 @@ class RAGEvaluator:
 
             # Stage 3: Reranking (if enabled)
             if self.use_reranking:
-                query_ast = parse(question)
-
                 # Limit candidates to rerank (optimization: only rerank top-K)
                 candidates_to_rerank = candidates[:rerank_top_k]
 
-                # Parse all documents once (batch optimization)
+                # Use cached ASTs (already parsed in M1 stage)
                 doc_asts = []
                 doc_indices = []
                 for i, (score, doc, stats, m1_score) in enumerate(candidates_to_rerank):
                     try:
                         doc_text = doc.get('text', '')
-                        doc_ast = parse(doc_text)
+                        # Use cached AST or parse once
+                        if doc_text not in ast_cache:
+                            ast_cache[doc_text] = parse(doc_text)
+                        doc_ast = ast_cache[doc_text]
                         doc_asts.append(doc_ast)
                         doc_indices.append(i)
                     except Exception as e:
@@ -395,9 +406,6 @@ class RAGEvaluator:
 
             if self.use_extraction and passages:
                 try:
-                    # Parse query once
-                    query_ast = parse(question)
-
                     # Extract from top-N documents and rank by confidence
                     # This hedges against reranker errors - if wrong doc is at #1,
                     # we still have chance to extract correct answer from #2-10
@@ -407,7 +415,10 @@ class RAGEvaluator:
                     for i, passage in enumerate(passages[:extract_from_top_n]):
                         try:
                             doc_text = passage['text']
-                            doc_ast = parse(doc_text)
+                            # Use cached AST (already parsed in M1/reranker stages)
+                            if doc_text not in ast_cache:
+                                ast_cache[doc_text] = parse(doc_text)
+                            doc_ast = ast_cache[doc_text]
 
                             # Extract answer (disable subclause decomposition - it picks wrong clauses)
                             extraction_result = self.extractor.extract_answer(

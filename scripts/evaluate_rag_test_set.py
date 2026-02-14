@@ -769,10 +769,14 @@ def evaluate_answer(result: Dict, expected: Dict) -> Dict:
 def run_evaluation(
     rag_evaluator: RAGEvaluator,
     test_set: List[Dict],
-    output_path: Optional[Path] = None
+    output_path: Optional[Path] = None,
+    skip: int = 0
 ) -> Dict:
     """
     Run evaluation on test set.
+
+    Args:
+        skip: Skip first N questions (for resuming)
 
     Returns summary statistics.
     """
@@ -788,10 +792,17 @@ def run_evaluation(
         'by_performance': defaultdict(lambda: {'total': 0, 'correct': 0, 'partial': 0, 'granular_scores': []}),
     }
 
-    logger.info(f"Running evaluation on {len(test_set)} questions...")
+    if skip > 0:
+        logger.info(f"Skipping first {skip} questions (resuming from #{skip + 1})")
+        logger.info(f"Running evaluation on {len(test_set) - skip} remaining questions...")
+    else:
+        logger.info(f"Running evaluation on {len(test_set)} questions...")
     logger.info("")
 
     for i, test_q in enumerate(test_set, 1):
+        # Skip first N questions
+        if i <= skip:
+            continue
         question_id = test_q['id']
         question = test_q['question']
         category = test_q['category']
@@ -1205,6 +1216,12 @@ def main():
         action='store_true',
         help='Show detailed pipeline logs (entity boost, quality filter details)'
     )
+    parser.add_argument(
+        '--skip',
+        type=int,
+        default=0,
+        help='Skip first N questions (for resuming interrupted evaluations)'
+    )
 
     args = parser.parse_args()
 
@@ -1296,7 +1313,7 @@ def main():
     )
 
     # Run evaluation
-    stats, results = run_evaluation(rag_evaluator, test_set, args.output)
+    stats, results = run_evaluation(rag_evaluator, test_set, args.output, skip=args.skip)
 
     # Print statistics
     print_statistics(stats, results)

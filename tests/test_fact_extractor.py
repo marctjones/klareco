@@ -74,5 +74,54 @@ def test_no_facts_from_empty_ast():
     assert len(facts) == 0
 
 
+def test_extract_from_participial_noun_simple():
+    """Test extraction from 'kreinto de X' pattern (participial noun)."""
+    extractor = FactExtractor()
+
+    ast = parse("La kreinto de Esperanto sciis multe")
+    facts = extractor.extract(ast)
+
+    # Should extract CREATED-BY fact from "kreinto de Esperanto"
+    created_by_facts = [f for f in facts if f.relation == RelationType.CREATED_BY]
+    assert len(created_by_facts) > 0
+
+    fact = created_by_facts[0]
+    assert fact.entity == 'esperant'
+    assert fact.confidence >= 0.9  # High confidence for participial patterns
+
+
+def test_extract_from_participial_noun_with_agent():
+    """Test extraction from compound participial noun with agent (Issue #681)."""
+    extractor = FactExtractor()
+
+    # This is the actual sentence from Q1 test (Sentence 5)
+    ast = parse("La kreinto-iniciatinto de Esperanto, Ludoviko Lazaro Zamenhof, sciis")
+    facts = extractor.extract(ast)
+
+    # Should extract CREATED-BY fact with Zamenhof as agent
+    created_by_facts = [f for f in facts if f.relation == RelationType.CREATED_BY]
+    assert len(created_by_facts) > 0
+
+    fact = created_by_facts[0]
+    assert fact.entity == 'esperant', f"Expected entity='esperant', got '{fact.entity}'"
+    assert fact.arguments.get('agent') == 'zamenhof', \
+        f"Expected agent='zamenhof', got '{fact.arguments.get('agent')}'"
+    assert fact.confidence >= 0.9
+
+
+def test_extract_from_participial_noun_founded():
+    """Test extraction from 'fondinto de X' pattern."""
+    extractor = FactExtractor()
+
+    ast = parse("La fondinto de la asocio estis tre aktiva")
+    facts = extractor.extract(ast)
+
+    founded_facts = [f for f in facts if f.relation == RelationType.FOUNDED]
+    assert len(founded_facts) > 0
+
+    fact = founded_facts[0]
+    assert fact.entity == 'asoci'
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

@@ -80,6 +80,11 @@ class FactExtractor:
         """
         Extract all facts from an AST.
 
+        Extracts from:
+        1. Main verb clause (existing)
+        2. Participial noun phrases ("kreinto de X", "fondinto de Y")
+        3. Nested/subordinate clauses (TODO)
+
         Args:
             ast: Parsed AST (from klareco.parser.parse)
             source_sentence: Original sentence text (optional)
@@ -93,9 +98,14 @@ class FactExtractor:
             return facts
 
         if ast.get('tipo') == 'frazo':
+            # 1. Extract from main verb clause
             fact = self._extract_from_frazo(ast, source_sentence)
             if fact:
                 facts.append(fact)
+
+            # 2. Extract from participial noun phrases
+            participial_facts = self._extract_from_participial_nouns(ast, source_sentence)
+            facts.extend(participial_facts)
 
         return facts
 
@@ -335,6 +345,172 @@ class FactExtractor:
             source_ast=frazo,
             confidence=0.7  # Lower confidence for generic actions
         )
+
+    def _extract_from_participial_nouns(self, frazo: Dict, source_sentence: Optional[str]) -> List[Fact]:
+        """
+        Extract facts from participial noun phrases.
+
+        Patterns:
+        - "La kreinto de Esperanto" → CREATED-BY fact
+        - "Zamenhof, la kreinto-iniciatinto de Esperanto" → CREATED-BY fact
+        - "La fondinto de la asocio" → FOUNDED fact
+
+        Participial nouns are marked with sufiksoj containing "int" (past),
+        "ant" (present), or "ont" (future).
+        """
+        facts = []
+
+        # Check subjekto, objekto, and aliaj for participial nouns
+        nodes_to_check = []
+
+        subjekto = frazo.get('subjekto')
+        if subjekto:
+            nodes_to_check.append(subjekto)
+
+        objekto = frazo.get('objekto')
+        if objekto:
+            nodes_to_check.append(objekto)
+
+        aliaj = frazo.get('aliaj', [])
+        nodes_to_check.extend(aliaj)
+
+        # Process each node
+        for node in nodes_to_check:
+            if not isinstance(node, dict):
+                continue
+
+            # Get the core word (handle vortgrupo)
+            core_node = node
+            if node.get('tipo') == 'vortgrupo':
+                core_node = node.get('kerno', {})
+
+            # Check if it's a participial noun
+            if not self._is_participial_noun(core_node):
+                continue
+
+            # Extract the verb root
+            verb_root = core_node.get('radiko', '')
+
+            # Check if it's a compound word with participial component
+            kunmetajhoj = core_node.get('kunmetajhoj', [])
+            if kunmetajhoj:
+                # Check each component for participial markers
+                for component in kunmetajhoj:
+                    if self._is_participial_noun(component):
+                        verb_root = component.get('radiko', '')
+                        break
+
+            if not verb_root:
+                continue
+
+            # Map verb root to relation type
+            relation = self.verb_to_relation.get(verb_root.lower(), RelationType.ACTION)
+
+            # Find the object of the action (after "de" preposition)
+            # Pattern: "kreinto de Esperanto" → entity = "esperant"
+            entity = self._find_prepositional_object(aliaj, 'de')
+
+            # Find the agent (often proper noun in apposition or subjekto)
+            agent = None
+
+            # Check for proper nouns in aliaj (appositive pattern)
+            # Collect all consecutive capitalized words (e.g., "Ludoviko Lazaro Zamenhof")
+            proper_nouns = []
+            for alia in aliaj:
+                if isinstance(alia, dict):
+                    plena_vorto = alia.get('plena_vorto', '')
+                    vortspeco = alia.get('vortspeco', '')
+
+                    # Skip the entity we already found (Esperanto)
+                    if entity and alia.get('radiko', '').lower() == entity.lower():
+                        continue
+
+                    # Collect capitalized words (proper nouns)
+                    if plena_vorto and plena_vorto[0].isupper():
+                        proper_nouns.append(alia.get('radiko', ''))
+                    elif proper_nouns:
+                        # Stop collecting when we hit a non-capitalized word
+                        # (unless it's a preposition/conjunction)
+                        if vortspeco not in ['prepozicio', 'konjunkcio']:
+                            break
+
+            # Take the last proper noun as the agent (e.g., "Zamenhof" from "Ludoviko Lazaro Zamenhof")
+            if proper_nouns:
+                agent = proper_nouns[-1]
+
+            # If no entity found, might be reversed pattern
+            # "Zamenhof estas la kreinto" → entity from subjekto
+            if not entity:
+                if subjekto and self._is_participial_noun(core_node):
+                    # Pattern: predicate nominative with participial noun
+                    # Use subjekto as agent
+                    continue  # Skip this pattern for now
+
+            if not entity:
+                continue
+
+            # Build fact based on relation type
+            arguments = {}
+            if relation in [RelationType.CREATED_BY, RelationType.FOUNDED, RelationType.PUBLISHED]:
+                if agent:
+                    arguments['agent'] = agent
+
+            modifiers = self._extract_modifiers(aliaj)
+
+            fact = Fact(
+                entity=entity,
+                relation=relation,
+                arguments=arguments,
+                modifiers=modifiers,
+                source_sentence=source_sentence,
+                source_ast=frazo,
+                confidence=0.9  # High confidence for participial patterns
+            )
+            facts.append(fact)
+
+        return facts
+
+    def _is_participial_noun(self, node: Dict) -> bool:
+        """Check if node is a participial noun (-into, -anto, -onto)."""
+        if not isinstance(node, dict):
+            return False
+
+        sufiksoj = node.get('sufiksoj', [])
+        if not sufiksoj:
+            return False
+
+        # Check for participial suffixes
+        # -int- (past active), -ant- (present active), -ont- (future active)
+        participial_suffixes = ['int', 'ant', 'ont', 'it', 'at', 'ot']
+
+        for suffix in sufiksoj:
+            if suffix in participial_suffixes:
+                return True
+
+        return False
+
+    def _find_prepositional_object(self, aliaj: List[Dict], preposition: str) -> Optional[str]:
+        """
+        Find the object of a prepositional phrase in aliaj.
+
+        Pattern: "de Esperanto" → "esperant"
+        """
+        prep_found = False
+
+        for alia in aliaj:
+            if not isinstance(alia, dict):
+                continue
+
+            # Check if it's the preposition we're looking for
+            if alia.get('vortspeco') == 'prepozicio' and alia.get('radiko') == preposition:
+                prep_found = True
+                continue
+
+            # If we found the prep, next substantivo is the object
+            if prep_found and alia.get('vortspeco') == 'substantivo':
+                return alia.get('radiko', '')
+
+        return None
 
     def _extract_modifiers(self, aliaj: List[Dict]) -> Dict[str, Any]:
         """Extract modifiers from aliaj (time, place, manner, etc.)."""

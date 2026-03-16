@@ -91,45 +91,65 @@ def extract_query_entity(ast, question_type):
     """
     Extract the entity being asked about from query AST.
 
-    Works for all question types, looking for proper nouns or main entities.
+    Works for all question types, searching in priority order:
+    1. objekto - e.g., "Kiu kreis Esperanton?" → "esperant"
+    2. aliaj (proper nouns) - e.g., "Kiu estis Benjamin Franklin?" → "Benjamin Franklin"
+    3. aliaj (substantivo) - e.g., "Kiam... pri Esperanto?" → "esperant"
+    4. subjekto (fallback) - e.g., "Kion inventis Benjamin Franklin?" → "Benjamin Franklin"
     """
-    entity_name = None
+    # 1. Check objekto for substantivo (all question types)
+    # Handles: "Kiu kreis Esperanton?", "Kio estas Fundamento?"
+    obj = ast.get('objekto')
+    if obj:
+        if obj.get('tipo') == 'vortgrupo':
+            kerno = obj.get('kerno', {})
+        else:
+            kerno = obj
 
-    # For WHAT questions, check object first
-    if question_type == QuestionType.WHAT:
-        obj = ast.get('objekto')
-        if obj:
-            if obj.get('tipo') == 'vortgrupo':
-                kerno = obj.get('kerno', {})
-            else:
-                kerno = obj
+        # Get substantivo from objekto
+        if kerno.get('vortspeco') == 'substantivo':
             entity = kerno.get('radiko', '')
             if entity:
                 return entity
 
-    # For all question types, look for proper nouns in aliaj
-    # This handles "Benjamin Franklin" in "Kiu estis Benjamin Franklin?"
+    # 2. Check aliaj for proper nouns (capitalized words)
+    # Handles: "Kiu estis Benjamin Franklin?", "Kiam naskiĝis Benjamin Franklin?"
     aliaj = ast.get('aliaj', [])
     proper_nouns = []
 
     for alia in aliaj:
         if isinstance(alia, dict):
-            # Check if it's a proper noun or capitalized word
             plena_vorto = alia.get('plena_vorto', '')
             if plena_vorto and plena_vorto[0].isupper():
                 proper_nouns.append(plena_vorto)
 
     # If we found proper nouns, combine them (e.g., "Benjamin Franklin")
     if proper_nouns:
-        entity_name = ' '.join(proper_nouns)
-        return entity_name
+        return ' '.join(proper_nouns)
 
-    # Fallback: check aliaj for substantivo
+    # 3. Check aliaj for substantivo
+    # Handles: "Kiam... pri Esperanto?", "Kie okazis... Esperanto-Kongreso?"
     for alia in aliaj:
         if isinstance(alia, dict) and alia.get('vortspeco') == 'substantivo':
             entity = alia.get('radiko', '')
             if entity:
                 return entity
+
+    # 4. Check subjekto as final fallback (for inverted questions)
+    # Handles: "Kion inventis Benjamin Franklin?" (if Franklin is subject)
+    subj = ast.get('subjekto')
+    if subj and subj.get('tipo') == 'vortgrupo':
+        # Check for proper nouns in subjekto
+        subj_proper_nouns = []
+        priskriboj = subj.get('priskriboj', [])
+        for priskribo in priskriboj:
+            if isinstance(priskribo, dict):
+                plena_vorto = priskribo.get('plena_vorto', '')
+                if plena_vorto and plena_vorto[0].isupper():
+                    subj_proper_nouns.append(plena_vorto)
+
+        if subj_proper_nouns:
+            return ' '.join(subj_proper_nouns)
 
     return None
 

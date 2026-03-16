@@ -60,21 +60,23 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - **Function words**: Excluded (handled deterministically by M0)
 - **Files**: `klareco/embeddings/compositional.py`, `models/root_embeddings/`
 
-### 🚧 M1: Selectional Preference (IN PROGRESS)
-- **Architecture**: Subject-verb-object compatibility scoring (~10M params)
-- **Status**: Model trained, object selectional preference issues (Issue #475)
-- **Accuracy**: 80.2% overall, 83% plausible detection
-- **Files**: `scripts/train_m1_selectional.py`, `tests/test_m1_model_quality.py`
+### 🔄 M1: Selectional Preference (BEING REPLACED)
+- **Old Architecture**: Subject-verb-object compatibility scoring (~10M params) - Issue #687
+- **Status**: Being replaced by Semantic Fact Validator (500K params, 20x smaller) - See #699
+- **Old Accuracy**: 80.2% overall, 83% plausible detection
+- **New Approach**: Automated semantic type hierarchy from corpus patterns (zero human annotation)
+- **Files**: `scripts/train_m1_selectional.py` (old), `scripts/build_semantic_type_hierarchy.sh` (new)
 
-### 🔬 Semantic Type Hierarchy (NEW - March 2026)
+### 🔬 Semantic Type Hierarchy (NEW - March 2026) - Issue #699
 - **Goal**: Automated semantic type classification from corpus patterns (zero human annotation)
 - **Approach**: Distributional clustering of 4-5.5M SVO triples from 5.4M sentence corpus
 - **Method**: Verb co-occurrence patterns reveal semantic types (words with similar verbs = similar types)
 - **Output**: SEMANTIC_TYPES dictionary + VERB_CONSTRAINTS for Semantic Fact Validator
 - **Architecture**: Two-layer hybrid (0 params deterministic + 500K params statistical, 20x smaller than M1)
-- **Status**: SVO extraction script ready, clustering implementation next
-- **Expected**: 15-20 semantic type clusters (PERSONO, ANIMALO, OBJEKTO, etc.)
-- **Files**: `scripts/extract_svo_triples.py`, future `scripts/cluster_semantic_types.py`
+- **Status**: ✅ Scripts ready, ready to run pipeline on full corpus (~5-9 hours)
+- **Expected**: 18 semantic type clusters (PERSONO, ANIMALO, OBJEKTO, LOKO, TEMPO, AGO, etc.)
+- **Files**: `scripts/extract_svo_triples.py`, `scripts/cluster_semantic_types.py`, `scripts/generate_verb_constraints.py`
+- **Pipeline**: `./scripts/build_semantic_type_hierarchy.sh` - One-command automation
 
 ### ✅ Semantic Enrichment: Three-Tier Entity Taxonomy
 - **Architecture**: Deterministic + learned semantic annotation (~5M params)

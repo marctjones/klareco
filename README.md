@@ -45,11 +45,13 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - **Demo**: `./scripts/demo_full_rag.sh` - Try "Kiu fondis Esperanton?" and see it work!
 - **Files**: `klareco/rag/ast_aware_retriever.py`, `klareco/rag/kuzu_inverted_index.py`
 
-### ✅ M0: Deterministic Parser (COMPLETE)
+### ✅ M0: Deterministic Parser (ENHANCED - March 2026)
 - **Parser/Deparser**: 16 Esperanto grammar rules, 91.8% parse rate on 4.2M sentences
 - **AST generation**: Explicit roles (subjekto, verbo, objekto, aliaj)
+- **Subordinate clauses**: Nested frazo nodes for ke-clauses, temporal, conditional clauses (Issue #691)
 - **Morpheme decomposition**: 100% deterministic
-- **Files**: `klareco/parser.py`, `klareco/deparser.py`
+- **SVO extraction**: Advanced triple extraction with coordinated verbs + passive voice support
+- **Files**: `klareco/parser.py`, `klareco/deparser.py`, `scripts/extract_svo_triples.py`
 
 ### 🚧 Stage 1: Root Embeddings (NEEDS RETRAIN)
 - **Architecture**: 64D embeddings for content words only (~320K params)
@@ -64,7 +66,17 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - **Accuracy**: 80.2% overall, 83% plausible detection
 - **Files**: `scripts/train_m1_selectional.py`, `tests/test_m1_model_quality.py`
 
-### ✅ Semantic Enrichment: Three-Tier Entity Taxonomy (NEW)
+### 🔬 Semantic Type Hierarchy (NEW - March 2026)
+- **Goal**: Automated semantic type classification from corpus patterns (zero human annotation)
+- **Approach**: Distributional clustering of 4-5.5M SVO triples from 5.4M sentence corpus
+- **Method**: Verb co-occurrence patterns reveal semantic types (words with similar verbs = similar types)
+- **Output**: SEMANTIC_TYPES dictionary + VERB_CONSTRAINTS for Semantic Fact Validator
+- **Architecture**: Two-layer hybrid (0 params deterministic + 500K params statistical, 20x smaller than M1)
+- **Status**: SVO extraction script ready, clustering implementation next
+- **Expected**: 15-20 semantic type clusters (PERSONO, ANIMALO, OBJEKTO, etc.)
+- **Files**: `scripts/extract_svo_triples.py`, future `scripts/cluster_semantic_types.py`
+
+### ✅ Semantic Enrichment: Three-Tier Entity Taxonomy
 - **Architecture**: Deterministic + learned semantic annotation (~5M params)
 - **Three-tier hierarchy**: Aristotelian (6) → NER-compatible (18) → Fine-grained (286)
 - **Tier 1 (100% deterministic)**: From vortspeco alone (entity, attribute, quantity, relation, spacetime, action)

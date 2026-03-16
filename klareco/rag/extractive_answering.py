@@ -66,6 +66,62 @@ class ExtractiveAnswerGenerator:
         self.importance_scorer = FactImportanceScorer()
         self.discourse_planner = DiscoursePlanner()
 
+    def _filter_facts_by_question_type(self, facts_with_metadata, question_type):
+        """
+        Filter facts by question type (Issue #684 - Quick Win +10% relevance).
+
+        Removes facts that are unlikely to answer the question type.
+        For example, WHEN questions should keep only facts with temporal info.
+
+        Args:
+            facts_with_metadata: List of (fact, metadata) tuples
+            question_type: QuestionType enum
+
+        Returns:
+            Filtered list of (fact, metadata) tuples
+        """
+        from klareco.rag.fact_extractor import RelationType
+
+        filtered = []
+
+        for fact, metadata in facts_with_metadata:
+            keep = True
+
+            if question_type == QuestionType.WHEN:
+                # WHEN questions: Only keep facts with temporal modifiers
+                if 'time' not in fact.modifiers:
+                    # Exception: Relations that often have temporal info
+                    if fact.relation not in [RelationType.CREATED_BY, RelationType.PUBLISHED,
+                                            RelationType.BORN, RelationType.DIED]:
+                        keep = False
+
+            elif question_type == QuestionType.WHERE:
+                # WHERE questions: Only keep facts with location info
+                if 'location' not in fact.modifiers and 'location' not in fact.arguments:
+                    # Exception: Relations that specify location
+                    if fact.relation not in [RelationType.LOCATED_AT, RelationType.BORN]:
+                        keep = False
+
+            elif question_type == QuestionType.WHO:
+                # WHO questions: Only keep facts with agent/person info
+                if 'agent' not in fact.arguments:
+                    # Exception: Relations that identify people
+                    if fact.relation not in [RelationType.CREATED_BY, RelationType.FOUNDED]:
+                        # Still allow IS-A facts (they might define who someone is)
+                        if fact.relation != RelationType.IS_A:
+                            keep = False
+
+            # For WHAT, HOW, WHY, OTHER: Don't filter (too broad)
+
+            if keep:
+                filtered.append((fact, metadata))
+
+        # If filtering removed everything, return original (failsafe)
+        if not filtered:
+            return facts_with_metadata
+
+        return filtered
+
     def generate(self,
                  sentences: List[Dict],
                  query: str,
@@ -124,18 +180,23 @@ class ExtractiveAnswerGenerator:
                 fact.doc_metadata = metadata
                 all_facts.append((fact, metadata))
 
-        # Step 2: Score fact importance
+        # Step 2: Filter facts by question type (Issue #684 - Quick Win +10% relevance)
+        filtered_facts = self._filter_facts_by_question_type(all_facts, question_type)
+        num_facts_before_filter = len(all_facts)
+        num_facts_after_filter = len(filtered_facts)
+
+        # Step 3: Score fact importance
         scored_facts = []
-        for fact, metadata in all_facts:
+        for fact, metadata in filtered_facts:
             score_breakdown = self.importance_scorer.score(
                 fact, question_type, query_entity, metadata
             )
             scored_facts.append((fact, score_breakdown))
 
-        # Step 3: Sort by importance score
+        # Step 4: Sort by importance score
         scored_facts.sort(key=lambda x: x[1].final_score, reverse=True)
 
-        # Step 4: Select top facts
+        # Step 5: Select top facts
         top_facts = [fact for fact, _ in scored_facts[:max_facts]]
         top_scores = [score for _, score in scored_facts[:max_facts]]
 
@@ -150,10 +211,10 @@ class ExtractiveAnswerGenerator:
                 citations=[]
             )
 
-        # Step 5: Plan discourse structure
+        # Step 6: Plan discourse structure
         discourse_plan = self.discourse_planner.plan(top_facts, max_facts=max_facts)
 
-        # Step 6: Generate answer text with citations (Issue #674)
+        # Step 7: Generate answer text with citations (Issue #674)
         answer_text, citations = self._generate_text(discourse_plan)
 
         return Answer(

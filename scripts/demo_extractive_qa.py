@@ -60,6 +60,61 @@ def extract_roots_from_ast(ast):
     return roots
 
 
+# Manual synonym expansion (Issue #682 - Quick Win +15% recall)
+MANUAL_SYNONYMS = {
+    # Create/found verbs
+    'kre': ['fond', 'establ', 'aŭtor', 'verk', 'invent'],
+    'fond': ['kre', 'establ', 'startig'],
+    'establ': ['kre', 'fond', 'startig'],
+
+    # See/observe verbs
+    'vid': ['rimark', 'konsider', 'observ', 'rigard'],
+    'rimark': ['vid', 'observ', 'konsider'],
+    'observ': ['vid', 'rimark', 'konsider'],
+
+    # Language-related
+    'ling': ['parol', 'idiom', 'lingv'],
+    'parol': ['ling', 'idiom', 'lingv'],
+
+    # Write/publish
+    'verk': ['skrib', 'kre', 'aŭtor', 'publik'],
+    'skrib': ['verk', 'aŭtor', 'redakt'],
+    'publik': ['eldone', 'aperig', 'verk'],
+
+    # Book/document
+    'libr': ['dokument', 'verk', 'skribaĵ'],
+    'dokument': ['libr', 'skribaĵ', 'tekst'],
+
+    # Person/human
+    'person': ['hom', 'individu'],
+    'hom': ['person', 'individu'],
+
+    # Learn/study
+    'lern': ['stud', 'eduk'],
+    'stud': ['lern', 'eduk'],
+
+    # Know/understand
+    'sci': ['kon', 'kompren'],
+    'kon': ['sci', 'kompren'],
+}
+
+
+def expand_with_manual_synonyms(roots):
+    """
+    Expand query roots with manually curated synonyms (Issue #682).
+
+    Quick win: +15% recall with 2 hours of effort.
+    Returns expanded set of roots.
+    """
+    expanded = set(roots)
+
+    for root in roots:
+        if root in MANUAL_SYNONYMS:
+            expanded.update(MANUAL_SYNONYMS[root])
+
+    return expanded
+
+
 def expand_with_embeddings(roots, embeddings_path, k=5, threshold=0.4):
     """Expand roots using embeddings."""
     checkpoint = torch.load(embeddings_path, map_location='cpu', weights_only=False)
@@ -334,16 +389,22 @@ def process_query(query, args, generator):
     if query_entity:
         print(f"Query entity: {query_entity}")
 
-    # Expand if requested
+    # Quick Win #682: Apply manual synonym expansion (always on)
+    synonym_expanded = expand_with_manual_synonyms(original_roots)
+    if synonym_expanded != original_roots:
+        added_synonyms = synonym_expanded - original_roots
+        print(f"Manual synonyms added: {', '.join(sorted(added_synonyms))}")
+
+    # Expand with embeddings if requested
     if args.expand:
-        expanded_roots = expand_with_embeddings(original_roots, args.embeddings)
+        expanded_roots = expand_with_embeddings(synonym_expanded, args.embeddings)
         print(f"Expanded to: {len(expanded_roots)} roots")
-        added = expanded_roots - original_roots
+        added = expanded_roots - synonym_expanded
         if added:
-            print(f"Added: {', '.join(sorted(added))}")
+            print(f"Embedding expansion added: {', '.join(sorted(added))}")
         query_roots = expanded_roots
     else:
-        query_roots = original_roots
+        query_roots = synonym_expanded
 
     print()
 

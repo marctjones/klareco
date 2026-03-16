@@ -64,6 +64,16 @@ class FactImportanceScorer:
         'completeness': 0.1
     }
 
+    # Source quality weights (Issue #683 - Quick Win +10% precision)
+    SOURCE_WEIGHTS = {
+        'wikipedia': 1.0,      # Highest quality
+        'fundamento': 0.9,     # Official Esperanto foundation
+        'gutenberg': 0.7,      # Literary texts, variable quality
+        'revo': 0.85,          # Dictionary definitions
+        'database': 0.5,       # Generic corpus
+        'unknown': 0.3         # Fallback for unspecified sources
+    }
+
     def score(self, fact: Fact, question_type: QuestionType,
               query_entity: Optional[str] = None,
               source_metadata: Optional[Dict] = None) -> ScoreBreakdown:
@@ -198,6 +208,8 @@ class FactImportanceScorer:
         IS-A relations are inherently definitional.
         First sentences in documents are often definitional.
         Wikipedia lead paragraphs contain definitions.
+
+        Issue #683: Apply source quality weighting for +10% precision.
         """
         score = 0.0
 
@@ -214,12 +226,48 @@ class FactImportanceScorer:
         elif sentence_pos == 2:
             score += 0.1
 
-        # Wikipedia articles (high quality)
-        source = source_metadata.get('source', '')
-        if 'wikipedia' in source.lower():
+        # Quick Win #683: Apply source quality weighting
+        source = self._detect_source(source_metadata)
+        source_weight = self.SOURCE_WEIGHTS.get(source, self.SOURCE_WEIGHTS['unknown'])
+
+        # Boost score based on source quality
+        # High-quality sources (wikipedia=1.0) get full boost
+        # Lower-quality sources (database=0.5) get reduced boost
+        score = score * source_weight
+
+        # Additional bonus for Wikipedia (definitive source)
+        if source == 'wikipedia':
             score += 0.2
 
         return min(score, 1.0)  # Cap at 1.0
+
+    def _detect_source(self, source_metadata: Dict) -> str:
+        """
+        Detect source from metadata (Issue #683).
+
+        Returns: Source name (wikipedia, fundamento, gutenberg, revo, database, unknown)
+        """
+        # Check explicit source field
+        if 'source' in source_metadata:
+            source_str = source_metadata['source'].lower()
+            for known_source in self.SOURCE_WEIGHTS.keys():
+                if known_source in source_str:
+                    return known_source
+
+        # Check metadata dict for source indicators
+        metadata_str = str(source_metadata).lower()
+        if 'wikipedia' in metadata_str:
+            return 'wikipedia'
+        elif 'fundamento' in metadata_str:
+            return 'fundamento'
+        elif 'gutenberg' in metadata_str:
+            return 'gutenberg'
+        elif 'revo' in metadata_str:
+            return 'revo'
+        elif source_metadata:
+            return 'database'
+        else:
+            return 'unknown'
 
     def _score_entity_centrality(self, fact: Fact, query_entity: Optional[str]) -> float:
         """

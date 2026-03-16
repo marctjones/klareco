@@ -107,6 +107,10 @@ class FactExtractor:
             participial_facts = self._extract_from_participial_nouns(ast, source_sentence)
             facts.extend(participial_facts)
 
+            # 3. Extract from nested/subordinate clauses
+            nested_facts = self._extract_from_nested_clauses(ast, source_sentence)
+            facts.extend(nested_facts)
+
         return facts
 
     def _extract_from_frazo(self, frazo: Dict, source_sentence: Optional[str]) -> Optional[Fact]:
@@ -509,6 +513,188 @@ class FactExtractor:
             # If we found the prep, next substantivo is the object
             if prep_found and alia.get('vortspeco') == 'substantivo':
                 return alia.get('radiko', '')
+
+        return None
+
+    def _extract_from_nested_clauses(self, frazo: Dict, source_sentence: Optional[str]) -> List[Fact]:
+        """
+        Extract facts from nested/subordinate clauses.
+
+        Patterns:
+        - "...sub kiu la kuracisto publikigis..." → PUBLISHED fact
+        - "...kiun Zamenhof kreis..." → CREATED-BY fact
+
+        Nested clauses are marked by correlatives (kiu, kio, kie, kiam).
+        Parser may place them in objekto or aliaj.
+        """
+        facts = []
+
+        # Check if objekto is a correlative (relative clause pattern)
+        objekto = frazo.get('objekto')
+        if objekto and isinstance(objekto, dict):
+            if objekto.get('tipo') == 'vortgrupo':
+                kerno = objekto.get('kerno', {})
+            else:
+                kerno = objekto
+
+            if kerno.get('vortspeco') == 'korelativo':
+                # Pattern: "Subjekto Verbo kiun..." where kiun is in objekto
+                # Agent is in aliaj after the correlative
+                aliaj = frazo.get('aliaj', [])
+                subjekto = frazo.get('subjekto')
+                verbo = frazo.get('verbo')
+
+                if verbo:
+                    verb_root = verbo.get('radiko', '').lower()
+                    relation = self.verb_to_relation.get(verb_root, RelationType.ACTION)
+
+                    # Entity is the subject
+                    entity = None
+                    if subjekto:
+                        entity = self._get_entity_name(subjekto)
+
+                    # Agent is first proper noun or substantivo in aliaj
+                    agent = None
+                    for alia in aliaj:
+                        if isinstance(alia, dict):
+                            plena = alia.get('plena_vorto', '')
+                            if plena and plena[0].isupper():
+                                agent = alia.get('radiko', '')
+                                break
+                            elif alia.get('vortspeco') == 'substantivo' and not agent:
+                                agent = alia.get('radiko', '')
+                                break
+
+                    if entity and relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
+                        arguments = {}
+                        if agent:
+                            arguments['agent'] = agent
+
+                        modifiers = self._extract_modifiers(aliaj)
+
+                        fact = Fact(
+                            entity=entity,
+                            relation=relation,
+                            arguments=arguments,
+                            modifiers=modifiers,
+                            source_sentence=source_sentence,
+                            source_ast=frazo,
+                            confidence=0.8
+                        )
+                        facts.append(fact)
+
+        # Also check aliaj for correlatives (other pattern)
+        aliaj = frazo.get('aliaj', [])
+
+        # Scan for relative pronouns/correlatives
+        i = 0
+        while i < len(aliaj):
+            alia = aliaj[i]
+
+            if not isinstance(alia, dict):
+                i += 1
+                continue
+
+            # Check if it's a relative correlative
+            if alia.get('vortspeco') == 'korelativo':
+                # Found a correlative, look for verb in following elements
+                verb_idx = self._find_verb_after_position(aliaj, i + 1)
+
+                if verb_idx is not None:
+                    # Extract subsequence from correlative to verb (and a bit after)
+                    # Build a mini-clause structure
+                    clause_elements = aliaj[i:min(verb_idx + 10, len(aliaj))]
+
+                    # Try to construct a fact from this subsequence
+                    nested_fact = self._extract_from_clause_subsequence(
+                        clause_elements, verb_idx - i, source_sentence
+                    )
+
+                    if nested_fact:
+                        facts.append(nested_fact)
+
+                    # Skip past this clause
+                    i = verb_idx + 5
+                    continue
+
+            i += 1
+
+        return facts
+
+    def _find_verb_after_position(self, aliaj: List[Dict], start_pos: int) -> Optional[int]:
+        """Find the next verb in aliaj starting from start_pos."""
+        for i in range(start_pos, min(start_pos + 15, len(aliaj))):
+            if isinstance(aliaj[i], dict):
+                if aliaj[i].get('vortspeco') == 'verbo':
+                    return i
+        return None
+
+    def _extract_from_clause_subsequence(
+        self, elements: List[Dict], verb_offset: int, source_sentence: Optional[str]
+    ) -> Optional[Fact]:
+        """
+        Extract fact from a subsequence of clause elements.
+
+        Elements is a slice from aliaj containing a relative clause.
+        verb_offset is the index of the verb within this slice.
+        """
+        if verb_offset >= len(elements):
+            return None
+
+        verb = elements[verb_offset]
+        verb_root = verb.get('radiko', '').lower()
+
+        # Map verb to relation type
+        relation = self.verb_to_relation.get(verb_root, RelationType.ACTION)
+
+        # Find agent (subject of nested clause) - usually before the verb
+        agent = None
+        for i in range(max(0, verb_offset - 5), verb_offset):
+            elem = elements[i]
+            if isinstance(elem, dict):
+                # Look for proper nouns or substantivo
+                plena = elem.get('plena_vorto', '')
+                if plena and plena[0].isupper():
+                    agent = elem.get('radiko', '')
+                elif elem.get('vortspeco') == 'substantivo' and not agent:
+                    agent = elem.get('radiko', '')
+
+        # Find object (usually after the verb)
+        entity = None
+        for i in range(verb_offset + 1, min(verb_offset + 8, len(elements))):
+            elem = elements[i]
+            if isinstance(elem, dict):
+                if elem.get('vortspeco') == 'substantivo':
+                    entity = elem.get('radiko', '')
+                    break
+
+        # Extract temporal modifiers
+        modifiers = {}
+        for elem in elements:
+            if isinstance(elem, dict):
+                if elem.get('vortspeco') == 'numero':
+                    root = elem.get('radiko', '')
+                    if len(root) == 4 and root.isdigit():
+                        modifiers['time'] = root
+
+        # Build fact based on relation type
+        if relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
+            if not entity:
+                return None
+
+            arguments = {}
+            if agent:
+                arguments['agent'] = agent
+
+            return Fact(
+                entity=entity,
+                relation=relation,
+                arguments=arguments,
+                modifiers=modifiers,
+                source_sentence=source_sentence,
+                source_ast=None,  # Subsequence, not full AST
+                confidence=0.8  # Slightly lower confidence for nested extraction
+            )
 
         return None
 

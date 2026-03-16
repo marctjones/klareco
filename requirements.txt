@@ -51,6 +51,14 @@ PyPDF2
 SPARQLWrapper>=2.0.0
 
 # ----------------------------------------------------------------------------
+# Data Processing (Optional - for analysis/training scripts)
+# ----------------------------------------------------------------------------
+
+# Fast DataFrame library for data preparation and analysis
+polars>=1.38.0
+pyarrow>=23.0.0  # Required by Polars for Arrow interop (Kuzu → Polars)
+
+# ----------------------------------------------------------------------------
 # Development Tools (Optional)
 # ----------------------------------------------------------------------------
 

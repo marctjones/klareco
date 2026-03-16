@@ -119,6 +119,28 @@ python scripts/demo_ast_retriever.py -i                 # Interactive mode
 python scripts/demo_ast_retriever.py "Kiu fondis Esperanton?"
 ```
 
+### Citation & Source Verification (Future - #674, #675)
+```bash
+# Query with citations (after implementation)
+klareco query "Rakontu pri Zamenhof" --with-citations
+
+# Look up citation by number
+klareco cite 3                                          # View citation [3]
+klareco cite 1,2,3                                      # View multiple citations
+
+# Query source sentences
+klareco source Zamenhof:12                              # View sentence with context
+klareco source Zamenhof --list                          # List all sentences in document
+klareco source Zamenhof --search "Esperanto"           # Search within document
+
+# Verify citations
+klareco verify --last                                   # Verify last summary
+klareco verify --summary-id <uuid>                      # Verify specific summary
+
+# Interactive exploration
+klareco query "Rakontu pri Zamenhof" --interactive     # Explore citations interactively
+```
+
 ## Critical Implementation Details
 
 ### Parser (klareco/parser.py)
@@ -151,6 +173,111 @@ All training scripts now include:
 - Early stopping (patience=3 epochs)
 - Atomic checkpoint saves (write to .tmp then rename to avoid corruption)
 - Checkpoint rotation (keeps last 2: `best_model.pt` and `best_model.prev.pt`)
+
+## Script Versioning Policy (MANDATORY)
+
+**CRITICAL: Every Python script in `scripts/` MUST include version information.**
+
+### When Creating ANY Script
+
+Before creating a script, you MUST:
+
+1. **Determine version compatibility**: What database version? What models does it depend on?
+2. **Add complete docstring** with VERSION, COMPATIBLE WITH, DEPENDENCIES, STAGE
+3. **Update `docs/VERSION_COMPATIBILITY.md`** if adding new script type
+4. **Validate format** before committing
+
+### Required Docstring Template
+
+```python
+"""
+<Script Name - Descriptive Title>
+
+VERSION: v2.1 | v3.0
+COMPATIBLE WITH: v2.1 database schema, v3.0 AST-annotator protocol
+DEPENDENCIES: Root Embeddings v3, M1 v2 (list all model dependencies)
+STAGE: Data | Training | Evaluation | Inspection | Utility
+
+Description:
+    Brief description of what this script does (1-3 sentences).
+    Focus on the "why" not just the "what".
+
+Pipeline Position:
+    v2.1 DB → [THIS SCRIPT] → Next Component → ...
+    (Show where this fits in the data/training pipeline)
+
+Usage:
+    python scripts/path/to/script.py --arg1 value1 --arg2 value2
+
+Inputs:
+    - Input 1: Description (format: JSON/JSONL/CSV, location: data/...)
+    - Input 2: Description
+
+Outputs:
+    - Output 1: Description (format, location)
+    - Output 2: Description
+
+Quality Checks:
+    - Check 1: What validation is performed
+    - Check 2: What quality metrics are computed
+
+Last Updated: YYYY-MM-DD
+Author: <name>
+Related Issues: #123, #456
+See Also: docs/RELATED_DOC.md, other_script.py
+"""
+```
+
+### When Modifying Existing Scripts
+
+When modifying a script, you MUST:
+
+1. **Update VERSION** if:
+   - Architecture changed (e.g., now uses v3.0 AST-annotator)
+   - Dependencies changed (e.g., now requires M1 v3)
+   - Database schema changed
+
+2. **Update COMPATIBLE WITH** if dependencies changed
+
+3. **Update Last Updated** date (always)
+
+4. **Add comment** at top explaining what changed:
+   ```python
+   # CHANGELOG:
+   # 2025-01-15: Migrated to v3.0 AST-annotator protocol
+   # 2024-12-01: Added tier filtering support
+   ```
+
+### Script Naming Convention
+
+All scripts follow: `<stage>_<target>_<version>.py`
+
+Examples:
+- `data/export_roots_v2.1.py` - Data export for v2.1 database
+- `train/roots_v3.py` - Training for v3.0 architecture
+- `evaluate/embedding_quality_v2.py` - Evaluation script
+
+### Validation Checklist
+
+Before creating/modifying a script, ASK YOURSELF:
+
+- [ ] What version is this compatible with? (v2.1 database? v3.0 models?)
+- [ ] What are ALL dependencies? (models, data, other scripts)
+- [ ] What stage is this? (data/train/evaluate/inspect/util)
+- [ ] Where does it fit in the pipeline? (input → THIS → output)
+- [ ] What quality checks does it perform?
+- [ ] What happens if it fails partway? (checkpoint support?)
+
+If you can't answer these, **DON'T create the script** - ask for clarification first.
+
+### Enforcement
+
+This is **NON-NEGOTIABLE**. Scripts without proper version info will be rejected.
+
+See:
+- `docs/CLI_ARCHITECTURE.md` - Complete versioning strategy
+- `docs/VERSION_COMPATIBILITY.md` - Version compatibility matrix
+- `scripts/util/validate_script_versions.py` - Validation tool (to be created)
 
 ## Long-Running Scripts Policy
 

@@ -1,0 +1,48 @@
+#!/bin/bash
+# Git Pre-Commit Hook - Validate Script Versions
+#
+# This hook validates that all Python scripts in scripts/ have proper
+# version information before allowing commits.
+#
+# To install:
+#   cp .githooks/pre-commit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+#
+# Or configure git to use .githooks:
+#   git config core.hooksPath .githooks
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check if Python is available
+if ! command -v python &> /dev/null; then
+    echo "ERROR: Python not found. Cannot validate scripts."
+    exit 1
+fi
+
+# Run script version validator on staged files
+python scripts/util/validate_script_versions.py --git-staged
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "✗ Commit rejected: Scripts missing version information"
+    echo ""
+    echo "Required fields in docstring:"
+    echo "  - VERSION: v2.1 | v3.0"
+    echo "  - COMPATIBLE WITH: v2.1 database schema, ..."
+    echo "  - DEPENDENCIES: Root Embeddings v3, ..."
+    echo "  - STAGE: Data | Training | Evaluation | Inspection | Utility"
+    echo ""
+    echo "See: docs/CLI_ARCHITECTURE.md for complete template"
+    echo ""
+    echo "To see template for missing scripts:"
+    echo "  python scripts/util/validate_script_versions.py <script.py> --template"
+    echo ""
+    echo "To bypass this check (NOT RECOMMENDED):"
+    echo "  git commit --no-verify"
+    exit 1
+fi
+
+echo "✓ All staged scripts have proper version information"
+exit 0

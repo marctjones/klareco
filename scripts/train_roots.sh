@@ -88,10 +88,20 @@ EKZERCARO_FILE="$PROJECT_ROOT/data/training/ekzercaro_sentences.jsonl"
 # Select vocabulary based on --vocab flag
 if [ "$VOCAB_VERSION" = "tier2-5" ]; then
     CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/clean_roots_tier2-5.json"
-    echo -e "${GREEN}Using expanded Tier 2-5 vocabulary (~18K roots)${NC}"
-else
+    echo -e "${YELLOW}Using old Tier 2-5 vocabulary (~18K roots) - DEPRECATED${NC}"
+elif [ "$VOCAB_VERSION" = "old" ]; then
     CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/clean_roots.json"
-    echo -e "${YELLOW}Using old Tier 2 vocabulary (~10.8K roots)${NC}"
+    echo -e "${YELLOW}Using old Tier 2 vocabulary (~10.8K roots) - DEPRECATED${NC}"
+else
+    # Default: Use tier-filtered vocabulary (excludes tier0 function words & tier5 garbage)
+    CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/tier_filtered_roots.json"
+    echo -e "${GREEN}Using tier-filtered vocabulary (~76K roots, excludes tier0/tier5)${NC}"
+fi
+
+# Override with tier-filtered if it exists and vocab flag not explicitly set
+if [ "$VOCAB_VERSION" = "old" ] && [ -f "$PROJECT_ROOT/data/vocabularies/tier_filtered_roots.json" ]; then
+    CLEAN_VOCAB="$PROJECT_ROOT/data/vocabularies/tier_filtered_roots.json"
+    echo -e "${GREEN}✓ Upgraded to tier-filtered vocabulary (classification-based)${NC}"
 fi
 
 FUNDAMENTO_ROOTS="$PROJECT_ROOT/data/vocabularies/fundamento_roots.json"

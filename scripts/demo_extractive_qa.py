@@ -331,12 +331,29 @@ def main():
                        default=Path('models/root_embeddings_phase1_fast/root_embeddings_best.pt'))
     parser.add_argument('--top-k', type=int, default=10, help='Sentences to retrieve')
     parser.add_argument('--max-facts', type=int, default=4, help='Facts to include in answer')
-    parser.add_argument('--expand', action='store_true', help='Use embedding expansion')
+    parser.add_argument('--no-expand', action='store_true', help='Disable neural embedding expansion')
+    parser.add_argument('--no-rerank', action='store_true', help='Disable neural reranker')
+    parser.add_argument('--no-m1', action='store_true', help='Disable M1 selectional filtering')
+    parser.add_argument('--m1-threshold', type=float, default=0.3, help='M1 plausibility threshold (0-1)')
+    parser.add_argument('--reranker-path', type=Path,
+                       default=Path('models/reranker/best_model.pt'), help='Path to reranker model')
+    parser.add_argument('--m1-path', type=Path,
+                       default=Path('models/m1_selectional/best_model.pt'), help='Path to M1 model')
     parser.add_argument('--interactive', '-i', action='store_true', help='Interactive mode')
 
     args = parser.parse_args()
 
-    generator = ExtractiveAnswerGenerator()
+    # Initialize answer generator with neural models
+    # Note: Reranker and M1 use 64D embeddings (models/root_embeddings/best_model.pt)
+    # while query expansion uses 128D embeddings (args.embeddings)
+    generator = ExtractiveAnswerGenerator(
+        reranker_path=args.reranker_path,
+        m1_model_path=args.m1_path,
+        # Don't pass embedding_path - let it use default 64D embeddings for models
+        use_reranker=not args.no_rerank,
+        use_m1=not args.no_m1,
+        m1_threshold=args.m1_threshold
+    )
 
     # Interactive mode
     if args.interactive:
@@ -395,8 +412,9 @@ def process_query(query, args, generator):
         added_synonyms = synonym_expanded - original_roots
         print(f"Manual synonyms added: {', '.join(sorted(added_synonyms))}")
 
-    # Expand with embeddings if requested
-    if args.expand:
+    # Neural expansion: Always use root embeddings for semantic query expansion
+    # (unless --no-expand flag is set)
+    if not args.no_expand:
         expanded_roots = expand_with_embeddings(synonym_expanded, args.embeddings)
         print(f"Expanded to: {len(expanded_roots)} roots")
         added = expanded_roots - synonym_expanded

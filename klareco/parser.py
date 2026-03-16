@@ -1200,21 +1200,21 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
     Categorize an unknown word that failed to parse.
 
     Returns an AST node marking the word as non-Esperanto with best-guess categorization.
-    Categories:
-    - proper_name_known: Known proper noun from dictionary (parse_status=success!)
-    - proper_name: Capitalized word (person, place)
-    - foreign_word: Lowercase but not Esperanto
-    - number_literal: Numeric
-    - unknown: Cannot categorize
+    Categories (Pure Esperanto):
+    - propranomo_konata: Known proper noun from dictionary (analizstato=sukceso!)
+    - propranomo: Capitalized word (person, place)
+    - fremda_vorto: Lowercase but not Esperanto
+    - numero_laŭvorta: Numeric
+    - nekonata: Cannot categorize
     """
     ast = {
         "tipo": "vorto",
         "plena_vorto": word,
         "radiko": word,
         "vortspeco": "nekonata",
-        "parse_status": "failed",
-        "parse_error": error_msg,
-        "category": "unknown",
+        "analizstato": "malsukceso",
+        "analizeraro": error_msg,
+        "kategorio": "nekonata",
         "nombro": "singularo",
         "kazo": "nominativo",
         "prefiksoj": [],
@@ -1225,7 +1225,7 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
 
     # 1. Number literal (digits)
     if word.isdigit():
-        ast["category"] = "number_literal"
+        ast["kategorio"] = "numero_laŭvorta"
         ast["vortspeco"] = "numero"
         return ast
 
@@ -1237,16 +1237,16 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
 
         if pn_dict.is_proper_noun(word):
             # Known proper noun - mark as SUCCESS, not failed!
-            ast["parse_status"] = "success"
-            ast["category"] = "proper_name_known"
+            ast["analizstato"] = "sukceso"
+            ast["kategorio"] = "propranomo_konata"
             ast["vortspeco"] = "propra_nomo"
-            ast["parse_error"] = ""
+            ast["analizeraro"] = ""
 
             # Add metadata from dictionary
             metadata = pn_dict.get_metadata(word)
             if metadata:
-                ast["proper_noun_category"] = metadata.get("category", "other")
-                ast["proper_noun_frequency"] = metadata.get("frequency", 0)
+                ast["propranoma_kategorio"] = metadata.get("category", "other")
+                ast["propranoma_ofteco"] = metadata.get("frequency", 0)
 
             # Extract case/number from Esperanto endings
             if word.endswith(('o', 'on', 'oj', 'ojn', 'a', 'an', 'aj', 'ajn')):
@@ -1258,12 +1258,12 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
             return ast
 
         # Unknown proper name (not in dictionary)
-        ast["category"] = "proper_name"
+        ast["kategorio"] = "propranomo"
         ast["vortspeco"] = "propra_nomo"
 
         # Try to detect if it has Esperanto-like endings (might be Esperantized name)
         if word.endswith(('o', 'on', 'oj', 'ojn')):
-            ast["category"] = "proper_name_esperantized"
+            ast["kategorio"] = "propranomo_esperantigita"
             # Extract the case/number from ending
             if word.endswith('n'):
                 ast["kazo"] = "akuzativo"
@@ -1275,13 +1275,13 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
 
     # 3. Single letter (often grammar examples)
     if len(word) == 1:
-        ast["category"] = "single_letter"
+        ast["kategorio"] = "unusola_litero"
         ast["vortspeco"] = "ekzemplo"
         return ast
 
     # 4. Foreign word (lowercase, no Esperanto structure)
     # Has no recognizable Esperanto endings or morphology
-    ast["category"] = "foreign_word"
+    ast["kategorio"] = "fremda_vorto"
     ast["vortspeco"] = "fremda_vorto"
 
     return ast
@@ -1371,7 +1371,7 @@ def parse(text: str):
     for w in words:
         try:
             ast = parse_word(w)
-            ast["parse_status"] = "success"  # Mark as successfully parsed Esperanto
+            ast["analizstato"] = "sukceso"  # Mark as successfully parsed Esperanto
             word_asts.append(ast)
         except ValueError as e:
             # Word failed to parse - categorize it as non-Esperanto
@@ -1523,24 +1523,24 @@ def parse(text: str):
     if demandotipo:
         sentence_ast["demandotipo"] = demandotipo
 
-    # Add parse statistics (word-level success metrics)
+    # Add parse statistics (word-level success metrics) - Pure Esperanto
     total_words = len(word_asts)
-    successful_words = sum(1 for ast in word_asts if ast.get("parse_status") == "success")
+    successful_words = sum(1 for ast in word_asts if ast.get("analizstato") == "sukceso")
     failed_words = total_words - successful_words
 
     # Categorize the failed words
     categories = {}
     for ast in word_asts:
-        if ast.get("parse_status") == "failed":
-            category = ast.get("category", "unknown")
+        if ast.get("analizstato") == "malsukceso":
+            category = ast.get("kategorio", "nekonata")
             categories[category] = categories.get(category, 0) + 1
 
     sentence_ast["parse_statistics"] = {
-        "total_words": total_words,
-        "esperanto_words": successful_words,
-        "non_esperanto_words": failed_words,
-        "success_rate": successful_words / total_words if total_words > 0 else 0.0,
-        "categories": categories
+        "tutaj_vortoj": total_words,
+        "esperantaj_vortoj": successful_words,
+        "neesperantaj_vortoj": failed_words,
+        "sukcesoprocento": successful_words / total_words if total_words > 0 else 0.0,
+        "analizkategorioj": categories
     }
 
     # Add sentence-level negation flag (Issue #78)

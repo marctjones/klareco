@@ -173,52 +173,33 @@ class BatchedCSVLoader:
             self.save_checkpoint(step)
 
     def create_has_root_relationships_batched(self):
-        """Create HAS_ROOT relationships in batches to avoid OOM."""
+        """Create HAS_ROOT relationships via direct MATCH query."""
         if self.is_step_complete("has_root"):
             logger.info("HAS_ROOT relationships already created (from checkpoint)")
             return
 
-        logger.info("Creating HAS_ROOT relationships (batched)...")
+        logger.info("Creating HAS_ROOT relationships (direct MATCH)...")
 
         # Get total Vorto count
         result = self.conn.execute("MATCH (v:Vorto) RETURN count(v)")
         total_vorto = result.get_next()[0]
         logger.info(f"  Total Vorto nodes: {total_vorto:,}")
 
-        # Get all unique roots
-        result = self.conn.execute("MATCH (r:Root) RETURN r.root")
-        roots = []
-        while result.has_next():
-            roots.append(result.get_next()[0])
-        logger.info(f"  Total Root nodes: {len(roots):,}")
+        logger.info("  Executing MATCH query (this may take 20-30 minutes)...")
 
-        # Create relationships in batches by root
-        # This is MUCH more memory efficient than one giant MATCH
-        created = 0
-        batch_size = 100  # Process 100 roots at a time
+        # Create all relationships in one query
+        # Kuzu handles this efficiently - matches on indexed properties
+        self.conn.execute("""
+            MATCH (v:Vorto), (r:Root)
+            WHERE v.radiko = r.root
+            CREATE (v)-[:HAS_ROOT {is_primary: true, position: 0}]->(r)
+        """)
 
-        for i in range(0, len(roots), batch_size):
-            batch_roots = roots[i:i+batch_size]
+        # Count final relationships
+        result = self.conn.execute("MATCH ()-[r:HAS_ROOT]->() RETURN count(r)")
+        created = result.get_next()[0]
+        logger.info(f"  Created {created:,} HAS_ROOT relationships")
 
-            # Create a list for IN clause
-            roots_str = ", ".join([f"'{r}'" for r in batch_roots])
-
-            logger.info(f"  Processing roots {i+1}-{min(i+batch_size, len(roots))} of {len(roots)}")
-
-            # Create relationships for this batch of roots
-            self.conn.execute(f"""
-                MATCH (v:Vorto), (r:Root)
-                WHERE r.root IN [{roots_str}] AND v.radiko = r.root
-                CREATE (v)-[:HAS_ROOT {{is_primary: true, position: 0}}]->(r)
-            """)
-
-            # Count progress every 1000 roots
-            if (i + batch_size) % 1000 == 0 or i + batch_size >= len(roots):
-                result = self.conn.execute("MATCH ()-[r:HAS_ROOT]->() RETURN count(r)")
-                created = result.get_next()[0]
-                logger.info(f"    Created {created:,} HAS_ROOT relationships so far...")
-
-        logger.info(f"  Created {created:,} HAS_ROOT relationships total")
         self.save_checkpoint("has_root")
 
     def get_stats(self):

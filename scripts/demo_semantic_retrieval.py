@@ -104,8 +104,8 @@ Examples:
     # Initialize retriever
     print(f"Loading retriever from {args.index_dir}...")
     retriever = ASTAwareRetriever(
-        index_dir=args.index_dir,
-        fallback_mode=FallbackMode.ROOT
+        index_path=args.index_dir,  # Fixed: parameter is index_path not index_dir
+        fallback_mode=FallbackMode.NONE  # Fixed: ROOT doesn't exist, using NONE for deterministic baseline
     )
     print(f"Loaded {retriever.index.num_documents} documents\n")
 

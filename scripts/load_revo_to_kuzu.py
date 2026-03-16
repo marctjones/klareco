@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Load ReVo semantic relations into Kuzu graph database.
+Load ReVo semantic relations into Kuzu graph database (v2.1 Pure Esperanto).
 
 Extends the Kuzu schema with ReVo-specific semantic relations:
-- REVO_SYNONYM (Root → Root)
-- REVO_ANTONYM (Root → Root)
-- REVO_HYPERNYM (Root → Root) - A is-a B
-- REVO_HYPONYM (Root → Root) - A has-subtype B
-- REVO_PART_OF (Root → Root) - A is-part-of B
+- REVO_SINONIMO (Radiko → Radiko)
+- REVO_ANTONIMO (Radiko → Radiko)
+- REVO_HIPERNIMO (Radiko → Radiko) - A estas B
+- REVO_HIPONIMO (Radiko → Radiko) - A havas-subtipon B
+- REVO_PARTO_DE (Radiko → Radiko) - A estas-parto-de B
 
 ReVo relations have higher weight (2.0) than ConceptNet (1.0)
 because they are Esperanto-specific and authoritative.
@@ -65,12 +65,12 @@ class RevoKuzuLoader:
         self.progress: Dict = {}
 
         self.stats = {
-            'revo_synonym': 0,
-            'revo_antonym': 0,
-            'revo_hypernym': 0,
-            'revo_hyponym': 0,
-            'revo_part_of': 0,
-            'skipped_missing_root': 0,
+            'revo_sinonimo': 0,
+            'revo_antonimo': 0,
+            'revo_hipernimo': 0,
+            'revo_hiponimo': 0,
+            'revo_parto_de': 0,
+            'skipped_missing_radiko': 0,
         }
 
     def _load_progress(self) -> Dict:
@@ -114,48 +114,48 @@ class RevoKuzuLoader:
 
         logger.info("Extending Kuzu schema with ReVo relation tables...")
 
-        # REVO_SYNONYM: X is synonym of Y
+        # REVO_SINONIMO: X estas sinonimo de Y
         self.conn.execute("""
-            CREATE REL TABLE IF NOT EXISTS REVO_SYNONYM (
-                FROM Root TO Root,
-                weight DOUBLE DEFAULT 2.0,
-                source STRING DEFAULT 'revo'
+            CREATE REL TABLE IF NOT EXISTS REVO_SINONIMO (
+                FROM Radiko TO Radiko,
+                pezo DOUBLE DEFAULT 2.0,
+                fonto STRING DEFAULT 'revo'
             )
         """)
 
-        # REVO_ANTONYM: X is opposite of Y
+        # REVO_ANTONIMO: X estas kontraŭo de Y
         self.conn.execute("""
-            CREATE REL TABLE IF NOT EXISTS REVO_ANTONYM (
-                FROM Root TO Root,
-                weight DOUBLE DEFAULT 2.0,
-                source STRING DEFAULT 'revo'
+            CREATE REL TABLE IF NOT EXISTS REVO_ANTONIMO (
+                FROM Radiko TO Radiko,
+                pezo DOUBLE DEFAULT 2.0,
+                fonto STRING DEFAULT 'revo'
             )
         """)
 
-        # REVO_HYPERNYM: X is-a Y (X is subtype of Y)
+        # REVO_HIPERNIMO: X estas Y (X estas subtipo de Y)
         self.conn.execute("""
-            CREATE REL TABLE IF NOT EXISTS REVO_HYPERNYM (
-                FROM Root TO Root,
-                weight DOUBLE DEFAULT 2.0,
-                source STRING DEFAULT 'revo'
+            CREATE REL TABLE IF NOT EXISTS REVO_HIPERNIMO (
+                FROM Radiko TO Radiko,
+                pezo DOUBLE DEFAULT 2.0,
+                fonto STRING DEFAULT 'revo'
             )
         """)
 
-        # REVO_HYPONYM: X has-subtype Y (inverse of hypernym)
+        # REVO_HIPONIMO: X havas-subtipon Y (inverso de hipernimo)
         self.conn.execute("""
-            CREATE REL TABLE IF NOT EXISTS REVO_HYPONYM (
-                FROM Root TO Root,
-                weight DOUBLE DEFAULT 2.0,
-                source STRING DEFAULT 'revo'
+            CREATE REL TABLE IF NOT EXISTS REVO_HIPONIMO (
+                FROM Radiko TO Radiko,
+                pezo DOUBLE DEFAULT 2.0,
+                fonto STRING DEFAULT 'revo'
             )
         """)
 
-        # REVO_PART_OF: X is part of Y
+        # REVO_PARTO_DE: X estas parto de Y
         self.conn.execute("""
-            CREATE REL TABLE IF NOT EXISTS REVO_PART_OF (
-                FROM Root TO Root,
-                weight DOUBLE DEFAULT 2.0,
-                source STRING DEFAULT 'revo'
+            CREATE REL TABLE IF NOT EXISTS REVO_PARTO_DE (
+                FROM Radiko TO Radiko,
+                pezo DOUBLE DEFAULT 2.0,
+                fonto STRING DEFAULT 'revo'
             )
         """)
 
@@ -182,24 +182,24 @@ class RevoKuzuLoader:
 
         logger.info(f"  Loaded {sum(len(r) for r in relations.values()):,} relations")
 
-        # Get existing roots from Kuzu to validate
-        logger.info("  Loading existing roots from Kuzu...")
+        # Get existing radikos from Kuzu to validate
+        logger.info("  Loading existing radikos from Kuzu...")
         existing_roots: Set[str] = set()
-        result = self.conn.execute("MATCH (r:Root) RETURN r.root")
+        result = self.conn.execute("MATCH (r:Radiko) RETURN r.radiko")
         while result.has_next():
             existing_roots.add(result.get_next()[0])
-        logger.info(f"  Found {len(existing_roots):,} existing roots")
+        logger.info(f"  Found {len(existing_roots):,} existing radikos")
 
         # Open CSV writers
         csv_files = {}
         csv_writers = {}
 
         file_headers = {
-            'revo_synonym.csv': ['root1', 'root2', 'weight', 'source'],
-            'revo_antonym.csv': ['root1', 'root2', 'weight', 'source'],
-            'revo_hypernym.csv': ['root1', 'root2', 'weight', 'source'],
-            'revo_hyponym.csv': ['root1', 'root2', 'weight', 'source'],
-            'revo_part_of.csv': ['root1', 'root2', 'weight', 'source'],
+            'revo_sinonimo.csv': ['radiko1', 'radiko2', 'pezo', 'fonto'],
+            'revo_antonimo.csv': ['radiko1', 'radiko2', 'pezo', 'fonto'],
+            'revo_hipernimo.csv': ['radiko1', 'radiko2', 'pezo', 'fonto'],
+            'revo_hiponimo.csv': ['radiko1', 'radiko2', 'pezo', 'fonto'],
+            'revo_parto_de.csv': ['radiko1', 'radiko2', 'pezo', 'fonto'],
         }
 
         for filename, header in file_headers.items():
@@ -208,35 +208,45 @@ class RevoKuzuLoader:
             csv_writers[filename] = csv.writer(csv_files[filename])
             csv_writers[filename].writerow(header)
 
+        # Map English relation types to Esperanto CSV names
+        rel_type_map = {
+            'synonym': 'sinonimo',
+            'antonym': 'antonimo',
+            'hypernym': 'hipernimo',
+            'hyponym': 'hiponimo',
+            'part_of': 'parto_de',
+        }
+
         # Process each relation type
         for rel_type, rel_list in relations.items():
-            csv_key = f'revo_{rel_type}.csv'
+            csv_key = f'revo_{rel_type_map.get(rel_type, rel_type)}.csv'
 
             for rel in rel_list:
                 source = rel['source']
                 target = rel['target']
                 weight = rel.get('weight', 2.0)
 
-                # Validate both roots exist in corpus
+                # Validate both radikos exist in corpus
                 if source not in existing_roots or target not in existing_roots:
-                    self.stats['skipped_missing_root'] += 1
+                    self.stats['skipped_missing_radiko'] += 1
                     continue
 
                 # Write to CSV
                 csv_writers[csv_key].writerow([source, target, weight, 'revo'])
-                self.stats[f'revo_{rel_type}'] += 1
+                esperanto_rel_type = rel_type_map.get(rel_type, rel_type)
+                self.stats[f'revo_{esperanto_rel_type}'] += 1
 
         # Close CSV files
         for f in csv_files.values():
             f.close()
 
         logger.info("  CSV files created:")
-        for rel_type in ['synonym', 'antonym', 'hypernym', 'hyponym', 'part_of']:
+        for rel_type in ['sinonimo', 'antonimo', 'hipernimo', 'hiponimo', 'parto_de']:
             count = self.stats[f'revo_{rel_type}']
             if count > 0:
                 logger.info(f"    {rel_type}: {count:,}")
 
-        logger.info(f"  Skipped (missing roots): {self.stats['skipped_missing_root']:,}")
+        logger.info(f"  Skipped (missing radikos): {self.stats['skipped_missing_radiko']:,}")
 
         self.progress['csvs_created'] = True
         self._save_progress()
@@ -271,11 +281,11 @@ class RevoKuzuLoader:
                 return 0
 
         # Load edge tables
-        copy_csv("REVO_SYNONYM", "revo_synonym.csv")
-        copy_csv("REVO_ANTONYM", "revo_antonym.csv")
-        copy_csv("REVO_HYPERNYM", "revo_hypernym.csv")
-        copy_csv("REVO_HYPONYM", "revo_hyponym.csv")
-        copy_csv("REVO_PART_OF", "revo_part_of.csv")
+        copy_csv("REVO_SINONIMO", "revo_sinonimo.csv")
+        copy_csv("REVO_ANTONIMO", "revo_antonimo.csv")
+        copy_csv("REVO_HIPERNIMO", "revo_hipernimo.csv")
+        copy_csv("REVO_HIPONIMO", "revo_hiponimo.csv")
+        copy_csv("REVO_PARTO_DE", "revo_parto_de.csv")
 
         logger.info("  Bulk loading complete")
 
@@ -288,11 +298,11 @@ class RevoKuzuLoader:
         logger.info("Verifying loaded data...")
 
         edge_types = [
-            'REVO_SYNONYM',
-            'REVO_ANTONYM',
-            'REVO_HYPERNYM',
-            'REVO_HYPONYM',
-            'REVO_PART_OF',
+            'REVO_SINONIMO',
+            'REVO_ANTONIMO',
+            'REVO_HIPERNIMO',
+            'REVO_HIPONIMO',
+            'REVO_PARTO_DE',
         ]
 
         logger.info("")
@@ -327,16 +337,16 @@ class RevoKuzuLoader:
         logger.info("")
         logger.info("ReVo relations loaded into Kuzu!")
         logger.info("")
-        logger.info("Query examples:")
+        logger.info("Query examples (v2.1 Pure Esperanto):")
         logger.info("")
-        logger.info("  # Find synonyms of 'dormi'")
-        logger.info("  MATCH (r:Root {root: 'dormi'})-[:REVO_SYNONYM]->(s) RETURN s.root")
+        logger.info("  # Trovu sinonimojn de 'dormi'")
+        logger.info("  MATCH (r:Radiko {radiko: 'dormi'})-[:REVO_SINONIMO]->(s) RETURN s.radiko")
         logger.info("")
-        logger.info("  # Find what 'hundo' is-a (hypernyms)")
-        logger.info("  MATCH (r:Root {root: 'hundo'})-[:REVO_HYPERNYM]->(h) RETURN h.root")
+        logger.info("  # Trovu kio 'hundo' estas (hipernimoj)")
+        logger.info("  MATCH (r:Radiko {radiko: 'hundo'})-[:REVO_HIPERNIMO]->(h) RETURN h.radiko")
         logger.info("")
-        logger.info("  # Find antonyms of 'bona'")
-        logger.info("  MATCH (r:Root {root: 'bona'})-[:REVO_ANTONYM]->(a) RETURN a.root")
+        logger.info("  # Trovu antonimojn de 'bona'")
+        logger.info("  MATCH (r:Radiko {radiko: 'bona'})-[:REVO_ANTONIMO]->(a) RETURN a.radiko")
         logger.info("")
 
     def close(self):

@@ -1332,6 +1332,243 @@ def preprocess_text(text: str) -> str:
     return text
 
 
+# =============================================================================
+# Subordinate Clause Parsing (Issue #691)
+# =============================================================================
+
+# Subordinating conjunctions that introduce clauses
+SUBORDINATING_CONJUNCTIONS = {
+    # Complement clauses (ke-clauses) - become objects
+    "ke": "complement",
+
+    # Relative clauses (attach to nouns)
+    "kiu": "relative",
+    "kio": "relative",
+    "kiuj": "relative",
+    "kiujn": "relative",
+    "kiun": "relative",
+
+    # Temporal clauses (adverbial)
+    "kiam": "temporal",
+    "dum": "temporal",
+    "antaŭ": "temporal",  # antaŭ ol
+    "post": "temporal",   # post kiam
+
+    # Conditional clauses (adverbial)
+    "se": "conditional",
+
+    # Causal clauses (adverbial)
+    "ĉar": "causal",
+
+    # Concessive clauses (adverbial)
+    "kvankam": "concessive",
+    "malgraŭ": "concessive",  # malgraŭ ke
+
+    # Purpose clauses (adverbial)
+    "por": "purpose",  # por ke
+}
+
+
+def parse_subordinate_clauses(sentence_ast: dict, word_asts: list) -> dict:
+    """
+    Parse subordinate clauses from aliaj[] and create nested frazo nodes.
+
+    Handles:
+    - ke-clauses (complement): attach to objekto
+    - Relative clauses (kiu/kio): attach to noun's priskriboj
+    - Adverbial clauses (kiam/se/ĉar): keep in aliaj[] but as frazo
+
+    Args:
+        sentence_ast: The sentence AST with subject, verb, object, aliaj
+        word_asts: List of all word ASTs (for reference)
+
+    Returns:
+        Modified sentence_ast with subordinate clauses parsed as nested frazo
+    """
+    aliaj = sentence_ast.get("aliaj", [])
+    if not aliaj:
+        return sentence_ast
+
+    new_aliaj = []
+    i = 0
+
+    while i < len(aliaj):
+        word = aliaj[i]
+        radiko = word.get("radiko", "").lower()
+
+        # Check if this is a subordinating conjunction
+        if radiko in SUBORDINATING_CONJUNCTIONS:
+            clause_type = SUBORDINATING_CONJUNCTIONS[radiko]
+
+            # Collect words for subordinate clause
+            clause_words = []
+            depth = 1  # Track nesting depth for nested subordinates
+            j = i + 1
+
+            while j < len(aliaj) and depth > 0:
+                next_word = aliaj[j]
+                next_radiko = next_word.get("radiko", "").lower()
+
+                # Check if we hit another subordinating conjunction (nested)
+                if next_radiko in SUBORDINATING_CONJUNCTIONS:
+                    depth += 1
+
+                # Check if we hit a verb in conditional mood (marks end of se-clause)
+                if clause_type == "conditional" and next_word.get("modo") == "kondicionalo":
+                    clause_words.append(next_word)
+                    j += 1
+                    # se-clause ends after conditional verb
+                    break
+
+                # Check if we hit a comma or conjunction (might mark end of clause)
+                if next_word.get("vortspeco") == "konjunkcio" and next_radiko in ["kaj", "sed", "aŭ"]:
+                    # Coordinate conjunction marks end of subordinate clause
+                    break
+
+                clause_words.append(next_word)
+                j += 1
+
+                # For relative clauses, stop at next verb (main clause continuation)
+                if clause_type == "relative":
+                    # Look ahead - if we see another verb after collecting subject+verb+object, stop
+                    verbs_in_clause = sum(1 for w in clause_words if w.get("vortspeco") == "verbo")
+                    if verbs_in_clause >= 1 and next_word.get("vortspeco") == "verbo":
+                        # We've hit the main clause verb, stop here
+                        break
+
+            # Parse collected words as a subordinate clause
+            if clause_words:
+                # Reconstruct sentence text from clause words
+                clause_text = " ".join(w.get("plena_vorto", "") for w in clause_words)
+
+                try:
+                    # Recursively parse subordinate clause
+                    # Use parse_clause() to avoid infinite recursion on same text
+                    sub_frazo = parse_clause(clause_words)
+                    sub_frazo["clause_type"] = clause_type
+
+                    # Attach based on clause type
+                    if clause_type == "complement":
+                        # ke-clause becomes the object
+                        sentence_ast["objekto"] = sub_frazo
+
+                    elif clause_type == "relative":
+                        # Relative clause modifies the nearest preceding noun
+                        # Find the noun it modifies (should be right before "kiu")
+                        if i > 0:
+                            prev_word = aliaj[i - 1]
+                            # Check if it's already part of subject or object
+                            if sentence_ast["subjekto"] and prev_word == sentence_ast["subjekto"]["kerno"]:
+                                sentence_ast["subjekto"]["priskriboj"].append(sub_frazo)
+                            elif sentence_ast["objekto"] and prev_word == sentence_ast["objekto"]["kerno"]:
+                                sentence_ast["objekto"]["priskriboj"].append(sub_frazo)
+                            else:
+                                # Standalone relative clause, keep in aliaj
+                                new_aliaj.append(sub_frazo)
+                        else:
+                            new_aliaj.append(sub_frazo)
+
+                    else:
+                        # Adverbial clauses (temporal, conditional, causal, etc.)
+                        # Keep in aliaj[] but as frazo, not individual words
+                        new_aliaj.append(sub_frazo)
+
+                    # Skip past all the words we consumed
+                    i = j
+                    continue
+
+                except Exception as e:
+                    # If parsing fails, fall back to keeping individual words
+                    new_aliaj.append(word)
+                    i += 1
+            else:
+                # No words collected, keep conjunction
+                new_aliaj.append(word)
+                i += 1
+        else:
+            # Not a subordinating conjunction, keep word
+            new_aliaj.append(word)
+            i += 1
+
+    sentence_ast["aliaj"] = new_aliaj
+    return sentence_ast
+
+
+def parse_clause(word_asts: list) -> dict:
+    """
+    Parse a list of word ASTs into a frazo structure (subordinate clause).
+
+    This is similar to the main parse() function but operates on pre-parsed words
+    instead of raw text, and doesn't recursively handle subordinates (to avoid infinite recursion).
+
+    Args:
+        word_asts: List of word AST dictionaries
+
+    Returns:
+        frazo AST dictionary
+    """
+    # Build basic frazo structure
+    frazo = {
+        "tipo": "frazo",
+        "subjekto": None,
+        "verbo": None,
+        "objekto": None,
+        "aliaj": []
+    }
+
+    # Find subject, verb, object using same rules as main parser
+    for i, ast in enumerate(word_asts):
+        if ast["vortspeco"] == "verbo" and not frazo["verbo"]:
+            frazo["verbo"] = ast
+            # Check for negation
+            if i > 0 and word_asts[i-1].get("radiko") == "ne":
+                ast["negita"] = True
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not frazo["objekto"]:
+            frazo["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not frazo["subjekto"]:
+            frazo["subjekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
+
+    # Associate adjectives with their nouns
+    for i, ast in enumerate(word_asts):
+        if ast["vortspeco"] == "adjektivo":
+            if frazo["objekto"] and ast["kazo"] == frazo["objekto"]["kerno"]["kazo"] and ast["nombro"] == frazo["objekto"]["kerno"]["nombro"]:
+                frazo["objekto"]["priskriboj"].append(ast)
+            elif frazo["subjekto"] and ast["kazo"] == frazo["subjekto"]["kerno"]["kazo"] and ast["nombro"] == frazo["subjekto"]["kerno"]["nombro"]:
+                frazo["subjekto"]["priskriboj"].append(ast)
+            else:
+                frazo["aliaj"].append(ast)
+        elif ast["vortspeco"] == "artikolo":
+            # Find noun this article modifies
+            for j in range(i + 1, len(word_asts)):
+                next_ast = word_asts[j]
+                if next_ast["vortspeco"] in ["substantivo", "pronomo"]:
+                    if frazo["objekto"] and next_ast == frazo["objekto"]["kerno"]:
+                        frazo["objekto"]["artikolo"] = "la"
+                        break
+                    elif frazo["subjekto"] and next_ast == frazo["subjekto"]["kerno"]:
+                        frazo["subjekto"]["artikolo"] = "la"
+                        break
+                elif next_ast["vortspeco"] != "adjektivo":
+                    break
+
+    # Clean up unassociated words
+    placed_words = []
+    if frazo["verbo"]:
+        placed_words.append(frazo["verbo"])
+    if frazo["subjekto"]:
+        placed_words.append(frazo["subjekto"]["kerno"])
+        placed_words.extend(frazo["subjekto"]["priskriboj"])
+    if frazo["objekto"]:
+        placed_words.append(frazo["objekto"]["kerno"])
+        placed_words.extend(frazo["objekto"]["priskriboj"])
+
+    for ast in word_asts:
+        if ast["vortspeco"] != 'artikolo' and ast not in placed_words:
+            frazo["aliaj"].append(ast)
+
+    return frazo
+
+
 def parse(text: str):
     """
     Parses an Esperanto sentence and returns a structured, morpheme-based AST.
@@ -1391,21 +1628,32 @@ def parse(text: str):
         "aliaj": [] # Other parts
     }
 
+    # Detect subordinating conjunctions to avoid assigning their words to main clause
+    # Issue #691: Find where subordinate clauses start
+    subordinate_starts = []
+    for i, ast in enumerate(word_asts):
+        radiko = ast.get("radiko", "").lower()
+        if radiko in SUBORDINATING_CONJUNCTIONS:
+            subordinate_starts.append(i)
+
     # Find the main components (verb, subject noun, object noun)
     # Rule 6: Case determines grammatical function (nominative=subject, accusative=object)
     # Pronouns (pronomoj) function exactly like nouns (substantivoj) grammatically
     for i, ast in enumerate(word_asts):
-        if ast["vortspeco"] == "verbo" and not sentence_ast["verbo"]:
+        # Skip words that are in subordinate clauses
+        in_subordinate = any(i > start for start in subordinate_starts)
+
+        if ast["vortspeco"] == "verbo" and not sentence_ast["verbo"] and not in_subordinate:
             sentence_ast["verbo"] = ast
             # Check for negation: 'ne' immediately preceding the verb (Issue #78)
             # In Esperanto, 'ne' typically directly precedes the word it negates
             if i > 0 and word_asts[i-1].get("radiko") == "ne":
                 ast["negita"] = True
         # Object: any noun, pronoun, proper noun, correlative, or unknown word in accusative case (-n)
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"]:
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"] and not in_subordinate:
             sentence_ast["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
         # Subject: any noun, pronoun, proper noun, correlative, or unknown word in nominative case (no -n)
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"]:
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"] and not in_subordinate:
             sentence_ast["subjekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
 
     # Associate articles and adjectives with their noun groups
@@ -1453,6 +1701,10 @@ def parse(text: str):
     for ast in word_asts:
         if ast["vortspeco"] != 'artikolo' and ast not in placed_words:
             sentence_ast["aliaj"].append(ast)
+
+    # --- Issue #691: Parse subordinate clauses as nested frazo nodes ---
+    # Handle ke-clauses, relative clauses, temporal clauses, etc.
+    sentence_ast = parse_subordinate_clauses(sentence_ast, word_asts)
 
     # --- Issue #87: Sentence type detection ---
     # Determine fraztipo (sentence type): demando, ordono, deklaro

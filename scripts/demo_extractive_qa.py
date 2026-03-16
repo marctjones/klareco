@@ -377,6 +377,23 @@ def process_query(query, args, generator):
     print()
     print(answer.text)
     print()
+
+    # Citations section (Issue #674)
+    if answer.citations:
+        print("=" * 70)
+        print("CITATIONS")
+        print("=" * 70)
+        for citation in answer.citations:
+            print(f"[{citation.id}] {citation.doc_title} ({citation.doc_source})")
+            # Truncate sentence if too long
+            sent_text = citation.sentence_text
+            if len(sent_text) > 100:
+                sent_text = sent_text[:97] + "..."
+            print(f"    {sent_text}")
+            if citation.sentence_id and citation.sentence_id != "unknown":
+                print(f"    ID: {citation.sentence_id}")
+            print()
+
     print("=" * 70)
     print("METADATA")
     print("=" * 70)

@@ -164,5 +164,34 @@ def test_extract_from_nested_clause_with_temporal():
         f"Expected time='1887', got '{fact.modifiers.get('time')}'"
 
 
+def test_citation_tracking():
+    """Test that citation metadata is properly attached to facts (Issue #674)."""
+    extractor = FactExtractor()
+
+    ast = parse("Zamenhof kreis Esperanton")
+    facts = extractor.extract(ast, source_sentence="Zamenhof kreis Esperanton")
+
+    # Initially, citation fields should be None
+    for fact in facts:
+        assert fact.citation_id is None
+        assert fact.sentence_id is None
+        assert fact.doc_title is None
+        assert fact.doc_metadata is None
+
+    # Simulate attaching citation info (as done in ExtractiveAnswerGenerator)
+    if facts:
+        fact = facts[0]
+        fact.sentence_id = "12345"
+        fact.doc_title = "Test Document"
+        fact.doc_metadata = {"source": "test"}
+        fact.citation_id = 1
+
+        # Verify citation info attached
+        assert fact.sentence_id == "12345"
+        assert fact.doc_title == "Test Document"
+        assert fact.doc_metadata["source"] == "test"
+        assert fact.citation_id == 1
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

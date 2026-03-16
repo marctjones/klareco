@@ -36,14 +36,26 @@ from klareco.rag.discourse_planner import DiscoursePlanner, DiscoursePlan
 
 
 @dataclass
+class Citation:
+    """Citation to source document (Issue #674)."""
+    id: int                    # Citation number [1], [2], etc.
+    sentence_id: str           # Database sentence ID
+    sentence_text: str         # Full sentence text
+    doc_title: str             # Article/document title
+    doc_source: str            # wikipedia, gutenberg, etc.
+    doc_metadata: Dict         # Full document metadata
+
+
+@dataclass
 class Answer:
     """Generated answer with metadata."""
-    text: str                           # Final answer paragraph
+    text: str                           # Final answer paragraph (with citation markers)
     facts_used: List[Fact]              # Facts included in answer
     score_breakdowns: List[ScoreBreakdown]  # Score for each fact
     discourse_plan: DiscoursePlan       # Discourse structure
     num_facts_extracted: int            # Total facts extracted
     num_facts_selected: int             # Facts selected for answer
+    citations: List[Citation]           # Citations to source sentences (Issue #674)
 
 
 class ExtractiveAnswerGenerator:
@@ -82,6 +94,8 @@ class ExtractiveAnswerGenerator:
         for i, sent in enumerate(sentences):
             ast = sent.get('ast')
             text = sent.get('text')
+            sent_id = sent.get('id')           # Database sentence ID
+            doc_title = sent.get('doc_title')  # Document title
             metadata = sent.get('metadata', {})
 
             if not ast:
@@ -103,8 +117,11 @@ class ExtractiveAnswerGenerator:
             # Extract facts
             facts = self.fact_extractor.extract(ast, source_sentence=text)
 
-            # Store metadata with facts
+            # Attach citation info to each fact (Issue #674)
             for fact in facts:
+                fact.sentence_id = sent_id
+                fact.doc_title = doc_title or 'Unknown'
+                fact.doc_metadata = metadata
                 all_facts.append((fact, metadata))
 
         # Step 2: Score fact importance
@@ -129,14 +146,15 @@ class ExtractiveAnswerGenerator:
                 score_breakdowns=[],
                 discourse_plan=DiscoursePlan(facts=[], relations=[], markers=[]),
                 num_facts_extracted=len(all_facts),
-                num_facts_selected=0
+                num_facts_selected=0,
+                citations=[]
             )
 
         # Step 5: Plan discourse structure
         discourse_plan = self.discourse_planner.plan(top_facts, max_facts=max_facts)
 
-        # Step 6: Generate answer text
-        answer_text = self._generate_text(discourse_plan)
+        # Step 6: Generate answer text with citations (Issue #674)
+        answer_text, citations = self._generate_text(discourse_plan)
 
         return Answer(
             text=answer_text,
@@ -144,17 +162,23 @@ class ExtractiveAnswerGenerator:
             score_breakdowns=top_scores,
             discourse_plan=discourse_plan,
             num_facts_extracted=len(all_facts),
-            num_facts_selected=len(top_facts)
+            num_facts_selected=len(top_facts),
+            citations=citations
         )
 
-    def _generate_text(self, discourse_plan: DiscoursePlan) -> str:
+    def _generate_text(self, discourse_plan: DiscoursePlan) -> tuple:
         """
-        Generate answer text from discourse plan.
+        Generate answer text from discourse plan with citations (Issue #674).
 
         For now, uses source sentences directly (extractive).
         Future: Convert facts → AST → sentences using deparser (abstractive).
+
+        Returns:
+            (answer_text, citations): Answer with citation markers and citation list
         """
         sentences = []
+        citations = []
+        citation_map = {}  # sentence_id -> citation_number
 
         for i, (fact, marker) in enumerate(zip(discourse_plan.facts,
                                                discourse_plan.markers)):
@@ -164,16 +188,55 @@ class ExtractiveAnswerGenerator:
             if not sent:
                 continue
 
+            # Get or create citation number for this sentence
+            sent_id = fact.sentence_id or f"unknown_{i}"
+            if sent_id not in citation_map:
+                citation_num = len(citations) + 1
+                citation_map[sent_id] = citation_num
+
+                # Extract source from metadata (check multiple fields)
+                doc_source = 'unknown'
+                if fact.doc_metadata:
+                    # Check common metadata fields for source
+                    if 'source' in fact.doc_metadata:
+                        doc_source = fact.doc_metadata['source']
+                    elif 'wikipedia' in str(fact.doc_metadata).lower():
+                        doc_source = 'wikipedia'
+                    elif fact.doc_title and 'wikipedia' in fact.doc_title.lower():
+                        doc_source = 'wikipedia'
+                    else:
+                        doc_source = 'database'
+
+                # Add to citations list
+                citations.append(Citation(
+                    id=citation_num,
+                    sentence_id=sent_id,
+                    sentence_text=fact.source_sentence,
+                    doc_title=fact.doc_title or 'Unknown',
+                    doc_source=doc_source,
+                    doc_metadata=fact.doc_metadata or {}
+                ))
+            else:
+                citation_num = citation_map[sent_id]
+
+            # Add citation marker to fact
+            fact.citation_id = citation_num
+
+            # Add citation marker to sentence
+            sent_with_citation = f"{sent} [{citation_num}]"
+
             # Add discourse marker if present (not for first sentence)
             if marker and i > 0:
                 # Lowercase first letter of sentence when adding marker
-                sent_lower = sent[0].lower() + sent[1:] if sent else sent
-                sent = f"{marker}, {sent_lower}"
+                sent_lower = sent_with_citation[0].lower() + sent_with_citation[1:] if sent_with_citation else sent_with_citation
+                sent_with_citation = f"{marker}, {sent_lower}"
 
-            sentences.append(sent)
+            sentences.append(sent_with_citation)
 
         # Join into paragraph
-        return ' '.join(sentences)
+        answer_text = ' '.join(sentences)
+
+        return answer_text, citations
 
 
 def demo_extractive_qa():

@@ -64,6 +64,12 @@ class Fact:
     source_ast: Optional[Dict] = None         # Original AST
     confidence: float = 1.0                   # Extraction confidence
 
+    # Citation tracking (Issue #674)
+    citation_id: Optional[int] = None         # Citation number [1], [2], etc.
+    sentence_id: Optional[str] = None         # Database sentence ID
+    doc_title: Optional[str] = None           # Article/document title
+    doc_metadata: Optional[Dict] = None       # Full document metadata
+
     def __str__(self):
         args_str = ", ".join(f"{k}={v}" for k, v in self.arguments.items())
         mods_str = ", ".join(f"{k}={v}" for k, v in self.modifiers.items()) if self.modifiers else "none"

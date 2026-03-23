@@ -131,9 +131,26 @@ VERB_CONSTRAINTS = {
 }
 ```
 
-## Phase 2: Implementation (🚧 IN PROGRESS)
+## Phase 2: Implementation (🚧 IN PROGRESS - 75% Complete)
 
-### 2.1 Update SVO Extraction (⏳ TODO)
+**Progress (2026-03-23)**:
+- ✅ 2.1 Update SVO Extraction - Added word decomposition to extract_svo_triples.py
+- ✅ 2.2 Build Hybrid Word Encoder - 172D encoder (128D learned + 44D deterministic)
+- ✅ 2.3 Regenerate Training Data - Script built and tested on 1000 triples
+- ⏳ 2.4 Train Hybrid Model - Next step
+
+**What's Done**:
+- Word-level SVO extraction with full AST decomposition
+- Hybrid word encoder combining learned roots + deterministic affixes + lexicon
+- Word-level training data generation with affix-aware negatives
+- All scripts tested and working
+
+**What's Next**:
+- Run full training data generation on complete corpus (~120K examples)
+- Train hybrid plausibility model (98K params, 172D inputs)
+- Evaluate and integrate
+
+### 2.1 Update SVO Extraction (✅ COMPLETE)
 
 **Goal**: Extract full words + decomposition, not just roots
 
@@ -174,7 +191,7 @@ VERB_CONSTRAINTS = {
 
 **Estimated time**: 2 hours
 
-### 2.2 Build Hybrid Word Encoder (⏳ TODO)
+### 2.2 Build Hybrid Word Encoder (✅ COMPLETE)
 
 **Goal**: Combine deterministic features + learned embeddings
 
@@ -208,22 +225,24 @@ class HybridWordEncoder:
 
 **Estimated time**: 3-4 hours
 
-### 2.3 Regenerate Training Data (⏳ TODO)
+### 2.3 Regenerate Training Data (✅ COMPLETE)
 
 **Goal**: Create word-level training data with full semantic features
 
-**Steps**:
-1. Re-run SVO extraction with full words
-2. Apply quality filters
-3. Generate challenging negatives (now based on word-level semantics!)
-4. Split train/val
+**Implementation**:
+- Created `generate_plausibility_training_data_word_level.py`
+- Affix-aware negative generation:
+  * Type-compatible swaps considering affixes (40%)
+  * Animacy violations (30%)
+  * Type mismatches (30%)
+- Tested successfully on 1000 triples
+- Generates balanced 50/50 positive/negative splits
 
-**Expected dataset**:
-- ~120K training examples (clean, word-level)
-- Clear positive/negative signal
-- Deterministic features included
+**Scripts**:
+- `scripts/generate_plausibility_training_data_word_level.py` - Main generation script
+- `scripts/add_word_decomposition_simple.py` - Utility to convert existing triples
 
-**Estimated time**: 4-6 hours (mostly compute time)
+**Status**: Script built and tested, ready for full corpus run
 
 ### 2.4 Train Hybrid Plausibility Model (⏳ TODO)
 
@@ -317,12 +336,14 @@ class HybridPlausibilityScorer:
 
 ## Total Timeline
 
-| Phase | Status | Estimated Time |
-|-------|--------|----------------|
-| **Phase 1: Foundation** | ✅ COMPLETE | ~6 hours |
-| **Phase 2: Implementation** | ⏳ IN PROGRESS | ~12-15 hours |
-| **Phase 3: Integration** | ⏳ TODO | ~10-12 hours |
-| **Total** | | **~30-35 hours** |
+| Phase | Status | Time Spent | Remaining |
+|-------|--------|------------|-----------|
+| **Phase 1: Foundation** | ✅ COMPLETE | ~6 hours | 0 |
+| **Phase 2: Implementation** | 🚧 75% Complete | ~9 hours | ~3-4 hours |
+| **Phase 3: Integration** | ⏳ TODO | 0 | ~10-12 hours |
+| **Total** | | **~15 hours** | **~13-16 hours** |
+
+**Next session**: Train hybrid model (2-3 hours compute time)
 
 **If working full-time**: ~1 week
 **If working part-time**: ~2-3 weeks

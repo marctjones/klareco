@@ -344,6 +344,55 @@ def extract_triples_from_ast(ast: Dict, sentence: str, source: str, sentence_id:
     return triples
 
 
+def is_quality_triple(subject_root: str, verb_root: str, object_root: str, sentence: str) -> bool:
+    """
+    Quality filter for SVO triples to reduce noise in training data.
+
+    Filters out:
+    - Very short roots (≤2 chars) - likely parsing errors or abbreviations
+    - Temporal/date roots as subjects/objects - "jar" (year), "dat" (date), "tag" (day)
+    - Month names as objects - "januar", "februar", etc.
+    - Single letters - "a", "k", "l", etc.
+    - Very long sentences (>100 words) - complex, likely misparses
+
+    Args:
+        subject_root: Subject root
+        verb_root: Verb root
+        object_root: Object root
+        sentence: Full sentence text
+
+    Returns:
+        True if triple passes quality filters, False otherwise
+    """
+    # Filter 1: Reject very short roots (≤2 chars)
+    if len(subject_root) <= 2 or len(verb_root) <= 2 or len(object_root) <= 2:
+        return False
+
+    # Filter 2: Reject temporal roots as subjects/objects
+    temporal_roots = {'jar', 'dat', 'tag', 'hor', 'minut', 'sekund', 'monat'}
+    if subject_root in temporal_roots or object_root in temporal_roots:
+        return False
+
+    # Filter 3: Reject month names as objects
+    months = {'januar', 'februar', 'mart', 'april', 'maj', 'juni',
+              'juli', 'aŭgust', 'septembr', 'oktobr', 'novembr', 'decembr'}
+    if object_root in months:
+        return False
+
+    # Filter 4: Reject sentences that are too long (>100 words)
+    # Long sentences often have parsing errors
+    word_count = len(sentence.split())
+    if word_count > 100:
+        return False
+
+    # Filter 5: Reject if subject/object are single uppercase letters (parsing errors)
+    if (len(subject_root) == 1 and subject_root.isupper()) or \
+       (len(object_root) == 1 and object_root.isupper()):
+        return False
+
+    return True
+
+
 def extract_from_frazo(frazo: Dict, sentence: str, source: str, sentence_id: int, confidence: float) -> List[Dict]:
     """
     Extract SVO triple(s) from a frazo node.
@@ -379,7 +428,9 @@ def extract_from_frazo(frazo: Dict, sentence: str, source: str, sentence_id: int
     subject_root, subject_full, subject_status = subject_info
 
     # Extract main verb
-    verbo = frazo.get('verbo', {})
+    verbo = frazo.get('verbo')
+    if not verbo or not isinstance(verbo, dict):
+        return triples
     verb_root = verbo.get('radiko')
     verb_full = verbo.get('plena_vorto')
     verb_status = verbo.get('analizstato')
@@ -406,20 +457,22 @@ def extract_from_frazo(frazo: Dict, sentence: str, source: str, sentence_id: int
         if all([subject_root, verb_root, object_root]):
             if subject_status == 'sukceso' and verb_status == 'sukceso' and object_status == 'sukceso':
                 if subject_root not in FUNCTION_WORDS and object_root not in FUNCTION_WORDS:
-                    triple = {
-                        'subject_root': subject_root,
-                        'verb_root': verb_root,
-                        'object_root': object_root,
-                        'subject_full': subject_full,
-                        'verb_full': verb_full,
-                        'object_full': object_full,
-                        'relation_type': 'SVO',
-                        'source': source,
-                        'sentence': sentence,
-                        'sentence_id': sentence_id,
-                        'confidence': confidence
-                    }
-                    triples.append(triple)
+                    # NEW: Quality filter to reduce noise
+                    if is_quality_triple(subject_root, verb_root, object_root, sentence):
+                        triple = {
+                            'subject_root': subject_root,
+                            'verb_root': verb_root,
+                            'object_root': object_root,
+                            'subject_full': subject_full,
+                            'verb_full': verb_full,
+                            'object_full': object_full,
+                            'relation_type': 'SVO',
+                            'source': source,
+                            'sentence': sentence,
+                            'sentence_id': sentence_id,
+                            'confidence': confidence
+                        }
+                        triples.append(triple)
 
     return triples
 
@@ -461,7 +514,9 @@ def extract_coordinated_verbs(
         return triples
 
     # Get main verb and object
-    verbo = frazo.get('verbo', {})
+    verbo = frazo.get('verbo')
+    if not verbo or not isinstance(verbo, dict):
+        return triples
     verb1_root = verbo.get('radiko')
     verb1_full = verbo.get('plena_vorto')
     verb1_status = verbo.get('analizstato')
@@ -500,19 +555,21 @@ def extract_coordinated_verbs(
     if verb2_node and object2_node:
         # First triple (main verb + main object)
         if subject_root not in FUNCTION_WORDS and object1_root not in FUNCTION_WORDS:
-            triples.append({
-                'subject_root': subject_root,
-                'verb_root': verb1_root,
-                'object_root': object1_root,
-                'subject_full': subject_full,
-                'verb_full': verb1_full,
-                'object_full': object1_full,
-                'relation_type': 'SVO',
-                'source': source,
-                'sentence': sentence,
-                'sentence_id': sentence_id,
-                'confidence': confidence
-            })
+            # Apply quality filter
+            if is_quality_triple(subject_root, verb1_root, object1_root, sentence):
+                triples.append({
+                    'subject_root': subject_root,
+                    'verb_root': verb1_root,
+                    'object_root': object1_root,
+                    'subject_full': subject_full,
+                    'verb_full': verb1_full,
+                    'object_full': object1_full,
+                    'relation_type': 'SVO',
+                    'source': source,
+                    'sentence': sentence,
+                    'sentence_id': sentence_id,
+                    'confidence': confidence
+                })
 
         # Second triple (coordinated verb + object)
         verb2_root = verb2_node.get('radiko')
@@ -521,19 +578,21 @@ def extract_coordinated_verbs(
         object2_full = object2_node.get('plena_vorto')
 
         if subject_root not in FUNCTION_WORDS and object2_root not in FUNCTION_WORDS:
-            triples.append({
-                'subject_root': subject_root,
-                'verb_root': verb2_root,
-                'object_root': object2_root,
-                'subject_full': subject_full,
-                'verb_full': verb2_full,
-                'object_full': object2_full,
-                'relation_type': 'SVO',
-                'source': source,
-                'sentence': sentence,
-                'sentence_id': sentence_id,
-                'confidence': confidence
-            })
+            # Apply quality filter
+            if is_quality_triple(subject_root, verb2_root, object2_root, sentence):
+                triples.append({
+                    'subject_root': subject_root,
+                    'verb_root': verb2_root,
+                    'object_root': object2_root,
+                    'subject_full': subject_full,
+                    'verb_full': verb2_full,
+                    'object_full': object2_full,
+                    'relation_type': 'SVO',
+                    'source': source,
+                    'sentence': sentence,
+                    'sentence_id': sentence_id,
+                    'confidence': confidence
+                })
 
     return triples
 
@@ -568,7 +627,9 @@ def extract_passive_voice(
         Triple dictionary or None
     """
     # Check if main verb is "est" (to be)
-    verbo = frazo.get('verbo', {})
+    verbo = frazo.get('verbo')
+    if not verbo or not isinstance(verbo, dict):
+        return None
     if verbo.get('radiko') != 'est':
         return None
 
@@ -627,19 +688,21 @@ def extract_passive_voice(
         agent_status = agent_node.get('analizstato')
 
         if agent_status == 'sukceso' and agent_root not in FUNCTION_WORDS:
-            return {
-                'subject_root': agent_root,      # Agent becomes subject
-                'verb_root': participle_root,     # Participle root becomes verb
-                'object_root': patient_root,      # Original subject becomes object
-                'subject_full': agent_full,
-                'verb_full': participle_full,
-                'object_full': patient_full,
-                'relation_type': 'SVO_passive',
-                'source': source,
-                'sentence': sentence,
-                'sentence_id': sentence_id,
-                'confidence': confidence * 0.9  # Slightly lower confidence for passive
-            }
+            # Apply quality filter
+            if is_quality_triple(agent_root, participle_root, patient_root, sentence):
+                return {
+                    'subject_root': agent_root,      # Agent becomes subject
+                    'verb_root': participle_root,     # Participle root becomes verb
+                    'object_root': patient_root,      # Original subject becomes object
+                    'subject_full': agent_full,
+                    'verb_full': participle_full,
+                    'object_full': patient_full,
+                    'relation_type': 'SVO_passive',
+                    'source': source,
+                    'sentence': sentence,
+                    'sentence_id': sentence_id,
+                    'confidence': confidence * 0.9  # Slightly lower confidence for passive
+                }
 
     return None
 

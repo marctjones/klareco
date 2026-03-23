@@ -155,7 +155,7 @@ class SkipGramModel(nn.Module):
             negative_indices: (batch_size, num_negatives) negative sample indices
 
         Returns:
-            loss: scalar loss value
+            loss: (batch_size,) per-sample loss values (NOT averaged)
         """
         batch_size = target_idx.size(0)
         num_negatives = negative_indices.size(1)
@@ -176,10 +176,10 @@ class SkipGramModel(nn.Module):
         ).squeeze(2)  # (batch_size, num_negatives)
         negative_loss = -torch.sum(torch.log(torch.sigmoid(-negative_scores) + 1e-10), dim=1)
 
-        # Total loss
+        # Total loss per sample (do NOT average here - let caller apply weights)
         loss = positive_loss + negative_loss
 
-        return loss.mean()
+        return loss  # Return per-sample losses
 
     def get_embeddings(self):
         """

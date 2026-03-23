@@ -53,12 +53,15 @@ Klareco leverages Esperanto's regular grammar to replace most traditional LLM co
 - **SVO extraction**: Advanced triple extraction with coordinated verbs + passive voice support
 - **Files**: `klareco/parser.py`, `klareco/deparser.py`, `scripts/extract_svo_triples.py`
 
-### 🚧 Stage 1: Root Embeddings (NEEDS RETRAIN)
-- **Architecture**: 64D embeddings for content words only (~320K params)
-- **Status**: Trained but vocabulary corruption found (Issue #479 - CRITICAL)
-- **Target**: 18,928 roots from Tier 2-5 vocabulary
+### ✅ Stage 1: Hybrid Root Embeddings (DEPLOYED - March 2026)
+- **Architecture**: Hybrid approach combining Production (128D, 6,719 roots) + AST-Only (64D, 2,369 roots)
+- **Performance**: 90/100 score (antonyms: 100/100, clustering: 80/100)
+- **Coverage**: 7,843 unique roots (AST for Fundamento, Production for rare roots)
+- **Strategy**: AST model for antonyms/structure, Production model for distributional semantics
+- **Zero training cost**: Intelligently combines existing models
 - **Function words**: Excluded (handled deterministically by M0)
-- **Files**: `klareco/embeddings/compositional.py`, `models/root_embeddings/`
+- **Files**: `klareco/embeddings/hybrid.py`, `klareco/embeddings/compositional.py`
+- **Demo**: `python scripts/demo_hybrid_embeddings.py` - See hybrid selection in action!
 
 ### 🔄 M1: Selectional Preference (BEING REPLACED)
 - **Old Architecture**: Subject-verb-object compatibility scoring (~10M params) - Issue #687

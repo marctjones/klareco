@@ -283,6 +283,58 @@ def extract_root(node: Dict) -> Optional[Tuple[str, str, str]]:
         return None
 
 
+def extract_word_decomposition(node: Dict) -> Optional[Dict]:
+    """
+    Extract full word decomposition from AST node for hybrid plausibility scorer.
+
+    NEW for v2.0: Extracts affixes and POS in addition to root.
+
+    Returns dictionary with:
+        {
+            'text': 'pomisto',              # Full word
+            'root': 'pom',                   # Root
+            'affixes': ['ist'],              # Suffixes (list)
+            'prefix': None,                  # Prefix (if any)
+            'pos': 'substantivo',            # Part of speech
+            'ending': 'o',                   # Grammatical ending
+            'status': 'sukceso'              # Parse status
+        }
+
+    Returns None if node is invalid or parsing failed.
+    """
+    if not node:
+        return None
+
+    # Extract from kerno if vortgrupo
+    word_node = node.get('kerno', {}) if node.get('tipo') == 'vortgrupo' else node
+
+    # Check if valid vorto
+    if word_node.get('tipo') != 'vorto':
+        return None
+
+    # Check parse status
+    status = word_node.get('analizstato')
+    if status not in ['sukceso', 'neplu_analiz']:  # Accept proper names too
+        return None
+
+    # Extract components
+    root = word_node.get('radiko')
+    full_word = word_node.get('plena_vorto') or word_node.get('originala_teksto')
+
+    if not root or not full_word:
+        return None
+
+    return {
+        'text': full_word,
+        'root': root,
+        'affixes': word_node.get('sufiksoj', []),
+        'prefix': word_node.get('prefikso'),
+        'pos': word_node.get('vortspeco', 'unknown'),
+        'ending': word_node.get('vortspeco_finaĵo'),
+        'status': status
+    }
+
+
 def extract_triples_from_ast(ast: Dict, sentence: str, source: str, sentence_id: int) -> List[Dict]:
     """
     Extract all SVO triples from a single AST.
@@ -459,13 +511,25 @@ def extract_from_frazo(frazo: Dict, sentence: str, source: str, sentence_id: int
                 if subject_root not in FUNCTION_WORDS and object_root not in FUNCTION_WORDS:
                     # NEW: Quality filter to reduce noise
                     if is_quality_triple(subject_root, verb_root, object_root, sentence):
+                        # NEW for v2.0: Extract full word decomposition
+                        subject_decomp = extract_word_decomposition(subjekto)
+                        verb_decomp = extract_word_decomposition(verbo)
+                        object_decomp = extract_word_decomposition(objekto)
+
                         triple = {
+                            # Backward compatibility (root-level)
                             'subject_root': subject_root,
                             'verb_root': verb_root,
                             'object_root': object_root,
                             'subject_full': subject_full,
                             'verb_full': verb_full,
                             'object_full': object_full,
+
+                            # NEW for v2.0: Word-level decomposition
+                            'subject': subject_decomp,
+                            'verb': verb_decomp,
+                            'object': object_decomp,
+
                             'relation_type': 'SVO',
                             'source': source,
                             'sentence': sentence,
@@ -557,13 +621,25 @@ def extract_coordinated_verbs(
         if subject_root not in FUNCTION_WORDS and object1_root not in FUNCTION_WORDS:
             # Apply quality filter
             if is_quality_triple(subject_root, verb1_root, object1_root, sentence):
+                # NEW for v2.0: Extract word decomposition
+                subject_decomp = extract_word_decomposition(frazo.get('subjekto'))
+                verb1_decomp = extract_word_decomposition(verbo)
+                object1_decomp = extract_word_decomposition(objekto)
+
                 triples.append({
+                    # Backward compatibility
                     'subject_root': subject_root,
                     'verb_root': verb1_root,
                     'object_root': object1_root,
                     'subject_full': subject_full,
                     'verb_full': verb1_full,
                     'object_full': object1_full,
+
+                    # NEW for v2.0: Word-level decomposition
+                    'subject': subject_decomp,
+                    'verb': verb1_decomp,
+                    'object': object1_decomp,
+
                     'relation_type': 'SVO',
                     'source': source,
                     'sentence': sentence,
@@ -580,13 +656,25 @@ def extract_coordinated_verbs(
         if subject_root not in FUNCTION_WORDS and object2_root not in FUNCTION_WORDS:
             # Apply quality filter
             if is_quality_triple(subject_root, verb2_root, object2_root, sentence):
+                # NEW for v2.0: Extract word decomposition for second triple
+                subject_decomp = extract_word_decomposition(frazo.get('subjekto'))
+                verb2_decomp = extract_word_decomposition(verb2_node)
+                object2_decomp = extract_word_decomposition(object2_node)
+
                 triples.append({
+                    # Backward compatibility
                     'subject_root': subject_root,
                     'verb_root': verb2_root,
                     'object_root': object2_root,
                     'subject_full': subject_full,
                     'verb_full': verb2_full,
                     'object_full': object2_full,
+
+                    # NEW for v2.0: Word-level decomposition
+                    'subject': subject_decomp,
+                    'verb': verb2_decomp,
+                    'object': object2_decomp,
+
                     'relation_type': 'SVO',
                     'source': source,
                     'sentence': sentence,
@@ -690,13 +778,25 @@ def extract_passive_voice(
         if agent_status == 'sukceso' and agent_root not in FUNCTION_WORDS:
             # Apply quality filter
             if is_quality_triple(agent_root, participle_root, patient_root, sentence):
+                # NEW for v2.0: Extract word decomposition
+                agent_decomp = extract_word_decomposition(agent_node)
+                participle_decomp = extract_word_decomposition(participle_node)
+                patient_decomp = extract_word_decomposition(subjekto)
+
                 return {
+                    # Backward compatibility
                     'subject_root': agent_root,      # Agent becomes subject
                     'verb_root': participle_root,     # Participle root becomes verb
                     'object_root': patient_root,      # Original subject becomes object
                     'subject_full': agent_full,
                     'verb_full': participle_full,
                     'object_full': patient_full,
+
+                    # NEW for v2.0: Word-level decomposition
+                    'subject': agent_decomp,
+                    'verb': participle_decomp,
+                    'object': patient_decomp,
+
                     'relation_type': 'SVO_passive',
                     'source': source,
                     'sentence': sentence,

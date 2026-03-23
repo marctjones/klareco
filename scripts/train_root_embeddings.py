@@ -512,12 +512,66 @@ def build_similarity_pairs(fundamento_roots: dict, revo_entries: dict,
 
     logger.info(f"Created {fund_pair_count} Fundamento translation pairs")
 
-    total_positive = len(pairs)
+    # =========================================================================
+    # 4. Systematic antonym pairs (mal- prefix) - NEGATIVE targets
+    # =========================================================================
+    logger.info("Generating systematic antonym pairs (mal- prefix)...")
+
+    antonym_count = 0
+    for root in root_to_idx:
+        if not root.startswith('mal'):
+            continue
+
+        positive_root = root[3:]  # Remove 'mal-' prefix
+
+        # Skip if too short (likely not a real antonym)
+        if len(positive_root) < 2:
+            continue
+
+        # Skip if either is a function word (safety check)
+        if root in FUNCTION_WORDS or positive_root in FUNCTION_WORDS:
+            continue
+
+        # Check if positive root exists in vocabulary
+        if positive_root not in root_to_idx:
+            continue
+
+        # Create antonym pair with NEGATIVE similarity
+        idx1, idx2 = root_to_idx[root], root_to_idx[positive_root]
+        pair_key = (min(idx1, idx2), max(idx1, idx2))
+
+        target = -0.7  # Negative = antonyms!
+        weight = 20.0  # High priority
+
+        # For negative targets, we want the minimum (most negative)
+        if pair_key not in pair_targets or target < pair_targets[pair_key]:
+            pair_targets[pair_key] = target
+            pairs.append((idx1, idx2, target))
+            weights.append(weight)
+            antonym_count += 1
+
+    logger.info(f"Created {antonym_count} antonym pairs (target=-0.7, weight=20.0)")
+
+    # Log examples
+    if antonym_count > 0:
+        examples = []
+        for (idx1, idx2, sim) in pairs[-min(5, antonym_count):]:
+            root1 = [k for k, v in root_to_idx.items() if v == idx1][0]
+            root2 = [k for k, v in root_to_idx.items() if v == idx2][0]
+            # Show positive → negative
+            if root1.startswith('mal'):
+                examples.append(f"({root2}, {root1})")
+            else:
+                examples.append(f"({root1}, {root2})")
+        logger.info(f"  Examples: {', '.join(examples)}")
+
+    total_positive = len([p for p in pairs if p[2] > 0])
+    total_negative = len([p for p in pairs if p[2] < 0])
     positive_pairs_set = set(pair_targets.keys())
-    logger.info(f"Total positive pairs: {total_positive}")
+    logger.info(f"Total pairs: {len(pairs)} (positive: {total_positive}, negative: {total_negative})")
 
     # =========================================================================
-    # 4. HARD NEGATIVES - medium similarity targets (optional)
+    # 5. HARD NEGATIVES - medium similarity targets (optional)
     # =========================================================================
     hard_neg_count = 0
     if use_hard_negatives:

@@ -5,6 +5,7 @@ external parsing libraries like Lark. It performs morphological and syntactic
 analysis to produce a detailed, Esperanto-native Abstract Syntax Tree (AST)."""
 import re
 import json
+from functools import lru_cache
 from pathlib import Path
 
 try:
@@ -1569,9 +1570,12 @@ def parse_clause(word_asts: list) -> dict:
     return frazo
 
 
+@lru_cache(maxsize=10000)
 def parse(text: str):
     """
     Parses an Esperanto sentence and returns a structured, morpheme-based AST.
+
+    NOTE: Cached with LRU cache (10K entries) for performance.
     """
     # Preprocess: normalize punctuation
     text = preprocess_text(text)
@@ -1768,7 +1772,7 @@ def parse(text: str):
             has_conditional_verb = True
 
         # Mark as conditional if we have "Se" + conditional verb, or just conditional verb
-        if has_conditional_verb and (starts_with_se or sentence_ast["verbo"].get("modo") == "kondicionalo"):
+        if has_conditional_verb and (starts_with_se or (sentence_ast["verbo"] and sentence_ast["verbo"].get("modo") == "kondicionalo")):
             fraztipo = 'kondiĉa'
 
     sentence_ast["fraztipo"] = fraztipo

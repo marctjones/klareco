@@ -30,7 +30,7 @@ from klareco.rag.whoosh_retriever import WhooshRetriever
 from klareco.rag.extractive_answering import (
     ExtractiveAnswerGenerator, QuestionType, classify_question_type
 )
-from klareco.knowledge import expand_with_morphology, expand_by_question_type
+from klareco.knowledge import expand_with_morphology, expand_by_question_type, get_synonyms
 
 
 def extract_roots_from_ast(ast):
@@ -132,14 +132,17 @@ def is_entity_root(root):
 
 def expand_with_manual_synonyms(roots):
     """
-    Expand query roots with manually curated synonyms (Issue #682).
+    Expand query roots with synonyms from semantic ontology + manual fallback.
 
-    Quick win: +15% recall with 2 hours of effort.
+    Uses semantic ontology (v2.2+) for verb class synonyms, with fallback to
+    manually curated synonyms for backwards compatibility.
+
     Returns expanded set of roots.
 
     IMPORTANT:
     - Does NOT expand entity roots (proper names) to avoid retrieval noise
-    - DOES expand verbs conservatively (fond ↔ kre ↔ iniciati) for vocab coverage
+    - DOES expand verbs using semantic ontology verb classes
+    - Limits synonym expansion to prevent retrieval noise
     """
     expanded = set(roots)
 
@@ -148,6 +151,16 @@ def expand_with_manual_synonyms(roots):
         if is_entity_root(root):
             continue
 
+        # Get synonyms from semantic ontology
+        synonyms = get_synonyms(root)
+
+        # Limit to top 5 synonyms to prevent retrieval noise
+        if synonyms:
+            # Sort for consistency, take top 5
+            top_synonyms = sorted(synonyms)[:5]
+            expanded.update(top_synonyms)
+
+        # Also include manual synonyms as fallback (for entities not in ontology)
         if root in MANUAL_SYNONYMS:
             expanded.update(MANUAL_SYNONYMS[root])
 

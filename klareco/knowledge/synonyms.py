@@ -8,17 +8,20 @@ This module provides unified synonym dictionaries used for:
 Sources:
 - MANUAL_VERB_SYNONYMS from klareco/rag/answer_extractor.py
 - MANUAL_SYNONYMS from scripts/demo_extractive_qa.py
+- Semantic ontology verb classes (v2.2+)
 - Merged and deduplicated for consistency
 
 Format: Dict[str, Set[str]]
   - Key: root (radiko)
   - Value: Set of synonym roots
 
-Version: v2.1
+Version: v2.2 (Now uses semantic ontology + fallback)
 Created: 2026-03-25
+Updated: 2026-03-28 - Integrated with semantic ontology
 """
 
 from typing import Dict, Set
+from .semantic_bridge import get_verb_synonyms_from_ontology
 
 # Verb Synonyms (for answer extraction and query expansion)
 verb_synonyms: Dict[str, Set[str]] = {
@@ -162,7 +165,7 @@ def are_synonyms(root1: str, root2: str) -> bool:
 
 def get_synonyms(root: str) -> Set[str]:
     """
-    Get all synonyms for a root (from both verb and noun dictionaries).
+    Get all synonyms for a root (from semantic ontology + fallback dictionaries).
 
     Args:
         root: Root to look up
@@ -172,10 +175,20 @@ def get_synonyms(root: str) -> Set[str]:
     """
     synonyms = set()
 
+    # First try semantic ontology for verb synonyms (verb class members)
+    ontology_synonyms = get_verb_synonyms_from_ontology(root)
+    if ontology_synonyms and len(ontology_synonyms) > 1:  # More than just root itself
+        synonyms.update(ontology_synonyms)
+
+    # Add hardcoded verb synonyms (fallback + additional)
     if root in verb_synonyms:
         synonyms.update(verb_synonyms[root])
 
+    # Add hardcoded noun synonyms
     if root in noun_synonyms:
         synonyms.update(noun_synonyms[root])
+
+    # Remove the root itself from synonyms (we don't want 'fond' in synonyms of 'fond')
+    synonyms.discard(root)
 
     return synonyms

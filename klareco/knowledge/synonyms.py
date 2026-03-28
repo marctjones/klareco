@@ -22,6 +22,7 @@ Updated: 2026-03-28 - Integrated with semantic ontology
 
 from typing import Dict, Set
 from .semantic_bridge import get_verb_synonyms_from_ontology
+from .synonym_ranking import get_top_synonyms
 
 # Verb Synonyms (for answer extraction and query expansion)
 verb_synonyms: Dict[str, Set[str]] = {
@@ -163,30 +164,39 @@ def are_synonyms(root1: str, root2: str) -> bool:
     return False
 
 
-def get_synonyms(root: str) -> Set[str]:
+def get_synonyms(root: str, max_count: int = 3) -> Set[str]:
     """
-    Get all synonyms for a root (from semantic ontology + fallback dictionaries).
+    Get top N semantically closest synonyms for a root.
+
+    Uses semantic ontology with intelligent ranking to limit to most relevant synonyms.
+    This prevents query expansion dilution (v2.2 issue: 8x expansion caused 24% accuracy).
 
     Args:
         root: Root to look up
+        max_count: Maximum number of synonyms to return (default: 3)
 
     Returns:
-        Set of synonym roots (empty if none found)
+        Set of top N closest synonym roots (empty if none found)
     """
     synonyms = set()
 
     # First try semantic ontology for verb synonyms (verb class members)
     ontology_synonyms = get_verb_synonyms_from_ontology(root)
     if ontology_synonyms and len(ontology_synonyms) > 1:  # More than just root itself
-        synonyms.update(ontology_synonyms)
+        # Rank by semantic closeness, take only top N
+        ranked = get_top_synonyms(root, list(ontology_synonyms), max_count=max_count)
+        synonyms.update(ranked)
+    else:
+        # Fallback: use hardcoded synonyms (but still limit to max_count)
+        if root in verb_synonyms:
+            # Take up to max_count from hardcoded synonyms
+            hardcoded = list(verb_synonyms[root])[:max_count]
+            synonyms.update(hardcoded)
 
-    # Add hardcoded verb synonyms (fallback + additional)
-    if root in verb_synonyms:
-        synonyms.update(verb_synonyms[root])
-
-    # Add hardcoded noun synonyms
-    if root in noun_synonyms:
-        synonyms.update(noun_synonyms[root])
+        if root in noun_synonyms:
+            # Take up to max_count from hardcoded synonyms
+            hardcoded = list(noun_synonyms[root])[:max_count]
+            synonyms.update(hardcoded)
 
     # Remove the root itself from synonyms (we don't want 'fond' in synonyms of 'fond')
     synonyms.discard(root)

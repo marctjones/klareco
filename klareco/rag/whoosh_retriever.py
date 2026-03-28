@@ -20,7 +20,29 @@ from klareco.rag.kuzu_ast_reconstructor import KuzuASTReconstructor
 logger = logging.getLogger(__name__)
 
 
-def expand_esperanto_root(root: str, question_type: Optional[str] = None) -> List[str]:
+def expand_entity_noun(root: str) -> List[str]:
+    """
+    Expand entity/proper noun to ONLY noun forms.
+
+    For entity nouns (like place names, language names, person names),
+    we want ONLY the noun forms, not verb/adjective/adverb forms.
+
+    Args:
+        root: Esperanto root for entity (e.g., "esperant" for Esperanto language)
+
+    Returns:
+        List of noun forms: -o, -on, -oj, -ojn
+    """
+    return [
+        root,           # bare root (sometimes used)
+        root + 'o',     # nominative singular (Esperanto)
+        root + 'on',    # accusative singular (Esperanton)
+        root + 'oj',    # nominative plural (Esperantoj)
+        root + 'ojn',   # accusative plural (Esperantojn)
+    ]
+
+
+def expand_esperanto_root(root: str, question_type: Optional[str] = None, is_entity: bool = False) -> List[str]:
     """
     Expand an Esperanto root to word forms, optimized by question type.
 
@@ -35,6 +57,10 @@ def expand_esperanto_root(root: str, question_type: Optional[str] = None) -> Lis
     Returns:
         List of expanded forms (4-6 forms for typed questions, 15 for unknown)
     """
+    # If this is an entity (proper noun), expand ONLY to noun forms
+    if is_entity:
+        return expand_entity_noun(root)
+
     forms = [root]  # Always include bare root
 
     # TEMPORARILY DISABLED: Always use full expansion to test if smart expansion is causing issues
@@ -179,7 +205,9 @@ class WhooshRetriever:
 
             word_forms = []
             for word in common_words:
-                word_forms.extend(expand_esperanto_root(word, question_type=None))
+                # Check if this word is an entity (query_entity or place name)
+                is_entity_word = (word == query_entity)
+                word_forms.extend(expand_esperanto_root(word, question_type=None, is_entity=is_entity_word))
             word_part = ' OR '.join(word_forms)
 
             query_str = f"({name_part}) AND ({word_part})"
@@ -195,7 +223,9 @@ class WhooshRetriever:
             # Only common words - expand all (current behavior)
             all_forms = []
             for root in query_roots:
-                all_forms.extend(expand_esperanto_root(root, question_type=None))
+                # Check if this root is an entity
+                is_entity_word = (root == query_entity)
+                all_forms.extend(expand_esperanto_root(root, question_type=None, is_entity=is_entity_word))
             query_str = ' OR '.join(all_forms)
             logger.info(f"Common words only: {len(all_forms)} forms")
 

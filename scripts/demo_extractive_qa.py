@@ -227,9 +227,20 @@ def extract_query_entity(ast, question_type):
             if entity:
                 return entity
 
+    # 1b. Check aliaj for accusative substantivo (grammatical object)
+    # This handles cases where parser puts object in aliaj instead of objekto
+    # Handles: "Kiu fondis Esperanton?" when parser puts "Esperanton" in aliaj
+    aliaj = ast.get('aliaj', [])
+    for alia in aliaj:
+        if isinstance(alia, dict):
+            if (alia.get('vortspeco') == 'substantivo' and
+                alia.get('kazo') == 'akuzativo'):
+                entity = alia.get('radiko', '')
+                if entity:
+                    return entity
+
     # 2. Check aliaj for proper nouns (capitalized words)
     # Handles: "Kiu estis Benjamin Franklin?", "Kiam naskiĝis Benjamin Franklin?"
-    aliaj = ast.get('aliaj', [])
     proper_nouns = []
 
     for alia in aliaj:
@@ -269,8 +280,8 @@ def extract_query_entity(ast, question_type):
     return None
 
 
-def retrieve_sentences(retriever, roots, question_type, query_entity=None, top_k=10):
-    """Retrieve sentences using Whoosh FTS index with AST-aware filtering."""
+def retrieve_sentences(retriever, roots, question_type, query_entity=None, top_k=10, query_ast=None):
+    """Retrieve sentences using AST role constraints (PRIMARY) or Whoosh FTS (fallback)."""
     # Convert roots to list
     roots_list = list(roots)
 
@@ -292,14 +303,16 @@ def retrieve_sentences(retriever, roots, question_type, query_entity=None, top_k
         if entity_root.endswith('o') or entity_root.endswith('a') or entity_root.endswith('e'):
             entity_root = entity_root[:-1]
 
-    # Retrieve using Whoosh BM25 search + AST filtering
-    # Get more candidates for reranking (top_k * 10 ensures good recall)
+    # Retrieve using AST-first cascading strategy
+    # 1. Try AST role constraints (grammatical structure)
+    # 2. Fallback to BM25 text matching if AST returns < 5 results
     documents = retriever.retrieve(
         query_roots=roots_list,
         top_k=top_k * 10,
         retrieval_limit=200,  # Reduced for speed with wildcard queries
         question_type=question_type_str,
-        query_entity=entity_root
+        query_entity=entity_root,
+        query_ast=query_ast  # NEW: Enable AST role-based retrieval
     )
 
     return documents
@@ -481,10 +494,10 @@ def process_query(query, args, generator, retriever):
 
     print()
 
-    # Retrieve sentences
+    # Retrieve sentences with AST role constraints
     print(f"Retrieving top {args.top_k} sentences...")
     sentences = retrieve_sentences(retriever, query_roots, question_type,
-                                   query_entity, args.top_k)
+                                   query_entity, args.top_k, query_ast=ast)
 
     if not sentences:
         print("No sentences found!")

@@ -150,16 +150,151 @@ class WhooshRetriever:
         logger.info("Initializing KuzuASTReconstructor for 10x faster AST retrieval")
         self.ast_reconstructor = KuzuASTReconstructor(self.kuzu_conn)
 
+    def retrieve_with_ast_roles(
+        self,
+        query_ast: Dict,
+        top_k: int = 20
+    ) -> List[Dict]:
+        """
+        Retrieve sentences matching GRAMMATICAL ROLE constraints from query AST.
+
+        This is the PRIMARY retrieval method - uses AST structure, not text matching.
+
+        For "Kiu fondis Esperanton?":
+        - Question type: WHO (extract subject)
+        - Verb constraint: {fond, kre, establ} (verb + top 3 synonyms)
+        - Object constraint: {esperant} with accusative case
+
+        Returns ONLY sentences where verb AND object roles match constraints.
+
+        Args:
+            query_ast: Parsed query AST with grammatical structure
+            top_k: Number of results to return
+
+        Returns:
+            List of sentence dicts with 'text', 'ast', 'id', 'score'
+        """
+        from klareco.knowledge import get_synonyms
+
+        # Extract verb root from query AST
+        # In "Kiu fondis Esperanton?", verb is in aliaj
+        verb_root = None
+        aliaj = query_ast.get('aliaj', [])
+        for alia in aliaj:
+            if isinstance(alia, dict) and alia.get('vortspeco') == 'verbo':
+                verb_root = alia.get('radiko')
+                break
+
+        if not verb_root:
+            logger.debug("No verb found in query AST, cannot use AST role retrieval")
+            return []
+
+        # Get verb synonyms (top 3 for precision)
+        verb_synonyms = get_synonyms(verb_root, max_count=3)
+        verb_constraint = [verb_root] + list(verb_synonyms)
+
+        # Extract object root from query AST (accusative noun)
+        obj_root = None
+        for alia in aliaj:
+            if isinstance(alia, dict):
+                if (alia.get('vortspeco') == 'substantivo' and
+                    alia.get('kazo') == 'akuzativo'):
+                    obj_root = alia.get('radiko')
+                    break
+
+        if not obj_root:
+            # Try objekto field as fallback
+            obj = query_ast.get('objekto')
+            if obj:
+                if obj.get('tipo') == 'vortgrupo':
+                    obj_root = obj.get('kerno', {}).get('radiko')
+                else:
+                    obj_root = obj.get('radiko')
+
+        if not obj_root:
+            logger.debug("No object found in query AST, cannot use AST role retrieval")
+            return []
+
+        logger.info(f"AST role retrieval: verb={verb_constraint}, object={obj_root}")
+
+        # Build Kuzu query with grammatical role constraints
+        # Use IN clause for verbs (includes synonyms)
+        verb_list_str = ','.join(f"'{v}'" for v in verb_constraint)
+
+        # Query for sentences with matching verb AND object
+        # Objects are usually Vortgrupo (word group), so check the kerno (core word)
+        kuzu_query = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko IN [{verb_list_str}]
+            MATCH (frazo)-[:HAVAS_OBJEKTON_VORTGRUPO]->(obj_vg:Vortgrupo)-[:HAVAS_KERNON]->(obj_kerno:Vorto)
+            WHERE obj_kerno.radiko = '{obj_root}' AND obj_kerno.kazo = 'akuzativo'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 5}
+        """
+
+        try:
+            result = self.kuzu_conn.execute(kuzu_query)
+        except Exception as e:
+            logger.error(f"AST role query failed: {e}")
+            return []
+
+        # Build documents
+        documents = []
+        while result.has_next():
+            row = result.get_next()
+            sentence_id = str(row[0])
+            text = row[1]
+
+            if not text:
+                continue
+
+            documents.append({
+                'text': text,
+                'ast': None,  # Lazy parsing
+                'id': sentence_id,
+                'score': 100.0 - len(documents),  # Rank order score (100, 99, 98, ...)
+                'matching_roots': verb_constraint + [obj_root],
+                'num_matches': len(verb_constraint) + 1,
+                'doc_title': '',
+                'metadata': '',
+                'retrieval_method': 'ast_role_query'
+            })
+
+        logger.info(f"AST role retrieval found {len(documents)} sentences")
+
+        # Fetch precomputed ASTs for top documents
+        if documents:
+            sentence_ids_to_parse = [int(doc['id']) for doc in documents[:top_k]]
+            reconstructed_asts = self.ast_reconstructor.reconstruct_ast_batch(sentence_ids_to_parse)
+
+            for doc in documents:
+                doc_id = int(doc['id'])
+                if doc_id in reconstructed_asts:
+                    doc['ast'] = reconstructed_asts[doc_id]
+
+        return documents[:top_k]
+
     def retrieve(
         self,
         query_roots: List[str],
         top_k: int = 20,
         retrieval_limit: int = 200,
         question_type: Optional[str] = None,
-        query_entity: Optional[str] = None
+        query_entity: Optional[str] = None,
+        query_ast: Optional[Dict] = None
     ) -> List[Dict]:
         """
-        Retrieve sentences matching query roots with AST-aware filtering.
+        Retrieve sentences using CASCADING strategy: AST-first, BM25 fallback.
+
+        STRATEGY:
+        1. IF query_ast provided:
+           - Try AST role-based retrieval (grammatical constraints)
+           - If >= 5 results found, return them (AST retrieval succeeded!)
+
+        2. ELSE/FALLBACK:
+           - Use BM25 text matching with word form expansion
+           - Apply meta-content filtering and AST boosting
 
         OPTIMIZATIONS APPLIED:
         - AND queries for proper names: Require proper name + word forms (10-50x speedup!)
@@ -173,6 +308,7 @@ class WhooshRetriever:
             retrieval_limit: Maximum candidates to retrieve from Whoosh
             question_type: Question type (who/what/where/when) for AST filtering
             query_entity: Entity being asked about (e.g., "esperant" for "Esperanton")
+            query_ast: Parsed query AST for grammatical role constraints (RECOMMENDED)
 
         Returns:
             List of sentence dicts with 'text', 'ast', 'id', 'score', 'matching_roots'
@@ -181,6 +317,23 @@ class WhooshRetriever:
             return []
 
         logger.info(f"Query roots received: {query_roots}")
+
+        # === PHASE 1: Try AST role-based retrieval (PRIMARY) ===
+        if query_ast:
+            logger.info("Attempting AST role-based retrieval (grammatical constraints)...")
+            ast_results = self.retrieve_with_ast_roles(query_ast, top_k)
+
+            if len(ast_results) >= 5:
+                logger.info(f"✓ AST role retrieval SUCCESS: {len(ast_results)} sentences found")
+                return ast_results
+            else:
+                logger.warning(f"✗ AST role retrieval insufficient: only {len(ast_results)} sentences, "
+                             f"falling back to BM25 text matching")
+        else:
+            logger.warning("No query_ast provided, skipping AST role retrieval, using BM25 fallback")
+
+        # === PHASE 2: Fallback to BM25 text matching ===
+        logger.info("Using BM25 text matching with word form expansion...")
 
         # AND QUERY OPTIMIZATION: Separate proper names from common words
         # Proper names (capitalized) should be required via AND, not expanded

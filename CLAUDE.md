@@ -38,6 +38,140 @@ Text → Parser (rules) → AST → Compositional Embeddings → Retrieval/Reaso
 
 **The Big Idea** (see `VISION.md`): Traditional LLMs waste capacity learning grammar. By making grammar explicit through ASTs, we hypothesize a 100M-500M param "reasoning core" could match larger models on structured tasks.
 
+## MANDATORY: Schema-First Development (v2.2+)
+
+**CRITICAL**: Klareco now has a comprehensive 4-layer semantic ontology in the database. You MUST use it instead of creating piecemeal solutions.
+
+### What's in the Ontology
+
+**Layer 1: Lexical Semantics**
+- Verb classes (50+): kreado, movo, pensado, perceptado, emocio, komunikado, vivo, profesio
+- Aspectual classes: stato, aktiveco, plenumigo, atingaĵo
+- Noun entity types: persono, loko, tempo, organizaĵo, evento, profesio
+- Thematic roles: aganto, paciento, temo, spertanto, instrumento, fonto, celo, loko, tempo
+
+**Layer 2: Frame Semantics**
+- Semantic frames (FrameNet-style)
+- Event participants and roles
+
+**Layer 3: Discourse Semantics**
+- RST relations (detalaĵo, fono, rezulto, kaŭzo, celo, kontrasto)
+- Information structure
+
+**Layer 4: Schema Semantics**
+- Biographical schema: identigo (1.0), ĉefa_realigo (0.95), naskiĝo_morto (0.85), profesio (0.80), loko (0.70)
+- Definitional schema: kategorio (1.0), esenca_eco (0.90), funkcio (0.75)
+- Event schema: ĉefa_okazaĵo (1.0), partoprenantoj (0.90), tempo (0.85), loko (0.80)
+
+### Mandatory Rules
+
+**1. ALWAYS use precomputed ASTs from the graph**
+```python
+# ❌ NEVER DO THIS:
+ast = parse(text)  # Re-parsing is wasted computation!
+
+# ✅ ALWAYS DO THIS:
+from klareco.rag.kuzu_ast_reconstructor import KuzuASTReconstructor
+reconstructor = KuzuASTReconstructor(kuzu_conn)
+ast = reconstructor.reconstruct_ast(sentence_id)  # <5ms, 10x faster
+```
+
+**2. ALWAYS query semantic ontology instead of hardcoded lists**
+```python
+# ❌ NEVER DO THIS:
+PERSON_WORDS = ['homo', 'vir', 'kuracist']  # Hardcoded gazetteer!
+
+# ✅ ALWAYS DO THIS:
+result = kuzu_conn.execute("""
+    MATCH (r:Radiko)-[:HAVAS_ENTECAN_TIPON]->(e:EntecaTipo {tipo_id: 'persono'})
+    RETURN r.radiko
+""")
+```
+
+**3. ALWAYS use verb/noun classes for synonyms**
+```python
+# ❌ NEVER DO THIS:
+CREATION_VERBS = ['fond', 'kre', 'produk']  # Manual list!
+
+# ✅ ALWAYS DO THIS:
+result = kuzu_conn.execute("""
+    MATCH (r:Radiko)-[:APARTENAS_AL_VERBA_KLASO]->(v:VerbaKlaso {klaso_id: 'kreado-26'})
+    RETURN r.radiko
+""")
+```
+
+**4. ALWAYS use schema slots for importance ranking**
+```python
+# ❌ NEVER DO THIS:
+if question_type == 'WHO':
+    importance = 0.95  # Hardcoded!
+
+# ✅ ALWAYS DO THIS:
+result = kuzu_conn.execute("""
+    MATCH (s:SkemaSloto {sloto_id: 'ĉefa_realigo'})
+    RETURN s.graveco_pezo
+""")
+```
+
+**5. ALWAYS use thematic roles for answer extraction**
+```python
+# ❌ NEVER DO THIS:
+if question.startswith('Kiu'):
+    return ast['subjekto']  # Pattern matching!
+
+# ✅ ALWAYS DO THIS:
+# Query thematic roles to find Aganto (agent) in creation events
+result = kuzu_conn.execute("""
+    MATCH (v:Radiko)-[:APARTENAS_AL_VERBA_KLASO]->(vc:VerbaKlaso {klaso_id: 'kreado-26'})
+    MATCH (v)-[:HAVAS_TEMAN_ROLON]->(tr:TemaRolo {rolo_id: 'aganto'})
+    RETURN tr
+""")
+```
+
+### Decision Checklist
+
+Before implementing ANY feature, ask:
+
+- [ ] Does this need entity classification? → Query EntecaTipo
+- [ ] Does this need verb synonyms? → Query VerbaKlaso
+- [ ] Does this need importance ranking? → Query SkemaSloto
+- [ ] Am I creating a hardcoded list? → STOP, use ontology
+- [ ] Am I re-parsing ASTs? → STOP, use reconstructor
+- [ ] Am I pattern matching on word forms? → STOP, use semantic classes
+
+### What to Do Instead of Piecemeal Solutions
+
+| Piecemeal Approach | Schema-First Approach |
+|--------------------|----------------------|
+| Gazetteer of place names | Query `EntecaTipo {tipo_id: 'loko'}` |
+| List of person words | Query `EntecaTipo {tipo_id: 'persono'}` |
+| Time word patterns | Query `EntecaTipo {tipo_id: 'tempo'}` |
+| Verb synonym lists | Query `VerbaKlaso` members |
+| Hardcoded importance weights | Query `SkemaSloto.graveco_pezo` |
+| Pattern matching for WHO | Query thematic role `aganto` |
+| Re-parsing ASTs (50ms) | Use `KuzuASTReconstructor` (<5ms) |
+
+### Files That Should NOT Exist
+
+These indicate piecemeal solutions that should use the schema instead:
+
+- ❌ `*_gazetteer.py` (entity lists)
+- ❌ `*_patterns.py` (regex/pattern matching)
+- ❌ `place_names.json` (hardcoded entities)
+- ❌ `person_indicators.py` (hardcoded indicators)
+- ❌ Any file re-parsing ASTs that exist in graph
+
+### How to Extend the Schema
+
+If you need a new semantic class:
+
+1. Add it to the appropriate layer in the database
+2. Update the taxonomy hierarchically
+3. Link roots to the new class
+4. Document in `docs/SEMANTIC_ONTOLOGY_REFERENCE.md`
+
+**DO NOT** create standalone files or hardcoded lists.
+
 ## Development Commands
 
 ### Setup

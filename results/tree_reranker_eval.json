@@ -1,0 +1,3502 @@
+{
+  "overall_accuracy": 0.08,
+  "correct": 4,
+  "total": 50,
+  "by_type": {
+    "who": {
+      "accuracy": 0.08695652173913043,
+      "correct": 2,
+      "total": 23
+    },
+    "what": {
+      "accuracy": 0.07692307692307693,
+      "correct": 2,
+      "total": 26
+    },
+    "when": {
+      "accuracy": 0.0,
+      "correct": 0,
+      "total": 1
+    }
+  },
+  "avg_breakdown": {
+    "avg_syntax_score": 0.296086507936508,
+    "avg_comp_score": 0.0,
+    "avg_semantic_score": 0.0,
+    "avg_syntax_weight": 0.46308237314224243,
+    "avg_comp_weight": 0.2758927345275879,
+    "avg_semantic_weight": 0.26102492213249207
+  },
+  "results": [
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1620788276195526,
+        0.1250322461128235,
+        0.1250322461128235,
+        0.11577059328556061,
+        0.11577059328556061
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.35,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1620788276195526
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        }
+      ],
+      "top_texts": [
+        "Krista Allen kiel belulino",
+        "Tiu ĉi movado nomiĝas la Restaŭrada Movado, kaj hodiaŭ konsistas el la Eklezio de Kristo, la Krista ",
+        "Ĉiu sendinto-ricevinto de la bildkarto estas petata raporti pri la sendo kaj ricevo en la koncernaj ",
+        "Tio estas kristana simbolo de kristanismo (memofero de Kristo) kaj de la koncepto krista korpo",
+        "Krista Sutton - kiel Sabrina"
+      ],
+      "question": "Kiu sendis krist prof?",
+      "expected_keywords": [
+        "tio"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1505017727613449,
+        0.13429388403892517,
+        0.1250322461128235,
+        0.11577059328556061,
+        0.11191157251596451
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.325,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1505017727613449
+        },
+        {
+          "syntax_score": 0.29000000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13429388403892517
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        }
+      ],
+      "top_texts": [
+        "--Via cara moŝto,--li respondis: kion Morozov faris dum sia tuta vivo, tion li estos faranta ĝis la ",
+        "Faro: Tio, kion oni faras, vidu ankaŭ agado",
+        "Samtempa estas tia interpretado, kiun plej ofte faras la interpretistoj de signolingvoj",
+        "Supozeble la farinto faris iun supraĵan komparon, ne rigardante detale",
+        "Tial li provis fari apartan faron"
+      ],
+      "question": "Kion faris si nov influ interpr samtemp?",
+      "expected_keywords": [
+        "antikv",
+        "krist",
+        "fid"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.09647548943758011,
+        0.09647548943758011,
+        0.09427034109830856,
+        0.0926164761185646,
+        0.0926164761185646
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20357142857142857,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09427034109830856
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        }
+      ],
+      "top_texts": [
+        "Krome lii propagandis la antisemitismon",
+        "Li kunmalkovris la kometon C/1975 N1 (Kobayashi-Berger-Milon)",
+        "Ekzemple, kilo- signas mil-oblon kaj tiel kilometro egalas al mil metroj, mili- signas milon-oblon k",
+        "--Mil jaroj (aŭ milo da jaroj) faras miljaron",
+        "Lia tombodomo, konstruita en 1934 okaze de la mila datreveno de lia morto, dominas la urbon"
+      ],
+      "question": "Kion pelis li li mil?",
+      "expected_keywords": []
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.12238605320453644,
+        0.0926164761185646,
+        0.0810394138097763,
+        0.0810394138097763,
+        0.0810394138097763
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.2642857142857143,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.12238605320453644
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.175,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0810394138097763
+        },
+        {
+          "syntax_score": 0.175,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0810394138097763
+        },
+        {
+          "syntax_score": 0.175,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0810394138097763
+        }
+      ],
+      "top_texts": [
+        "Ekz: mono havata: mono, kiun oni havas; mono havita: mono, kiun oni havis, sed ne havas plu. 3. Verb",
+        "Gan HaTropi (Tropika Ĝardeno) - havas areon de 5 akreoj",
+        "C³ (TV, 2011): Hoĝo Ganon",
+        "Árnyék a havon (1992)",
+        "Árnyék a havon (1991)"
+      ],
+      "question": "Kion havas gani?",
+      "expected_keywords": [
+        "kontinent",
+        "klimat"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1273476481437683,
+        0.11577059328556061,
+        0.10419353097677231,
+        0.10419353097677231,
+        0.10419353097677231
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        }
+      ],
+      "top_texts": [
+        "Nenies lando (No Man's Land, 1974)",
+        "Ĝis (tiu, ke, kiu) tempo, la lago havis estas uzita en la _wintertime_ kiel (landanta, bienanta) fil",
+        "ha (havo): hab - havi",
+        "Federacia lando (Bundesland, Land)",
+        "Mi ne hav"
+      ],
+      "question": "Kiam havas land?",
+      "expected_keywords": []
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1736558973789215,
+        0.10419353097677231,
+        0.10419353097677231,
+        0.09427034109830856,
+        0.0926164761185646
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.375,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1736558973789215
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.20357142857142857,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09427034109830856
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        }
+      ],
+      "top_texts": [
+        "-- Kiun lingvon parolis via patro",
+        "Kiuj ne povas paroli, aŭ ne parolas, aŭ estas mutaj, kaj komprenas parolon bone: tiuj metodoj devas ",
+        "Krom pri la angla lingvo, Lucy Bella Simkins estas flua en la hispana lingvo kaj parolas la italan l",
+        "Armenoj (armene Հայեր -hajer) estas antikvadevena popolo, parolanta la armenan lingvon (apartenantan",
+        "La parola komunikado estas establita inter du aŭ pliaj personoj, ĝi havas kiel komunikrimedo la paro"
+      ],
+      "question": "Kion estas angl tri patr tri parol mandaren hisp du lingv?",
+      "expected_keywords": []
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.16670966148376465,
+        0.1250322461128235,
+        0.09647548943758011,
+        0.0887574553489685,
+        0.08765487372875214
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.36,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.16670966148376465
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.19166666666666665,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0887574553489685
+        },
+        {
+          "syntax_score": 0.18928571428571428,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.08765487372875214
+        }
+      ],
+      "top_texts": [
+        "(218.) 142. Kion oni diras, tio povas rilati simple unu el tri tempoj: estinto, estanto, estonto (si",
+        "Oni uzas tiun tempon en dependa propozicio, kies ĉefa propozicio estas en simpla estinto, kiam oni u",
+        "Forlasante islamon (Leaving Islam) BBC dokumentario",
+        "Oni ne povas koni eston ĉar homo ne konadas eston sed la prezenton de esto",
+        "Konjekto, do, anstataŭas la koncepton de la greka filozofio, kiu trafus la Eston Necesan, nome la Es"
+      ],
+      "question": "Kion estas afg dekl islam ministeri?",
+      "expected_keywords": [
+        "histori",
+        "lok"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.11191157251596451,
+        0.11191157251596451,
+        0.11191157251596451,
+        0.10419353097677231,
+        0.10419353097677231
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        },
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        },
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        }
+      ],
+      "top_texts": [
+        "Santo Tirso, Couto (Santa Cristina e São Miguel) e Burgães",
+        "REDIRECT ISO 639-3 k#klo",
+        "REDIRECT ISO 639-3 k#kla",
+        "David Bellos: Tati, sa vie, son art, Le Seuil, Paris, 2002",
+        "The latest version of Creative Commons is 4.0 so Ŝablono:Cc-by-sa-all should be updated"
+      ],
+      "question": "Kiu havas kl hel son?",
+      "expected_keywords": [
+        "flank",
+        "alproksim",
+        "pozici"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1389247179031372,
+        0.13429388403892517,
+        0.13197848200798035,
+        0.1273476481437683,
+        0.1234886422753334
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.3,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1389247179031372
+        },
+        {
+          "syntax_score": 0.29000000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13429388403892517
+        },
+        {
+          "syntax_score": 0.28500000000000003,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13197848200798035
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.26666666666666666,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1234886422753334
+        }
+      ],
+      "top_texts": [
+        "Ŝajnas tiel esti, ke ĉiu, kiu estas administranto en Vikipedio por lingvo A, aŭtomate rajtas same ad",
+        "Tiu ĉi artikolo estas pri estinta administra unuo 東京府 [tōkjō-fu]. :Pri estanta administra unuo 東京都 [",
+        "Rilate, do, al Parmenido kiu konceptis la eston kaj la ne-eston kiel du disigitaĵojn, kontraŭajn kaj",
+        "Tiu Unu-Esto estas ankaŭ mem eono kaj entenas en si mem alian eston nomatan Ennoia (= Penso), aŭ Cha",
+        "Tial oni ne povas same esprimi, ekkomuniki eston ĉar simbolantaj vortoj kiuj eston esprimas povas es"
+      ],
+      "question": "Kiu estas administr?",
+      "expected_keywords": [
+        "pritrakt",
+        "politik"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1620788276195526,
+        0.14587095379829407,
+        0.1250322461128235,
+        0.11577059328556061,
+        0.11577059328556061
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.35,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1620788276195526
+        },
+        {
+          "syntax_score": 0.315,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.14587095379829407
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        }
+      ],
+      "top_texts": [
+        "Krista Allen kiel belulino",
+        "Platono, kiu verkis pri ideala amo (platona amo) en sia verko \"La Bankedo\", kuniĝis ambaŭ versiojn d",
+        "Tiu ĉi movado nomiĝas la Restaŭrada Movado, kaj hodiaŭ konsistas el la Eklezio de Kristo, la Krista ",
+        "Tio estas kristana simbolo de kristanismo (memofero de Kristo) kaj de la koncepto krista korpo",
+        "Krista Sutton - kiel Sabrina"
+      ],
+      "question": "Kiu platonis krist?",
+      "expected_keywords": []
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.16869428753852844,
+        0.14057858288288116,
+        0.14057858288288116,
+        0.1366093009710312,
+        0.11577059328556061
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.3642857142857143,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.16869428753852844
+        },
+        {
+          "syntax_score": 0.3035714285714286,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.14057858288288116
+        },
+        {
+          "syntax_score": 0.3035714285714286,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.14057858288288116
+        },
+        {
+          "syntax_score": 0.29500000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1366093009710312
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        }
+      ],
+      "top_texts": [
+        "Tiel la Morto, kiu ĉiujn venkas, estas iele venkita: perspektivo, tiu lasta, kiu plentrafas la koron",
+        "La Anglosaksa Kroniko - kiu plejparte favoris Wessex - ne raportis kiu venkis: do verŝajne Penda est",
+        "La Anglosaksa Kroniko - kiu plejparte favoris Wessex - ne raportis kiu venkis: do verŝajne Penda est",
+        "{{iwiki|Fina venk’(filmo)|Filmo pri fina venko|fr|Victoire finale (film)}} # Fina venk’ (filmo) – ar",
+        "Ĉu tiu ĉi venkinto ne unufoje kuŝos venkita"
+      ],
+      "question": "Kiu venkis lib?",
+      "expected_keywords": [
+        "alianc"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1713404804468155,
+        0.13429388403892517,
+        0.10882435739040375,
+        0.09647548943758011,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.37,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1713404804468155
+        },
+        {
+          "syntax_score": 0.29000000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13429388403892517
+        },
+        {
+          "syntax_score": 0.235,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10882435739040375
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "(218.) 142. Kion oni diras, tio povas rilati simple unu el tri tempoj: estinto, estanto, estonto (si",
+        "Oni uzas tiun tempon en dependa propozicio, kies ĉefa propozicio estas en simpla estinto, kiam oni u",
+        "Nguyen Khai: Kun la defendantoj de Kon Ko (Hanoi: Fremdlingva Eld., 1967. - 115 p.)",
+        "Kun la defendantoj de Kon Ko",
+        "Oni ne povas koni eston ĉar homo ne konadas eston sed la prezenton de esto"
+      ],
+      "question": "Kion estis kon ting aj?",
+      "expected_keywords": [
+        "anim"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.13197848200798035,
+        0.1273476481437683,
+        0.11577059328556061,
+        0.10419353097677231,
+        0.10419353097677231
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.28500000000000003,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13197848200798035
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        }
+      ],
+      "top_texts": [
+        "Rilate, do, al Parmenido kiu konceptis la eston kaj la ne-eston kiel du disigitaĵojn, kontraŭajn kaj",
+        "Loki: Ne ĉiu scias, ke oni lokas objekton ie, sed ne lokigas ĝin",
+        "Tiu lasta, minimume, ĉar Dio estas la Esto dum la kreaĵoj havas la eston",
+        "lok' devus esti por ambaŭ",
+        "La verbo vara (esti) flekcias: är (estas, estos), var (estis, estu), har varit (estis), hade varit ("
+      ],
+      "question": "Kiu estas histori lok?",
+      "expected_keywords": [
+        "afg",
+        "dekl",
+        "islam",
+        "ministeri"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1273476481437683,
+        0.09647548943758011,
+        0.09427034109830856,
+        0.0926164761185646,
+        0.0926164761185646
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20357142857142857,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09427034109830856
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        }
+      ],
+      "top_texts": [
+        "Ties kanto estas serio de muzikecaj notoj sii",
+        "La alvoko de la Plumbomilvo estas fajfa si-sii-uu",
+        "La kanto estas mallonga serio de altatonaj si, \"sii-sii-titi-sii,\" \"cii\" ktp Kiel migranta specio ku",
+        "La kanto, malofte aŭdata, elsendita el arbopinto, estas fajfa sii sii sii sii",
+        "Kompreneble, mi sias, sed estas la milito"
+      ],
+      "question": "Kiu identas si?",
+      "expected_keywords": [
+        "ali",
+        "parolant",
+        "grup"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.12155912071466446,
+        0.09956271201372147,
+        0.09647548943758011,
+        0.09647548943758011,
+        0.0926164761185646
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.2625,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.12155912071466446
+        },
+        {
+          "syntax_score": 0.215,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09956271201372147
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        }
+      ],
+      "top_texts": [
+        "Kial ili ricevas tion, sen kio estas tiel malfacile vivi, kaj mi ne ricevis kaj mi ne povas ricevi",
+        "La muzikalo komence ricevis malpli ol imponan ricevon kaj estis financa fiasko",
+        "La rivero Esla ricevas la nomon Riosol antaŭ ricevi la akvon de aliaj alfluantoj",
+        "math.sin(latB) + math.cos(latA)",
+        "Ekde ĝia apero en la Pokémon-serio, Entei ricevis ĝenerale miksitan ricevon"
+      ],
+      "question": "Kion ricevis raĝ latin Aŭgusteno?",
+      "expected_keywords": [
+        "vid",
+        "akademi",
+        "tuj",
+        "posten"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.10419353097677231,
+        0.0926164761185646,
+        0.0926164761185646,
+        0.0926164761185646,
+        0.0926164761185646
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        }
+      ],
+      "top_texts": [
+        "Tio devus esti almenaŭ Eta-Akvistidoj (elektu majuskligon laŭplaĉe), Eto-Akvistidoj",
+        "Tiu montaro inkludas Stanlej-Monton (5 119 m), Speke-Monto (4 890 m) kaj Baker-Monton (4 843 m)",
+        "Ĝi nun formas parton de Mont Lozère et Goulet",
+        "Ĝi nun formas parton de Mont Lozère et Goulet",
+        "Ĝi nun formas parton de Mont Lozère et Goulet"
+      ],
+      "question": "Kion etas vast mont?",
+      "expected_keywords": [
+        "metr"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.13429388403892517,
+        0.12900151312351227,
+        0.11191157251596451,
+        0.09647548943758011,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.29000000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13429388403892517
+        },
+        {
+          "syntax_score": 0.2785714285714286,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.12900151312351227
+        },
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "konsidero, atento, prizorgo, aŭ konsidero (\"Li kaptis neniun penson de lia apero\" kaj \"mi faris ĝin ",
+        "Lutero oponiĝis kontraŭ tio kion li konsideris klerikalaj misuzoj, precipe en konsidero al indulgenc",
+        "Kiel preparhelpanton li elektis la insbrukan teologon Karl Rahner",
+        "1636: Hermann Witsius, nederlanda protestanta teologo (m. 1708)",
+        "Robson - lianto ****Psorospermum Spach - psorospermo ****Santomasia N"
+      ],
+      "question": "Kion konsideras mult teologi li protestant?",
+      "expected_keywords": []
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1366093009710312,
+        0.1273476481437683,
+        0.11577059328556061,
+        0.11577059328556061,
+        0.10419353097677231
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.29500000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1366093009710312
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        }
+      ],
+      "top_texts": [
+        "La lernolibro \"La azerbajĝana lingvo\" por fremduloj, estas bazita sur la parolema aliro, skribita fa",
+        "Ĉiu alie aliras al Esperanto – mia aliro estis jena",
+        "Tial li ne havis aliron al studoj",
+        "Tia aliro jam ekis post la Water and Sanitation Decade, post kiu oni provis trovi aliron laŭpetan",
+        "ha (havo): hab - havi"
+      ],
+      "question": "Kiu havis alir?",
+      "expected_keywords": [
+        "mond",
+        "kamp",
+        "bank"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1250322461128235,
+        0.10419353097677231,
+        0.09647548943758011,
+        0.09030105918645859,
+        0.09030105918645859
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        }
+      ],
+      "top_texts": [
+        "Tarik kompletis tiun venkon per dua venko en Écija, kie finvenkis super la gota nobelularo",
+        "Libo Visolus same la 2-an fojon",
+        "La venkanto ne devas havi 2-poentan avantaĝon por venki",
+        "Okaze de konkursoj la venkinto povis nutri sian familion dum monatoj, do venki gravis",
+        "voir Modèle:Module biblio/libellé function Commun.libelle( args ) local lib = args['libellé'] or if "
+      ],
+      "question": "Kion venkis lib?",
+      "expected_keywords": [
+        "sever",
+        "alianc"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.12238605320453644,
+        0.10419353097677231,
+        0.10419353097677231,
+        0.10419353097677231,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.2642857142857143,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.12238605320453644
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "Ekz: mono havata: mono, kiun oni havas; mono havita: mono, kiun oni havis, sed ne havas plu. 3. Verb",
+        "Árnyék a havon (1992)",
+        "Árnyék a havon (1991)",
+        "Valaki átment a havon – eseromano",
+        "El Cajon havas flughavenon havanta nomon Gillespie Field"
+      ],
+      "question": "Kion havas land?",
+      "expected_keywords": [
+        "komplik",
+        "histori"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.177514910697937,
+        0.17236953973770142,
+        0.1273476481437683,
+        0.10419353097677231,
+        0.09956271201372147
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.3833333333333333,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.177514910697937
+        },
+        {
+          "syntax_score": 0.37222222222222223,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.17236953973770142
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.215,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09956271201372147
+        }
+      ],
+      "top_texts": [
+        "Kiam oni demandis lin pri lia nomo, li respondis, \"Plejparte oni nomas min Chip (Ĉip)\"",
+        "Kiam ŝi esprimas siajn obĵetojn kontraŭ estado nomita \"Kaorin\" fare de li, li tiam petas al ŝi nomi ",
+        "Li poste nomis ĝin Piko, kiam li aŭdis la grandajn araneojn de Mornarbaro nomi la glavon lia pikilo",
+        "Lia origina familia nomo estis Finnlandi, li prenis iam la nomon (dum aktorado) Magyar [madjar]",
+        "Lia origina familia nomo estis Halász, en 1990 li aldonis la patrinan nomon Hopp"
+      ],
+      "question": "Kiu nomis li?",
+      "expected_keywords": []
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1736558973789215,
+        0.11577059328556061,
+        0.11577059328556061,
+        0.11577059328556061,
+        0.11577059328556061
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.375,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1736558973789215
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        }
+      ],
+      "top_texts": [
+        "-- Kion ci estas farinta, Surin",
+        "Un señor muy viejo con unas alas enormes",
+        "Un señor muy viejo con unas alas enormes (rakonto)",
+        "Un Señor muy viejo con unas alas enormes (1988)",
+        "Un señor muy viejo con unas alas enormes (filmo)"
+      ],
+      "question": "Kion pagis uni far uson ci arme?",
+      "expected_keywords": [
+        "batal"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.11577059328556061,
+        0.10419353097677231,
+        0.09956271201372147,
+        0.09647548943758011,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.215,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09956271201372147
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "Ili veturas, veturas -- kaj kien ili veturas",
+        "Veturi ekstreman sportaŭton povus servi kiel ekzemplo ĉi tie",
+        "El Massalia ili veturis al Korsiko kaj tie instalis sin",
+        "En 1998 li faris rekordan flugon de Maroko ĝis Havajo, sed li devis rompi la veturon tie pro la malb",
+        "En 1916 li veturis al Bonaero kaj prelegis pri poezio en tiea Ateneo, kie skizis sian kreadisman teo"
+      ],
+      "question": "Kion veturis tie?",
+      "expected_keywords": [
+        "mar",
+        "biologi"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.11577059328556061,
+        0.0926164761185646,
+        0.0913301333785057,
+        0.09030105918645859,
+        0.0887574553489685
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.19722222222222222,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0913301333785057
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.19166666666666665,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0887574553489685
+        }
+      ],
+      "top_texts": [
+        "Sed kiamaniere tion diri al la ĉefkomandanto, se li ne toleras kontraŭdirojn",
+        "Mi ne toleras, -- mi jenon diras al vi",
+        "Skribe oni\ntiam uzas apostrofon (§10.1) anstataŭ la O-finaĵo:\n•amiko = amik’ = AMIK\n•belo = bel’ = B",
+        "(deprenas sian mantelon kaj kovras lin) Restu trankvile kuŝanta, kie vi nun kuŝas",
+        "Normiga influo ofte kaŭzas jesigon, kio estas fari aŭ diri kion aliaj faras aŭ diras eĉ kiam la indi"
+      ],
+      "question": "Kion diris kuŝ sud toler str?",
+      "expected_keywords": [
+        "lam",
+        "perfekt"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.16869428753852844,
+        0.1273476481437683,
+        0.1273476481437683,
+        0.1250322461128235,
+        0.11577059328556061
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.3642857142857143,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.16869428753852844
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        }
+      ],
+      "top_texts": [
+        "\" Kiam la alaŭdidoj rakontis tiun diron al la patrino--\"Nun,\" diris ŝi, \"ni vere bezonas forflugi",
+        "\"Bonvolu do diri kiel mi povos eniĝi,\" diris Alicio.",
+        "\"Bonvolu do diri kiel mi povos eniĝi,\" diris Alicio",
+        "Tiel la greka verbo παιδεύω paideuō kreas la perfekton πεπαίδευκα pepaideuka, de la latina tango la ",
+        "Kaj jen, ĉio perfektas"
+      ],
+      "question": "Kiu diris lam perfekt?",
+      "expected_keywords": [
+        "kuŝ",
+        "sud",
+        "toler",
+        "str"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.10419353097677231,
+        0.0913301333785057,
+        0.09030105918645859,
+        0.08682794868946075,
+        0.0810394138097763
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.19722222222222222,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0913301333785057
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.1875,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.08682794868946075
+        },
+        {
+          "syntax_score": 0.175,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0810394138097763
+        }
+      ],
+      "top_texts": [
+        "ZERO OK | 1 ?? | 2 anon | 3 adv anon | 4 \"sel=\"",
+        "Tiu praktiko fareblas ĉu solece ĉu akompane, tio estas iu povas praktiki ĝin al si mem aŭ al akompan",
+        "En aparta, Morrissey prienketas la praktikon de kreiva imagado: la praktiko produkti pozitivan kaj a",
+        "La almozrondo estas ankoraŭ praktikita en landoj, kiuj praktikas teravadan budhismon, kaj kvankam ĝi",
+        "Kelkaj ortodoksaj rabenoj faras distingon inter \"Israelido\" (ano de la gento) kaj \"judo\" (praktikant"
+      ],
+      "question": "Kion praktikis an?",
+      "expected_keywords": [
+        "vol",
+        "malriĉ"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1819252073764801,
+        0.18060211837291718,
+        0.17597129940986633,
+        0.1389247179031372,
+        0.131206676363945
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.3928571428571429,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1819252073764801
+        },
+        {
+          "syntax_score": 0.39,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.18060211837291718
+        },
+        {
+          "syntax_score": 0.38,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.17597129940986633
+        },
+        {
+          "syntax_score": 0.3,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1389247179031372
+        },
+        {
+          "syntax_score": 0.2833333333333333,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.131206676363945
+        }
+      ],
+      "top_texts": [
+        "Kiam oni skribas Esper anton per brajla skribo (skribo por blind uloj), oni\nuzas specialajn brajlajn",
+        "Kiam oni skribas ĝin per la cirila skribo, oni uzas la digrafon хь",
+        "Kiam oni skribe uzas cif erojn por la tago, oni ordi nare skribas\nla A-finaĵon: 1-a de Majo, sed iaf",
+        "Ekzemple skribi leteron eblas traduki kiel psát dopis (esti skribanta leteron) aŭ kiel napsat dopis ",
+        "Ekde tiam oni uzis la hispanlingvan skribon"
+      ],
+      "question": "Kiu uzas ŝi skrib?",
+      "expected_keywords": [
+        "advent"
+      ]
+    },
+    {
+      "correct": true,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1250322461128235,
+        0.10419353097677231,
+        0.09647548943758011,
+        0.09647548943758011,
+        0.0887574553489685
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.19166666666666665,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0887574553489685
+        }
+      ],
+      "top_texts": [
+        "Tiun fenomenon kaŭzis ĉefe la disvastiĝo de la brita imperio, kaj poste la kreskinta ekonomia kaj ku",
+        "BV.84\nNepersona aganto aŭ kaŭzanto\nPer povas montri nepersonan aganton aŭ kaŭz anton.",
+        "Do devas esti ankaŭ kaŭzo nebezonanta kaŭzon! 2. \"Kiel tiu kaŭzo devas esti dia",
+        "Ĝia celo estas kulturi sciencon kaj literaturon kaj konservi kaj promocii kulturon",
+        "Midriazo povas esti kaŭzita ankaŭ de medikamentoj kaj drogoj; drogo kaŭzanta midriazon nomiĝas midri"
+      ],
+      "question": "Kion kaŭzis br kresk ekonomi kultur du disvast?",
+      "expected_keywords": [
+        "tiu"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.09647548943758011,
+        0.09030105918645859,
+        0.09030105918645859,
+        0.0887574553489685,
+        0.08765487372875214
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.19166666666666665,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0887574553489685
+        },
+        {
+          "syntax_score": 0.18928571428571428,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.08765487372875214
+        }
+      ],
+      "top_texts": [
+        "Forlasante islamon (Leaving Islam) BBC dokumentario",
+        "Vara cirkulado inkludas: ## vendon de varo, t. e. transformon de ĝi en monon (V → M), kaj ## aĉeton ",
+        "Vara cirkulado inkludas: ## vendon de varo, t. e. transformon de ĝi en monon (V → M), kaj ## aĉeton ",
+        "Oni ne povas koni eston ĉar homo ne konadas eston sed la prezenton de esto",
+        "Konjekto, do, anstataŭas la koncepton de la greka filozofio, kiu trafus la Eston Necesan, nome la Es"
+      ],
+      "question": "Kion estis vari islam sov okcident jarcent?",
+      "expected_keywords": [
+        "mult",
+        "mil",
+        "epok"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.13197848200798035,
+        0.12155912071466446,
+        0.11577059328556061,
+        0.10419353097677231,
+        0.10419353097677231
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.28500000000000003,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13197848200798035
+        },
+        {
+          "syntax_score": 0.2625,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.12155912071466446
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        }
+      ],
+      "top_texts": [
+        "Rilate, do, al Parmenido kiu konceptis la eston kaj la ne-eston kiel du disigitaĵojn, kontraŭajn kaj",
+        "Tial, la ontologio (scienco pri la esto) estas la scienco kiu studas la eston ĉar tia kaj ne havas k",
+        "Tiu lasta, minimume, ĉar Dio estas la Esto dum la kreaĵoj havas la eston",
+        "Francisko Azorín indikas etimologion el sanskrita Budha (saĝa), el budh (kompreni)",
+        "La verbo vara (esti) flekcias: är (estas, estos), var (estis, estu), har varit (estis), hade varit ("
+      ],
+      "question": "Kiu estas budh rest?",
+      "expected_keywords": [
+        "tio"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.0926164761185646,
+        0.0926164761185646,
+        0.09030105918645859,
+        0.09030105918645859,
+        0.0887574553489685
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.19166666666666665,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0887574553489685
+        }
+      ],
+      "top_texts": [
+        "IBRD - International Bank for Reconstruction and Development (la \"vera\" Monda Banko) - fondiĝis en 1",
+        "La Banko Parex (latve: Parex banka) havas sian ĉefan sidejon en la latva ĉefurbo Riga",
+        "Financisto Richard Hoare fondas bankon Hoare's Bank en Londono",
+        "Breaking the Bank: The Decline of BankAmerica (\"Rompi la bankon: La degenero de BankAmerica\")",
+        "Tiu direktoraro gvidis kaj administris la bankon, respondecis pri komercaj agoj inter la banko kaj l"
+      ],
+      "question": "Kion havis mond kamp bank?",
+      "expected_keywords": [
+        "alir"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1466427445411682,
+        0.1389247179031372,
+        0.1250322461128235,
+        0.1250322461128235,
+        0.10882435739040375
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.31666666666666665,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1466427445411682
+        },
+        {
+          "syntax_score": 0.3,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1389247179031372
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.235,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10882435739040375
+        }
+      ],
+      "top_texts": [
+        "Vi ja mem permesis al mi -- ĈAMBELANO Kion mi permesis al vi, estas permesita",
+        "Kelkaj vikioj permesas nur al aliĝintaj uzantoj redakti, anstataŭ permesi al iu ajn retuzanto fari t",
+        "Ni faras nenion sen plena permeso",
+        "Supozeble la farinto faris iun supraĵan komparon, ne rigardante detale",
+        "La unua kritika eldono de la verkaro de Aŭgusteno, farita de Johann Amerbach en 1506, permesis al la"
+      ],
+      "question": "Kion permesis unu kritik far li eldon?",
+      "expected_keywords": [
+        "senp",
+        "joh"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.09647548943758011,
+        0.08945909142494202,
+        0.0887574553489685,
+        0.08765487372875214,
+        0.0810394138097763
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.19318181818181818,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.08945909142494202
+        },
+        {
+          "syntax_score": 0.19166666666666665,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0887574553489685
+        },
+        {
+          "syntax_score": 0.18928571428571428,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.08765487372875214
+        },
+        {
+          "syntax_score": 0.175,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0810394138097763
+        }
+      ],
+      "top_texts": [
+        "La printempa akvonivelo 10 m pli altas la kutiman alton",
+        "La kruroj estis surprize\nlongaj.\n•alto = vertikala dimensio (ĉiu kon kretaĵo havas ian alton) → alte",
+        "Oni ne povas koni eston ĉar homo ne konadas eston sed la prezenton de esto",
+        "Konjekto, do, anstataŭas la koncepton de la greka filozofio, kiu trafus la Eston Necesan, nome la Es",
+        "La estinto kaj estanto ne havas influadon je la kalkuladon de proporcia termo"
+      ],
+      "question": "Kion estas alt alt punkt?",
+      "expected_keywords": [
+        "metr"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.13197848200798035,
+        0.12155912071466446,
+        0.11577059328556061,
+        0.09956271201372147,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.28500000000000003,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13197848200798035
+        },
+        {
+          "syntax_score": 0.2625,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.12155912071466446
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.215,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09956271201372147
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "Rilate, do, al Parmenido kiu konceptis la eston kaj la ne-eston kiel du disigitaĵojn, kontraŭajn kaj",
+        "Tial, la ontologio (scienco pri la esto) estas la scienco, kiu studas la eston ĉar tia kaj ne havas ",
+        "Tiu lasta, minimume, ĉar Dio estas la Esto dum la kreaĵoj havas la eston",
+        "Lupo estis estinta lia aliancano, kaj pruntis al li trupojn Gaskonajn",
+        "Lii estis vicdekano de medicina fakultato"
+      ],
+      "question": "Kiu estis li?",
+      "expected_keywords": [
+        "sekv",
+        "patr"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.13429388403892517,
+        0.13197848200798035,
+        0.1273476481437683,
+        0.1234886422753334,
+        0.12155912071466446
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.29000000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13429388403892517
+        },
+        {
+          "syntax_score": 0.28500000000000003,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13197848200798035
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.26666666666666666,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1234886422753334
+        },
+        {
+          "syntax_score": 0.2625,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.12155912071466446
+        }
+      ],
+      "top_texts": [
+        "Tiu ĉi artikolo estas pri estinta administra unuo 東京府 [tōkjō-fu]. :Pri estanta administra unuo 東京都 [",
+        "Rilate, do, al Parmenido kiu konceptis la eston kaj la ne-eston kiel du disigitaĵojn, kontraŭajn kaj",
+        "Tiu Unu-Esto estas ankaŭ mem eono kaj entenas en si mem alian eston nomatan Ennoia (= Penso), aŭ Cha",
+        "Tial oni ne povas same esprimi, ekkomuniki eston ĉar simbolantaj vortoj kiuj eston esprimas povas es",
+        "Tial, la ontologio (scienco pri la esto) estas la scienco kiu studas la eston ĉar tia kaj ne havas k"
+      ],
+      "question": "Kiu estas hind lm lm?",
+      "expected_keywords": [
+        "alkutimiĝ",
+        "afg"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.10419353097677231,
+        0.10419353097677231,
+        0.10419353097677231,
+        0.10419353097677231,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "Estu K kampo, G finia grupo, kaj estu KG la grupa algebro",
+        "Vidi ŝablono (grupoj, grupas)",
+        "Grup Yorum, Veda",
+        "Portret de grup",
+        "La ĝenerala lineara grupo Gl(n,R), speciala lineara grupo _SL_(n,R), perpendikulara grupa O(n,R), ka"
+      ],
+      "question": "Kiu facilas grup?",
+      "expected_keywords": [
+        "ter",
+        "kategori"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1356169730424881,
+        0.131206676363945,
+        0.10882435739040375,
+        0.10419353097677231,
+        0.09956271201372147
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.29285714285714287,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1356169730424881
+        },
+        {
+          "syntax_score": 0.2833333333333333,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.131206676363945
+        },
+        {
+          "syntax_score": 0.235,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10882435739040375
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.215,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09956271201372147
+        }
+      ],
+      "top_texts": [
+        "En tiuj kondiĉoj oni povus je iu ajn momento akuzi iun ajn estron pri la rompo de reguloj kaj ŝtelad",
+        "Kaj ajna alia traduko utilus kiel Amasa abelmorto, Abeluja morto ktp. Ajno escepte tiu anglalingvaĵo",
+        "Vortfarado\n•Ajna = “ĉiu ajn, iu ajn, arbitra”: Li legus ajnan stultan libron.",
+        ", sgs , - , - , Ĵemajtia dialekto , - , - [[sh]] serbokroata , - , српскохрватски , 0 , sh , --- , -",
+        "La bovo falis kaj rompis al si kruron"
+      ],
+      "question": "Kion rompis si raĝ ajn Aŭgusteno?",
+      "expected_keywords": [
+        "fianĉ"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.17236953973770142,
+        0.1376383751630783,
+        0.1273476481437683,
+        0.11577059328556061,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.37222222222222223,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.17236953973770142
+        },
+        {
+          "syntax_score": 0.2972222222222222,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1376383751630783
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "Kiam voli estas uzata kun I-verbo, voli kaj la I-verbo nepre havas la saman\nsubjekton:\n•Prenu mem ak",
+        "Tiele, la nura afero kiu estas vera bono en si mem estas bona volo, kaj bona volo estas bona nur kia",
+        "praktikanto kiu praktikas simonion en la aplikado de sakramentoj (kan. 1380)",
+        "Tio estis la sola okazo en lia riĉa praktiko",
+        "Estis eldonita de Vladimir Varankin, kiu verkis por la gazeto sub la pseŭdonomo Vol-Volanto"
+      ],
+      "question": "Kiu praktikis vol malriĉ?",
+      "expected_keywords": []
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1356169730424881,
+        0.1356169730424881,
+        0.11191157251596451,
+        0.10882435739040375,
+        0.10419353097677231
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.29285714285714287,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1356169730424881
+        },
+        {
+          "syntax_score": 0.29285714285714287,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1356169730424881
+        },
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        },
+        {
+          "syntax_score": 0.235,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10882435739040375
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        }
+      ],
+      "top_texts": [
+        "La 5-a eldono, nomata DSM-5, de la 18-a de majo 2013 anstataŭigas tiun 4-an eldonon, kaj tenas ties ",
+        "La 5-a eldono, nomata DSM-5, de la 18-a de majo 2013 anstataŭigas tiun 4-an eldonon, kaj tenas ties ",
+        "Ĝin eldonis la Eldona Fako Kooperativa de SAT en 2009.",
+        "Oni eldonas la verkaĵon en 100 ekzempleroj, la eldona kosto ŝarĝas la reprezentanton (actor)",
+        "En januaro 2020 ĝi komencis eldoni araban eldonon"
+      ],
+      "question": "Kion eldonis 18 angl jarcent?",
+      "expected_keywords": [
+        "grav",
+        "johns"
+      ]
+    },
+    {
+      "correct": true,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1273476481437683,
+        0.1234886422753334,
+        0.11577059328556061,
+        0.11191157251596451,
+        0.10419353097677231
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.26666666666666666,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1234886422753334
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        }
+      ],
+      "top_texts": [
+        "Ĝis tie la knabinoj volis veturi, por vidi la sunon subiranta en la maron",
+        "Pro tiu kaŭzo pli frue neniu kuraĝis veturi sur la vastan maron",
+        "De tiam oni la maron nomas Egea Maro",
+        "-- Veturas maljuna Haleus, intencas veturi Ŝemil kaj Joĥaja",
+        "Vi volas veturi plue, ol veturis Kristoforo Kolumbo"
+      ],
+      "question": "Kiu veturis mar biologi?",
+      "expected_keywords": [
+        "tie"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1389247179031372,
+        0.09956271201372147,
+        0.09647548943758011,
+        0.09647548943758011,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.3,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1389247179031372
+        },
+        {
+          "syntax_score": 0.215,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09956271201372147
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "Tio povas inkluzivi:",
+        "En 1995 Northrop proponis 20 aviadilojn en la kosto 566 miliono da dolaroj, inkluzivas produktadan k",
+        "Ĥristoforos Milionis Χριστόφορος Μηλιώνης (1932-2017), verkisto",
+        "1961: 30-miliona civitano de Pollando naskiĝis",
+        "En la jaro 2000 produktiĝis la miliona veturilo"
+      ],
+      "question": "Kiu inkluzivas milion?",
+      "expected_keywords": [
+        "tiu"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1389247179031372,
+        0.1273476481437683,
+        0.11577059328556061,
+        0.11577059328556061,
+        0.11577059328556061
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.3,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1389247179031372
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        }
+      ],
+      "top_texts": [
+        "Oni apenaŭ povas koncepti tion",
+        "Nu, kara Tesman, tio estas kiel oni tion konceptas",
+        "Tion konceptas multaj fizikistoj",
+        "Tion konceptas multaj kreantoj de virtualaj realaĵoj",
+        "Tion konceptas multaj kreantoj de virtualaj realaĵoj"
+      ],
+      "question": "Kion konceptis Aŭgusteno?",
+      "expected_keywords": [
+        "hom"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1376383751630783,
+        0.1273476481437683,
+        0.1273476481437683,
+        0.11577059328556061,
+        0.11577059328556061
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.2972222222222222,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1376383751630783
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        }
+      ],
+      "top_texts": [
+        "Entrepreno, kiu kapablas produkti kun kvalito de ses sigmoj, produktas maks. 34 fuŝitajn produktojn ",
+        "produkta firmao = Firmao kiu produktis la kanton",
+        "Tial, AVI estas neŭtrala pri la nombro da trairejoj kiuj ekzistas inter la produktanto kaj la fina k",
+        "Iam estis salminejoj, kies produkto estis uzata por produkti pulvon",
+        "Ĉi tiu metodo implicas la uzon de alkila-halogenido kaj aroma komponaĵo por produkti la deziratan pr"
+      ],
+      "question": "Kiu produktis avat?",
+      "expected_keywords": [
+        "gani"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.13197848200798035,
+        0.1273476481437683,
+        0.1273476481437683,
+        0.1260613054037094,
+        0.12155912071466446
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.28500000000000003,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13197848200798035
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.2722222222222222,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1260613054037094
+        },
+        {
+          "syntax_score": 0.2625,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.12155912071466446
+        }
+      ],
+      "top_texts": [
+        "Rilate, do, al Parmenido kiu konceptis la eston kaj la ne-eston kiel du disigitaĵojn, kontraŭajn kaj",
+        "Tiu Unu-Esto estas ankaŭ mem eono kaj entenas en si mem alian eston nomatan Ennoia (= Penso), aŭ Cha",
+        "Ties kanto estas serio de muzikecaj notoj sii",
+        "Tiu unua esto estas eĉ mem eono kaj entenas en si alian eston nomata Ennoia (greke por Penso), aŭ ĥa",
+        "Tial, la ontologio (scienco pri la esto) estas la scienco, kiu studas la eston ĉar tia kaj ne havas "
+      ],
+      "question": "Kiu estis si?",
+      "expected_keywords": [
+        "ili",
+        "pek"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.131206676363945,
+        0.1250322461128235,
+        0.11577059328556061,
+        0.10419353097677231,
+        0.0926164761185646
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.2833333333333333,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.131206676363945
+        },
+        {
+          "syntax_score": 0.27,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1250322461128235
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.19999999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0926164761185646
+        }
+      ],
+      "top_texts": [
+        "REDIRECT Andalus-araba lingvo Privat-uza kodo de ISO 639-3 kiun Linguist List uzas por la Andalus-ar",
+        "difino surbaze de funkcia uzo: la lingvo, kiun la subjekto plej uzas, foje nomata \"ĉefa lingvo\"",
+        "Lingva nivelo (takso de ies kapablo uzi iun lingvon)",
+        "Lingva terapio helpas uzi lingvon",
+        "Anglo-normanda lingvo estas lingvo uzita de la anglo-normandoj, la posteuloj de la normandoj kiuj re"
+      ],
+      "question": "Kion uzas angl lingv?",
+      "expected_keywords": [
+        "latin",
+        "alfabet"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.11191157251596451,
+        0.11191157251596451,
+        0.09647548943758011,
+        0.09647548943758011,
+        0.09647548943758011
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        },
+        {
+          "syntax_score": 0.24166666666666664,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11191157251596451
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        },
+        {
+          "syntax_score": 0.20833333333333331,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09647548943758011
+        }
+      ],
+      "top_texts": [
+        "bo povas signifi la literon B",
+        "Kurt Aland ĝin klasikis en Kategorio 5-a",
+        "Platono instruis Aristotelon kaj Aristotelo instruis Aleksandron la Grandan",
+        "Platono instruis Aristotelon kaj Aristotelo instruis Aleksandron la Grandan",
+        "Platono instruis Aristotelon kaj Aristotelo instruis Aleksandron la Grandan"
+      ],
+      "question": "Kion signifas bon nord klasik nuntemp aristotel?",
+      "expected_keywords": [
+        "mejl"
+      ]
+    },
+    {
+      "correct": true,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1273476481437683,
+        0.1273476481437683,
+        0.11577059328556061,
+        0.10419353097677231,
+        0.10419353097677231
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.275,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1273476481437683
+        },
+        {
+          "syntax_score": 0.25,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.11577059328556061
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        },
+        {
+          "syntax_score": 0.22499999999999998,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.10419353097677231
+        }
+      ],
+      "top_texts": [
+        "Ĉi tiu formulo povas esti (prezentita, prezentis) kiel :",
+        "En tiu malkompakta grundo la radikoj de la legomoj povas kreski profunden en la grundon",
+        "Tiel pozicia prezento de nombroj estas uzata por prezenti nombrojn en donita kalkulo-sistemo",
+        "Naturscienco : V",
+        "prezenta infinitivo: i;"
+      ],
+      "question": "Kiu prezentas grund naturscienc?",
+      "expected_keywords": [
+        "pozici"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1713404804468155,
+        0.1505017727613449,
+        0.1505017727613449,
+        0.13429388403892517,
+        0.131206676363945
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.37,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1713404804468155
+        },
+        {
+          "syntax_score": 0.32499999999999996,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1505017727613449
+        },
+        {
+          "syntax_score": 0.32499999999999996,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1505017727613449
+        },
+        {
+          "syntax_score": 0.29000000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13429388403892517
+        },
+        {
+          "syntax_score": 0.2833333333333333,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.131206676363945
+        }
+      ],
+      "top_texts": [
+        "Kiu povas dekreti aŭ eksigi tabuon, kompreneble estas tre pova homo",
+        "Ĉu mi pov",
+        "Ĉu vi pov",
+        "En ĉi tiu okazo, n povas nomiĝi perfekta k-a povo",
+        "Ĉu iu povi klarigi kiel ĉi tio povis okazi"
+      ],
+      "question": "Kiu povis sakrament?",
+      "expected_keywords": [
+        "inf"
+      ]
+    },
+    {
+      "correct": false,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1713404804468155,
+        0.1505017727613449,
+        0.1505017727613449,
+        0.13429388403892517,
+        0.131206676363945
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.37,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1713404804468155
+        },
+        {
+          "syntax_score": 0.32499999999999996,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1505017727613449
+        },
+        {
+          "syntax_score": 0.32499999999999996,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1505017727613449
+        },
+        {
+          "syntax_score": 0.29000000000000004,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.13429388403892517
+        },
+        {
+          "syntax_score": 0.2833333333333333,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.131206676363945
+        }
+      ],
+      "top_texts": [
+        "Kiu povas dekreti aŭ eksigi tabuon, kompreneble estas tre pova homo",
+        "Ĉu mi pov",
+        "Ĉu vi pov",
+        "Kiel la nomo sugestas, \"MAC\"-oj povas esti uzataj por mesaĝa atesto",
+        "Ĉu iu povi klarigi kiel ĉi tio povis okazi"
+      ],
+      "question": "Kiu povas mesaĝ?",
+      "expected_keywords": [
+        "aim"
+      ]
+    },
+    {
+      "correct": true,
+      "num_candidates": 50,
+      "top_scores": [
+        0.1713404804468155,
+        0.131206676363945,
+        0.09030105918645859,
+        0.09030105918645859,
+        0.0887574553489685
+      ],
+      "top_breakdowns": [
+        {
+          "syntax_score": 0.37,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.1713404804468155
+        },
+        {
+          "syntax_score": 0.2833333333333333,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.131206676363945
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.195,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.09030105918645859
+        },
+        {
+          "syntax_score": 0.19166666666666665,
+          "compositional_score": 0.0,
+          "semantic_score": 0.0,
+          "syntax_weight": 0.46308237314224243,
+          "compositional_weight": 0.2758927345275879,
+          "semantic_weight": 0.26102492213249207,
+          "final_score": 0.0887574553489685
+        }
+      ],
+      "top_texts": [
+        "Kion mi ne estus vendinta por surakvoveturi posttagmezon",
+        "La kanzono kiun ŝi elektis estis la tradicia \"La sombra vendo\" (La ombron vendas mi)",
+        "Aŭgusteno tiam vendis sian heredaĵon kaj donis la monon al la malriĉuloj",
+        "Li vendis gazetaron, estis oficejhelpanto, ĝardenisto, kaj poste dezajnisto, ĝis povi vendi ioman pe",
+        "La tero turniĝas ĉirkaŭ sia akso.\n•vendi → vendiĝi = iĝi vendita, esti vendata (per si mem)\nŜi vendi"
+      ],
+      "question": "Kion vendis Aŭgusteno?",
+      "expected_keywords": [
+        "hered"
+      ]
+    }
+  ]
+}

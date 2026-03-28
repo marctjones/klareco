@@ -1,0 +1,384 @@
+{
+  "results": [
+    {
+      "question": "Kiu sendis krist prof?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion faris si nov influ interpr samtemp?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion pelis li li mil?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion havas gani?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiam havas land?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion estas angl tri patr tri parol mandaren hisp du lingv?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion estas afg dekl islam ministeri?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu havas kl hel son?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu estas administr?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu platonis krist?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu venkis lib?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion estis kon ting aj?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu estas histori lok?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu identas si?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion ricevis raĝ latin Aŭgusteno?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion etas vast mont?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion konsideras mult teologi li protestant?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu havis alir?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion venkis lib?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion havas land?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu nomis li?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion pagis uni far uson ci arme?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion veturis tie?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion diris kuŝ sud toler str?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu diris lam perfekt?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion praktikis an?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu uzas ŝi skrib?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion kaŭzis br kresk ekonomi kultur du disvast?",
+      "source_in_retrieval": true,
+      "source_bm25_rank": 1,
+      "source_reranked_rank": 1,
+      "bm25_top1_is_source": true,
+      "reranked_top1_is_source": true,
+      "retrieval_size": 200,
+      "diagnosis": "success"
+    },
+    {
+      "question": "Kion estis vari islam sov okcident jarcent?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu estas budh rest?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion havis mond kamp bank?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion permesis unu kritik far li eldon?",
+      "source_in_retrieval": true,
+      "source_bm25_rank": 5,
+      "source_reranked_rank": 2,
+      "bm25_top1_is_source": false,
+      "reranked_top1_is_source": false,
+      "retrieval_size": 200,
+      "diagnosis": "reranker_miss"
+    },
+    {
+      "question": "Kion estas alt alt punkt?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu estis li?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu estas hind lm lm?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu facilas grup?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion rompis si raĝ ajn Aŭgusteno?",
+      "source_in_retrieval": true,
+      "source_bm25_rank": 2,
+      "source_reranked_rank": 6,
+      "bm25_top1_is_source": false,
+      "reranked_top1_is_source": false,
+      "retrieval_size": 200,
+      "diagnosis": "reranker_miss"
+    },
+    {
+      "question": "Kiu praktikis vol malriĉ?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion eldonis 18 angl jarcent?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu veturis mar biologi?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu inkluzivas milion?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion konceptis Aŭgusteno?",
+      "source_in_retrieval": true,
+      "source_bm25_rank": 10,
+      "source_reranked_rank": 17,
+      "bm25_top1_is_source": false,
+      "reranked_top1_is_source": false,
+      "retrieval_size": 200,
+      "diagnosis": "reranker_miss"
+    },
+    {
+      "question": "Kiu produktis avat?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu estis si?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion uzas angl lingv?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kion signifas bon nord klasik nuntemp aristotel?",
+      "source_in_retrieval": true,
+      "source_bm25_rank": 141,
+      "source_reranked_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "source_beyond_top50"
+    },
+    {
+      "question": "Kiu prezentas grund naturscienc?",
+      "source_in_retrieval": false,
+      "source_bm25_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "retrieval_miss"
+    },
+    {
+      "question": "Kiu povis sakrament?",
+      "source_in_retrieval": true,
+      "source_bm25_rank": 1,
+      "source_reranked_rank": 32,
+      "bm25_top1_is_source": true,
+      "reranked_top1_is_source": false,
+      "retrieval_size": 200,
+      "diagnosis": "reranker_miss"
+    },
+    {
+      "question": "Kiu povas mesaĝ?",
+      "source_in_retrieval": true,
+      "source_bm25_rank": 186,
+      "source_reranked_rank": null,
+      "retrieval_size": 200,
+      "diagnosis": "source_beyond_top50"
+    },
+    {
+      "question": "Kion vendis Aŭgusteno?",
+      "source_in_retrieval": true,
+      "source_bm25_rank": 6,
+      "source_reranked_rank": 4,
+      "bm25_top1_is_source": false,
+      "reranked_top1_is_source": false,
+      "retrieval_size": 200,
+      "diagnosis": "reranker_miss"
+    }
+  ],
+  "stats": {
+    "total_questions": 50,
+    "retrieval_miss": 42,
+    "reranker_miss": 5,
+    "success": 1,
+    "beyond_top50": 2,
+    "coverage_top50": 0.12,
+    "reranker_effectiveness": 0.16666666666666666,
+    "overall_accuracy": 0.02
+  }
+}

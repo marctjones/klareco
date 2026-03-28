@@ -262,8 +262,8 @@ def get_affix_features(affixes: List[str]) -> Dict[str, str]:
         {'animacy': 'animate', 'type': 'person', 'role': 'professional'}
     """
     features = {
-        'animacy': 'unknown',
-        'type': 'unknown',
+        'animacy': None,
+        'type': None,
         'function': None,
         'role': None
     }

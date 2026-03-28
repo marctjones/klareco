@@ -58,9 +58,13 @@ from typing import List, Dict, Set, Tuple, Optional
 from collections import defaultdict, Counter
 import logging
 from tqdm import tqdm
+import sys
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from klareco.morphology.affix_semantics import get_affix_features, compose_word_semantics
-from klareco.morphology.root_lexicon import get_root_features
+from klareco.morphology.root_lexicon import get_root_features, ROOT_LEXICON
 
 
 # ============================================================================
@@ -81,7 +85,7 @@ def get_word_semantics(word_data: Dict) -> Dict[str, str]:
     affixes = word_data.get('affixes', [])
 
     # Compose semantics (affixes override base)
-    return compose_word_semantics(root, affixes)
+    return compose_word_semantics(root, affixes, ROOT_LEXICON)
 
 
 # ============================================================================
@@ -120,9 +124,9 @@ def filter_high_quality_triples(
         if not all(triple[key] and triple[key].get('root') for key in ['subject', 'verb', 'object']):
             continue
 
-        # Skip overly common verbs
+        # Skip overly common verbs (adjusted threshold: 5% instead of 1%)
         verb_root = triple['verb']['root']
-        if verb_counts[verb_root] > len(triples) * 0.01:  # >1% of corpus
+        if verb_counts[verb_root] > len(triples) * 0.05:  # >5% of corpus
             continue
 
         # Skip function words (shouldn't be in SVO extraction, but double-check)

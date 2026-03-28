@@ -70,6 +70,10 @@ from typing import Dict, List
 import logging
 from tqdm import tqdm
 import time
+import sys
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from klareco.embeddings.hybrid import HybridRootEmbedder
 from klareco.embeddings.hybrid_word import HybridWordEncoder

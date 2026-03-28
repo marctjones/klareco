@@ -126,15 +126,15 @@ class FactImportanceScorer:
         if question_type == QuestionType.WHAT:
             # "What is X?" → IS-A facts about X are perfect
             if fact.relation == RelationType.IS_A:
-                if query_entity and fact.entity.lower() == query_entity.lower():
+                if query_entity and fact.entity and fact.entity.lower() == query_entity.lower():
                     score = 1.0  # Perfect match!
-                elif query_entity and query_entity.lower() in fact.entity.lower():
+                elif query_entity and fact.entity and query_entity.lower() in fact.entity.lower():
                     score = 0.9  # Close match
                 else:
                     score = 0.5  # IS-A fact, but not about query entity
 
             # Other facts about query entity
-            elif query_entity and fact.entity.lower() == query_entity.lower():
+            elif query_entity and fact.entity and fact.entity.lower() == query_entity.lower():
                 score = 0.7  # Relevant fact about entity
 
             # Related facts
@@ -147,7 +147,7 @@ class FactImportanceScorer:
         elif question_type == QuestionType.WHO:
             # "Who created X?" → prioritize CREATED-BY, FOUNDED, etc.
             if fact.relation in [RelationType.CREATED_BY, RelationType.FOUNDED]:
-                if query_entity and query_entity.lower() in fact.entity.lower():
+                if query_entity and fact.entity and query_entity.lower() in fact.entity.lower():
                     score = 1.0  # Perfect match
                 else:
                     score = 0.6
@@ -162,7 +162,7 @@ class FactImportanceScorer:
         elif question_type == QuestionType.WHERE:
             # "Where is X?" → prioritize LOCATED-AT, BORN
             if fact.relation in [RelationType.LOCATED_AT, RelationType.BORN]:
-                if query_entity and query_entity.lower() in fact.entity.lower():
+                if query_entity and fact.entity and query_entity.lower() in fact.entity.lower():
                     score = 1.0
                 else:
                     score = 0.7
@@ -177,7 +177,7 @@ class FactImportanceScorer:
         elif question_type == QuestionType.WHEN:
             # "When was X created?" → prioritize facts with time modifiers
             if 'time' in fact.modifiers:
-                if query_entity and query_entity.lower() in fact.entity.lower():
+                if query_entity and fact.entity and query_entity.lower() in fact.entity.lower():
                     score = 1.0
                 else:
                     score = 0.8
@@ -192,7 +192,7 @@ class FactImportanceScorer:
 
         else:
             # Generic scoring for other question types
-            if query_entity and fact.entity.lower() == query_entity.lower():
+            if query_entity and fact.entity and fact.entity.lower() == query_entity.lower():
                 score = 0.7
             elif query_entity and query_entity.lower() in str(fact).lower():
                 score = 0.4
@@ -281,7 +281,7 @@ class FactImportanceScorer:
         query_lower = query_entity.lower()
 
         # Entity is the main subject of fact
-        if fact.entity.lower() == query_lower:
+        if fact.entity and fact.entity.lower() == query_lower:
             return 1.0
 
         # Entity appears in arguments (object position)

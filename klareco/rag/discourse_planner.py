@@ -135,7 +135,8 @@ class DiscoursePlanner:
             return DiscourseRelation.CAUSE
 
         # 3. ELABORATION: Same entity, different relations
-        if (fact_a.entity.lower() == fact_b.entity.lower() and
+        if (fact_a.entity and fact_b.entity and
+            fact_a.entity.lower() == fact_b.entity.lower() and
             fact_a.relation != fact_b.relation):
             return DiscourseRelation.ELABORATION
 

@@ -37,6 +37,7 @@ from klareco.rag.importance_scorer import (
     FactImportanceScorer, ScoreBreakdown, QuestionType, classify_question_type
 )
 from klareco.rag.discourse_planner import DiscoursePlanner, DiscoursePlan
+from klareco.rag.answer_extractor import ASTAnswerExtractor
 from klareco.models.reranker import ASTReranker
 from klareco.models.m1_inference import M1Inference
 from klareco.embeddings.compositional import CompositionalEmbedding
@@ -77,7 +78,9 @@ class ExtractiveAnswerGenerator:
         embedding_path: Optional[Path] = None,
         use_reranker: bool = True,
         use_m1: bool = True,
-        m1_threshold: float = 0.3
+        m1_threshold: float = 0.3,
+        use_ast_extraction: bool = True,
+        multi_sentence_question_types: Optional[Dict[QuestionType, bool]] = None
     ):
         """
         Initialize answer generator with optional neural models.
@@ -89,10 +92,29 @@ class ExtractiveAnswerGenerator:
             use_reranker: Enable neural reranking (default: True)
             use_m1: Enable M1 plausibility filtering (default: True)
             m1_threshold: Minimum plausibility score for M1 filtering (default: 0.3)
+            use_ast_extraction: Enable ASTAnswerExtractor cascade (default: True)
+            multi_sentence_question_types: Dict[QuestionType, bool] controlling whether
+                                          each question type should use discourse planning.
+                                          Default: all True (multi-sentence for all types)
         """
         self.fact_extractor = FactExtractor()
         self.importance_scorer = FactImportanceScorer()
         self.discourse_planner = DiscoursePlanner()
+
+        # Initialize ASTAnswerExtractor for cascade (Phase 3)
+        self.use_ast_extraction = use_ast_extraction
+        self.ast_extractor = ASTAnswerExtractor() if use_ast_extraction else None
+
+        # Multi-sentence configuration (default: all True)
+        self.multi_sentence_config = multi_sentence_question_types or {
+            QuestionType.WHO: True,
+            QuestionType.WHAT: True,
+            QuestionType.WHERE: True,
+            QuestionType.WHEN: True,
+            QuestionType.WHY: True,
+            QuestionType.HOW: True,
+            QuestionType.OTHER: True,
+        }
 
         # Set default paths if not provided
         if reranker_path is None:
@@ -376,6 +398,57 @@ class ExtractiveAnswerGenerator:
         # Auto-detect question type if not provided
         if question_type is None:
             question_type = classify_question_type(query)
+
+        # === Phase 3: Try direct AST extraction first (cascade) ===
+        if self.use_ast_extraction and self.ast_extractor is not None:
+            from klareco.parser import parse
+            query_ast = parse(query)
+
+            # Prepare documents for ASTAnswerExtractor format
+            # It expects: List[Tuple[score, doc, stats]]
+            ranked_docs = []
+            for i, s in enumerate(sentences[:20]):  # Only try top 20 for speed
+                score = s.get('score', 1.0 / (i + 1))  # Use retrieval score or rank-based
+                ranked_docs.append((score, s, {}))
+
+            # Try extracting answer using AST pattern matching
+            ast_answer = self.ast_extractor.extract_answer_from_multiple_docs(
+                query_ast, ranked_docs, top_n=10
+            )
+
+            if ast_answer and ast_answer['confidence'] >= 0.7:
+                # Check if this question type should use multi-sentence answers
+                use_discourse = self.multi_sentence_config.get(question_type, True)
+
+                if not use_discourse:
+                    # Fast path: return direct single-span answer
+                    # Extract citation from source document
+                    doc_rank = ast_answer['aggregation_stats']['doc_ranks'][0]
+                    source_doc = ranked_docs[doc_rank - 1][1]  # Convert to 0-indexed
+
+                    citation = Citation(
+                        id=1,
+                        sentence_id=source_doc.get('id', 'unknown'),
+                        sentence_text=ast_answer['text'],
+                        doc_title=source_doc.get('doc_title', 'Unknown'),
+                        doc_source=source_doc.get('metadata', {}).get('source', 'Unknown') if isinstance(source_doc.get('metadata'), dict) else 'Unknown',
+                        doc_metadata=source_doc.get('metadata', {}) if isinstance(source_doc.get('metadata'), dict) else {}
+                    )
+
+                    logger.info(f"AST extraction successful (confidence={ast_answer['confidence']:.2f}), returning single-span answer")
+
+                    return Answer(
+                        text=ast_answer['text'],
+                        facts_used=[],
+                        score_breakdowns=[],
+                        discourse_plan=DiscoursePlan(facts=[], relations=[], markers=[]),
+                        num_facts_extracted=1,
+                        num_facts_selected=1,
+                        citations=[citation],
+                    )
+
+                # Multi-sentence enabled: continue to discourse planning with AST answer as seed
+                logger.info(f"AST extraction successful (confidence={ast_answer['confidence']:.2f}), continuing to discourse planning")
 
         # Step 0: Rerank sentences with neural reranker (if enabled)
         if self.use_reranker and self.reranker is not None:

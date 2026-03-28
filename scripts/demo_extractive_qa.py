@@ -26,9 +26,11 @@ import kuzu
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from klareco.parser import parse
+from klareco.rag.whoosh_retriever import WhooshRetriever
 from klareco.rag.extractive_answering import (
     ExtractiveAnswerGenerator, QuestionType, classify_question_type
 )
+from klareco.knowledge import expand_with_morphology, expand_by_question_type
 
 
 def extract_roots_from_ast(ast):
@@ -60,43 +62,72 @@ def extract_roots_from_ast(ast):
     return roots
 
 
-# Manual synonym expansion (Issue #682 - Quick Win +15% recall)
+# Manual synonym expansion - ULTRA-CONSERVATIVE (tuned to reduce retrieval noise)
+#
+# STRATEGY: Only add synonyms when semantically very close AND low ambiguity.
+# REMOVED: Broad cross-mappings (kre/fond/establ) - caused retrieval of meta-content
+# KEPT: High-precision pairs only
+#
+# NOTE: Morphological normalization (reflexive ↔ transitive) handles most verb variants now.
 MANUAL_SYNONYMS = {
-    # Create/found verbs
-    'kre': ['fond', 'establ', 'aŭtor', 'verk', 'invent'],
-    'fond': ['kre', 'establ', 'startig'],
-    'establ': ['kre', 'fond', 'startig'],
+    # Create/found verbs - ONLY for Esperanto-specific vocabulary
+    # CRITICAL: "iniciati" is the ONLY synonym that matters for Zamenhof queries
+    # (corpus has "iniciatinto de Esperanto" but queries use "kre/fond")
+    'kre': ['iniciati'],       # ONLY iniciati (not fond/establ - too noisy)
+    'fond': ['iniciati'],      # ONLY iniciati
+    'establ': ['iniciati'],    # ONLY iniciati
+    'iniciati': ['kre'],       # ONLY kre (most common in queries)
 
-    # See/observe verbs
-    'vid': ['rimark', 'konsider', 'observ', 'rigard'],
-    'rimark': ['vid', 'observ', 'konsider'],
-    'observ': ['vid', 'rimark', 'konsider'],
+    # Language-related - keep (low ambiguity)
+    'ling': ['lingv'],         # Language only (removed parol/idiom)
+    'lingv': ['ling'],
 
-    # Language-related
-    'ling': ['parol', 'idiom', 'lingv'],
-    'parol': ['ling', 'idiom', 'lingv'],
+    # Know/understand - keep (high precision)
+    'sci': ['kon'],
+    'kon': ['sci'],
 
-    # Write/publish
-    'verk': ['skrib', 'kre', 'aŭtor', 'publik'],
-    'skrib': ['verk', 'aŭtor', 'redakt'],
-    'publik': ['eldone', 'aperig', 'verk'],
-
-    # Book/document
-    'libr': ['dokument', 'verk', 'skribaĵ'],
-    'dokument': ['libr', 'skribaĵ', 'tekst'],
-
-    # Person/human
-    'person': ['hom', 'individu'],
-    'hom': ['person', 'individu'],
-
-    # Learn/study
-    'lern': ['stud', 'eduk'],
-    'stud': ['lern', 'eduk'],
-
-    # Know/understand
-    'sci': ['kon', 'kompren'],
-    'kon': ['sci', 'kompren'],
+    # REMOVED ALL OTHER SYNONYMS:
+    # - vid/rimark/observ/konsider (too broad, retrieves meta-content)
+    # - parol/idiom (ambiguous)
+    # - verk/skrib/publik (causes book/writing noise)
+    # - libr/dokument (causes document metadata noise)
+    # - person/hom (too generic)
+    # - lern/stud (too broad)
 }
+
+
+def is_entity_root(root):
+    """
+    Check if a root represents an entity (proper name) that should not be expanded.
+
+    Entities include:
+    - Proper names (Esperanto, Zamenhof, etc.)
+    - Place names from knowledge module
+    - Common Esperanto-specific terms
+
+    Returns True if root should NOT be expanded with synonyms.
+    """
+    from klareco.knowledge import place_names
+
+    # Common entities that should not be expanded
+    known_entities = {
+        'esperant',  # Esperanto (the language) - don't expand to "kre/establ"
+        'zamenhof',  # Zamenhof (the person) - don't expand
+        'fundament', # Fundamento (specific document) - don't expand
+        'bjalistok', # Bjalistoko (city)
+        'varsov',    # Varsovio (city)
+        'pol',       # Pollando (country)
+    }
+
+    # Check if in known entities
+    if root.lower() in known_entities:
+        return True
+
+    # Check if in place names gazetteer (case-insensitive)
+    if any(root.lower() == place.lower() for place in place_names):
+        return True
+
+    return False
 
 
 def expand_with_manual_synonyms(roots):
@@ -105,18 +136,30 @@ def expand_with_manual_synonyms(roots):
 
     Quick win: +15% recall with 2 hours of effort.
     Returns expanded set of roots.
+
+    IMPORTANT:
+    - Does NOT expand entity roots (proper names) to avoid retrieval noise
+    - DOES expand verbs conservatively (fond ↔ kre ↔ iniciati) for vocab coverage
     """
     expanded = set(roots)
 
     for root in roots:
+        # Skip entities - don't expand proper names
+        if is_entity_root(root):
+            continue
+
         if root in MANUAL_SYNONYMS:
             expanded.update(MANUAL_SYNONYMS[root])
 
     return expanded
 
 
-def expand_with_embeddings(roots, embeddings_path, k=5, threshold=0.4):
-    """Expand roots using embeddings."""
+def expand_with_embeddings(roots, embeddings_path, k=5, threshold=0.70):
+    """
+    Expand roots using embeddings.
+
+    IMPORTANT: Does NOT expand entity roots (proper names) to avoid retrieval noise.
+    """
     checkpoint = torch.load(embeddings_path, map_location='cpu', weights_only=False)
     embeddings = checkpoint['embeddings']
     vocab = checkpoint['vocab']
@@ -125,6 +168,10 @@ def expand_with_embeddings(roots, embeddings_path, k=5, threshold=0.4):
     expanded = set(roots)
 
     for root in roots:
+        # Skip entities - don't expand proper names
+        if is_entity_root(root):
+            continue
+
         if root not in root_to_idx:
             continue
 
@@ -209,118 +256,40 @@ def extract_query_entity(ast, question_type):
     return None
 
 
-def retrieve_sentences(db_path, roots, question_type, query_entity=None, top_k=10):
-    """Retrieve sentences from Kuzu database with entity-aware prioritization."""
-    db = kuzu.Database(str(db_path))
-    conn = kuzu.Connection(db)
-
+def retrieve_sentences(retriever, roots, question_type, query_entity=None, top_k=10):
+    """Retrieve sentences using Whoosh FTS index with AST-aware filtering."""
+    # Convert roots to list
     roots_list = list(roots)
 
-    # If we have a query entity (proper noun or main entity), prioritize Wikipedia article
+    # Convert question_type enum to string value
+    question_type_str = question_type.value if hasattr(question_type, 'value') else str(question_type)
+
+    # Extract root from query_entity (strip case endings like -n, -j, -jn AND word endings like -o, -a)
+    entity_root = None
     if query_entity:
-        # For single-word Esperanto roots like "esperant", add -o ending
-        if ' ' not in query_entity and query_entity[0].islower():
-            query_title = query_entity[0].upper() + query_entity[1:] + 'o'
-        else:
-            # For proper nouns like "Benjamin Franklin", use as-is
-            query_title = query_entity
+        # Strip common Esperanto endings: -n (accusative), -j (plural), -jn (plural accusative)
+        entity_root = query_entity.lower()
+        if entity_root.endswith('jn'):
+            entity_root = entity_root[:-2]
+        elif entity_root.endswith('n') or entity_root.endswith('j'):
+            entity_root = entity_root[:-1]
 
-        # Try to get from Wikipedia article about the entity
-        query = f"""
-            MATCH (d:Dokumento)-[*1..3]-(ft:Frazoteksto)
-            WHERE ft.teksto IS NOT NULL
-              AND d.metadatenoj CONTAINS 'wikipedia'
-              AND d.titolo = '{query_title}'
-            RETURN ft.teksto AS text, ft.id AS id, d.titolo AS doc_title, d.metadatenoj AS metadata
-            LIMIT {top_k * 10}
-        """
+        # CRITICAL: Strip word ending (-o, -a, -e) to get ROOT for AST matching
+        # ASTs contain ROOTS (esperant), not full words (esperanto)
+        if entity_root.endswith('o') or entity_root.endswith('a') or entity_root.endswith('e'):
+            entity_root = entity_root[:-1]
 
-        result = conn.execute(query)
+    # Retrieve using Whoosh BM25 search + AST filtering
+    # Get more candidates for reranking (top_k * 10 ensures good recall)
+    documents = retriever.retrieve(
+        query_roots=roots_list,
+        top_k=top_k * 10,
+        retrieval_limit=200,  # Reduced for speed with wildcard queries
+        question_type=question_type_str,
+        query_entity=entity_root
+    )
 
-        # Check if we got results
-        temp_docs = []
-        while result.has_next():
-            row = result.get_next()
-            temp_docs.append(row)
-
-        # If we got results from the Wikipedia article, use them
-        if temp_docs:
-            print(f"Found {len(temp_docs)} sentences from Wikipedia article: '{query_title}'")
-            # Process these results
-            documents = []
-            for row in temp_docs:
-                text = row[0]
-                if not text:
-                    continue
-
-                # Parse sentence
-                ast = parse(text)
-
-                # Count matching roots
-                text_lower = text.lower()
-                matching_roots = [r for r in roots_list if r in text_lower]
-
-                if matching_roots or len(documents) < 3:  # Keep at least 3 sentences
-                    documents.append({
-                        'text': text,
-                        'ast': ast,
-                        'id': row[1],
-                        'doc_title': row[2],
-                        'metadata': row[3],
-                        'matching_roots': matching_roots,
-                        'num_matches': len(matching_roots)
-                    })
-
-            if documents:
-                documents.sort(key=lambda d: d['num_matches'], reverse=True)
-                return documents[:top_k]
-
-    # Fallback: broad search if no entity or no Wikipedia article found
-    query = f"""
-        MATCH (d:Dokumento)-[*1..3]-(ft:Frazoteksto)
-        WHERE ft.teksto IS NOT NULL
-        RETURN ft.teksto AS text, ft.id AS id, d.titolo AS doc_title, d.metadatenoj AS metadata
-        LIMIT {top_k * 50}
-    """
-
-    result = conn.execute(query)
-
-    # Score documents by matching roots
-    documents = []
-    while result.has_next():
-        row = result.get_next()
-        text = row[0]
-        doc_id = row[1]
-        doc_title = row[2]
-        metadata = row[3]
-
-        if not text:
-            continue
-
-        # Count matching roots
-        text_lower = text.lower()
-        matching_roots = [r for r in roots_list if r in text_lower]
-
-        if not matching_roots:
-            continue
-
-        # Parse sentence to get AST
-        ast = parse(text)
-
-        documents.append({
-            'text': text,
-            'ast': ast,
-            'id': doc_id,
-            'doc_title': doc_title,
-            'metadata': metadata,
-            'matching_roots': matching_roots,
-            'num_matches': len(matching_roots)
-        })
-
-    # Sort by match count
-    documents.sort(key=lambda d: d['num_matches'], reverse=True)
-
-    return documents[:top_k]
+    return documents
 
 
 def main():
@@ -339,9 +308,52 @@ def main():
                        default=Path('models/reranker/best_model.pt'), help='Path to reranker model')
     parser.add_argument('--m1-path', type=Path,
                        default=Path('models/m1_selectional/best_model.pt'), help='Path to M1 model')
+    parser.add_argument('--single-span-types', type=str, nargs='+',
+                       choices=['KIU', 'KIO', 'KIE', 'KIAM', 'KIAL', 'KIEL'],
+                       help='Question types that should return single-span answers (Esperanto: kiu/kio/kie/kiam/kial/kiel). Default: none, all use multi-sentence')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Show retrieved sentences and extraction attempts')
     parser.add_argument('--interactive', '-i', action='store_true', help='Interactive mode')
 
     args = parser.parse_args()
+
+    # Initialize Whoosh retriever (load once, reuse for all queries)
+    print("Loading Whoosh FTS index...")
+    retriever = WhooshRetriever(
+        whoosh_index_dir=Path('data/indexes/whoosh_fts'),
+        kuzu_db_path=args.db
+    )
+    print("Whoosh index loaded.")
+
+    # Build multi_sentence_question_types dict from --single-span-types flag
+    # Default: all question types use multi-sentence answers (True)
+    # If --single-span-types is provided, those types use single-span (False)
+    multi_sentence_config = None
+    if args.single_span_types:
+        from klareco.rag.importance_scorer import QuestionType
+
+        # Map Esperanto question words to QuestionType enum
+        eo_to_enum = {
+            'KIU': QuestionType.WHO,      # kiu = who/which
+            'KIO': QuestionType.WHAT,     # kio = what
+            'KIE': QuestionType.WHERE,    # kie = where
+            'KIAM': QuestionType.WHEN,    # kiam = when
+            'KIAL': QuestionType.WHY,     # kial = why
+            'KIEL': QuestionType.HOW,     # kiel = how
+        }
+
+        # Convert Esperanto words to enum values
+        single_span_enums = {eo_to_enum[word] for word in args.single_span_types}
+
+        multi_sentence_config = {
+            QuestionType.WHO: QuestionType.WHO not in single_span_enums,
+            QuestionType.WHAT: QuestionType.WHAT not in single_span_enums,
+            QuestionType.WHERE: QuestionType.WHERE not in single_span_enums,
+            QuestionType.WHEN: QuestionType.WHEN not in single_span_enums,
+            QuestionType.WHY: QuestionType.WHY not in single_span_enums,
+            QuestionType.HOW: QuestionType.HOW not in single_span_enums,
+            QuestionType.OTHER: True,  # OTHER always uses multi-sentence
+        }
+        print(f"Single-span types: {args.single_span_types} (Esperanto question words)")
 
     # Initialize answer generator with neural models
     # Note: Reranker and M1 use 64D embeddings (models/root_embeddings/best_model.pt)
@@ -352,7 +364,8 @@ def main():
         # Don't pass embedding_path - let it use default 64D embeddings for models
         use_reranker=not args.no_rerank,
         use_m1=not args.no_m1,
-        m1_threshold=args.m1_threshold
+        m1_threshold=args.m1_threshold,
+        multi_sentence_question_types=multi_sentence_config
     )
 
     # Interactive mode
@@ -371,7 +384,7 @@ def main():
                 if not query:
                     continue
 
-                process_query(query, args, generator)
+                process_query(query, args, generator, retriever)
                 print()
 
             except (EOFError, KeyboardInterrupt):
@@ -380,13 +393,13 @@ def main():
 
     # Single query mode
     elif args.query:
-        process_query(args.query, args, generator)
+        process_query(args.query, args, generator, retriever)
 
     else:
         parser.print_help()
 
 
-def process_query(query, args, generator):
+def process_query(query, args, generator, retriever):
     """Process a single query."""
     print("-" * 70)
     print(f"Query: {query}")
@@ -397,6 +410,11 @@ def process_query(query, args, generator):
     original_roots = extract_roots_from_ast(ast)
     print(f"Original roots: {', '.join(sorted(original_roots))}")
 
+    # Check for entity roots (proper names that won't be expanded)
+    entity_roots = {r for r in original_roots if is_entity_root(r)}
+    if entity_roots:
+        print(f"Entity roots (protected from expansion): {', '.join(sorted(entity_roots))}")
+
     # Classify question type
     question_type = classify_question_type(query)
     print(f"Question type: {question_type.value}")
@@ -406,29 +424,53 @@ def process_query(query, args, generator):
     if query_entity:
         print(f"Query entity: {query_entity}")
 
-    # Quick Win #682: Apply manual synonym expansion (always on)
-    synonym_expanded = expand_with_manual_synonyms(original_roots)
-    if synonym_expanded != original_roots:
-        added_synonyms = synonym_expanded - original_roots
+    # STAGE 1: Morphological normalization (reflexive ↔ transitive mapping)
+    # This is the highest-priority fix for vocabulary mismatch (70% of failures)
+    # Example: "naskiĝis" (reflexive) → {naskiĝ, nask} → matches corpus "naskita"
+    morph_expanded = expand_with_morphology(original_roots)
+    if morph_expanded != original_roots:
+        added_morph = morph_expanded - original_roots
+        print(f"Morphological variants added: {', '.join(sorted(added_morph))}")
+
+    # STAGE 2A: Quick Win #682: Apply manual synonym expansion (always on)
+    # BUT: Skip entity roots to avoid retrieval noise
+    synonym_expanded = expand_with_manual_synonyms(morph_expanded)
+    if synonym_expanded != morph_expanded:
+        added_synonyms = synonym_expanded - morph_expanded
         print(f"Manual synonyms added: {', '.join(sorted(added_synonyms))}")
 
-    # Neural expansion: Always use root embeddings for semantic query expansion
+    # STAGE 2B: Question-type specific expansion (NEW - addresses 20% of failures)
+    # Add semantic category terms based on question type:
+    # - WHEN: jaro, dato, aper, komenc (temporal vocabulary)
+    # - WHAT: tipo, specio, mamul (category indicators)
+    # - WHO "estis X?": kuracist, doktor, profesor (professions)
+    question_expanded = expand_by_question_type(
+        synonym_expanded,
+        question_type.value if hasattr(question_type, 'value') else str(question_type),
+        query
+    )
+    if question_expanded != synonym_expanded:
+        added_question = question_expanded - synonym_expanded
+        print(f"Question-type expansion added: {', '.join(sorted(added_question))}")
+
+    # STAGE 3: Neural expansion: Always use root embeddings for semantic query expansion
     # (unless --no-expand flag is set)
+    # NOTE: Threshold raised to 0.70 (from 0.65) to reduce noise
     if not args.no_expand:
-        expanded_roots = expand_with_embeddings(synonym_expanded, args.embeddings)
+        expanded_roots = expand_with_embeddings(question_expanded, args.embeddings)
         print(f"Expanded to: {len(expanded_roots)} roots")
-        added = expanded_roots - synonym_expanded
+        added = expanded_roots - question_expanded
         if added:
             print(f"Embedding expansion added: {', '.join(sorted(added))}")
         query_roots = expanded_roots
     else:
-        query_roots = synonym_expanded
+        query_roots = question_expanded
 
     print()
 
     # Retrieve sentences
     print(f"Retrieving top {args.top_k} sentences...")
-    sentences = retrieve_sentences(args.db, query_roots, question_type,
+    sentences = retrieve_sentences(retriever, query_roots, question_type,
                                    query_entity, args.top_k)
 
     if not sentences:
@@ -436,6 +478,22 @@ def process_query(query, args, generator):
         return
 
     print(f"Retrieved {len(sentences)} sentences")
+
+    # Show retrieved sentences if verbose
+    if args.verbose:
+        print("\n" + "=" * 70)
+        print("TOP RETRIEVED SENTENCES (before extraction)")
+        print("=" * 70)
+        for i, sent in enumerate(sentences[:10], 1):  # Show top 10
+            score = sent.get('score', 0.0)
+            text = sent.get('text', '')
+            # Truncate long sentences
+            if len(text) > 150:
+                text = text[:150] + "..."
+            print(f"\n[{i}] Score: {score:.4f}")
+            print(f"    {text}")
+        print()
+
     print()
 
     # Generate answer

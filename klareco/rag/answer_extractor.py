@@ -48,6 +48,17 @@ import logging
 # Import parser for multi-document extraction
 from klareco.parser import parse
 
+# Import unified entity knowledge (v2.1)
+from klareco.knowledge import (
+    verb_synonyms,
+    place_names,
+    person_indicators,
+    temporal_vocab,
+    time_prepositions,
+    spatial_vocab,
+    location_prepositions,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -100,22 +111,8 @@ class ASTAnswerExtractor:
         'iu', 'io', 'ia', 'ie', 'iam', 'ial', 'iel', 'iom', 'ies',
     }
 
-    # Manual verb synonyms (high-priority pairs not in ReVo)
-    # Format: root -> set of synonymous roots
-    MANUAL_VERB_SYNONYMS = {
-        'fond': {'kre', 'establ', 'komenc'},       # found ≈ create ≈ establish ≈ begin
-        'kre': {'fond', 'far', 'produk'},          # create ≈ found ≈ make ≈ produce
-        'establ': {'fond', 'kre', 'starigt'},      # establish ≈ found ≈ create ≈ start
-        'komenc': {'fond', 'start', 'ekig'},       # begin ≈ found ≈ start ≈ initiate
-        'naski': {'nask', 'genat'},                # born ≈ birth ≈ beget
-        'mort': {'perdiĝ', 'forpas'},              # die ≈ perish ≈ pass away
-        'viv': {'ekzist', 'log', 'rest'},          # live ≈ exist ≈ reside ≈ stay
-        'far': {'kre', 'produk', 'fabrik'},        # make ≈ create ≈ produce ≈ manufacture
-        'skrib': {'redakt', 'kompoz', 'ver'},      # write ≈ edit ≈ compose ≈ author
-        'dir': {'parol', 'ekster', 'ekspr'},       # say ≈ speak ≈ utter ≈ express
-        'pens': {'opini', 'kred', 'konsider'},     # think ≈ opine ≈ believe ≈ consider
-        'vid': {'rimark', 'observ', 'pert'},       # see ≈ notice ≈ observe ≈ perceive
-    }
+    # Verb synonyms are now imported from klareco.knowledge module (v2.1)
+    # This provides a unified source of truth across the codebase
 
     def __init__(self, revo_path: Optional[str] = None):
         """
@@ -148,8 +145,8 @@ class ASTAnswerExtractor:
 
         synonyms = {}
 
-        # Start with manual synonyms
-        for root, syns in self.MANUAL_VERB_SYNONYMS.items():
+        # Start with manual synonyms from knowledge module
+        for root, syns in verb_synonyms.items():
             synonyms[root] = set(syns)
 
         # Load ReVo synonyms
@@ -1808,16 +1805,7 @@ class ASTAnswerExtractor:
 
         # Reject common place names (cities, countries)
         # This is a small gazetteer - can be expanded
-        place_names = {
-            # Cities
-            'Barcelono', 'Varsovio', 'Parizo', 'Berlino', 'Londono', 'Romo',
-            'Moskvo', 'Pekino', 'Tokio', 'Nov-Jorko', 'Bjalistoko', 'Suwałki',
-            # Countries
-            'Pollando', 'Francio', 'Germanio', 'Anglio', 'Italio', 'Rusio',
-            'Ĉinio', 'Japanio', 'Usono', 'Hispanio', 'Britio',
-            # Regions
-            'Eŭropo', 'Azio', 'Afriko', 'Ameriko',
-        }
+        # Use place_names from knowledge module
         if text in place_names:
             return False
 
@@ -1868,16 +1856,7 @@ class ASTAnswerExtractor:
             return False
 
         # Check place name gazetteer
-        place_names = {
-            # Cities
-            'Barcelono', 'Varsovio', 'Parizo', 'Berlino', 'Londono', 'Romo',
-            'Moskvo', 'Pekino', 'Tokio', 'Nov-Jorko', 'Bjalistoko', 'Suwałki',
-            # Countries
-            'Pollando', 'Francio', 'Germanio', 'Anglio', 'Italio', 'Rusio',
-            'Ĉinio', 'Japanio', 'Usono', 'Hispanio', 'Britio',
-            # Regions
-            'Eŭropo', 'Azio', 'Afriko', 'Ameriko',
-        }
+        # Use place_names from knowledge module
         if text in place_names:
             return True
 

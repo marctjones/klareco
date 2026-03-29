@@ -285,55 +285,50 @@ class WhooshRetriever:
         query_ast: Optional[Dict] = None
     ) -> List[Dict]:
         """
-        Retrieve sentences using CASCADING strategy: AST-first, BM25 fallback.
+        Retrieve sentences using AST role-based grammatical constraints.
 
         STRATEGY:
-        1. IF query_ast provided:
-           - Try AST role-based retrieval (grammatical constraints)
-           - If >= 5 results found, return them (AST retrieval succeeded!)
+        - REQUIRED: query_ast must be provided
+        - Uses Kuzu graph queries to match grammatical structure (verb + object roles)
+        - Returns ONLY sentences with correct grammatical patterns
+        - NO fallback to BM25 text matching (pure AST-first approach)
 
-        2. ELSE/FALLBACK:
-           - Use BM25 text matching with word form expansion
-           - Apply meta-content filtering and AST boosting
-
-        OPTIMIZATIONS APPLIED:
-        - AND queries for proper names: Require proper name + word forms (10-50x speedup!)
-        - Reduced retrieval limit: 200 instead of 1000 (1.5x speedup)
-        - Precomputed ASTs: Fetch from graph in batch (10x faster than parsing!)
-        - Selective AST loading: Only fetch ASTs for top 50 candidates after BM25 filtering
+        If query_ast is not provided, returns empty list (fail loudly).
+        This enforces AST-first architecture and prevents silent fallback to inferior text matching.
 
         Args:
-            query_roots: List of root words to search for
+            query_roots: List of root words (used for logging, not retrieval)
             top_k: Number of top results to return
-            retrieval_limit: Maximum candidates to retrieve from Whoosh
-            question_type: Question type (who/what/where/when) for AST filtering
-            query_entity: Entity being asked about (e.g., "esperant" for "Esperanton")
-            query_ast: Parsed query AST for grammatical role constraints (RECOMMENDED)
+            retrieval_limit: Ignored (kept for API compatibility)
+            question_type: Ignored (kept for API compatibility)
+            query_entity: Ignored (kept for API compatibility)
+            query_ast: Parsed query AST for grammatical role constraints (REQUIRED)
 
         Returns:
             List of sentence dicts with 'text', 'ast', 'id', 'score', 'matching_roots'
+            Empty list if query_ast not provided (enforces AST-first approach)
         """
-        if not query_roots:
+        if not query_ast:
+            logger.error("❌ query_ast is REQUIRED for AST-first retrieval. Refusing to fall back to BM25.")
+            logger.error("   This is intentional: AST-first architecture requires query_ast.")
+            logger.error("   If you're seeing this, fix the caller to pass query_ast.")
             return []
 
-        logger.info(f"Query roots received: {query_roots}")
+        logger.info(f"Query roots (for reference): {query_roots}")
 
-        # === PHASE 1: Try AST role-based retrieval (PRIMARY) ===
-        if query_ast:
-            logger.info("Attempting AST role-based retrieval (grammatical constraints)...")
-            ast_results = self.retrieve_with_ast_roles(query_ast, top_k)
+        # === AST role-based retrieval (ONLY retrieval method) ===
+        logger.info("Using AST role-based retrieval (grammatical constraints)...")
+        ast_results = self.retrieve_with_ast_roles(query_ast, top_k)
 
-            if len(ast_results) >= 5:
-                logger.info(f"✓ AST role retrieval SUCCESS: {len(ast_results)} sentences found")
-                return ast_results
-            else:
-                logger.warning(f"✗ AST role retrieval insufficient: only {len(ast_results)} sentences, "
-                             f"falling back to BM25 text matching")
+        if ast_results:
+            logger.info(f"✓ AST role retrieval: {len(ast_results)} sentences found")
         else:
-            logger.warning("No query_ast provided, skipping AST role retrieval, using BM25 fallback")
+            logger.warning(f"✗ AST role retrieval: 0 sentences found (grammatical pattern not in corpus)")
 
-        # === PHASE 2: Fallback to BM25 text matching ===
-        logger.info("Using BM25 text matching with word form expansion...")
+        return ast_results
+
+        # === OLD PHASE 2: BM25 fallback (REMOVED - pure AST-first now) ===
+        # logger.info("Using BM25 text matching with word form expansion...")
 
         # AND QUERY OPTIMIZATION: Separate proper names from common words
         # Proper names (capitalized) should be required via AND, not expanded

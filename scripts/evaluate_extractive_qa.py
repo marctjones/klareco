@@ -140,8 +140,8 @@ def evaluate_question(
         )
         query_roots = expanded
 
-    # Retrieve sentences
-    sentences = retrieve_sentences(retriever, list(query_roots), question_type.value, query_entity, top_k)
+    # Retrieve sentences using AST role constraints
+    sentences = retrieve_sentences(retriever, list(query_roots), question_type.value, query_entity, top_k, query_ast=query_ast)
 
     if not sentences:
         return {

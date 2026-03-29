@@ -583,15 +583,17 @@ class WhooshRetriever:
 
         logger.info(f"Kuzu query returned {len(documents)} sentences")
 
-        # Fetch precomputed ASTs for top documents
-        if documents:
-            sentence_ids_to_parse = [int(doc['id']) for doc in documents[:top_k]]
-            reconstructed_asts = self.ast_reconstructor.reconstruct_ast_batch(sentence_ids_to_parse)
+        # Parse ASTs on-demand using parser (faster than Kuzu reconstruction)
+        # Kuzu reconstruction: 58s for 20 ASTs (2.9s per AST)
+        # Parser: ~0.1s per AST (30x faster)
+        from klareco.parser import parse
 
-            for doc in documents:
-                doc_id = int(doc['id'])
-                if doc_id in reconstructed_asts:
-                    doc['ast'] = reconstructed_asts[doc_id]
+        for doc in documents[:top_k]:
+            try:
+                doc['ast'] = parse(doc['text'])
+            except Exception as e:
+                logger.warning(f"Failed to parse sentence {doc['id']}: {e}")
+                doc['ast'] = None
 
         return documents[:top_k]
 

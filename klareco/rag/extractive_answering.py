@@ -79,7 +79,7 @@ class ExtractiveAnswerGenerator:
         use_reranker: bool = True,
         use_m1: bool = True,
         m1_threshold: float = 0.3,
-        use_ast_extraction: bool = True,
+        use_ast_extraction: bool = False,
         multi_sentence_question_types: Optional[Dict[QuestionType, bool]] = None
     ):
         """
@@ -92,7 +92,7 @@ class ExtractiveAnswerGenerator:
             use_reranker: Enable neural reranking (default: True)
             use_m1: Enable M1 plausibility filtering (default: True)
             m1_threshold: Minimum plausibility score for M1 filtering (default: 0.3)
-            use_ast_extraction: Enable ASTAnswerExtractor cascade (default: True)
+            use_ast_extraction: Enable ASTAnswerExtractor cascade (default: False - always use multi-sentence)
             multi_sentence_question_types: Dict[QuestionType, bool] controlling whether
                                           each question type should use discourse planning.
                                           Default: all True (multi-sentence for all types)
@@ -399,7 +399,9 @@ class ExtractiveAnswerGenerator:
         if question_type is None:
             question_type = classify_question_type(query)
 
-        # === Phase 3: Try direct AST extraction first (cascade) ===
+        # === OPTIONAL: Try direct AST extraction first (cascade) ===
+        # NOTE: Default is use_ast_extraction=False to ensure multi-sentence answers for all question types
+        # Enable with use_ast_extraction=True for faster single-span answers on simple questions
         if self.use_ast_extraction and self.ast_extractor is not None:
             from klareco.parser import parse
             query_ast = parse(query)

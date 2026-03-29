@@ -160,12 +160,14 @@ class WhooshRetriever:
 
         This is the PRIMARY retrieval method - uses AST structure, not text matching.
 
-        For "Kiu fondis Esperanton?":
-        - Question type: WHO (extract subject)
-        - Verb constraint: {fond, kre, establ} (verb + top 3 synonyms)
-        - Object constraint: {esperant} with accusative case
-
-        Returns ONLY sentences where verb AND object roles match constraints.
+        Supports all question types with appropriate grammatical patterns:
+        - WHO: verb + object → extract subject
+        - WHERE: verb + entity → extract location prepositional phrases
+        - WHEN: verb + entity → extract temporal expressions
+        - WHAT: definition patterns (estas + predicate)
+        - WHY: causal patterns (ĉar, pro, por)
+        - HOW: manner patterns (per, laŭ)
+        - HOW_MANY: numeric patterns
 
         Args:
             query_ast: Parsed query AST with grammatical structure
@@ -174,55 +176,88 @@ class WhooshRetriever:
         Returns:
             List of sentence dicts with 'text', 'ast', 'id', 'score'
         """
+        # Detect question type from query AST
+        question_type = self._detect_question_type(query_ast)
+        logger.info(f"Detected question type: {question_type}")
+
+        # Dispatch to appropriate retrieval pattern
+        if question_type == 'KIU':  # WHO
+            return self._retrieve_who_pattern(query_ast, top_k)
+        elif question_type == 'KIE':  # WHERE
+            return self._retrieve_where_pattern(query_ast, top_k)
+        elif question_type == 'KIAM':  # WHEN
+            return self._retrieve_when_pattern(query_ast, top_k)
+        elif question_type == 'KIO':  # WHAT
+            return self._retrieve_what_pattern(query_ast, top_k)
+        elif question_type == 'KIAL':  # WHY
+            return self._retrieve_why_pattern(query_ast, top_k)
+        elif question_type == 'KIEL':  # HOW
+            return self._retrieve_how_pattern(query_ast, top_k)
+        elif question_type == 'KIOM':  # HOW_MANY
+            return self._retrieve_how_many_pattern(query_ast, top_k)
+        else:
+            logger.warning(f"Unknown question type: {question_type}, using generic pattern")
+            return self._retrieve_generic_pattern(query_ast, top_k)
+
+    def _detect_question_type(self, query_ast: Dict) -> str:
+        """Detect question type from query AST correlative."""
+        subjekto = query_ast.get('subjekto')
+        if subjekto:
+            if subjekto.get('tipo') == 'vortgrupo':
+                kerno = subjekto.get('kerno', {})
+            else:
+                kerno = subjekto
+
+            if kerno.get('vortspeco') == 'korelativo':
+                radiko = kerno.get('radiko', '').upper()
+                return radiko
+
+        return 'UNKNOWN'
+
+    def _retrieve_who_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
+        """
+        Retrieve WHO questions: two sub-patterns:
+        1. Action: "Kiu VERB-is OBJECT-n?" (e.g., "Kiu fondis Esperanton?")
+        2. Identity: "Kiu estis ENTITY?" (e.g., "Kiu estis Zamenhof?")
+        """
         from klareco.knowledge import get_synonyms
 
-        # Extract verb root from query AST
-        # In "Kiu fondis Esperanton?", verb is in aliaj
-        verb_root = None
-        aliaj = query_ast.get('aliaj', [])
-        for alia in aliaj:
-            if isinstance(alia, dict) and alia.get('vortspeco') == 'verbo':
-                verb_root = alia.get('radiko')
-                break
+        # Extract verb and object constraints
+        verb_root, obj_root = self._extract_verb_and_object(query_ast)
 
         if not verb_root:
-            logger.debug("No verb found in query AST, cannot use AST role retrieval")
+            logger.debug("WHO question: No verb found")
             return []
 
-        # Get verb synonyms (top 3 for precision)
+        if not obj_root:
+            logger.debug("WHO question: No object found")
+            return []
+
+        # Identity question pattern: "Kiu estas/estis X?"
+        # Use simpler entity-based query without verb synonym expansion
+        if verb_root in ['est']:
+            logger.info(f"WHO identity pattern: entity={obj_root}")
+
+            # Match sentences mentioning the entity (any role)
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+                WHERE alia.radiko = '{obj_root}'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+
+            return self._execute_kuzu_query(kuzu_query, top_k, [obj_root])
+
+        # Action question pattern: "Kiu VERB-is OBJECT-n?"
+        # Use verb synonym expansion for recall
         verb_synonyms = get_synonyms(verb_root, max_count=3)
         verb_constraint = [verb_root] + list(verb_synonyms)
-
-        # Extract object root from query AST (accusative noun)
-        obj_root = None
-        for alia in aliaj:
-            if isinstance(alia, dict):
-                if (alia.get('vortspeco') == 'substantivo' and
-                    alia.get('kazo') == 'akuzativo'):
-                    obj_root = alia.get('radiko')
-                    break
-
-        if not obj_root:
-            # Try objekto field as fallback
-            obj = query_ast.get('objekto')
-            if obj:
-                if obj.get('tipo') == 'vortgrupo':
-                    obj_root = obj.get('kerno', {}).get('radiko')
-                else:
-                    obj_root = obj.get('radiko')
-
-        if not obj_root:
-            logger.debug("No object found in query AST, cannot use AST role retrieval")
-            return []
-
-        logger.info(f"AST role retrieval: verb={verb_constraint}, object={obj_root}")
-
-        # Build Kuzu query with grammatical role constraints
-        # Use IN clause for verbs (includes synonyms)
         verb_list_str = ','.join(f"'{v}'" for v in verb_constraint)
 
-        # Query for sentences with matching verb AND object
-        # Objects are usually Vortgrupo (word group), so check the kerno (core word)
+        logger.info(f"WHO action pattern: verb={verb_constraint}, object={obj_root}")
+
+        # Kuzu query: Match verb + object (accusative preferred, but also check nominative)
         kuzu_query = f"""
             MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
@@ -233,10 +268,295 @@ class WhooshRetriever:
             LIMIT {top_k * 5}
         """
 
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + [obj_root])
+
+    def _retrieve_where_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
+        """Retrieve WHERE questions: location prepositional phrases."""
+        from klareco.knowledge import get_synonyms
+
+        verb_root, entity_root = self._extract_verb_and_object(query_ast)
+
+        if not verb_root:
+            logger.debug("WHERE question: No verb found")
+            return []
+
+        # Get verb synonyms
+        verb_synonyms = get_synonyms(verb_root, max_count=3)
+        verb_constraint = [verb_root] + list(verb_synonyms)
+        verb_list_str = ','.join(f"'{v}'" for v in verb_constraint)
+
+        logger.info(f"WHERE pattern: verb={verb_constraint}, entity={entity_root or 'any'}")
+
+        # Kuzu query: Match verb + location prepositions (en, de, ĉe, etc.)
+        # Look for sentences with location words in aliaj
+        if entity_root:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko IN [{verb_list_str}]
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+                WHERE alia.radiko = '{entity_root}'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+        else:
+            # No entity specified, just match verb
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko IN [{verb_list_str}]
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []))
+
+    def _retrieve_when_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
+        """Retrieve WHEN questions: temporal expressions."""
+        from klareco.knowledge import get_synonyms
+
+        verb_root, entity_root = self._extract_verb_and_object(query_ast)
+
+        if not verb_root:
+            logger.debug("WHEN question: No verb found")
+            return []
+
+        # Get verb synonyms
+        verb_synonyms = get_synonyms(verb_root, max_count=3)
+        verb_constraint = [verb_root] + list(verb_synonyms)
+        verb_list_str = ','.join(f"'{v}'" for v in verb_constraint)
+
+        logger.info(f"WHEN pattern: verb={verb_constraint}, entity={entity_root or 'any'}")
+
+        # Kuzu query: Match verb + any entity mention
+        if entity_root:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko IN [{verb_list_str}]
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+                WHERE alia.radiko = '{entity_root}'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+        else:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko IN [{verb_list_str}]
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []))
+
+    def _retrieve_what_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
+        """Retrieve WHAT questions: definition patterns (estas + entity)."""
+        verb_root, entity_root = self._extract_verb_and_object(query_ast)
+
+        if not entity_root:
+            logger.debug("WHAT question: No entity found")
+            return []
+
+        logger.info(f"WHAT pattern: entity={entity_root}")
+
+        # Kuzu query: Match entity mentions (definition context)
+        kuzu_query = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+            WHERE alia.radiko = '{entity_root}'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 5}
+        """
+
+        return self._execute_kuzu_query(kuzu_query, top_k, [entity_root])
+
+    def _retrieve_why_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
+        """Retrieve WHY questions: causal markers (ĉar, pro, por)."""
+        from klareco.knowledge import get_synonyms
+
+        verb_root, entity_root = self._extract_verb_and_object(query_ast)
+
+        if not verb_root:
+            logger.debug("WHY question: No verb found")
+            return []
+
+        verb_synonyms = get_synonyms(verb_root, max_count=3)
+        verb_constraint = [verb_root] + list(verb_synonyms)
+        verb_list_str = ','.join(f"'{v}'" for v in verb_constraint)
+
+        logger.info(f"WHY pattern: verb={verb_constraint}, entity={entity_root or 'any'}")
+
+        # Kuzu query: Match verb + entity
+        if entity_root:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko IN [{verb_list_str}]
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+                WHERE alia.radiko = '{entity_root}'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+        else:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko IN [{verb_list_str}]
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []))
+
+    def _retrieve_how_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
+        """Retrieve HOW questions: manner patterns."""
+        from klareco.knowledge import get_synonyms
+
+        verb_root, entity_root = self._extract_verb_and_object(query_ast)
+
+        if not verb_root:
+            logger.debug("HOW question: No verb found")
+            return []
+
+        verb_synonyms = get_synonyms(verb_root, max_count=3)
+        verb_constraint = [verb_root] + list(verb_synonyms)
+        verb_list_str = ','.join(f"'{v}'" for v in verb_constraint)
+
+        logger.info(f"HOW pattern: verb={verb_constraint}, entity={entity_root or 'any'}")
+
+        # Kuzu query: Match verb + entity
+        if entity_root:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko IN [{verb_list_str}]
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+                WHERE alia.radiko = '{entity_root}'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+        else:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko IN [{verb_list_str}]
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []))
+
+    def _retrieve_how_many_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
+        """Retrieve HOW_MANY questions: numeric patterns."""
+        verb_root, entity_root = self._extract_verb_and_object(query_ast)
+
+        if not entity_root:
+            logger.debug("HOW_MANY question: No entity found")
+            return []
+
+        logger.info(f"HOW_MANY pattern: entity={entity_root}")
+
+        # Kuzu query: Match entity mentions (likely with numbers)
+        kuzu_query = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+            WHERE alia.radiko = '{entity_root}'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 5}
+        """
+
+        return self._execute_kuzu_query(kuzu_query, top_k, [entity_root])
+
+    def _retrieve_generic_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
+        """Generic fallback: match verb + entity."""
+        verb_root, entity_root = self._extract_verb_and_object(query_ast)
+
+        if not verb_root and not entity_root:
+            logger.debug("Generic pattern: No verb or entity found")
+            return []
+
+        logger.info(f"Generic pattern: verb={verb_root}, entity={entity_root}")
+
+        if verb_root and entity_root:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko = '{verb_root}'
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+                WHERE alia.radiko = '{entity_root}'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+            return self._execute_kuzu_query(kuzu_query, top_k, [verb_root, entity_root])
+        elif verb_root:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+                WHERE verb.radiko = '{verb_root}'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+            return self._execute_kuzu_query(kuzu_query, top_k, [verb_root])
+        else:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+                WHERE alia.radiko = '{entity_root}'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 5}
+            """
+            return self._execute_kuzu_query(kuzu_query, top_k, [entity_root])
+
+    def _extract_verb_and_object(self, query_ast: Dict) -> tuple:
+        """Extract verb and object roots from query AST."""
+        verb_root = None
+        obj_root = None
+
+        # First check the verbo field (most common location)
+        verbo = query_ast.get('verbo')
+        if verbo:
+            if isinstance(verbo, dict):
+                verb_root = verbo.get('radiko')
+
+        # Check aliaj for entities and fallback verb
+        aliaj = query_ast.get('aliaj', [])
+        for alia in aliaj:
+            if not isinstance(alia, dict):
+                continue
+
+            # Fallback verb check (if not found in verbo field)
+            if alia.get('vortspeco') == 'verbo' and not verb_root:
+                verb_root = alia.get('radiko')
+
+            # Extract entity (any noun, regardless of case)
+            if alia.get('vortspeco') == 'substantivo':
+                if alia.get('kazo') == 'akuzativo' and not obj_root:
+                    obj_root = alia.get('radiko')
+                elif not obj_root:  # Nominative or other case
+                    obj_root = alia.get('radiko')
+
+            # Also check for unknown words (proper names like "Zamenhof")
+            if alia.get('vortspeco') == 'nekonata' and not obj_root:
+                obj_root = alia.get('radiko')
+
+        # Try objekto field as fallback
+        if not obj_root:
+            obj = query_ast.get('objekto')
+            if obj:
+                if obj.get('tipo') == 'vortgrupo':
+                    obj_root = obj.get('kerno', {}).get('radiko')
+                else:
+                    obj_root = obj.get('radiko')
+
+        return verb_root, obj_root
+
+    def _execute_kuzu_query(self, kuzu_query: str, top_k: int, matching_roots: List[str]) -> List[Dict]:
+        """Execute Kuzu query and return formatted documents."""
         try:
             result = self.kuzu_conn.execute(kuzu_query)
         except Exception as e:
-            logger.error(f"AST role query failed: {e}")
+            logger.error(f"Kuzu query failed: {e}")
             return []
 
         # Build documents
@@ -253,15 +573,15 @@ class WhooshRetriever:
                 'text': text,
                 'ast': None,  # Lazy parsing
                 'id': sentence_id,
-                'score': 100.0 - len(documents),  # Rank order score (100, 99, 98, ...)
-                'matching_roots': verb_constraint + [obj_root],
-                'num_matches': len(verb_constraint) + 1,
+                'score': 100.0 - len(documents),  # Rank order score
+                'matching_roots': matching_roots,
+                'num_matches': len(matching_roots),
                 'doc_title': '',
                 'metadata': '',
                 'retrieval_method': 'ast_role_query'
             })
 
-        logger.info(f"AST role retrieval found {len(documents)} sentences")
+        logger.info(f"Kuzu query returned {len(documents)} sentences")
 
         # Fetch precomputed ASTs for top documents
         if documents:

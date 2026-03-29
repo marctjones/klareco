@@ -327,7 +327,7 @@ def main():
     parser.add_argument('--top-k', type=int, default=10, help='Sentences to retrieve')
     parser.add_argument('--max-facts', type=int, default=4, help='Facts to include in answer')
     parser.add_argument('--no-expand', action='store_true', help='Disable neural embedding expansion')
-    parser.add_argument('--no-rerank', action='store_true', help='Disable neural reranker')
+    parser.add_argument('--rerank', action='store_true', help='Enable neural reranker (disabled by default, see #708)')
     parser.add_argument('--no-m1', action='store_true', help='Disable M1 selectional filtering')
     parser.add_argument('--m1-threshold', type=float, default=0.3, help='M1 plausibility threshold (0-1)')
     parser.add_argument('--reranker-path', type=Path,
@@ -388,7 +388,7 @@ def main():
         reranker_path=args.reranker_path,
         m1_model_path=args.m1_path,
         # Don't pass embedding_path - let it use default 64D embeddings for models
-        use_reranker=not args.no_rerank,
+        use_reranker=args.rerank,  # Disabled by default (Issue #708)
         use_m1=not args.no_m1,
         m1_threshold=args.m1_threshold,
         multi_sentence_question_types=multi_sentence_config

@@ -75,7 +75,7 @@ class ExtractiveAnswerGenerator:
         reranker_path: Optional[Path] = None,
         m1_model_path: Optional[Path] = None,
         embedding_path: Optional[Path] = None,
-        use_reranker: bool = True,
+        use_reranker: bool = False,  # Disabled by default - reranker hurts accuracy (Issue #708)
         use_m1: bool = True,
         m1_threshold: float = 0.3,
         use_ast_extraction: bool = False,

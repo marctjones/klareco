@@ -1,0 +1,1512 @@
+{
+  "metadata": {
+    "test_set": "data/test_sets/qa_test_diverse_30.jsonl",
+    "num_questions": 30,
+    "top_k": 20,
+    "use_m1": true,
+    "use_rerank": true
+  },
+  "aggregates": {
+    "overall": {
+      "num_questions": 30,
+      "num_correct": 15,
+      "accuracy": 0.5
+    },
+    "timing": {
+      "total_time_mean": 1.5949797868728637,
+      "total_time_median": 1.6036221981048584,
+      "total_time_std": 0.563172480283076,
+      "parse_time_mean": 0.00029230912526448567,
+      "retrieval_time_mean": 1.4758730093638102,
+      "generation_time_mean": 0.11881446838378906
+    },
+    "retrieval": {
+      "recall_at_5": 0.5333333333333333,
+      "recall_at_10": 0.6,
+      "recall_at_20": 0.6666666666666666,
+      "mean_reciprocal_rank": 0.4875322056975282
+    },
+    "extraction": {
+      "facts_extracted_mean": 80.2,
+      "facts_extracted_median": 60.5,
+      "facts_selected_mean": 3.1666666666666665,
+      "facts_selected_median": 4.0
+    },
+    "answer": {
+      "answer_length_mean": 674.2592592592592,
+      "answer_length_median": 680.0,
+      "citations_per_answer_mean": 3.4444444444444446
+    },
+    "by_question_type": {
+      "WHEN": {
+        "accuracy": 0.6666666666666666,
+        "correct": 2,
+        "total": 3
+      },
+      "WHO": {
+        "accuracy": 0.47058823529411764,
+        "correct": 8,
+        "total": 17
+      },
+      "WHAT": {
+        "accuracy": 0.4444444444444444,
+        "correct": 4,
+        "total": 9
+      },
+      "HOW_MANY": {
+        "accuracy": 1.0,
+        "correct": 1,
+        "total": 1
+      }
+    }
+  },
+  "results": [
+    {
+      "question_id": 23,
+      "question_text": "Kiam okazis la Vendo de Luiziano?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1803",
+        "luiziano"
+      ],
+      "answer_text": "La plej malbona atako okazis la 17-an de decembro 1983, semajnon anta\u016d Kristnasko, tempo kiam la vendejo estis plena de a\u0109etantoj por la ferio [1] En 1931 de Jul. 20 \u011dis A\u016dg. 31, JOBK Osaka okazigis \u0109...",
+      "timing": {
+        "total_time": 2.805685043334961,
+        "parse_time": 0.0007169246673583984,
+        "retrieval_time": 2.6408369541168213,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.16413116455078125
+      },
+      "retrieval": {
+        "num_retrieved": 154,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 134,
+        "facts_after_type_filter": 134,
+        "facts_after_m1_filter": 134,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 1142,
+        "num_sentences": 4,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 7,
+      "question_text": "Kiu malkovris radioaktivecon?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "curie",
+        "marie",
+        "radioaktiv"
+      ],
+      "answer_text": "En la jaro 1896 li hazarde malkovris radioaktivecon, dum li esploris la fluorecon en uraniaj saloj [1]",
+      "timing": {
+        "total_time": 1.5761997699737549,
+        "parse_time": 0.00024509429931640625,
+        "retrieval_time": 1.5738306045532227,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.0021240711212158203
+      },
+      "retrieval": {
+        "num_retrieved": 1,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 1,
+        "facts_after_type_filter": 1,
+        "facts_after_m1_filter": 1,
+        "facts_selected": 1,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "radioaktiv"
+        ],
+        "answer_length": 102,
+        "num_sentences": 0,
+        "num_citations": 1
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 30,
+      "question_text": "Kiuj estis Winston Churchill kaj Roosevelt?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "churchill",
+        "roosevelt",
+        "prezidento",
+        "\u0109efministro"
+      ],
+      "answer_text": "Inter la famkonataj personecoj kiuj vizitis kaj restadis en Rapallo estis la filozofo Friedrich Nietzsche (kiu en Rapallo, en januaro 1883, komponis la unua parto de la opero Tiele parolis Zaratu\u015dtro)...",
+      "timing": {
+        "total_time": 1.0296103954315186,
+        "parse_time": 0.0003788471221923828,
+        "retrieval_time": 1.023728847503662,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.0055027008056640625
+      },
+      "retrieval": {
+        "num_retrieved": 2,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 1,
+        "facts_after_type_filter": 1,
+        "facts_after_m1_filter": 1,
+        "facts_selected": 1,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "roosevelt"
+        ],
+        "answer_length": 887,
+        "num_sentences": 0,
+        "num_citations": 1
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 11,
+      "question_text": "Kiu inventis la telefonon?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "bell",
+        "telefono",
+        "inventis"
+      ],
+      "answer_text": "La 19-an de februaro 1880 Bell kune kun iu inventis la lumtelefonon [1]",
+      "timing": {
+        "total_time": 1.6162693500518799,
+        "parse_time": 0.00028705596923828125,
+        "retrieval_time": 1.6133124828338623,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.002669811248779297
+      },
+      "retrieval": {
+        "num_retrieved": 3,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 1,
+        "facts_after_type_filter": 1,
+        "facts_after_m1_filter": 1,
+        "facts_selected": 1,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "bell",
+          "telefono",
+          "inventis"
+        ],
+        "answer_length": 71,
+        "num_sentences": 0,
+        "num_citations": 1
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 9,
+      "question_text": "Kio estas natura selektado?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "darwin",
+        "evolucio",
+        "specio"
+      ],
+      "answer_text": "Socia darvinismo estas ideologio, la\u016d kiu la interhomajn rilatojn regas selekto la\u016d ekonomia sukceso [1] \u0108i tiuj materialoj havas la kapablon forpreni metalajn jonojn selekte el akvaj mediumoj [2] Ekz...",
+      "timing": {
+        "total_time": 1.479968547821045,
+        "parse_time": 0.00014662742614746094,
+        "retrieval_time": 1.2059979438781738,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.27382397651672363
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 6,
+        "recall_at_5": false,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.16666666666666666
+      },
+      "extraction": {
+        "facts_extracted": 151,
+        "facts_after_type_filter": 151,
+        "facts_after_m1_filter": 151,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 369,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 3,
+      "question_text": "Kiu estis Roosevelt?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "prezidento",
+        "usona"
+      ],
+      "answer_text": "Per barado de la rivera fluo \u011di kreas la longegan lagon Roosevelt [1] Komence la dungitaro estis relative modesta, sed tio establis la fundamentojn por pli grandaj kaj pli kompleksaj kunlaborantaro du...",
+      "timing": {
+        "total_time": 1.3896665573120117,
+        "parse_time": 0.00024437904357910156,
+        "retrieval_time": 1.1766202449798584,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.21280193328857422
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 3,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.3333333333333333
+      },
+      "extraction": {
+        "facts_extracted": 162,
+        "facts_after_type_filter": 162,
+        "facts_after_m1_filter": 162,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 594,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 19,
+      "question_text": "En kiu jarcento vivis Newton?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "17",
+        "jarcento",
+        "newton"
+      ],
+      "answer_text": "Biedrzynski vivis kaj laboris duonan jarcenton en Stutgarto kie \u015di anka\u016d forpasis [1] Fondita de la man\u0109ura klano Ai-xin-gue-ruo en Man\u0109urio, la multkultura imperio da\u016dris preska\u016d tri jarcentojn kaj f...",
+      "timing": {
+        "total_time": 1.722275972366333,
+        "parse_time": 0.00022029876708984375,
+        "retrieval_time": 1.6951358318328857,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.026919841766357422
+      },
+      "retrieval": {
+        "num_retrieved": 35,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 30,
+        "facts_after_type_filter": 30,
+        "facts_after_m1_filter": 30,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "jarcento"
+        ],
+        "answer_length": 1041,
+        "num_sentences": 2,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 18,
+      "question_text": "Kiu studis la teorion de gravito?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "newton",
+        "gravito",
+        "teorio"
+      ],
+      "answer_text": "Jezuita, Boskovich studis \u0109e Roma Kolegio kaj ekprofesoris pri matematiko \u0109iam en Romo 1740. Ekde siaj ekesploroj li komencis ellabori teorion pri la strukturo de la mondo fondita sur aparta le\u011do de l...",
+      "timing": {
+        "total_time": 1.6892921924591064,
+        "parse_time": 0.0001971721649169922,
+        "retrieval_time": 1.6555922031402588,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.033502817153930664
+      },
+      "retrieval": {
+        "num_retrieved": 21,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 19,
+        "facts_after_type_filter": 19,
+        "facts_after_m1_filter": 19,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "teorio"
+        ],
+        "answer_length": 694,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 13,
+      "question_text": "Kiu estis Nikola Tesla?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "tesla",
+        "inventisto",
+        "in\u011deniero"
+      ],
+      "answer_text": "Mi ne trovis respondon.",
+      "timing": {
+        "total_time": 0.022711753845214844,
+        "parse_time": 0.00030994415283203125,
+        "retrieval_time": 0.022401809692382812,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.0
+      },
+      "retrieval": {
+        "num_retrieved": 0,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 0,
+        "facts_after_type_filter": 0,
+        "facts_after_m1_filter": 0,
+        "facts_selected": 0,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": false,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 0,
+        "num_sentences": 0,
+        "num_citations": 0
+      },
+      "success": false,
+      "error": "No sentences retrieved"
+    },
+    {
+      "question_id": 12,
+      "question_text": "Kiu estis Thomas Edison?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "edison",
+        "inventisto",
+        "usona"
+      ],
+      "answer_text": "Mi ne trovis respondon.",
+      "timing": {
+        "total_time": 0.02351832389831543,
+        "parse_time": 0.0004184246063232422,
+        "retrieval_time": 0.023099899291992188,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.0
+      },
+      "retrieval": {
+        "num_retrieved": 0,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 0,
+        "facts_after_type_filter": 0,
+        "facts_after_m1_filter": 0,
+        "facts_selected": 0,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": false,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 0,
+        "num_sentences": 0,
+        "num_citations": 0
+      },
+      "success": false,
+      "error": "No sentences retrieved"
+    },
+    {
+      "question_id": 5,
+      "question_text": "Kiu formulis la \u0109efajn le\u011dojn de la dinamiko?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "newton",
+        "le\u011doj",
+        "dinamiko"
+      ],
+      "answer_text": "Robert Hooke (1635\u20131703), sciencisto kaj inventisto (li formulis la le\u011don de Hooke kaj invertis novajn formojn de allasilo kaj eble la spiralan risorton de la balanciero, kaj perfektigis la mikroskopo...",
+      "timing": {
+        "total_time": 1.747917890548706,
+        "parse_time": 0.00046563148498535156,
+        "retrieval_time": 1.7287678718566895,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.01868438720703125
+      },
+      "retrieval": {
+        "num_retrieved": 23,
+        "contains_answer": true,
+        "answer_rank": 2,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.5
+      },
+      "extraction": {
+        "facts_extracted": 21,
+        "facts_after_type_filter": 21,
+        "facts_after_m1_filter": 21,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "le\u011doj"
+        ],
+        "answer_length": 586,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 1,
+      "question_text": "Kiu estis Lincoln?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "prezidento",
+        "usona"
+      ],
+      "answer_text": "Novaj folioj estas bronza, kupro a\u016d kuprokolora-rozkolora, maturi\u011dante \u011dis profunda brila verdo, \u011dis 4 centimetrojn (1,6 colo) longa [1] Noah [Noa Benet] (Jack Coleman), plej ofte nomata \"S-ro Bennet\"...",
+      "timing": {
+        "total_time": 1.899385929107666,
+        "parse_time": 0.00014710426330566406,
+        "retrieval_time": 1.681032419204712,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.21820640563964844
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 22,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.045454545454545456
+      },
+      "extraction": {
+        "facts_extracted": 155,
+        "facts_after_type_filter": 155,
+        "facts_after_m1_filter": 155,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 732,
+        "num_sentences": 0,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 21,
+      "question_text": "Kiu murdis Kennedy?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "ruby",
+        "jack",
+        "murdis",
+        "kennedy"
+      ],
+      "answer_text": "Mi ne trovis respondon.",
+      "timing": {
+        "total_time": 1.6034314632415771,
+        "parse_time": 0.0002493858337402344,
+        "retrieval_time": 1.603182077407837,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.0
+      },
+      "retrieval": {
+        "num_retrieved": 0,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 0,
+        "facts_after_type_filter": 0,
+        "facts_after_m1_filter": 0,
+        "facts_selected": 0,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": false,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 0,
+        "num_sentences": 0,
+        "num_citations": 0
+      },
+      "success": false,
+      "error": "No sentences retrieved"
+    },
+    {
+      "question_id": 16,
+      "question_text": "Kiuj sportoj estas usonaj inventoj?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "basketbalo",
+        "flugpilko",
+        "usona"
+      ],
+      "answer_text": "Unu el la unuaj inventoj kiuj signife influis la kampon de literaturo estis la invento de du novaj skribsistemoj konataj kiel Kata Kana [1] Male al aliaj kretaj artistoj kiuj movi\u011dis al Venecio, El Gr...",
+      "timing": {
+        "total_time": 1.576216459274292,
+        "parse_time": 0.0003662109375,
+        "retrieval_time": 1.5415616035461426,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.034288644790649414
+      },
+      "retrieval": {
+        "num_retrieved": 33,
+        "contains_answer": true,
+        "answer_rank": 21,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.047619047619047616
+      },
+      "extraction": {
+        "facts_extracted": 31,
+        "facts_after_type_filter": 31,
+        "facts_after_m1_filter": 31,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 897,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 25,
+      "question_text": "Kion faris Bell?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "bell",
+        "telefono",
+        "inventis"
+      ],
+      "answer_text": "La venontan nokton, Sebastiano kaj Gabriele sekrete faras sian vojon al la fendeto kun Belle [1] En 2017, li fari\u011dis \u0135uriano en The Voice : La Plus Belle Voix, en kiu li anka\u016d venkis kiel trejnanto de...",
+      "timing": {
+        "total_time": 1.3961584568023682,
+        "parse_time": 0.00021076202392578125,
+        "retrieval_time": 1.3736755847930908,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.022272109985351562
+      },
+      "retrieval": {
+        "num_retrieved": 24,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 18,
+        "facts_after_type_filter": 18,
+        "facts_after_m1_filter": 18,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "bell"
+        ],
+        "answer_length": 609,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 8,
+      "question_text": "Kiu kreis la teorion de evolucio?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "darwin",
+        "evolucio",
+        "teorio"
+      ],
+      "answer_text": "En 1979 Andriesse kreis teorion por la perdo de maso de steloj [1] Kvalita informteorio kaj \u011denerala kvalita informteorio kune kreas kompletan teorion de \u0109ia informo [2] Vere, Smith kreis teorion tre ...",
+      "timing": {
+        "total_time": 1.7472972869873047,
+        "parse_time": 0.00025010108947753906,
+        "retrieval_time": 1.67694091796875,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.07010626792907715
+      },
+      "retrieval": {
+        "num_retrieved": 44,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 41,
+        "facts_after_type_filter": 41,
+        "facts_after_m1_filter": 41,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "teorio"
+        ],
+        "answer_length": 281,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 26,
+      "question_text": "Kiam Bell inventis la telefonon?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1876",
+        "bell",
+        "telefono"
+      ],
+      "answer_text": "La 19-an de februaro 1880 Bell kune kun iu inventis la lumtelefonon [1] En 1880, Alexander Graham Bell inventas foto-fono, transdonante la signalon per lumaj ondoj, sur distanco de proksimume 200 m [2...",
+      "timing": {
+        "total_time": 1.3283448219299316,
+        "parse_time": 0.0002002716064453125,
+        "retrieval_time": 1.3199214935302734,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.00822305679321289
+      },
+      "retrieval": {
+        "num_retrieved": 8,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 6,
+        "facts_after_type_filter": 6,
+        "facts_after_m1_filter": 6,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "bell",
+          "telefono"
+        ],
+        "answer_length": 471,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 29,
+      "question_text": "Kiu estis John F. Kennedy?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "prezidento",
+        "usona",
+        "kennedy"
+      ],
+      "answer_text": "La plano estis lan\u0109ita en aprilo 1961, malpli ol tri monatojn post kiam John F [1] La a\u016dto de Boulton estis disvolvigita el for\u0135etita vehiklo de malpeza fervojo de John Bridge Adams [2] Eble tiu verko...",
+      "timing": {
+        "total_time": 1.8626387119293213,
+        "parse_time": 0.0003120899200439453,
+        "retrieval_time": 1.5031402111053467,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.35918641090393066
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 186,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.005376344086021506
+      },
+      "extraction": {
+        "facts_extracted": 157,
+        "facts_after_type_filter": 157,
+        "facts_after_m1_filter": 157,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 1280,
+        "num_sentences": 4,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 2,
+      "question_text": "Kiu estis Thomas Jefferson?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "prezidento",
+        "tria",
+        "usono"
+      ],
+      "answer_text": "Per la dissolvo de la distrikto Burgdorf la 1-an de januaro 2010 Ersigen estis integrita al la administra distrikto Emme-Valo [1] La moto de la Castelliers estas \"Forto, Ekvilibro, Kura\u011do kaj Sa\u011do\" (F...",
+      "timing": {
+        "total_time": 1.517359733581543,
+        "parse_time": 0.0003247261047363281,
+        "retrieval_time": 1.3028390407562256,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.21419596672058105
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 16,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": true,
+        "mrr": 0.0625
+      },
+      "extraction": {
+        "facts_extracted": 125,
+        "facts_after_type_filter": 125,
+        "facts_after_m1_filter": 125,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 1165,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 24,
+      "question_text": "Kiu estis prezidento dum la Vendo de Luiziano?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "jefferson",
+        "thomas",
+        "prezidento"
+      ],
+      "answer_text": "Kiam jam \u0109io estis organizita, Flores estis elpostenigita kiel prezidento de Ekvadoro fare la marta revolucio kaj tiu plano tute malsukcesis [1] La\u016d la konstitucio, la Prezidento de la Franca Respubli...",
+      "timing": {
+        "total_time": 1.5569617748260498,
+        "parse_time": 0.0004367828369140625,
+        "retrieval_time": 1.323103666305542,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.23342132568359375
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 148,
+        "facts_after_type_filter": 148,
+        "facts_after_m1_filter": 148,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "prezidento"
+        ],
+        "answer_length": 563,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 22,
+      "question_text": "Kio estas la Vendo de Luiziano?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "luiziano",
+        "vendo",
+        "francoj",
+        "usonanoj"
+      ],
+      "answer_text": "Posedo kaj vendado de alternativaj formoj de valutoj estas ofte elsterle\u011digita fare de registaroj por konservi la legitimecon de la konstitucia valuto por la profito de \u0109iuj \u015dtatanoj [1] Ili interparo...",
+      "timing": {
+        "total_time": 1.6676995754241943,
+        "parse_time": 0.00030875205993652344,
+        "retrieval_time": 1.4156055450439453,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.2517852783203125
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 163,
+        "facts_after_type_filter": 163,
+        "facts_after_m1_filter": 163,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 919,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 28,
+      "question_text": "Kiun lingvon instruas Instituto Cervantes?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "hispana",
+        "lingvo",
+        "cervantes"
+      ],
+      "answer_text": "En 2000, li formale ekinstruis la internacian lingvon \u0109e la Internacia Instituto pri Informo kaj Te\u0125nologio (IIITH) de Hajderabado, kie li estis instruisto pri lingvoj kaj literaturoj [1] En 1992-1995...",
+      "timing": {
+        "total_time": 2.741518497467041,
+        "parse_time": 0.00028824806213378906,
+        "retrieval_time": 2.572864294052124,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.1683659553527832
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 183,
+        "facts_after_type_filter": 183,
+        "facts_after_m1_filter": 183,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "lingvo"
+        ],
+        "answer_length": 779,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 4,
+      "question_text": "Kiuj estis la plej gravaj usonaj prezidentoj?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "lincoln",
+        "washington",
+        "prezidento"
+      ],
+      "answer_text": "La roloj, kiujn frazpartoj povas havi, nom i\u011das: subjekto, objekto, perverba\npriskribo, alvoko kaj komplemento.\n\u00a73.2 39\n\nGramatika superrigardo\nSubjekto\nSubjekto (\u00a712.1.1) estas la plej grava fraz rol...",
+      "timing": {
+        "total_time": 2.008934497833252,
+        "parse_time": 0.00023508071899414062,
+        "retrieval_time": 1.7941863536834717,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.21451306343078613
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 178,
+        "facts_after_type_filter": 178,
+        "facts_after_m1_filter": 178,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 1024,
+        "num_sentences": 6,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 15,
+      "question_text": "Kiu verkis Don Ki\u0125oton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "cervantes",
+        "ki\u0125ot",
+        "hispana"
+      ],
+      "answer_text": "INTERCAL-on kreis Don Woods kaj James Lyons je 1972 kaj \u011di estas intence malsimila ol \u0109iuj aliaj komputillingvoj la\u016d \u0109iuj manieroj krom unu; \u011di estas pure skriba lingvo, \u0109ar \u011di estas tute neparolebla ...",
+      "timing": {
+        "total_time": 1.842383623123169,
+        "parse_time": 0.00030350685119628906,
+        "retrieval_time": 1.811751127243042,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.030328989028930664
+      },
+      "retrieval": {
+        "num_retrieved": 21,
+        "contains_answer": true,
+        "answer_rank": 11,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": true,
+        "mrr": 0.09090909090909091
+      },
+      "extraction": {
+        "facts_extracted": 20,
+        "facts_after_type_filter": 20,
+        "facts_after_m1_filter": 20,
+        "facts_selected": 1,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 203,
+        "num_sentences": 0,
+        "num_citations": 1
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 17,
+      "question_text": "Kio estas basketbalo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "sporto",
+        "usona",
+        "invento"
+      ],
+      "answer_text": "La plej sukcesa programo estas vira basketbalo kie la teamo venkis en ses \u0109ampionecoj (1922, 1923, 1952, 1988, 2008, 2022) [1] La origino de la gesto supozeble estas en sporto, pli specife en usona ba...",
+      "timing": {
+        "total_time": 1.4819421768188477,
+        "parse_time": 0.00025200843811035156,
+        "retrieval_time": 1.2226066589355469,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.25908350944519043
+      },
+      "retrieval": {
+        "num_retrieved": 167,
+        "contains_answer": true,
+        "answer_rank": 5,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.2
+      },
+      "extraction": {
+        "facts_extracted": 132,
+        "facts_after_type_filter": 132,
+        "facts_after_m1_filter": 132,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "sporto",
+          "usona"
+        ],
+        "answer_length": 488,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 6,
+      "question_text": "Kiujn Nobel-premiojn ricevis Marie Curie?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "fiziko",
+        "kemio",
+        "nobel"
+      ],
+      "answer_text": "Krom la multaj premioj, kiujn Damon ricevis, kiel Oskar-premio, Ora Globo kaj aliaj industriaj premioj, pro sia laboro en la filma industrio, en 2007, Damon ricevis stelon en la Trotuaro de famo en Ho...",
+      "timing": {
+        "total_time": 1.9415905475616455,
+        "parse_time": 0.00041174888610839844,
+        "retrieval_time": 1.8508977890014648,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.09028100967407227
+      },
+      "retrieval": {
+        "num_retrieved": 83,
+        "contains_answer": true,
+        "answer_rank": 7,
+        "recall_at_5": false,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.14285714285714285
+      },
+      "extraction": {
+        "facts_extracted": 80,
+        "facts_after_type_filter": 80,
+        "facts_after_m1_filter": 80,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "nobel"
+        ],
+        "answer_length": 986,
+        "num_sentences": 4,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 20,
+      "question_text": "Kiu ricevis Nobel-premion en du sciencoj?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "curie",
+        "marie",
+        "nobel",
+        "du"
+      ],
+      "answer_text": "Pro tio li ricevis en 1938 Nobel-premion pri fiziko [1] Poste, ili ricevis triope la Nobel-premion pri kemio en 1988. [2] Eliot ricevis Nobel-premion pri literaturo; Pollando: anta\u016d Armea Tribunalo en...",
+      "timing": {
+        "total_time": 2.313371419906616,
+        "parse_time": 0.0002779960632324219,
+        "retrieval_time": 2.115147590637207,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.19794583320617676
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 186,
+        "facts_after_type_filter": 186,
+        "facts_after_m1_filter": 186,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "nobel",
+          "du"
+        ],
+        "answer_length": 416,
+        "num_sentences": 2,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 10,
+      "question_text": "Kion studis Galileo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "rapido",
+        "gravito",
+        "movo"
+      ],
+      "answer_text": "Li studis juron en Scienca Universitato de Budape\u015dto, tamen li akiris bibliotekistan diplomon en 1910. Tiutempe li konati\u011dis kun Ervin Szab\u00f3, L\u00e1szl\u00f3 Dienes kaj Oszk\u00e1r J\u00e1szi, e\u0109 li ali\u011dis al Rondo Gali...",
+      "timing": {
+        "total_time": 1.198533058166504,
+        "parse_time": 0.00016617774963378906,
+        "retrieval_time": 1.1940112113952637,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.004355669021606445
+      },
+      "retrieval": {
+        "num_retrieved": 3,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 3,
+        "facts_after_type_filter": 3,
+        "facts_after_m1_filter": 3,
+        "facts_selected": 3,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 516,
+        "num_sentences": 1,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 27,
+      "question_text": "Kio estas futbalo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "sporto",
+        "ludo",
+        "pilko"
+      ],
+      "answer_text": "1980: Cha Du-ri, sudkorea futbalisto, reprezentanto de la Sudkorea nacia teamo de futbalo [1] Tiun distingon elpensis Gabriel Hanot en 1956. Komence \u011di estis premio por e\u016dropaj futbalistoj [2] La Tanz...",
+      "timing": {
+        "total_time": 1.4586968421936035,
+        "parse_time": 0.00017023086547851562,
+        "retrieval_time": 1.2665631771087646,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.19196343421936035
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 32,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.03125
+      },
+      "extraction": {
+        "facts_extracted": 113,
+        "facts_after_type_filter": 113,
+        "facts_after_m1_filter": 113,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 710,
+        "num_sentences": 1,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 14,
+      "question_text": "Kiom da patentoj havis Tesla?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "300",
+        "patentoj",
+        "tesla"
+      ],
+      "answer_text": "Surbaze de la patentoj de Tesla kaj aliaj ideoj ili konsentis subteni lin finance kaj pritrakti liajn patentojn [1] Lilienfeld registris patentojn anka\u016d en Usono en 1926. kaj 1928. Tamen, Lilienfeld n...",
+      "timing": {
+        "total_time": 1.6038129329681396,
+        "parse_time": 0.0002276897430419922,
+        "retrieval_time": 1.347834825515747,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.2557504177093506
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 147,
+        "facts_after_type_filter": 147,
+        "facts_after_m1_filter": 147,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "patentoj",
+          "tesla"
+        ],
+        "answer_length": 680,
+        "num_sentences": 3,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    }
+  ]
+}

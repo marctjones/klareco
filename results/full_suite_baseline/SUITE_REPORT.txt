@@ -1,0 +1,99 @@
+================================================================================
+FULL EVALUATION SUITE REPORT
+================================================================================
+
+Generated: 2026-03-29 18:33:17
+Test Set: data/test_sets/qa_test_diverse_30.jsonl
+
+================================================================================
+BASELINE RESULTS (Current Configuration)
+================================================================================
+
+Accuracy: 53.3% (16/50)
+Configuration: top_k=20, M1=True, Rerank=True
+
+By Question Type:
+  WHO            52.9%
+  WHAT           55.6%
+  HOW_MANY        0.0%
+  WHEN           66.7%
+
+Timing:
+  Total: 1.498s
+  Retrieval: 1.377s (91.9%)
+  Generation: 0.107s (7.1%)
+
+Retrieval Quality:
+  Recall@5:  56.7%
+  Recall@10: 56.7%
+  Recall@20: 70.0%
+  MRR: 0.518
+
+Extraction:
+  Facts extracted (avg): 80.9
+  Facts selected (avg): 3.0
+  Filter rate: 96.3%
+
+================================================================================
+TOP-K OPTIMIZATION SWEEP
+================================================================================
+
+Top-K    Accuracy   Time     Facts Extr   Facts Sel    Filter %  
+--------------------------------------------------------------------------------
+5            66.7%   1.344s        26.7         3.1      88.4% ✓
+10           63.3%   1.488s        45.2         3.0      93.4%
+20           50.0%   1.595s        80.2         3.2      96.1% ←
+30           53.3%   1.704s       106.8         2.8      97.3%
+50           63.3%   1.836s       167.8         2.9      98.3%
+
+Analysis:
+  📊 FLAT: No significant change across top-k values
+  → Diagnosis: Retrieval quality is independent of ranking depth
+  → Bottleneck: RETRIEVAL (answer not retrieved at all)
+  → Recommendation: Drastically improve query expansion
+
+Optimal top-k: 5 (66.7% accuracy)
+
+Noise Analysis:
+  top_k=5: M1 filters 88.4% of extracted facts
+  top_k=10: M1 filters 93.4% of extracted facts
+  top_k=20: M1 filters 96.1% of extracted facts
+  top_k=30: M1 filters 97.3% of extracted facts
+  top_k=50: M1 filters 98.3% of extracted facts
+
+  ✓ Filter rate increases with top-k (M1 handling noise well)
+
+================================================================================
+ABLATION TESTS
+================================================================================
+
+M1 Filter:
+  With M1:    53.3%
+  Without M1: 50.0%
+  Difference: -3.3%
+  ✓ M1 is HELPING accuracy (filtering noise effectively)
+  → Recommendation: Keep M1 enabled
+
+Neural Reranker:
+  With reranker:    53.3%
+  Without reranker: 60.0%
+  Difference: +6.7%
+  ✗ Reranker is HURTING accuracy (ranking wrong sentences high)
+  → Recommendation: Retrain reranker or use BM25 only
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+1. CHANGE TOP-K: Use top_k=5 instead of 20
+   Expected improvement: +13.3% accuracy
+
+2. PRIMARY BOTTLENECK: EXTRACTION
+   8 questions fail even with answer in retrieved set
+   → Recommendation: Fix extraction patterns (object verification, definition patterns)
+
+3. PERFORMANCE OPTIMIZATION: RETRIEVAL
+   Retrieval consumes 91.9% of total time
+   → Recommendation: Cache Kuzu queries or optimize indexes
+
+================================================================================

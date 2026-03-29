@@ -1,0 +1,2431 @@
+{
+  "metadata": {
+    "test_set": "data/test_sets/qa_test_set_50.jsonl",
+    "num_questions": 50,
+    "top_k": 20,
+    "use_m1": true,
+    "use_rerank": true
+  },
+  "aggregates": {
+    "overall": {
+      "num_questions": 50,
+      "num_correct": 18,
+      "accuracy": 0.36
+    },
+    "timing": {
+      "total_time_mean": 1.6690697288513183,
+      "total_time_median": 1.5699764490127563,
+      "total_time_std": 0.3538978342718859,
+      "parse_time_mean": 0.00019413471221923828,
+      "retrieval_time_mean": 1.4839448070526122,
+      "generation_time_mean": 0.1849307870864868
+    },
+    "retrieval": {
+      "recall_at_5": 0.4,
+      "recall_at_10": 0.52,
+      "recall_at_20": 0.62,
+      "mean_reciprocal_rank": 0.3415270552921935
+    },
+    "extraction": {
+      "facts_extracted_mean": 126.78,
+      "facts_extracted_median": 159.5,
+      "facts_selected_mean": 3.68,
+      "facts_selected_median": 4.0
+    },
+    "answer": {
+      "answer_length_mean": 836.9791666666666,
+      "answer_length_median": 739.5,
+      "citations_per_answer_mean": 3.3125
+    },
+    "by_question_type": {
+      "WHO": {
+        "accuracy": 0.1,
+        "correct": 1,
+        "total": 10
+      },
+      "WHAT": {
+        "accuracy": 0.3,
+        "correct": 3,
+        "total": 10
+      },
+      "WHERE": {
+        "accuracy": 0.6,
+        "correct": 6,
+        "total": 10
+      },
+      "WHEN": {
+        "accuracy": 0.1,
+        "correct": 1,
+        "total": 10
+      },
+      "HOW_MANY": {
+        "accuracy": 1.0,
+        "correct": 5,
+        "total": 5
+      },
+      "WHY": {
+        "accuracy": 0.0,
+        "correct": 0,
+        "total": 2
+      },
+      "HOW": {
+        "accuracy": 1.0,
+        "correct": 2,
+        "total": 2
+      },
+      "WHICH": {
+        "accuracy": 0.0,
+        "correct": 0,
+        "total": 1
+      }
+    }
+  },
+  "results": [
+    {
+      "question_id": 1,
+      "question_text": "Kiu fondis Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof",
+        "ludovic",
+        "lazaro"
+      ],
+      "answer_text": "El tio el 1991 oni fondis GIL kiel asocio kiu uzis la germanan en kunsidoj kaj tekstoj sed anka\u016d Esperanton kaj aliajn planlingvojn [1] La 13-an de marto 1914 en Budape\u015dto fondi\u011dis Asocio de Internaci...",
+      "timing": {
+        "total_time": 2.1128084659576416,
+        "parse_time": 0.0004782676696777344,
+        "retrieval_time": 2.0623252391815186,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.05000495910644531
+      },
+      "retrieval": {
+        "num_retrieved": 31,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 24,
+        "facts_after_type_filter": 24,
+        "facts_after_m1_filter": 24,
+        "facts_selected": 3,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 582,
+        "num_sentences": 1,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 2,
+      "question_text": "Kiu kreis Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof"
+      ],
+      "answer_text": "El tio el 1991 oni fondis GIL kiel asocio kiu uzis la germanan en kunsidoj kaj tekstoj sed anka\u016d Esperanton kaj aliajn planlingvojn [1] La 13-an de marto 1914 en Budape\u015dto fondi\u011dis Asocio de Internaci...",
+      "timing": {
+        "total_time": 1.5563228130340576,
+        "parse_time": 0.00015020370483398438,
+        "retrieval_time": 1.5113945007324219,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.04477810859680176
+      },
+      "retrieval": {
+        "num_retrieved": 31,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 24,
+        "facts_after_type_filter": 24,
+        "facts_after_m1_filter": 24,
+        "facts_selected": 3,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 582,
+        "num_sentences": 1,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 3,
+      "question_text": "Kiu estis Zamenhof?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "okulisto",
+        "kuracisto",
+        "doktoro"
+      ],
+      "answer_text": "En la jaro 1887, Zamenhof publikigis sian unuan bro\u015duron, \u00abD-ro Esperanto: Internacia Lingvo\u00bb [1] (kun la simpla pronomo si) en tiaj \u0109i okazoj.\n\u2022La\u016d li mem, Zamenhof kreis Esperanton por la tuta hom a...",
+      "timing": {
+        "total_time": 1.291646957397461,
+        "parse_time": 0.00019478797912597656,
+        "retrieval_time": 1.1018269062042236,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.18962526321411133
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 3,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.3333333333333333
+      },
+      "extraction": {
+        "facts_extracted": 143,
+        "facts_after_type_filter": 143,
+        "facts_after_m1_filter": 143,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "doktoro"
+        ],
+        "answer_length": 523,
+        "num_sentences": 7,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 4,
+      "question_text": "Kiu verkis la Fundamenton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof"
+      ],
+      "answer_text": "La 22-an de a\u016dgusto 1950, Pio 12-a publikigis la Humani Generis (De la homa genro), pri iuj malveraj opinioj kiuj minacas renversi la fundamentojn de la katolika doktrino [1]",
+      "timing": {
+        "total_time": 1.4142062664031982,
+        "parse_time": 0.00021147727966308594,
+        "retrieval_time": 1.4083061218261719,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.005688667297363281
+      },
+      "retrieval": {
+        "num_retrieved": 5,
+        "contains_answer": true,
+        "answer_rank": 2,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.5
+      },
+      "extraction": {
+        "facts_extracted": 4,
+        "facts_after_type_filter": 4,
+        "facts_after_m1_filter": 4,
+        "facts_selected": 1,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 174,
+        "num_sentences": 0,
+        "num_citations": 1
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 5,
+      "question_text": "Kiu publikigis la unuan libron pri Esperanto?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof",
+        "doktoro esperanto"
+      ],
+      "answer_text": "En 2017, la eksreportero de Budhismo Nova\u0135oj (Boudhisme Actualit\u00e9s), fotisto kaj a\u016dtoro, Fran\u00e7ois-Marie Perier, publikigis la libron La Mallar\u011da Pordo kaj la Granda Vehiklo, ekde la Unuaj Kristanoj \u011di...",
+      "timing": {
+        "total_time": 1.9814951419830322,
+        "parse_time": 0.0002315044403076172,
+        "retrieval_time": 1.7784714698791504,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.20279216766357422
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 6,
+        "recall_at_5": false,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.16666666666666666
+      },
+      "extraction": {
+        "facts_extracted": 178,
+        "facts_after_type_filter": 178,
+        "facts_after_m1_filter": 178,
+        "facts_selected": 3,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 1170,
+        "num_sentences": 2,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 6,
+      "question_text": "Kiu estis la patro de Esperanto?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof"
+      ],
+      "answer_text": "La subjekto estas\nkvaza\u016d subfrazo (li voja\u011dis al sia patrino), kaj tial sia rajtas aperi ene de\ntiu subjekto. [1] La\u016d \u0109i tiu argumento estas eble prav igi uzojn kiel la\nsekva: \u0108i tiun permeson devas s...",
+      "timing": {
+        "total_time": 1.710496425628662,
+        "parse_time": 0.0001652240753173828,
+        "retrieval_time": 1.419208288192749,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.2911229133605957
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 55,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.01818181818181818
+      },
+      "extraction": {
+        "facts_extracted": 173,
+        "facts_after_type_filter": 173,
+        "facts_after_m1_filter": 173,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 551,
+        "num_sentences": 9,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 7,
+      "question_text": "Kiu inventis la internacian lingvon?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof"
+      ],
+      "answer_text": "Pli lastatempe, li anka\u016d inventis novan komputillingvon: Elephant 2000 (\"Elefanto 2000\"\u2014\u0109ar \"elefanto neniam forgesas\"), kiu estas evoluo de Lispo kiu enigas kaj eligas parola\u0135ojn [1] En 1996 li inven...",
+      "timing": {
+        "total_time": 1.6555507183074951,
+        "parse_time": 0.00023174285888671875,
+        "retrieval_time": 1.6395535469055176,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.01576542854309082
+      },
+      "retrieval": {
+        "num_retrieved": 18,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 11,
+        "facts_after_type_filter": 11,
+        "facts_after_m1_filter": 11,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 592,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 8,
+      "question_text": "Kiu proponis Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof"
+      ],
+      "answer_text": "La kantonaj esperantistoj proponis al Lucien instrui Esperanton en urbaj altlernejoj [1] La protesto proponas Esperanton kiel la oficialan lingvon; sed se oni permesus la anglan lingvon, oni anka\u016d per...",
+      "timing": {
+        "total_time": 1.5985257625579834,
+        "parse_time": 0.0001819133758544922,
+        "retrieval_time": 1.584507942199707,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.013835906982421875
+      },
+      "retrieval": {
+        "num_retrieved": 21,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 18,
+        "facts_after_type_filter": 18,
+        "facts_after_m1_filter": 18,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 456,
+        "num_sentences": 2,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 9,
+      "question_text": "Kiu ellaboris Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof"
+      ],
+      "answer_text": "Mi ne trovis respondon.",
+      "timing": {
+        "total_time": 1.583630084991455,
+        "parse_time": 0.00013303756713867188,
+        "retrieval_time": 1.5834970474243164,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.0
+      },
+      "retrieval": {
+        "num_retrieved": 0,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 0,
+        "facts_after_type_filter": 0,
+        "facts_after_m1_filter": 0,
+        "facts_selected": 0,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": false,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 0,
+        "num_sentences": 0,
+        "num_citations": 0
+      },
+      "success": false,
+      "error": "No sentences retrieved"
+    },
+    {
+      "question_id": 10,
+      "question_text": "Kiu iniciatis Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "zamenhof"
+      ],
+      "answer_text": "Mi ne trovis respondon.",
+      "timing": {
+        "total_time": 1.6758036613464355,
+        "parse_time": 0.00041365623474121094,
+        "retrieval_time": 1.6753900051116943,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.0
+      },
+      "retrieval": {
+        "num_retrieved": 0,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 0,
+        "facts_after_type_filter": 0,
+        "facts_after_m1_filter": 0,
+        "facts_selected": 0,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": false,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 0,
+        "num_sentences": 0,
+        "num_citations": 0
+      },
+      "success": false,
+      "error": "No sentences retrieved"
+    },
+    {
+      "question_id": 11,
+      "question_text": "Kio estas Esperanto?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "lingv",
+        "planlingvo",
+        "internacia"
+      ],
+      "answer_text": "Atentan legadon de tiu artikolo ni varmege rekomendas al \u0109iu Esperantisto, kiu havas iajn dubojn pri la certa estonteco de nia afero a\u016d kiu timas iajn venontajn konkurantojn de Esperanto. [1] Atentan ...",
+      "timing": {
+        "total_time": 2.035259246826172,
+        "parse_time": 0.0001583099365234375,
+        "retrieval_time": 1.4625587463378906,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.5725421905517578
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 130,
+        "facts_after_type_filter": 130,
+        "facts_after_m1_filter": 130,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 767,
+        "num_sentences": 4,
+        "num_citations": 2
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 12,
+      "question_text": "Kio estas planlingvo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "lingv",
+        "artefarita",
+        "kreita"
+      ],
+      "answer_text": "Doni klarajn respondojn je \u0109iuj tiuj \u0109i demandoj estus ne eble e\u0109 en la plej vasta gramatiko; nur multaj ekzercoj povas tie \u0109i helpi, kaj tial vi faros la plej bone, se al \u0109iu, kiu volas bone koni la ...",
+      "timing": {
+        "total_time": 1.5344250202178955,
+        "parse_time": 0.0002090930938720703,
+        "retrieval_time": 1.2729549407958984,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.261260986328125
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 139,
+        "facts_after_type_filter": 139,
+        "facts_after_m1_filter": 139,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "lingv"
+        ],
+        "answer_length": 1013,
+        "num_sentences": 4,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 13,
+      "question_text": "Kio estas la Fundamento?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "dokument",
+        "libro",
+        "tekst"
+      ],
+      "answer_text": "Rilate tiujn eblas certece determini \u0109u ili estas veraj a\u016d malveraj utiligante la intuiciajn kapablojn de onia intelekto doni universalan kaj objektivan fundamenton al la silogismoj, nome \u011duste al tiu...",
+      "timing": {
+        "total_time": 1.4075038433074951,
+        "parse_time": 0.0001888275146484375,
+        "retrieval_time": 1.1669561862945557,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.24035882949829102
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 36,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.027777777777777776
+      },
+      "extraction": {
+        "facts_extracted": 151,
+        "facts_after_type_filter": 151,
+        "facts_after_m1_filter": 151,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "libro"
+        ],
+        "answer_length": 889,
+        "num_sentences": 0,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 14,
+      "question_text": "Kio estas hundo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "best",
+        "animalo",
+        "mamul"
+      ],
+      "answer_text": "Hundino, balda\u016d idojn naskonte Kaj ne sciante kien demeti \u015car\u011don tiele gravan, fervore Petegis hundinon alian al \u015di tuj Prunti \u015dian dometon, Kaj tien l' estonta patrin' sin enfermas [1] Iuj hundoj ric...",
+      "timing": {
+        "total_time": 1.3952035903930664,
+        "parse_time": 0.00018262863159179688,
+        "retrieval_time": 1.1375572681427002,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.2574636936187744
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 2,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.5
+      },
+      "extraction": {
+        "facts_extracted": 170,
+        "facts_after_type_filter": 170,
+        "facts_after_m1_filter": 170,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 362,
+        "num_sentences": 2,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 15,
+      "question_text": "Kio estas libro?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "skrib",
+        "text",
+        "papero"
+      ],
+      "answer_text": "La malkarecon de la libroj d-ro Vincent atingas per la sekvanta rimedo : li turnas sin al libreja firmo kun la demando, \u0109u \u011di ne donus rabaton, se \u011di por tio \u0109i ricevos la garantion, ke \u011di disvendos l...",
+      "timing": {
+        "total_time": 1.5531318187713623,
+        "parse_time": 0.00014925003051757812,
+        "retrieval_time": 1.2834713459014893,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.26951122283935547
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 2,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.5
+      },
+      "extraction": {
+        "facts_extracted": 159,
+        "facts_after_type_filter": 159,
+        "facts_after_m1_filter": 159,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 1420,
+        "num_sentences": 0,
+        "num_citations": 2
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 16,
+      "question_text": "Kio estas lingvo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "komunik",
+        "parol",
+        "hom"
+      ],
+      "answer_text": "Doni klarajn respondojn je \u0109iuj tiuj \u0109i demandoj estus ne eble e\u0109 en la plej vasta gramatiko; nur multaj ekzercoj povas tie \u0109i helpi, kaj tial vi faros la plej bone, se al \u0109iu, kiu volas bone koni la ...",
+      "timing": {
+        "total_time": 1.5147242546081543,
+        "parse_time": 0.00022840499877929688,
+        "retrieval_time": 1.2300915718078613,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.28440427780151367
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 7,
+        "recall_at_5": false,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.14285714285714285
+      },
+      "extraction": {
+        "facts_extracted": 153,
+        "facts_after_type_filter": 153,
+        "facts_after_m1_filter": 153,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 727,
+        "num_sentences": 12,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 17,
+      "question_text": "Kio estas akvo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "likv",
+        "substanc",
+        "trinka\u0135"
+      ],
+      "answer_text": ", mi vidis nur la akvon, nenion krom akvo [1] \"Nu,\" respondis la gruo, \"vi provizis akvon en la akvujo por nutri la rikoltojn tri monatojn [2] FE.34\n\u2022Por kio vi elirigis nin el Egiptujo, por venigi ni...",
+      "timing": {
+        "total_time": 1.482661247253418,
+        "parse_time": 0.00020623207092285156,
+        "retrieval_time": 1.264756441116333,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.2176985740661621
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 85,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.011764705882352941
+      },
+      "extraction": {
+        "facts_extracted": 170,
+        "facts_after_type_filter": 170,
+        "facts_after_m1_filter": 170,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 600,
+        "num_sentences": 12,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 18,
+      "question_text": "Kio estas domo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "konstru",
+        "lo\u011d",
+        "edifice"
+      ],
+      "answer_text": "La knabino vidas la domon.\n\ue313la domon \u2192 la domo\n\ue313vidas \u2192 estas vidata\n\ue313la knabino \u2192 de la knabino\n\u2192 La domo estas vidata de la knabino. [1] La knabino vidas la domon.\n\ue313la domon \u2192 la domo\n\ue313vidas \u2192 estas...",
+      "timing": {
+        "total_time": 1.454338550567627,
+        "parse_time": 0.00016570091247558594,
+        "retrieval_time": 1.2524423599243164,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.20173048973083496
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 10,
+        "recall_at_5": false,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.1
+      },
+      "extraction": {
+        "facts_extracted": 170,
+        "facts_after_type_filter": 170,
+        "facts_after_m1_filter": 170,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "lo\u011d"
+        ],
+        "answer_length": 638,
+        "num_sentences": 4,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 19,
+      "question_text": "Kio estas tablo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "mebl",
+        "surfac"
+      ],
+      "answer_text": "La pordoj de la festa salono malfermi\u011dis kaj tie la tablo estis preparita kaj \u015dar\u011dita per \u0109io kion la tri tiam konataj terpartoj povis liveri plej bongustan kaj plej multekostan [1] \" -- \"Ne,\" respond...",
+      "timing": {
+        "total_time": 1.6001765727996826,
+        "parse_time": 0.0001494884490966797,
+        "retrieval_time": 1.1339921951293945,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.4660348892211914
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 29,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.034482758620689655
+      },
+      "extraction": {
+        "facts_extracted": 176,
+        "facts_after_type_filter": 176,
+        "facts_after_m1_filter": 176,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 884,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 20,
+      "question_text": "Kio estas arbo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "plant",
+        "veget",
+        "ligno"
+      ],
+      "answer_text": "La arbaro, anta\u016de malluma, nigra maso, montris sian multkoloran veston de flava\u0135o, verda\u0135o, bruna\u0135o kaj ru\u011da\u0135o kaj la diversajn figurojn de siaj arboj, sur kies folioj pluvaj gutoj tremis kaj fajreran...",
+      "timing": {
+        "total_time": 1.4593162536621094,
+        "parse_time": 0.00013208389282226562,
+        "retrieval_time": 1.2546796798706055,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.20450448989868164
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 20,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": true,
+        "mrr": 0.05
+      },
+      "extraction": {
+        "facts_extracted": 170,
+        "facts_after_type_filter": 170,
+        "facts_after_m1_filter": 170,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 740,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 21,
+      "question_text": "Kie naski\u011dis Zamenhof?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "bjalistok",
+        "pol"
+      ],
+      "answer_text": "La unua Esperanto-libro naski\u011dis pli frue, ol la unua interparolo, se ni ne kalkulas al tio la konversacion en la kadro de la familio Zamenhof, kie la lingvo anka\u016d parole estis elprovata [1] En 1859 n...",
+      "timing": {
+        "total_time": 1.261673927307129,
+        "parse_time": 0.00024962425231933594,
+        "retrieval_time": 1.1700060367584229,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.09141826629638672
+      },
+      "retrieval": {
+        "num_retrieved": 98,
+        "contains_answer": true,
+        "answer_rank": 8,
+        "recall_at_5": false,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.125
+      },
+      "extraction": {
+        "facts_extracted": 96,
+        "facts_after_type_filter": 96,
+        "facts_after_m1_filter": 96,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "pol"
+        ],
+        "answer_length": 666,
+        "num_sentences": 0,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 22,
+      "question_text": "Kie krei\u011dis Esperanto?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "pol",
+        "rusio"
+      ],
+      "answer_text": "En 1922 li fondis Societon de \u0109e\u0125oslovakaj nevidantaj esperantistoj (SO\u0108NE) [1] Poste, en 1924 li fondis Lublinan Filion de la Pola Societo de Esperantistoj (PTE), kies plurjara prezidanto estis kurac...",
+      "timing": {
+        "total_time": 2.3756208419799805,
+        "parse_time": 0.00016808509826660156,
+        "retrieval_time": 2.0594022274017334,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.31605052947998047
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 7,
+        "recall_at_5": false,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.14285714285714285
+      },
+      "extraction": {
+        "facts_extracted": 173,
+        "facts_after_type_filter": 173,
+        "facts_after_m1_filter": 173,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "pol"
+        ],
+        "answer_length": 493,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 23,
+      "question_text": "Kie vivis Zamenhof?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "varsov",
+        "pol"
+      ],
+      "answer_text": "La dokumenta dramo \"Ni vivos!\" de Julian Modest bildigas la sorton de la familio Zamenhof en la Varsovia geto [1] Ludoviko Kristoforo (ekde 1959 Louis Christophe) Zaleski-Zamenhof ne da\u016drigis la famil...",
+      "timing": {
+        "total_time": 1.2737185955047607,
+        "parse_time": 0.00019311904907226562,
+        "retrieval_time": 1.2307779788970947,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.04274749755859375
+      },
+      "retrieval": {
+        "num_retrieved": 45,
+        "contains_answer": true,
+        "answer_rank": 2,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.5
+      },
+      "extraction": {
+        "facts_extracted": 42,
+        "facts_after_type_filter": 42,
+        "facts_after_m1_filter": 42,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "varsov"
+        ],
+        "answer_length": 718,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 24,
+      "question_text": "Kie estas Pollando?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "e\u016drop",
+        "orient"
+      ],
+      "answer_text": "Kune kun ili mi estis milita kolego el Pilo, El malproksima lando : alvokis min tiuj \u0109i viroj : Kune kun ili batalis mi, kaj kontra\u016d ili nenia Homo, sur tero naskita, havis kura\u011don batali [1] La rasaj...",
+      "timing": {
+        "total_time": 2.2074427604675293,
+        "parse_time": 0.0001308917999267578,
+        "retrieval_time": 1.8514809608459473,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.3558309078216553
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 54,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.018518518518518517
+      },
+      "extraction": {
+        "facts_extracted": 167,
+        "facts_after_type_filter": 167,
+        "facts_after_m1_filter": 167,
+        "facts_selected": 3,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 705,
+        "num_sentences": 0,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 25,
+      "question_text": "Kie trovi\u011das Bjalistoko?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "pol"
+      ],
+      "answer_text": "Kelkfoje oni trovas ci en tradukoj, kie la originalo havas ci-similan pro-\nnomon. [1] Cis anka\u016d trovi\u011das en\npropraj nomoj kaj sciencaj vortoj, kie oni pre fere rigardu \u011din kiel parton de\nla radiko. [2...",
+      "timing": {
+        "total_time": 1.8561666011810303,
+        "parse_time": 0.00024318695068359375,
+        "retrieval_time": 1.7064452171325684,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.14947819709777832
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 28,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.03571428571428571
+      },
+      "extraction": {
+        "facts_extracted": 182,
+        "facts_after_type_filter": 182,
+        "facts_after_m1_filter": 182,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 470,
+        "num_sentences": 5,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 26,
+      "question_text": "Kie estas Varsovio?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "pol"
+      ],
+      "answer_text": "Li estas gajninto de 9-a Internacia Pianista Konkurso nome de Frederiko Chopin en Varsovio (oktobro 1975) [1] Nuntempe \u011di estas unu el la admirata simbolo de Varsovio en la okuloj de eksterlandanoj [2...",
+      "timing": {
+        "total_time": 1.6788954734802246,
+        "parse_time": 0.00010967254638671875,
+        "retrieval_time": 1.3547189235687256,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.3240668773651123
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 3,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.3333333333333333
+      },
+      "extraction": {
+        "facts_extracted": 173,
+        "facts_after_type_filter": 173,
+        "facts_after_m1_filter": 173,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 686,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 27,
+      "question_text": "Kie estas E\u016dropo?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "kontinent",
+        "mond",
+        "ter"
+      ],
+      "answer_text": "Anatolio estas unu el la kontinue lo\u011dataj ekde plej frua antikveco teritorioj de la mondo, \u0109efe pro \u011dia strategie grava situo inter E\u016dropo kaj Azio, kaj anka\u016d pro la bonaj naturaj kondi\u0109oj de la regio...",
+      "timing": {
+        "total_time": 1.9852476119995117,
+        "parse_time": 0.00013303756713867188,
+        "retrieval_time": 1.650974988937378,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.3341395854949951
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 162,
+        "facts_after_type_filter": 162,
+        "facts_after_m1_filter": 162,
+        "facts_selected": 3,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "mond",
+          "ter"
+        ],
+        "answer_length": 796,
+        "num_sentences": 1,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 28,
+      "question_text": "Kie okazas konversacio?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "lok",
+        "\u0109i tie"
+      ],
+      "answer_text": "\u0108iujare (ekde 1952) tie okazas tri dusemajnaj etapoj en julio \u011dis mezo de a\u016dgusto, por komencantoj, progresintoj kaj konversaciaj kursoj [1] Komunikado okazas \u0109efe per konstantaj konversacioj (konvers...",
+      "timing": {
+        "total_time": 1.0483415126800537,
+        "parse_time": 0.00012993812561035156,
+        "retrieval_time": 1.0309028625488281,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.017308712005615234
+      },
+      "retrieval": {
+        "num_retrieved": 20,
+        "contains_answer": true,
+        "answer_rank": 2,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.5
+      },
+      "extraction": {
+        "facts_extracted": 20,
+        "facts_after_type_filter": 20,
+        "facts_after_m1_filter": 20,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 542,
+        "num_sentences": 0,
+        "num_citations": 2
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 29,
+      "question_text": "Kie lo\u011das homoj?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "dom",
+        "urb",
+        "land"
+      ],
+      "answer_text": "Sur la Insulo, kie mi lo\u011dis kun du aliaj homoj, staris nur unu domo, la nia, kaj en \u0109iu vila\u011do, kiel mia patrino rakontis al mi, staras multaj, tre multaj domoj, en kiuj lo\u011das centoj da homoj [1] En l...",
+      "timing": {
+        "total_time": 2.0050148963928223,
+        "parse_time": 0.0001373291015625,
+        "retrieval_time": 1.8842239379882812,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.12065362930297852
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 190,
+        "facts_after_type_filter": 190,
+        "facts_after_m1_filter": 190,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "dom"
+        ],
+        "answer_length": 575,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 30,
+      "question_text": "Kie staras arbo?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "ter",
+        "grund",
+        "arbar"
+      ],
+      "answer_text": "La arbo staris en bosko (aro) de samspeciaj arboj sur la Wheeler-pinto, sur moreno de iama gla\u0109ero. (La areo estas ekde 1986 parto de la Nacia parko Great Basin.) La pinto Wheeler estas la plej alta p...",
+      "timing": {
+        "total_time": 2.140030860900879,
+        "parse_time": 0.00019216537475585938,
+        "retrieval_time": 2.043355941772461,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.09648275375366211
+      },
+      "retrieval": {
+        "num_retrieved": 120,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 107,
+        "facts_after_type_filter": 107,
+        "facts_after_m1_filter": 107,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "arbar"
+        ],
+        "answer_length": 601,
+        "num_sentences": 2,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 31,
+      "question_text": "Kiam estis fondita Esperanto?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1887"
+      ],
+      "answer_text": "Kelkaj anglalingvaj versioj de poemoj de K\u00e1lm\u00e1n Kalocsay estas inkluditaj en la kompila\u0135o En nacia vesto de Ada Csisz\u00e1r, Budapesto 2004. \u0108ar la angla estas hodia\u016d la plej disvasti\u011dinta lingvo tutmonde...",
+      "timing": {
+        "total_time": 1.8215360641479492,
+        "parse_time": 0.00031876564025878906,
+        "retrieval_time": 1.6318461894989014,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.18937110900878906
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 142,
+        "facts_after_type_filter": 142,
+        "facts_after_m1_filter": 142,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 778,
+        "num_sentences": 2,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 32,
+      "question_text": "Kiam naski\u011dis Zamenhof?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1859"
+      ],
+      "answer_text": "BELINFANTE (naski\u011dis en 1913, mortis la 5-an de junio 1991 en Gresham, Oregono, Usono) estis doktori\u011dita profesoro pri fiziko \u0109e Purdus Universitato, West Lafayette, Indiano, Usono, Esperanto-vortaris...",
+      "timing": {
+        "total_time": 1.1406135559082031,
+        "parse_time": 0.0001461505889892578,
+        "retrieval_time": 1.0470209121704102,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.09344649314880371
+      },
+      "retrieval": {
+        "num_retrieved": 98,
+        "contains_answer": true,
+        "answer_rank": 14,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": true,
+        "mrr": 0.07142857142857142
+      },
+      "extraction": {
+        "facts_extracted": 96,
+        "facts_after_type_filter": 96,
+        "facts_after_m1_filter": 96,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 804,
+        "num_sentences": 1,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 33,
+      "question_text": "Kiam aperis Esperanto?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1887"
+      ],
+      "answer_text": "En 2016 aperis traduko de Fernando de Diego en Esperanto de La in\u011denia hidalgo don Quijote de La Mancha de Miguel de Cervantes Saavedra, en bita formato [1] En 1925 aperigis stencilitan E-kurson \"Gvid...",
+      "timing": {
+        "total_time": 2.1644368171691895,
+        "parse_time": 0.00012040138244628906,
+        "retrieval_time": 2.0036442279815674,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.16067218780517578
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 126,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.007936507936507936
+      },
+      "extraction": {
+        "facts_extracted": 178,
+        "facts_after_type_filter": 178,
+        "facts_after_m1_filter": 178,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 725,
+        "num_sentences": 3,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 34,
+      "question_text": "Kiam publiki\u011dis la unua libro?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1887"
+      ],
+      "answer_text": "Oni verkis kavalirajn librojn ekde la fino de la 15a jarcento al 1602 kaj ili ekperdis sian popularecon \u0109irka\u016d 1550. La lasta origina libro, Policisne de Boecia, estis publ\u00edkigita en 1602, sed multaj ...",
+      "timing": {
+        "total_time": 2.117204189300537,
+        "parse_time": 0.0002474784851074219,
+        "retrieval_time": 1.9070215225219727,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.20993518829345703
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 59,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.01694915254237288
+      },
+      "extraction": {
+        "facts_extracted": 160,
+        "facts_after_type_filter": 160,
+        "facts_after_m1_filter": 160,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 1148,
+        "num_sentences": 4,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 35,
+      "question_text": "Kiam mortis Zamenhof?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1917"
+      ],
+      "answer_text": "Ludoviko Kristoforo (ekde 1959 Louis Christophe) Zaleski-Zamenhof ne da\u016drigis la familian tradicion sur la kampo de medicino [1] Poste, anne WHITTEKER (1919-1999), dumviva membro de UEA kaj de ELNA, a...",
+      "timing": {
+        "total_time": 1.1201503276824951,
+        "parse_time": 0.0001494884490966797,
+        "retrieval_time": 1.0736231803894043,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.04637765884399414
+      },
+      "retrieval": {
+        "num_retrieved": 44,
+        "contains_answer": true,
+        "answer_rank": 12,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": true,
+        "mrr": 0.08333333333333333
+      },
+      "extraction": {
+        "facts_extracted": 43,
+        "facts_after_type_filter": 43,
+        "facts_after_m1_filter": 43,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 696,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 36,
+      "question_text": "Kiam okazis la unua kongreso?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1905",
+        "bulonjo"
+      ],
+      "answer_text": "La unua kongreso de SAT okazis en Prago inter la 1-a kaj la 3-a de a\u016dgusto 1921. Tiun nomon ricevas la fonda kunveno de la asocio, okazigita en la sino de la 13-a Universala Kongreso [1] Anta\u016de, en 19...",
+      "timing": {
+        "total_time": 1.6413090229034424,
+        "parse_time": 0.00021219253540039062,
+        "retrieval_time": 1.5202515125274658,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.12084531784057617
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 7,
+        "recall_at_5": false,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.14285714285714285
+      },
+      "extraction": {
+        "facts_extracted": 181,
+        "facts_after_type_filter": 181,
+        "facts_after_m1_filter": 181,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 921,
+        "num_sentences": 3,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 37,
+      "question_text": "Kiam estis kreita la Fundamento?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1905"
+      ],
+      "answer_text": "Unua \u011denerala teorio pri fundamentaj fortoj estis teorio de elektromagnetismo, kreita far James Clerk Maxwell en 1863. Poste, en 1915, Albert Einstein enkondukis \u011deneralan teorion de relativeco, kiu p...",
+      "timing": {
+        "total_time": 1.531019926071167,
+        "parse_time": 0.00020933151245117188,
+        "retrieval_time": 1.3443260192871094,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.18648457527160645
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 78,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.01282051282051282
+      },
+      "extraction": {
+        "facts_extracted": 162,
+        "facts_after_type_filter": 162,
+        "facts_after_m1_filter": 162,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "1905"
+        ],
+        "answer_length": 934,
+        "num_sentences": 4,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 38,
+      "question_text": "Kiam komenci\u011dis Esperanto?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1887"
+      ],
+      "answer_text": "Ekde 1969 oni komencis funkciigi kongresajn staciojn dum la Universalaj Kongresoj de Esperanto [1] Per la apogo de D-ro Couto Fernandes, la 6-an de Marto 1938, per la mikrofono de \u201cPRC-7 Sociedade R\u00e1d...",
+      "timing": {
+        "total_time": 2.203564167022705,
+        "parse_time": 0.00015044212341308594,
+        "retrieval_time": 1.9821817874908447,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.22123193740844727
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 181,
+        "facts_after_type_filter": 181,
+        "facts_after_m1_filter": 181,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 881,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 39,
+      "question_text": "Kiam vivis Zamenhof?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1859",
+        "1917",
+        "jarcent"
+      ],
+      "answer_text": "Ludoviko Kristoforo (ekde 1959 Louis Christophe) Zaleski-Zamenhof ne da\u016drigis la familian tradicion sur la kampo de medicino [1] Tiam, eld.: Bulgara Esperantista Asocio, Sofio, 1987. # Ni vivos! \u2013 dok...",
+      "timing": {
+        "total_time": 1.1082170009613037,
+        "parse_time": 0.00017976760864257812,
+        "retrieval_time": 1.0501320362091064,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.05790519714355469
+      },
+      "retrieval": {
+        "num_retrieved": 45,
+        "contains_answer": false,
+        "answer_rank": null,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.0
+      },
+      "extraction": {
+        "facts_extracted": 42,
+        "facts_after_type_filter": 42,
+        "facts_after_m1_filter": 42,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 900,
+        "num_sentences": 6,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 40,
+      "question_text": "Kiam oni parolas Esperanton?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "nun",
+        "hodia\u016d",
+        "\u0109iam"
+      ],
+      "answer_text": "Unu kelnero parolas Esperanton. 1917 D-ro Kamaryt aran\u011dis kunvenon de la Bohema Societo Esperantista en la restoracio Kol\u00e1\u0159 (en la strato Celetn\u00e1) kaj prelegis pri la mortinta Zamenhof 1917-12-09 en l...",
+      "timing": {
+        "total_time": 2.1936702728271484,
+        "parse_time": 0.00012254714965820312,
+        "retrieval_time": 1.9975183010101318,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.1960294246673584
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 2,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 0.5
+      },
+      "extraction": {
+        "facts_extracted": 167,
+        "facts_after_type_filter": 167,
+        "facts_after_m1_filter": 167,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 825,
+        "num_sentences": 2,
+        "num_citations": 4
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 41,
+      "question_text": "Kiom da homoj parolas Esperanton?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "mil",
+        "milion"
+      ],
+      "answer_text": "Vi parolas sensenca\u0135on, mia amiko.--Mi trinkis teon kun kuko kaj konfita\u0135o.--Akvo estas fluida\u0135o.--Mi ne volis trinki la vinon, \u0109ar \u011di enhavis en si ian suspektan malklara\u0135on.--Sur la tablo staris div...",
+      "timing": {
+        "total_time": 1.5382401943206787,
+        "parse_time": 0.0001857280731201172,
+        "retrieval_time": 1.2305541038513184,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.30750036239624023
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 98,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.01020408163265306
+      },
+      "extraction": {
+        "facts_extracted": 164,
+        "facts_after_type_filter": 164,
+        "facts_after_m1_filter": 164,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "mil"
+        ],
+        "answer_length": 3130,
+        "num_sentences": 50,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 42,
+      "question_text": "Kiom da jaroj havas Esperanto?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "jaro",
+        "cent"
+      ],
+      "answer_text": "Mi liavas cent pomojn. \u2014 Mi havas centon dapomoj. \n\n\u2014 Tiu \u0109i urbo havas milionon da lo\u011dantoj. \u2014Mi acetis \ndekduon (aii dek-duon) da kuleroj kaj du dekduojn da \nforkoj. \u2014Mil jaroj (a\u016d milo da jaroj) fa...",
+      "timing": {
+        "total_time": 1.5236248970031738,
+        "parse_time": 0.00015544891357421875,
+        "retrieval_time": 1.2843222618103027,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.23914718627929688
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 157,
+        "facts_after_type_filter": 157,
+        "facts_after_m1_filter": 157,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "jaro",
+          "cent"
+        ],
+        "answer_length": 1883,
+        "num_sentences": 32,
+        "num_citations": 2
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 43,
+      "question_text": "Kiom da landoj uzas Esperanton?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "mult",
+        "land",
+        "mond"
+      ],
+      "answer_text": "Sendube, la Esperantistoj de Norda Francujo memoras pri tiuj grupoj da rapidantaj homoj kiuj, \u0109irka\u016d la jarmezo, \u015dar\u011ditaj per paka\u0135oj kaj rikoltiloj, sentime mar\u015das al nekonata lando celante perlabori...",
+      "timing": {
+        "total_time": 1.4478275775909424,
+        "parse_time": 0.00027751922607421875,
+        "retrieval_time": 1.2190704345703125,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.22847962379455566
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 171,
+        "facts_after_type_filter": 171,
+        "facts_after_m1_filter": 171,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "land"
+        ],
+        "answer_length": 872,
+        "num_sentences": 6,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 44,
+      "question_text": "Kiom da vortoj estas en Esperanto?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "mil",
+        "vort",
+        "radik"
+      ],
+      "answer_text": "Tiam tro povas roli O-vortece\n(\u00a724.4), kaj povas esti priskribata de da-esprimo:\n\u2022Tro da kuiristoj ka\u0109on difektas. [1] Oni\npovus uzi tiuj problemoj, tiuj du cirkonstancoj, kiuj agoj a\u016d ion similan, se...",
+      "timing": {
+        "total_time": 1.3784794807434082,
+        "parse_time": 0.0002493858337402344,
+        "retrieval_time": 1.1568231582641602,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.2214069366455078
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 162,
+        "facts_after_type_filter": 162,
+        "facts_after_m1_filter": 162,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "mil",
+          "vort"
+        ],
+        "answer_length": 976,
+        "num_sentences": 15,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 45,
+      "question_text": "Kiom da reguloj havas Esperanto?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "16",
+        "dek ses",
+        "regul"
+      ],
+      "answer_text": "\u0108iuj lingvoj naturaj havas grandan amason da malregula\u0135oj kaj malfacila\u0135oj, \u2014 \u0109u ni anka\u016d devas sekvi tiun \u0109i \u201cle\u011don naturan\u201d kaj intence fari nian lingvon malregula kaj malfacila? [1] \u0108iuj lingvoj na...",
+      "timing": {
+        "total_time": 1.457362413406372,
+        "parse_time": 0.000152587890625,
+        "retrieval_time": 1.1413123607635498,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.31589746475219727
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 141,
+        "facts_after_type_filter": 141,
+        "facts_after_m1_filter": 141,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "regul"
+        ],
+        "answer_length": 739,
+        "num_sentences": 4,
+        "num_citations": 2
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 46,
+      "question_text": "Kial Zamenhof kreis Esperanton?",
+      "question_type": "WHY",
+      "expected_keywords": [
+        "pac",
+        "kompreni\u011d",
+        "amik"
+      ],
+      "answer_text": "La menciitan monumenton - obeliskon oni konstruis en la jaro 1960 de la aluvia granito kun aldonita memor-tabulo oma\u011de al Ludoviko Zamenhof kun la jena \u0109izita teksto: \"Al d-ro Ludoviko Zamenhof, a\u016dtor...",
+      "timing": {
+        "total_time": 1.1147379875183105,
+        "parse_time": 0.00028252601623535156,
+        "retrieval_time": 1.057950735092163,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.05650472640991211
+      },
+      "retrieval": {
+        "num_retrieved": 37,
+        "contains_answer": true,
+        "answer_rank": 17,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": true,
+        "mrr": 0.058823529411764705
+      },
+      "extraction": {
+        "facts_extracted": 31,
+        "facts_after_type_filter": 31,
+        "facts_after_m1_filter": 31,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 764,
+        "num_sentences": 0,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 47,
+      "question_text": "Kial oni lernas Esperanton?",
+      "question_type": "WHY",
+      "expected_keywords": [
+        "facil",
+        "internaci",
+        "komunikad"
+      ],
+      "answer_text": "La \u201dfidela esperantisto, esploristo kaj lingva profesoro Gustaf John Ramstedt\u201d lernis pri Esperanto en 1895. Anka\u016d en 1895, 12 de 170 abonantoj de la gazeto Esperantisto ekster Ruslando trovi\u011dis la\u016d E...",
+      "timing": {
+        "total_time": 2.161400079727173,
+        "parse_time": 0.0001506805419921875,
+        "retrieval_time": 1.9741075038909912,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.18714189529418945
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 23,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.043478260869565216
+      },
+      "extraction": {
+        "facts_extracted": 181,
+        "facts_after_type_filter": 181,
+        "facts_after_m1_filter": 181,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 734,
+        "num_sentences": 2,
+        "num_citations": 3
+      },
+      "success": false,
+      "error": null
+    },
+    {
+      "question_id": 48,
+      "question_text": "Kiel oni lernas Esperanton?",
+      "question_type": "HOW",
+      "expected_keywords": [
+        "stud",
+        "lern",
+        "facil"
+      ],
+      "answer_text": "La \u201dfidela esperantisto, esploristo kaj lingva profesoro Gustaf John Ramstedt\u201d lernis pri Esperanto en 1895. Anka\u016d en 1895, 12 de 170 abonantoj de la gazeto Esperantisto ekster Ruslando trovi\u011dis la\u016d E...",
+      "timing": {
+        "total_time": 2.1193912029266357,
+        "parse_time": 0.00014066696166992188,
+        "retrieval_time": 1.946157455444336,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.17309308052062988
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 1,
+        "recall_at_5": true,
+        "recall_at_10": true,
+        "recall_at_20": true,
+        "mrr": 1.0
+      },
+      "extraction": {
+        "facts_extracted": 184,
+        "facts_after_type_filter": 184,
+        "facts_after_m1_filter": 184,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "lern"
+        ],
+        "answer_length": 1722,
+        "num_sentences": 3,
+        "num_citations": 3
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 49,
+      "question_text": "Kiel funkcias Esperanto?",
+      "question_type": "HOW",
+      "expected_keywords": [
+        "regul",
+        "gramattik",
+        "logik"
+      ],
+      "answer_text": "Ekzemple, la senco 'funkciigi komputilan programon' de la Esperanta vorto ruli estas inspirita parte de la rumana vorto rulare, parte de la simileco kun la angla vorto run kaj parte de la interna logi...",
+      "timing": {
+        "total_time": 2.2804360389709473,
+        "parse_time": 0.00018930435180664062,
+        "retrieval_time": 2.181051254272461,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.09919548034667969
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 90,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": false,
+        "mrr": 0.011111111111111112
+      },
+      "extraction": {
+        "facts_extracted": 188,
+        "facts_after_type_filter": 188,
+        "facts_after_m1_filter": 188,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": true,
+        "matched_keywords": [
+          "logik"
+        ],
+        "answer_length": 930,
+        "num_sentences": 0,
+        "num_citations": 4
+      },
+      "success": true,
+      "error": null
+    },
+    {
+      "question_id": 50,
+      "question_text": "Kiu lingvo estas Esperanto?",
+      "question_type": "WHICH",
+      "expected_keywords": [
+        "planlingv",
+        "internacia"
+      ],
+      "answer_text": "Interpunkciado 65 Pri la uzado de la interpunkcioj La reguloj pri la uzado de la interpunkcioj estas en nia lingvo pli-malpli tiaj samaj, kiel en \u0109iuj aliaj lingvoj; sekve \u0109iu povas uzadi en Esperanto...",
+      "timing": {
+        "total_time": 1.5408854484558105,
+        "parse_time": 0.000217437744140625,
+        "retrieval_time": 1.2420945167541504,
+        "rerank_time": 0.0,
+        "extraction_time": 0.0,
+        "scoring_time": 0.0,
+        "generation_time": 0.29857349395751953
+      },
+      "retrieval": {
+        "num_retrieved": 200,
+        "contains_answer": true,
+        "answer_rank": 13,
+        "recall_at_5": false,
+        "recall_at_10": false,
+        "recall_at_20": true,
+        "mrr": 0.07692307692307693
+      },
+      "extraction": {
+        "facts_extracted": 133,
+        "facts_after_type_filter": 133,
+        "facts_after_m1_filter": 133,
+        "facts_selected": 4,
+        "type_filter_rate": 0.0,
+        "m1_filter_rate": 0.0
+      },
+      "answer": {
+        "has_answer": true,
+        "keyword_match": false,
+        "matched_keywords": [],
+        "answer_length": 891,
+        "num_sentences": 4,
+        "num_citations": 2
+      },
+      "success": false,
+      "error": null
+    }
+  ]
+}

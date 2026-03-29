@@ -792,6 +792,785 @@ class UnifiedASTExtractor:
             confidence=0.7
         )
 
+
+    # ========================================================================
+    # Phase 3: Participial and Nested Clause Extraction
+    # ========================================================================
+
+    def _extract_from_participial_nouns(self, frazo: Dict, source_sentence: Optional[str]) -> List[Fact]:
+        """
+        Extract facts from participial noun phrases.
+
+        Patterns:
+        - "La kreinto de Esperanto" → CREATED-BY fact
+        - "Zamenhof, la kreinto-iniciatinto de Esperanto" → CREATED-BY fact
+        - "La fondinto de la asocio" → FOUNDED fact
+
+        Participial nouns are marked with sufiksoj containing "int" (past),
+        "ant" (present), or "ont" (future).
+        """
+        facts = []
+
+        # Check subjekto, objekto, and aliaj for participial nouns
+        nodes_to_check = []
+
+        subjekto = frazo.get('subjekto')
+        if subjekto:
+            nodes_to_check.append(subjekto)
+
+        objekto = frazo.get('objekto')
+        if objekto:
+            nodes_to_check.append(objekto)
+
+        aliaj = frazo.get('aliaj', [])
+        nodes_to_check.extend(aliaj)
+
+        # Process each node
+        for node in nodes_to_check:
+            if not isinstance(node, dict):
+                continue
+
+            # Get the core word (handle vortgrupo)
+            core_node = node
+            if node.get('tipo') == 'vortgrupo':
+                core_node = node.get('kerno', {})
+
+            # Check if it's a participial noun
+            if not self._is_participial_noun(core_node):
+                continue
+
+            # Extract the verb root
+            verb_root = core_node.get('radiko', '')
+
+            # Check if it's a compound word with participial component
+            kunmetajhoj = core_node.get('kunmetajhoj', [])
+            if kunmetajhoj:
+                # Check each component for participial markers
+                for component in kunmetajhoj:
+                    if self._is_participial_noun(component):
+                        verb_root = component.get('radiko', '')
+                        break
+
+            if not verb_root:
+                continue
+
+            # Map verb root to relation type
+            relation = self.verb_to_relation.get(verb_root.lower(), RelationType.ACTION)
+
+            # Find the object of the action (after "de" preposition)
+            # Pattern: "kreinto de Esperanto" → entity = "esperant"
+            entity = self._find_prepositional_object(aliaj, 'de')
+
+            # Find the agent (often proper noun in apposition or subjekto)
+            agent = None
+
+            # Check for proper nouns in aliaj (appositive pattern)
+            # Collect all consecutive capitalized words (e.g., "Ludoviko Lazaro Zamenhof")
+            proper_nouns = []
+            for alia in aliaj:
+                if isinstance(alia, dict):
+                    plena_vorto = alia.get('plena_vorto', '')
+                    vortspeco = alia.get('vortspeco', '')
+
+                    # Skip the entity we already found (Esperanto)
+                    if entity and alia.get('radiko', '').lower() == entity.lower():
+                        continue
+
+                    # Collect capitalized words (proper nouns)
+                    if plena_vorto and plena_vorto[0].isupper():
+                        proper_nouns.append(alia.get('radiko', ''))
+                    elif proper_nouns:
+                        # Stop collecting when we hit a non-capitalized word
+                        # (unless it's a preposition/conjunction)
+                        if vortspeco not in ['prepozicio', 'konjunkcio']:
+                            break
+
+            # Take the last proper noun as the agent (e.g., "Zamenhof" from "Ludoviko Lazaro Zamenhof")
+            if proper_nouns:
+                agent = proper_nouns[-1]
+
+            # If no entity found, might be reversed pattern
+            # "Zamenhof estas la kreinto" → entity from subjekto
+            if not entity:
+                if subjekto and self._is_participial_noun(core_node):
+                    # Pattern: predicate nominative with participial noun
+                    # Use subjekto as agent
+                    continue  # Skip this pattern for now
+
+            if not entity:
+                continue
+
+            # Build fact based on relation type
+            arguments = {}
+            if relation in [RelationType.CREATED_BY, RelationType.FOUNDED, RelationType.PUBLISHED]:
+                if agent:
+                    arguments['agent'] = agent
+
+            modifiers = self._extract_modifiers(aliaj)
+
+            fact = Fact(
+                entity=entity,
+                relation=relation,
+                arguments=arguments,
+                modifiers=modifiers,
+                source_sentence=source_sentence,
+                source_ast=frazo,
+                confidence=0.9  # High confidence for participial patterns
+            )
+            facts.append(fact)
+
+        return facts
+
+    def _is_participial_noun(self, node: Dict) -> bool:
+        """Check if node is a participial noun (-into, -anto, -onto)."""
+        if not isinstance(node, dict):
+            return False
+
+        sufiksoj = node.get('sufiksoj', [])
+        if not sufiksoj:
+            return False
+
+        # Check for participial suffixes
+        # -int- (past active), -ant- (present active), -ont- (future active)
+        participial_suffixes = ['int', 'ant', 'ont', 'it', 'at', 'ot']
+
+        for suffix in sufiksoj:
+            if suffix in participial_suffixes:
+                return True
+
+        return False
+
+
+    def _is_participial_noun(self, node: Dict) -> bool:
+        """Check if node is a participial noun (-into, -anto, -onto)."""
+        if not isinstance(node, dict):
+            return False
+
+        sufiksoj = node.get('sufiksoj', [])
+        if not sufiksoj:
+            return False
+
+        # Check for participial suffixes
+        # -int- (past active), -ant- (present active), -ont- (future active)
+        participial_suffixes = ['int', 'ant', 'ont', 'it', 'at', 'ot']
+
+        for suffix in sufiksoj:
+            if suffix in participial_suffixes:
+                return True
+
+        return False
+
+
+    def _find_prepositional_object(self, aliaj: List[Dict], preposition: str) -> Optional[str]:
+        """
+        Find the object of a prepositional phrase in aliaj.
+
+        Pattern: "de Esperanto" → "esperant"
+        """
+        prep_found = False
+
+        for alia in aliaj:
+            if not isinstance(alia, dict):
+                continue
+
+            # Check if it's the preposition we're looking for
+            if alia.get('vortspeco') == 'prepozicio' and alia.get('radiko') == preposition:
+                prep_found = True
+                continue
+
+            # If we found the prep, next substantivo is the object
+            if prep_found and alia.get('vortspeco') == 'substantivo':
+                return alia.get('radiko', '')
+
+        return None
+
+
+    def _extract_from_nested_clauses(self, frazo: Dict, source_sentence: Optional[str]) -> List[Fact]:
+        """
+        Extract facts from nested/subordinate clauses.
+
+        Patterns:
+        - "...sub kiu la kuracisto publikigis..." → PUBLISHED fact
+        - "...kiun Zamenhof kreis..." → CREATED-BY fact
+
+        Nested clauses are marked by correlatives (kiu, kio, kie, kiam).
+        Parser may place them in objekto or aliaj.
+        """
+        facts = []
+
+        # Check if objekto is a correlative (relative clause pattern)
+        objekto = frazo.get('objekto')
+        if objekto and isinstance(objekto, dict):
+            if objekto.get('tipo') == 'vortgrupo':
+                kerno = objekto.get('kerno', {})
+            else:
+                kerno = objekto
+
+            if kerno.get('vortspeco') == 'korelativo':
+                # Pattern: "Subjekto Verbo kiun..." where kiun is in objekto
+                # Agent is in aliaj after the correlative
+                aliaj = frazo.get('aliaj', [])
+                subjekto = frazo.get('subjekto')
+                verbo = frazo.get('verbo')
+
+                if verbo:
+                    verb_root = verbo.get('radiko', '').lower()
+                    relation = self.verb_to_relation.get(verb_root, RelationType.ACTION)
+
+                    # Entity is the subject
+                    entity = None
+                    if subjekto:
+                        entity = self._get_entity_name(subjekto)
+
+                    # Agent is first proper noun or substantivo in aliaj
+                    agent = None
+                    for alia in aliaj:
+                        if isinstance(alia, dict):
+                            plena = alia.get('plena_vorto', '')
+                            if plena and plena[0].isupper():
+                                agent = alia.get('radiko', '')
+                                break
+                            elif alia.get('vortspeco') == 'substantivo' and not agent:
+                                agent = alia.get('radiko', '')
+                                break
+
+                    if entity and relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
+                        arguments = {}
+                        if agent:
+                            arguments['agent'] = agent
+
+                        modifiers = self._extract_modifiers(aliaj)
+
+                        fact = Fact(
+                            entity=entity,
+                            relation=relation,
+                            arguments=arguments,
+                            modifiers=modifiers,
+                            source_sentence=source_sentence,
+                            source_ast=frazo,
+                            confidence=0.8
+                        )
+                        facts.append(fact)
+
+        # Also check aliaj for correlatives (other pattern)
+        aliaj = frazo.get('aliaj', [])
+
+        # Scan for relative pronouns/correlatives
+        i = 0
+        while i < len(aliaj):
+            alia = aliaj[i]
+
+            if not isinstance(alia, dict):
+                i += 1
+                continue
+
+            # Check if it's a relative correlative
+            if alia.get('vortspeco') == 'korelativo':
+                # Found a correlative, look for verb in following elements
+                verb_idx = self._find_verb_after_position(aliaj, i + 1)
+
+                if verb_idx is not None:
+                    # Extract subsequence from correlative to verb (and a bit after)
+                    # Build a mini-clause structure
+                    clause_elements = aliaj[i:min(verb_idx + 10, len(aliaj))]
+
+                    # Try to construct a fact from this subsequence
+                    nested_fact = self._extract_from_clause_subsequence(
+                        clause_elements, verb_idx - i, source_sentence
+                    )
+
+                    if nested_fact:
+                        facts.append(nested_fact)
+
+                    # Skip past this clause
+                    i = verb_idx + 5
+                    continue
+
+            i += 1
+
+        return facts
+
+
+    def _find_verb_after_position(self, aliaj: List[Dict], start_pos: int) -> Optional[int]:
+        """Find the next verb in aliaj starting from start_pos."""
+        for i in range(start_pos, min(start_pos + 15, len(aliaj))):
+            if isinstance(aliaj[i], dict):
+                if aliaj[i].get('vortspeco') == 'verbo':
+                    return i
+        return None
+
+
+    def _extract_from_clause_subsequence(
+        self, elements: List[Dict], verb_offset: int, source_sentence: Optional[str]
+    ) -> Optional[Fact]:
+        """
+        Extract fact from a subsequence of clause elements.
+
+        Elements is a slice from aliaj containing a relative clause.
+        verb_offset is the index of the verb within this slice.
+        """
+        if verb_offset >= len(elements):
+            return None
+
+        verb = elements[verb_offset]
+        verb_root = verb.get('radiko', '').lower()
+
+        # Map verb to relation type
+        relation = self.verb_to_relation.get(verb_root, RelationType.ACTION)
+
+        # Find agent (subject of nested clause) - usually before the verb
+        agent = None
+        for i in range(max(0, verb_offset - 5), verb_offset):
+            elem = elements[i]
+            if isinstance(elem, dict):
+                # Look for proper nouns or substantivo
+                plena = elem.get('plena_vorto', '')
+                if plena and plena[0].isupper():
+                    agent = elem.get('radiko', '')
+                elif elem.get('vortspeco') == 'substantivo' and not agent:
+                    agent = elem.get('radiko', '')
+
+        # Find object (usually after the verb)
+        entity = None
+        for i in range(verb_offset + 1, min(verb_offset + 8, len(elements))):
+            elem = elements[i]
+            if isinstance(elem, dict):
+                if elem.get('vortspeco') == 'substantivo':
+                    entity = elem.get('radiko', '')
+                    break
+
+        # Extract temporal modifiers
+        modifiers = {}
+        for elem in elements:
+            if isinstance(elem, dict):
+                if elem.get('vortspeco') == 'numero':
+                    root = elem.get('radiko', '')
+                    if len(root) == 4 and root.isdigit():
+                        modifiers['time'] = root
+
+        # Build fact based on relation type
+        if relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
+            if not entity:
+                return None
+
+            arguments = {}
+            if agent:
+                arguments['agent'] = agent
+
+            return Fact(
+                entity=entity,
+                relation=relation,
+                arguments=arguments,
+                modifiers=modifiers,
+                source_sentence=source_sentence,
+                source_ast=None,  # Subsequence, not full AST
+                confidence=0.8  # Slightly lower confidence for nested extraction
+            )
+
+        return None
+
+
+
+    # ========================================================================
+    # Phase 5: Subclause Scoring and Decomposition
+    # ========================================================================
+
+    def _extract_from_best_subclause(
+        self,
+        query_ast: Dict,
+        doc_ast: Dict,
+        doc_text: str,
+        question_type: str,
+    ) -> Optional[Dict]:
+        """
+        Extract answer from best-matching subclause.
+
+        Strategy:
+        1. Decompose document into subclauses
+        2. Score each subclause against query
+        3. Extract from top-scoring subclause
+        4. Add subclause scoring info to result
+
+        Args:
+            query_ast: Query AST
+            doc_ast: Document AST
+            doc_text: Document text
+            question_type: Question type (WHO, WHAT, etc.)
+
+        Returns:
+            Answer dict or None
+        """
+        # Extract subclauses
+        subclauses = self._extract_subclauses(doc_ast)
+
+        if len(subclauses) <= 1:
+            logger.debug("No subclauses found (simple sentence)")
+            return None
+
+        # Score each subclause
+        scored_subclauses = []
+        for i, subclause in enumerate(subclauses):
+            score = self._score_subclause(query_ast, subclause)
+            scored_subclauses.append({
+                'index': i,
+                'score': score,
+                'subclause': subclause,
+                'type': subclause.get('subclause_type', 'unknown'),
+            })
+
+        # Sort by score
+        scored_subclauses.sort(key=lambda x: x['score'], reverse=True)
+
+        logger.debug(f"Subclause scores: {[(s['index'], s['type'], s['score']) for s in scored_subclauses[:3]]}")
+
+        # Try extraction from top-scoring subclauses
+        for ranked_subclause in scored_subclauses:
+            if ranked_subclause['score'] == 0:
+                break  # No point trying subclauses with zero score
+
+            subclause = ranked_subclause['subclause']
+
+            # Call appropriate extraction method on subclause
+            answer = None
+            if question_type == 'WHO':
+                answer = self._extract_who(query_ast, subclause, doc_text)
+            elif question_type == 'WHAT':
+                answer = self._extract_what(query_ast, subclause, doc_text)
+            elif question_type == 'WHERE':
+                answer = self._extract_where(query_ast, subclause, doc_text)
+            elif question_type == 'WHEN':
+                answer = self._extract_when(query_ast, subclause, doc_text)
+            elif question_type == 'HOW_MANY':
+                answer = self._extract_how_many(query_ast, subclause, doc_text)
+
+            if answer:
+                # Add subclause info to answer
+                answer['method'] = 'subclause_match'
+                answer['explanation'] = (
+                    f"{answer['explanation']} "
+                    f"(from {ranked_subclause['type']} subclause, score: {ranked_subclause['score']:.1f})"
+                )
+                logger.debug(f"Extracted from subclause #{ranked_subclause['index']}: {answer['text']}")
+                return answer
+
+        logger.debug("No valid extraction from any subclause")
+        return None
+
+
+    def _extract_subclauses(self, doc_ast: Dict) -> List[Dict]:
+        """
+        Extract subclauses from complex sentence using AST structure.
+
+        Strategy:
+        1. Main clause (subjekto-verbo-objekto) always included
+        2. Scan aliaj for clause boundaries (participles, conjunctions, relative pronouns)
+        3. Group consecutive words between boundaries into subclauses
+
+        Args:
+            doc_ast: Document AST (frazo)
+
+        Returns:
+            List of subclause dicts with structure similar to full AST
+        """
+        subclauses = []
+
+        # Main clause (always included)
+        main_clause = {
+            'tipo': 'subclause',
+            'subclause_type': 'main',
+            'subjekto': doc_ast.get('subjekto'),
+            'verbo': doc_ast.get('verbo'),
+            'objekto': doc_ast.get('objekto'),
+            'aliaj': [],  # Will add non-clause-boundary modifiers
+        }
+
+        # Collect aliaj that are NOT clause boundaries (belong to main clause)
+        aliaj = doc_ast.get('aliaj', [])
+        current_subclause_words = []
+
+        for word in aliaj:
+            # Check if this starts a new subclause
+            if self._is_clause_boundary(word):
+                # Save current subclause if it has content
+                if current_subclause_words:
+                    subclause = self._make_subclause(current_subclause_words)
+                    subclauses.append(subclause)
+                    current_subclause_words = []
+
+                # Start new subclause with boundary word
+                current_subclause_words.append(word)
+            else:
+                # Add to current subclause (or main clause if empty)
+                if current_subclause_words:
+                    current_subclause_words.append(word)
+                else:
+                    # Belongs to main clause
+                    main_clause['aliaj'].append(word)
+
+        # Add final subclause
+        if current_subclause_words:
+            subclause = self._make_subclause(current_subclause_words)
+            subclauses.append(subclause)
+
+        # Prepend main clause
+        subclauses.insert(0, main_clause)
+
+        return subclauses
+
+
+    def _make_subclause(self, words: List[Dict]) -> Dict:
+        """
+        Create subclause dict from list of words.
+
+        Attempts to identify subject/verb/object structure within the subclause.
+
+        Args:
+            words: List of word AST nodes
+
+        Returns:
+            Subclause dict
+        """
+        subclause = {
+            'tipo': 'subclause',
+            'subclause_type': 'subordinate',
+            'subjekto': None,
+            'verbo': None,
+            'objekto': None,
+            'aliaj': [],
+        }
+
+        # Try to find verb in subclause
+        for word in words:
+            if word.get('tipo') == 'vorto':
+                vortspeco = word.get('vortspeco')
+
+                # Identify verb
+                if vortspeco == 'verbo' and not subclause['verbo']:
+                    subclause['verbo'] = word
+
+                # Identify substantives (potential subject/object)
+                elif vortspeco == 'substantivo':
+                    # If no subject yet, assume this is subject
+                    if not subclause['subjekto']:
+                        subclause['subjekto'] = word
+                    # Otherwise assume object
+                    elif not subclause['objekto']:
+                        subclause['objekto'] = word
+                    else:
+                        subclause['aliaj'].append(word)
+
+                # Everything else goes in aliaj
+                else:
+                    subclause['aliaj'].append(word)
+
+        return subclause
+
+
+    def _score_subclause(self, query_ast: Dict, subclause: Dict) -> float:
+        """
+        Score subclause relevance to query.
+
+        Uses same method as sentence retrieval:
+        - Extract roots from both
+        - Count matches
+        - Weight by role (verb > subject > object)
+
+        Args:
+            query_ast: Query AST
+            subclause: Subclause dict
+
+        Returns:
+            Relevance score (higher is better)
+        """
+        score = 0.0
+
+        # Verb match (highest weight, with synonym support)
+        query_verb = self._get_verb_root(query_ast)
+        subclause_verb = self._get_verb_root(subclause)
+
+        if query_verb and subclause_verb:
+            if self._are_verbs_similar(query_verb, subclause_verb):
+                # Full similarity (exact, prefix, or synonym)
+                score += 5.0 if query_verb == subclause_verb else 4.0
+
+        # Root matches (subject/object)
+        query_roots = self._extract_roots(query_ast)
+        subclause_roots = self._extract_roots(subclause)
+
+        matches = set(query_roots) & set(subclause_roots)
+        score += len(matches) * 2.0
+
+        return score
+
+
+
+    # ========================================================================
+    # Phase 6: Multi-Document Aggregation
+    # ========================================================================
+
+    def extract_answer_from_multiple_docs(
+        self,
+        query_ast: Dict,
+        ranked_docs: List[Tuple[float, Dict, Dict]],
+        top_n: int = 3,
+    ) -> Optional[Dict]:
+        """
+        Extract answer by aggregating evidence from top-N documents.
+
+        Strategy:
+        1. Extract from each top-N document independently
+        2. Aggregate candidates: count occurrences + weighted scores
+        3. Prefer entities appearing in multiple documents (higher confidence)
+        4. Return highest-scoring aggregated candidate
+
+        This handles cases where:
+        - Answer is in top-3 but not top-1 (36% of cases per #555)
+        - Multiple documents provide partial evidence
+        - Need to combine evidence for confidence
+
+        Args:
+            query_ast: Parsed query AST
+            ranked_docs: List of (score, doc, stats) tuples from retrieval
+            top_n: Number of top documents to extract from (default: 3)
+
+        Returns:
+            Answer dict with aggregated confidence, or None
+        """
+        from collections import defaultdict
+
+        if not ranked_docs:
+            return None
+
+        question_type = self._detect_question_type(query_ast)
+        if not question_type:
+            return None
+
+        # Extract from each document
+        candidates = []
+        doc_sources = []  # Track which doc each candidate came from
+
+        for i, (score, doc, stats) in enumerate(ranked_docs[:top_n]):
+            try:
+                doc_text = doc.get('text', '')
+                doc_ast = parse(doc_text)
+
+                # Extract answer from this document
+                answer = self.extract_answer(query_ast, doc_ast, doc_text)
+
+                if answer:
+                    answer_text = answer['text'].lower().strip()
+                    candidates.append({
+                        'text': answer_text,
+                        'original_text': answer['text'],
+                        'confidence': answer['confidence'],
+                        'doc_rank': i + 1,  # 1-indexed
+                        'doc_score': score,
+                        'ast': answer['ast'],
+                        'explanation': answer['explanation'],
+                    })
+                    doc_sources.append(i + 1)
+
+            except Exception as e:
+                logger.debug(f"Failed to extract from doc {i+1}: {e}")
+                continue
+
+        if not candidates:
+            logger.debug("No candidates extracted from any document")
+            return None
+
+        # Aggregate candidates by normalized text
+        entity_agg = defaultdict(lambda: {
+            'count': 0,
+            'total_confidence': 0.0,
+            'total_doc_score': 0.0,
+            'doc_ranks': [],
+            'best_candidate': None,
+        })
+
+        for candidate in candidates:
+            key = candidate['text']
+            agg = entity_agg[key]
+            agg['count'] += 1
+            agg['total_confidence'] += candidate['confidence']
+            agg['total_doc_score'] += candidate['doc_score']
+            agg['doc_ranks'].append(candidate['doc_rank'])
+
+            # Keep the candidate from highest-ranked doc
+            if agg['best_candidate'] is None or candidate['doc_rank'] < agg['best_candidate']['doc_rank']:
+                agg['best_candidate'] = candidate
+
+        # Score aggregated entities
+        scored_entities = []
+        for text, agg in entity_agg.items():
+            # Scoring factors:
+            # 1. Occurrence count (appears in multiple docs = high confidence)
+            # 2. Average confidence across extractions
+            # 3. Average document retrieval score
+            # 4. Rank of first appearance (earlier = better)
+
+            count_score = min(agg['count'] / top_n, 1.0)  # Normalize by top_n
+            avg_confidence = agg['total_confidence'] / agg['count']
+            avg_doc_score = agg['total_doc_score'] / agg['count']
+            first_rank = min(agg['doc_ranks'])
+            rank_score = 1.0 / first_rank  # Earlier ranks score higher
+
+            # Weighted combination
+            # - Multi-doc appearance is STRONG signal (50%)
+            # - Extraction confidence (25%)
+            # - Retrieval quality (15%)
+            # - Early appearance (10%)
+            aggregated_score = (
+                0.50 * count_score +
+                0.25 * avg_confidence +
+                0.15 * avg_doc_score +
+                0.10 * rank_score
+            )
+
+            scored_entities.append({
+                'text': text,
+                'score': aggregated_score,
+                'count': agg['count'],
+                'doc_ranks': agg['doc_ranks'],
+                'avg_confidence': avg_confidence,
+                'best_candidate': agg['best_candidate'],
+            })
+
+        # Sort by aggregated score
+        scored_entities.sort(key=lambda x: x['score'], reverse=True)
+
+        # Log aggregation results
+        if len(scored_entities) > 1:
+            logger.debug(f"Multi-doc aggregation: {len(candidates)} extractions → {len(scored_entities)} unique entities")
+            for i, entity in enumerate(scored_entities[:3]):
+                logger.debug(f"  {i+1}. '{entity['text']}' (score={entity['score']:.3f}, "
+                           f"count={entity['count']}/{top_n}, "
+                           f"ranks={entity['doc_ranks']}, "
+                           f"avg_conf={entity['avg_confidence']:.2f})")
+
+        # Return best aggregated entity
+        best = scored_entities[0]
+        best_candidate = best['best_candidate']
+
+        return {
+            'text': best_candidate['original_text'],
+            'confidence': best['score'],
+            'method': 'multi_doc_aggregation',
+            'explanation': (
+                f"{best_candidate['explanation']} "
+                f"(aggregated from {best['count']}/{top_n} docs, "
+                f"ranks: {best['doc_ranks']})"
+            ),
+            'ast': best_candidate['ast'],
+            'aggregation_stats': {
+                'num_docs_extracted': len(candidates),
+                'num_unique_entities': len(scored_entities),
+                'occurrence_count': best['count'],
+                'doc_ranks': best['doc_ranks'],
+                'avg_confidence': best['avg_confidence'],
+            },
+        }
+
+
     def _extract_from_participial_nouns(self, frazo: Dict, source_sentence: Optional[str]) -> List[Fact]:
         """
         Extract facts from participial noun phrases.

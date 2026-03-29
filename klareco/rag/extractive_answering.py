@@ -32,12 +32,11 @@ import logging
 
 import torch
 
-from klareco.rag.fact_extractor import FactExtractor, Fact, RelationType
+from klareco.rag.unified_extractor import UnifiedASTExtractor, Fact, RelationType
 from klareco.rag.importance_scorer import (
     FactImportanceScorer, ScoreBreakdown, QuestionType, classify_question_type
 )
 from klareco.rag.discourse_planner import DiscoursePlanner, DiscoursePlan
-from klareco.rag.answer_extractor import ASTAnswerExtractor
 from klareco.models.reranker import ASTReranker
 from klareco.models.m1_inference import M1Inference
 from klareco.embeddings.compositional import CompositionalEmbedding
@@ -92,18 +91,19 @@ class ExtractiveAnswerGenerator:
             use_reranker: Enable neural reranking (default: True)
             use_m1: Enable M1 plausibility filtering (default: True)
             m1_threshold: Minimum plausibility score for M1 filtering (default: 0.3)
-            use_ast_extraction: Enable ASTAnswerExtractor cascade (default: False - always use multi-sentence)
+            use_ast_extraction: Enable direct answer extraction cascade (default: False - always use multi-sentence)
             multi_sentence_question_types: Dict[QuestionType, bool] controlling whether
                                           each question type should use discourse planning.
                                           Default: all True (multi-sentence for all types)
         """
-        self.fact_extractor = FactExtractor()
+        # Initialize unified extractor (replaces FactExtractor + ASTAnswerExtractor)
+        self.unified_extractor = UnifiedASTExtractor()
+
         self.importance_scorer = FactImportanceScorer()
         self.discourse_planner = DiscoursePlanner()
 
-        # Initialize ASTAnswerExtractor for cascade (Phase 3)
+        # Enable/disable direct answer extraction cascade
         self.use_ast_extraction = use_ast_extraction
-        self.ast_extractor = ASTAnswerExtractor() if use_ast_extraction else None
 
         # Multi-sentence configuration (default: all True)
         self.multi_sentence_config = multi_sentence_question_types or {
@@ -212,8 +212,7 @@ class ExtractiveAnswerGenerator:
         Returns:
             Filtered list of (fact, metadata) tuples
         """
-        from klareco.rag.fact_extractor import RelationType
-
+        # RelationType already imported at top from unified_extractor
         filtered = []
 
         for fact, metadata in facts_with_metadata:
@@ -402,19 +401,19 @@ class ExtractiveAnswerGenerator:
         # === OPTIONAL: Try direct AST extraction first (cascade) ===
         # NOTE: Default is use_ast_extraction=False to ensure multi-sentence answers for all question types
         # Enable with use_ast_extraction=True for faster single-span answers on simple questions
-        if self.use_ast_extraction and self.ast_extractor is not None:
+        if self.use_ast_extraction:
             from klareco.parser import parse
             query_ast = parse(query)
 
-            # Prepare documents for ASTAnswerExtractor format
+            # Prepare documents for unified extractor format
             # It expects: List[Tuple[score, doc, stats]]
             ranked_docs = []
             for i, s in enumerate(sentences[:20]):  # Only try top 20 for speed
                 score = s.get('score', 1.0 / (i + 1))  # Use retrieval score or rank-based
                 ranked_docs.append((score, s, {}))
 
-            # Try extracting answer using AST pattern matching
-            ast_answer = self.ast_extractor.extract_answer_from_multiple_docs(
+            # Try extracting answer using unified extractor (multi-doc aggregation)
+            ast_answer = self.unified_extractor.extract_answer_from_multiple_docs(
                 query_ast, ranked_docs, top_n=10
             )
 
@@ -484,8 +483,8 @@ class ExtractiveAnswerGenerator:
             # Add sentence position to metadata
             metadata['sentence_position'] = i
 
-            # Extract facts
-            facts = self.fact_extractor.extract(ast, source_sentence=text)
+            # Extract facts using unified extractor
+            facts = self.unified_extractor.extract(ast, source_sentence=text, mode='facts')
 
             # Attach citation info to each fact (Issue #674)
             for fact in facts:

@@ -644,8 +644,14 @@ class ASTAnswerExtractor:
 
         Strategy:
         1. Collect ALL person candidates (subject, proper nouns, -ul/-ist words)
-        2. Score each: pattern_score + proximity_score + validation_score
-        3. Return highest-scoring candidate
+        2. FILTER OUT query entity (the object being asked about)
+        3. Score each: pattern_score + proximity_score + validation_score
+        4. Return highest-scoring candidate
+
+        For "Kiu fondis Esperanton?":
+        - Query entity: "esperant" (the thing being asked about)
+        - Filter out ANY candidate matching "esperant*"
+        - Return subject/agent (e.g., "Zamenhof")
 
         Args:
             query_ast: Query AST
@@ -670,6 +676,8 @@ class ASTAnswerExtractor:
 
         # Candidate 1: Subject (if verb matches and looks like person)
         subjekto = doc_ast.get('subjekto')
+        found_valid_subject = False
+
         if subjekto:
             answer_text = self._vortgrupo_to_text(subjekto)
             if answer_text and self._is_person(subjekto):
@@ -679,6 +687,32 @@ class ASTAnswerExtractor:
                     'pattern_score': 0.9 if verb_match else 0.5,  # High score if verb matches
                     'source': 'subject',
                 })
+                found_valid_subject = True
+
+        # FALLBACK: Parser often puts subject in aliaj instead of subjekto, OR subjekto is not a person
+        # Look for nominative substantivo in aliaj (grammatical subject)
+        if not found_valid_subject:
+            aliaj = doc_ast.get('aliaj', [])
+            for alia in aliaj:
+                if not isinstance(alia, dict):
+                    continue
+
+                # Check if this is a nominative noun (subject case)
+                # Accept: substantivo, propra_nomo, or nekonata (unknown proper names like "Zamenhof")
+                vortspeco = alia.get('vortspeco')
+                kazo = alia.get('kazo')
+
+                if kazo == 'nominativo' and vortspeco in ('substantivo', 'propra_nomo', 'nekonata'):
+                    subject_text = self._vortgrupo_to_text(alia)
+                    if subject_text and self._is_person(alia):
+                        candidates.append({
+                            'ast': alia,
+                            'text': subject_text,
+                            'pattern_score': 0.85 if verb_match else 0.45,  # High score - this is the grammatical subject
+                            'source': 'subject_fallback',
+                        })
+                        # Only take first nominative person found
+                        break
 
         # Candidate 2: Check for passive voice agent ("de X")
         # Look for "de" + person in aliaj
@@ -727,17 +761,22 @@ class ASTAnswerExtractor:
                     'source': 'proper_noun',
                 })
 
-        # Candidate 4: Object (if subject doesn't look like person)
-        objekto = doc_ast.get('objekto')
-        if objekto:
-            objekto_text = self._vortgrupo_to_text(objekto)
-            if objekto_text and self._is_person(objekto):
-                candidates.append({
-                    'ast': objekto,
-                    'text': objekto_text,
-                    'pattern_score': 0.7 if verb_match else 0.4,
-                    'source': 'object',
-                })
+        # Candidate 4: Object (SKIP for WHO questions - object is never the answer to "Kiu fondis X?")
+        # The object is what was acted upon, not the agent
+        # Example: "Kiu fondis Esperanton?" → Answer is subject (Zamenhof), NOT object (Esperanton)
+
+        if not candidates:
+            return None
+
+        # FILTER: For WHO questions, exclude candidates that match the query entity
+        # Example: "Kiu fondis Esperanton?" → filter out "Esperant*"
+        # The query entity is what's being asked ABOUT, not the answer
+        query_entity_root = self._extract_accusative_object_root(query_ast)
+        if query_entity_root:
+            candidates = [
+                c for c in candidates
+                if not self._matches_root(c['text'], query_entity_root)
+            ]
 
         if not candidates:
             return None
@@ -1666,11 +1705,69 @@ class ASTAnswerExtractor:
     # Helper Methods
     # -------------------------------------------------------------------------
 
+    def _extract_accusative_object_root(self, ast: Dict) -> Optional[str]:
+        """
+        Extract the root of the accusative object from query AST.
+
+        For "Kiu fondis Esperanton?":
+        - Returns: "esperant"
+
+        Checks:
+        1. objekto field
+        2. aliaj for accusative substantivo
+        """
+        # Check objekto field
+        objekto = ast.get('objekto')
+        if objekto:
+            if objekto.get('tipo') == 'vortgrupo':
+                kerno = objekto.get('kerno', {})
+            else:
+                kerno = objekto
+
+            if kerno.get('vortspeco') == 'substantivo' and kerno.get('kazo') == 'akuzativo':
+                return kerno.get('radiko')
+
+        # Check aliaj for accusative substantivo
+        aliaj = ast.get('aliaj', [])
+        for alia in aliaj:
+            if isinstance(alia, dict):
+                if (alia.get('vortspeco') == 'substantivo' and
+                    alia.get('kazo') == 'akuzativo'):
+                    return alia.get('radiko')
+
+        return None
+
+    def _matches_root(self, text: str, root: str) -> bool:
+        """
+        Check if text matches the given root.
+
+        Examples:
+        - _matches_root("Esperanton", "esperant") → True
+        - _matches_root("Esperanto", "esperant") → True
+        - _matches_root("Zamenhof", "esperant") → False
+        """
+        if not text or not root:
+            return False
+        return text.lower().startswith(root.lower())
+
     def _get_verb_root(self, ast: Dict) -> Optional[str]:
-        """Extract verb root from AST."""
+        """
+        Extract verb root from AST.
+
+        Checks:
+        1. verbo field (primary location)
+        2. aliaj list (fallback - parser often puts verbs here)
+        """
         verbo = ast.get('verbo')
         if verbo and verbo.get('tipo') == 'vorto':
             return verbo.get('radiko')
+
+        # FALLBACK: Check aliaj for verbs (parser inconsistency)
+        aliaj = ast.get('aliaj', [])
+        for alia in aliaj:
+            if isinstance(alia, dict) and alia.get('vortspeco') == 'verbo':
+                return alia.get('radiko')
+
         return None
 
     def _is_passive_voice(self, ast: Dict) -> bool:

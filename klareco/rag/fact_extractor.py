@@ -64,6 +64,10 @@ class Fact:
     source_ast: Optional[Dict] = None         # Original AST
     confidence: float = 1.0                   # Extraction confidence
 
+    # Linguistic annotations (for importance scoring)
+    entity_is_proper_noun: bool = False       # Is entity a proper noun?
+    entity_capitalized_form: Optional[str] = None  # Capitalized form (e.g., "Fundamento")
+
     # Citation tracking (Issue #674)
     citation_id: Optional[int] = None         # Citation number [1], [2], etc.
     sentence_id: Optional[str] = None         # Database sentence ID
@@ -158,7 +162,12 @@ class FactExtractor:
         if not subjekto:
             return None
 
-        entity = self._get_entity_name(subjekto)
+        # Get entity with proper noun information
+        entity_info = self._get_entity_info(subjekto)
+        if not entity_info:
+            return None
+
+        entity, is_proper, cap_form = entity_info
 
         # For copula "estas", the predicate nominative can be in objekto OR aliaj
         category = None
@@ -188,7 +197,9 @@ class FactExtractor:
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
-            confidence=1.0
+            confidence=1.0,
+            entity_is_proper_noun=is_proper,
+            entity_capitalized_form=cap_form
         )
 
     def _extract_created_by(self, frazo: Dict, source_sentence: Optional[str]) -> Optional[Fact]:
@@ -749,8 +760,48 @@ class FactExtractor:
 
         return None
 
+    def _get_entity_info(self, node: Dict) -> Optional[tuple]:
+        """
+        Get entity name and proper noun status from AST node.
+
+        Returns:
+            (entity_name: str, is_proper_noun: bool, capitalized_form: str) or None
+        """
+        if not isinstance(node, dict):
+            return None
+
+        if node.get('tipo') == 'vorto':
+            root = node.get('radiko', '')
+            plena_vorto = node.get('plena_vorto', root)
+            vortspeco = node.get('vortspeco', '')
+
+            # Check if proper noun (fix: use "propra_nomo" not "propranomo")
+            is_proper = (vortspeco == 'propra_nomo' or
+                        (root and root[0].isupper()) or
+                        (plena_vorto and plena_vorto[0].isupper()))
+
+            if is_proper:
+                # Preserve capitalization for proper nouns
+                return (root, True, plena_vorto)
+            else:
+                # Lowercase for common nouns
+                return (root.lower(), False, None)
+
+        elif node.get('tipo') == 'vortgrupo':
+            # For word groups, get the head (kerno)
+            kerno = node.get('kerno')
+            if kerno:
+                return self._get_entity_info(kerno)
+
+        return None
+
     def _get_entity_name(self, node: Dict) -> Optional[str]:
         """Get entity name from AST node (recursively for vortgrupo)."""
+        info = self._get_entity_info(node)
+        return info[0] if info else None
+
+    def _get_entity_name_legacy(self, node: Dict) -> Optional[str]:
+        """Legacy method - kept for backwards compatibility."""
         if not isinstance(node, dict):
             return None
 
@@ -758,7 +809,7 @@ class FactExtractor:
             root = node.get('radiko', '')
             # Capitalize proper nouns
             vortspeco = node.get('vortspeco', '')
-            if vortspeco == 'propranomo' or (root and root[0].isupper()):
+            if vortspeco == 'propra_nomo' or (root and root[0].isupper()):
                 return root
             return root.lower()
 

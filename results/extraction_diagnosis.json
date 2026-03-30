@@ -1,0 +1,218 @@
+[
+  {
+    "question": "Kiu fondis Esperanton?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": true,
+        "num_docs": 30,
+        "answer_rank": 16,
+        "sample_texts": [
+          "Anna-Laura Wickstr\u00f6m kunfondis la Berlinajn Studentojn-Esperantistojn...",
+          "Lerninte Esperanton en 1930, li kunfondis la Ljubljanan Esperanto-rondon (1932) kaj Slovenian Espera...",
+          "Lerninte Esperanton jam en sia juna\u011do, li kunfondis en 1950 la Esperanto-grupon \"Prospero\" en Neusta..."
+        ]
+      },
+      "extraction": {
+        "num_facts_extracted": 24,
+        "num_facts_selected": 4,
+        "facts_used": [
+          "Fact(esperant, CREATED-BY, args=[agent=an], mods=[time=1913])",
+          "Fact(esperant, CREATED-BY, args=[agent=li], mods=[time=1920])",
+          "Fact(esperant, CREATED-BY, args=[agent=ide], mods=[none])"
+        ]
+      },
+      "generation": {
+        "success": true,
+        "answer_text": "La 23-an de februaro 1913 krei\u011dis Hungara Esperantista Societo Laborista (HESL) kun la celo disvastigi Esperanton inter la laboristoj [1] Sekve, en 1920 li kreis esperantidon Arlingo, simpla \"korektad...",
+        "contains_expected": true
+      }
+    },
+    "failure_stage": null,
+    "failure_reason": null,
+    "success": true
+  },
+  {
+    "question": "Kiu kreis Esperanton?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": true,
+        "num_docs": 30,
+        "answer_rank": 2,
+        "sample_texts": [
+          "Anna-Laura Wickstr\u00f6m kunfondis la Berlinajn Studentojn-Esperantistojn...",
+          "Pro tio Zamenhofo kreis Esperanton, \u0109u ne...",
+          "La genia doktoro\nZamenhof kreis Esperanton...."
+        ]
+      },
+      "extraction": {
+        "num_facts_extracted": 24,
+        "num_facts_selected": 4,
+        "facts_used": [
+          "Fact(esperant, CREATED-BY, args=[agent=tio], mods=[none])",
+          "Fact(esperant, CREATED-BY, args=[agent=an], mods=[time=1913])",
+          "Fact(esperant, CREATED-BY, args=[agent=doktor], mods=[none])"
+        ]
+      },
+      "generation": {
+        "success": true,
+        "answer_text": "Pro tio Zamenhofo kreis Esperanton, \u0109u ne [1] La 23-an de februaro 1913 krei\u011dis Hungara Esperantista Societo Laborista (HESL) kun la celo disvastigi Esperanton inter la laboristoj [2] La genia doktoro...",
+        "contains_expected": true
+      }
+    },
+    "failure_stage": null,
+    "failure_reason": null,
+    "success": true
+  },
+  {
+    "question": "Kiu estis Zamenhof?",
+    "expected": "okulisto",
+    "stages": {
+      "retrieval": {
+        "success": false,
+        "num_docs": 30,
+        "answer_rank": null,
+        "sample_texts": [
+          "Esperanto estis unue ka\u015dnomo de Zamenhof....",
+          "Motivantaj kaj rezultaj ke-frazoj\nSpeciala zamenhofa frazturno estas ke-frazo, kiu montras la ka\u016dzon...",
+          "Motivantaj kaj rezultaj ke-frazoj\nSpeciala zamenhofa frazturno estas ke-frazo, kiu montras la ka\u016dzon..."
+        ]
+      }
+    },
+    "failure_stage": "retrieval",
+    "failure_reason": "Answer not in retrieved documents"
+  },
+  {
+    "question": "Kiu verkis la Fundamenton?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": false,
+        "num_docs": 15,
+        "answer_rank": null,
+        "sample_texts": [
+          "Robinsohn kreis teoriajn fundamentojn pri memstara esploradscienco de lernejaj horartabuloj kun resp...",
+          "Li kunverkis Fundamentojn de la Generativa Gramatiko de la Rusa (1958), kaj Aplika Generativa Modelo...",
+          "1834: Leopold Einstein, germana-juda religia instruisto, komercisto kaj verkisto, unua prezidanto de..."
+        ]
+      }
+    },
+    "failure_stage": "retrieval",
+    "failure_reason": "Answer not in retrieved documents"
+  },
+  {
+    "question": "Kiu publikigis la unuan libron pri Esperanto?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": true,
+        "num_docs": 30,
+        "answer_rank": 19,
+        "sample_texts": [
+          "En 1872, Nietzsche publikigis sian unuan libron, nome La naski\u011do de la tragedio...",
+          "Komence per Homa, tro homa en 1878, Nietzsche publikigis unu libron a\u016d gravan parton de libro \u0109iujar...",
+          "En 1927, Pankhurst publikigis libreton, nomatan \"Delphos..."
+        ]
+      },
+      "extraction": {
+        "num_facts_extracted": 30,
+        "num_facts_selected": 4,
+        "facts_used": [
+          "Fact(libr, PUBLISHED, args=[agent=Nietzsche], mods=[time=1872, manner=nom])",
+          "Fact(libr, PUBLISHED, args=[agent=Nietzsche], mods=[manner=\u0109iujar, time=1888, quantity=kvin])",
+          "Fact(libr, PUBLISHED, args=[agent=Pankhurst], mods=[time=1927])"
+        ]
+      },
+      "generation": {
+        "success": false,
+        "answer_text": "En 1872, Nietzsche publikigis sian unuan libron, nome La naski\u011do de la tragedio [1] Poste, komence per Homa, tro homa en 1878, Nietzsche publikigis unu libron a\u016d gravan parton de libro \u0109iujare \u011dis 188...",
+        "contains_expected": false
+      }
+    },
+    "failure_stage": "generation",
+    "failure_reason": "Answer generated but does not contain expected keyword (answer was NOT in selected facts - selection error)"
+  },
+  {
+    "question": "Kiu estis la patro de Esperanto?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": false,
+        "num_docs": 30,
+        "answer_rank": null,
+        "sample_texts": [
+          "FA2.148 Vera aganto estas la homo,\nkiu veturigis la veturilon.\n\u2022De la patro mi ricevis libron....",
+          "La kiu-\nfrazo estas bezonata por limigi la signifon de la frazparto la plej belan\nar\u011dentan vazon.\n\u2022\u0108...",
+          "Ho\nHo estas \u011denerala ekkria vorteto por esprimi vivan senton: \u201cHo, \u0109ielo!\u201d ek-\nkriis la patrino, \u201cki..."
+        ]
+      }
+    },
+    "failure_stage": "retrieval",
+    "failure_reason": "Answer not in retrieved documents"
+  },
+  {
+    "question": "Kiu inventis la internacian lingvon?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": false,
+        "num_docs": 18,
+        "answer_rank": null,
+        "sample_texts": [
+          "Rimbaud anka\u016d inventis novan lingva\u0135on, la\u016d sia deziro: \u00abanimo por la animo, resumante \u0109ion, parfumo...",
+          "\u011cuzepe Peano (1858 - 1932), itala matematikisto kaj logikisto, inventis lingvon, kiun li nomis Latin...",
+          "Rimbaud anka\u016d inventis novan lingva\u0135on, lau sia deziro: \u00abanimo por la animo, resumante \u0109ion, parfumo..."
+        ]
+      }
+    },
+    "failure_stage": "retrieval",
+    "failure_reason": "Answer not in retrieved documents"
+  },
+  {
+    "question": "Kiu proponis Esperanton?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": false,
+        "num_docs": 21,
+        "answer_rank": null,
+        "sample_texts": [
+          "Barcelono: la a\u016dtoro; 1995, 33. p. (proponas esperantigojn surbaze de la katalunaj loknomoj anstata\u016d...",
+          "Esperema\" proponis esperantidon Adjuvilon...",
+          "Esplorprojekto Distribuita Lingvo-Tradukado proponas la esperanton kiel pivotlingvo, kaj la Majstro ..."
+        ]
+      }
+    },
+    "failure_stage": "retrieval",
+    "failure_reason": "Answer not in retrieved documents"
+  },
+  {
+    "question": "Kiu ellaboris Esperanton?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": false,
+        "num_docs": 0,
+        "answer_rank": null,
+        "sample_texts": []
+      }
+    },
+    "failure_stage": "retrieval",
+    "failure_reason": "Answer not in retrieved documents"
+  },
+  {
+    "question": "Kiu iniciatis Esperanton?",
+    "expected": "Zamenhof",
+    "stages": {
+      "retrieval": {
+        "success": false,
+        "num_docs": 0,
+        "answer_rank": null,
+        "sample_texts": []
+      }
+    },
+    "failure_stage": "retrieval",
+    "failure_reason": "Answer not in retrieved documents"
+  }
+]

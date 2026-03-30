@@ -1,0 +1,1461 @@
+[
+  {
+    "question": "Kiu fondis Esperanton?",
+    "expected": "Zamenhof",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "fond",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 16,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 16 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 16,
+        "num_docs": 31
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kiu kreis Esperanton?",
+    "expected": "Zamenhof",
+    "failure_type": "success",
+    "details": {
+      "query_roots": [
+        "kre",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": true,
+        "rank": 2,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 2,
+        "num_docs": 30
+      }
+    }
+  },
+  {
+    "question": "Kiu estis Zamenhof?",
+    "expected": "okulisto",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "zamenhof"
+      ],
+      "query_entity": "zamenhof",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiu verkis la Fundamenton?",
+    "expected": "Zamenhof",
+    "failure_type": "success",
+    "details": {
+      "query_roots": [
+        "verk",
+        "fundament"
+      ],
+      "query_entity": "fundament",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": true,
+        "rank": 6,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 6,
+        "num_docs": 16
+      }
+    }
+  },
+  {
+    "question": "Kiu publikigis la unuan libron pri Esperanto?",
+    "expected": "Zamenhof",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "esperant",
+        "unu",
+        "libr",
+        "publik"
+      ],
+      "query_entity": "libr",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": true,
+        "rank": 6,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 16,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 16 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 22,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kiu estis la patro de Esperanto?",
+    "expected": "Zamenhof",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "patr",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiu inventis la internacian lingvon?",
+    "expected": "Zamenhof",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "internaci",
+        "lingv",
+        "invent"
+      ],
+      "query_entity": "lingv",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 18
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 18
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiu proponis Esperanton?",
+    "expected": "Zamenhof",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "esperant",
+        "propon"
+      ],
+      "query_entity": "esperant",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 21
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 21
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiu ellaboris Esperanton?",
+    "expected": "Zamenhof",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "ellabor",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 0
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 0
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 0
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiu iniciatis Esperanton?",
+    "expected": "Zamenhof",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "esperant",
+        "inici"
+      ],
+      "query_entity": "esperant",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 0
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 0
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 0
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas Esperanto?",
+    "expected": "planlingvo",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas planlingvo?",
+    "expected": "artefarita lingvo",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "lingv"
+      ],
+      "query_entity": "lingv",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas la Fundamento?",
+    "expected": "dokumento",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "fundament"
+      ],
+      "query_entity": "fundament",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": true,
+        "rank": 86,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas hundo?",
+    "expected": "besto",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "est",
+        "hund"
+      ],
+      "query_entity": "hund",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 22,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 22 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 29,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kio estas libro?",
+    "expected": "skriba\u0135o",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "libr"
+      ],
+      "query_entity": "libr",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas lingvo?",
+    "expected": "komunikilo",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "lingv"
+      ],
+      "query_entity": "lingv",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas akvo?",
+    "expected": "likva\u0135o",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "akv"
+      ],
+      "query_entity": "akv",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas domo?",
+    "expected": "konstrua\u0135o",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "dom"
+      ],
+      "query_entity": "dom",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas tablo?",
+    "expected": "meblo",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "tabl"
+      ],
+      "query_entity": "tabl",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": true,
+        "rank": 61,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kio estas arbo?",
+    "expected": "planto",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "arb"
+      ],
+      "query_entity": "arb",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kie naski\u011dis Zamenhof?",
+    "expected": "Bjalistoko",
+    "failure_type": "success",
+    "details": {
+      "query_roots": [
+        "nask",
+        "zamenhof"
+      ],
+      "query_entity": "zamenhof",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 2,
+        "num_docs": 30
+      }
+    }
+  },
+  {
+    "question": "Kie krei\u011dis Esperanto?",
+    "expected": "Pollando",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "kre",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kie vivis Zamenhof?",
+    "expected": "Varsovio",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "viv",
+        "zamenhof"
+      ],
+      "query_entity": "zamenhof",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 45
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kie estas Pollando?",
+    "expected": "E\u016dropo",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "land"
+      ],
+      "query_entity": "polland",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kie trovi\u011das Bjalistoko?",
+    "expected": "Pollando",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "trov",
+        "bjalistoko"
+      ],
+      "query_entity": "bjalistok",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kie estas Varsovio?",
+    "expected": "Pollando",
+    "failure_type": "success",
+    "details": {
+      "query_roots": [
+        "est",
+        "varsovi"
+      ],
+      "query_entity": "varsovi",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": true,
+        "rank": 5,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 2,
+        "num_docs": 30
+      }
+    }
+  },
+  {
+    "question": "Kie estas E\u016dropo?",
+    "expected": "kontinento",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "est",
+        "e\u016drop"
+      ],
+      "query_entity": "e\u016drop",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 17,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 17 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 4,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kie okazas konversacio?",
+    "expected": "loko",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "okaz",
+        "konversaci"
+      ],
+      "query_entity": "konversaci",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 16,
+        "num_docs": 20
+      },
+      "ranking_issue": "Answer at rank 16 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 16,
+        "num_docs": 20
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kie lo\u011das homoj?",
+    "expected": "domo",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "lo\u011d",
+        "hom"
+      ],
+      "query_entity": "hom",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": true,
+        "rank": 9,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 14,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 14 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 23,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kie staras arbo?",
+    "expected": "tero",
+    "failure_type": "success",
+    "details": {
+      "query_roots": [
+        "arb",
+        "st"
+      ],
+      "query_entity": "arb",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": true,
+        "rank": 2,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 4,
+        "num_docs": 30
+      }
+    }
+  },
+  {
+    "question": "Kiam estis fondita Esperanto?",
+    "expected": "1887",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "fond",
+        "est",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiam naski\u011dis Zamenhof?",
+    "expected": "1859",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "nask",
+        "zamenhof"
+      ],
+      "query_entity": "zamenhof",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": true,
+        "rank": 10,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 22,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 22 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 22,
+        "num_docs": 98
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kiam aperis Esperanto?",
+    "expected": "1887",
+    "failure_type": "success",
+    "details": {
+      "query_roots": [
+        "aper",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": true,
+        "rank": 5,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 7,
+        "num_docs": 30
+      }
+    }
+  },
+  {
+    "question": "Kiam publiki\u011dis la unua libro?",
+    "expected": "1887",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "unu",
+        "libr",
+        "publik"
+      ],
+      "query_entity": "libr",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 25,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 25 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 83,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kiam mortis Zamenhof?",
+    "expected": "1917",
+    "failure_type": "success",
+    "details": {
+      "query_roots": [
+        "mort",
+        "zamenhof"
+      ],
+      "query_entity": "zamenhof",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": true,
+        "rank": 6,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 6,
+        "num_docs": 30
+      }
+    }
+  },
+  {
+    "question": "Kiam okazis la unua kongreso?",
+    "expected": "1905",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "kongres",
+        "okaz",
+        "unu"
+      ],
+      "query_entity": "kongres",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": true,
+        "rank": 41,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiam estis kreita la Fundamento?",
+    "expected": "1905",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "kre",
+        "est",
+        "fundament"
+      ],
+      "query_entity": "fundament",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": true,
+        "rank": 12,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiam komenci\u011dis Esperanto?",
+    "expected": "1887",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "komenc",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiam vivis Zamenhof?",
+    "expected": "19a jarcento",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "viv",
+        "zamenhof"
+      ],
+      "query_entity": "zamenhof",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 45
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiam oni parolas Esperanton?",
+    "expected": "nun",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "parol",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "when",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 29,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 29 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 63,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kiom da homoj parolas Esperanton?",
+    "expected": "milionoj",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "parol",
+        "hom",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiom da jaroj havas Esperanto?",
+    "expected": "pli ol 130",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "esperant",
+        "jar",
+        "hav"
+      ],
+      "query_entity": "esperant",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiom da landoj uzas Esperanton?",
+    "expected": "multaj",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "uz",
+        "land",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": true,
+        "rank": 4,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 11,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 11 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 7,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kiom da vortoj estas en Esperanto?",
+    "expected": "mil",
+    "failure_type": "success",
+    "details": {
+      "query_roots": [
+        "est",
+        "vort",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 1,
+        "num_docs": 30
+      }
+    }
+  },
+  {
+    "question": "Kiom da reguloj havas Esperanto?",
+    "expected": "16",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "regul",
+        "esperant",
+        "hav"
+      ],
+      "query_entity": "esperant",
+      "question_type": "what",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": true,
+        "rank": 46,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kial Zamenhof kreis Esperanton?",
+    "expected": "paco",
+    "failure_type": "ranking_failure",
+    "details": {
+      "query_roots": [
+        "kre",
+        "zamenhof",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "why",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": true,
+        "rank": 19,
+        "num_docs": 30
+      },
+      "ranking_issue": "Answer at rank 19 (too low)",
+      "retrieval@100": {
+        "found": true,
+        "rank": 19,
+        "num_docs": 37
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'"
+    }
+  },
+  {
+    "question": "Kial oni lernas Esperanton?",
+    "expected": "facila",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "lern",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "why",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiel oni lernas Esperanton?",
+    "expected": "studate",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "lern",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiel funkcias Esperanto?",
+    "expected": "regule",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "funkci",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "where",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": true,
+        "rank": 78,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  },
+  {
+    "question": "Kiu lingvo estas Esperanto?",
+    "expected": "planlingvo",
+    "failure_type": "unknown",
+    "details": {
+      "query_roots": [
+        "est",
+        "lingv",
+        "esperant"
+      ],
+      "query_entity": "esperant",
+      "question_type": "who",
+      "retrieval@10": {
+        "found": false,
+        "rank": null,
+        "num_docs": 10
+      },
+      "retrieval@30": {
+        "found": false,
+        "rank": null,
+        "num_docs": 30
+      },
+      "retrieval@100": {
+        "found": false,
+        "rank": null,
+        "num_docs": 100
+      },
+      "corpus_check_error": "'WhooshRetriever' object has no attribute '_search_whoosh_bm25'",
+      "diagnosis": "Unable to determine failure cause"
+    }
+  }
+]

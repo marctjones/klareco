@@ -99,7 +99,9 @@ class ExtractiveAnswerGenerator:
         # Initialize unified extractor (replaces FactExtractor + ASTAnswerExtractor)
         self.unified_extractor = UnifiedASTExtractor()
 
-        self.importance_scorer = FactImportanceScorer()
+        # Phase 2 (embeddings) disabled - not discriminative enough, hurts performance
+        # Phase 1 (proper noun detection) kept - provides +2% accuracy improvement
+        self.importance_scorer = FactImportanceScorer(use_embeddings=False)
         self.discourse_planner = DiscoursePlanner()
 
         # Enable/disable direct answer extraction cascade
@@ -197,6 +199,109 @@ class ExtractiveAnswerGenerator:
                 logger.warning(f"Failed to load M1: {e}. Continuing without M1 filtering.")
                 self.m1_filter = None
                 self.use_m1 = False
+
+    def _verify_object_match(self, facts_with_metadata, query_ast):
+        """
+        Verify extracted facts match query object (Issue #710).
+
+        Prevents extraction failures like "oni fondis GIL" when query asks
+        "Kiu fondis Esperanton?" - we should only extract facts about "esperant".
+
+        Args:
+            facts_with_metadata: List of (fact, metadata) tuples
+            query_ast: Parsed query AST
+
+        Returns:
+            Filtered list of (fact, metadata) tuples
+        """
+        from klareco.rag.ast_semantic_ranker import get_ast_object_root
+
+        query_obj = get_ast_object_root(query_ast)
+        if not query_obj:
+            # No object constraint - return all facts
+            return facts_with_metadata
+
+        logger.debug(f"Object verification: query object = {query_obj}")
+
+        filtered = []
+        for fact, metadata in facts_with_metadata:
+            keep = False
+
+            # Check if fact entity matches query object (main entity)
+            if fact.entity and fact.entity.lower() == query_obj.lower():
+                keep = True
+                logger.debug(f"  ✓ Fact entity matches: {fact.entity}")
+
+            # Check if object is in fact arguments
+            elif 'object' in fact.arguments:
+                fact_obj = fact.arguments['object']
+                if fact_obj and fact_obj.lower() == query_obj.lower():
+                    keep = True
+                    logger.debug(f"  ✓ Fact object argument matches: {fact_obj}")
+
+            # Check other relevant arguments that might contain the object
+            elif 'type' in fact.arguments:
+                fact_type = fact.arguments['type']
+                if fact_type and fact_type.lower() == query_obj.lower():
+                    keep = True
+                    logger.debug(f"  ✓ Fact type argument matches: {fact_type}")
+
+            if not keep:
+                logger.debug(f"  ✗ Fact does not match query object: entity={fact.entity}, args={fact.arguments}")
+
+            if keep:
+                filtered.append((fact, metadata))
+
+        # Failsafe: if filtering removed everything, return original
+        if not filtered:
+            logger.warning(f"Object verification removed all facts for query object '{query_obj}'. Returning original.")
+            return facts_with_metadata
+
+        # Log statistics
+        num_before = len(facts_with_metadata)
+        num_after = len(filtered)
+        num_removed = num_before - num_after
+        if num_removed > 0:
+            logger.info(f"Object verification removed {num_removed}/{num_before} facts ({100*num_removed/num_before:.1f}%)")
+
+        return filtered
+
+    def _extract_roots_from_ast(self, ast):
+        """
+        Extract all roots from query AST for embedding-based scoring.
+
+        Args:
+            ast: Parsed AST from klareco.parser.parse()
+
+        Returns:
+            List of root strings (e.g., ["kiu", "fond", "esperant"])
+        """
+        roots = []
+
+        def extract_from_node(node):
+            if not isinstance(node, dict):
+                return
+
+            if node.get('tipo') == 'vorto':
+                root = node.get('radiko')
+                if root:
+                    roots.append(root.lower())
+            elif node.get('tipo') == 'frazo':
+                # Extract from all phrase components
+                for key in ['subjekto', 'verbo', 'objekto']:
+                    if key in node:
+                        extract_from_node(node[key])
+                for alia in node.get('aliaj', []):
+                    extract_from_node(alia)
+            elif node.get('tipo') == 'vortgrupo':
+                # Extract from word group
+                if 'kerno' in node:
+                    extract_from_node(node['kerno'])
+                for priskr in node.get('priskriboj', []):
+                    extract_from_node(priskr)
+
+        extract_from_node(ast)
+        return roots
 
     def _filter_facts_by_question_type(self, facts_with_metadata, question_type):
         """
@@ -394,6 +499,10 @@ class ExtractiveAnswerGenerator:
         Returns:
             Answer object with text and metadata
         """
+        # Parse query AST once for use in multiple steps
+        from klareco.parser import parse
+        query_ast = parse(query)
+
         # Auto-detect question type if not provided
         if question_type is None:
             question_type = classify_question_type(query)
@@ -402,9 +511,6 @@ class ExtractiveAnswerGenerator:
         # NOTE: Default is use_ast_extraction=False to ensure multi-sentence answers for all question types
         # Enable with use_ast_extraction=True for faster single-span answers on simple questions
         if self.use_ast_extraction:
-            from klareco.parser import parse
-            query_ast = parse(query)
-
             # Prepare documents for unified extractor format
             # It expects: List[Tuple[score, doc, stats]]
             ranked_docs = []
@@ -453,8 +559,6 @@ class ExtractiveAnswerGenerator:
 
         # Step 0: Rerank sentences with neural reranker (if enabled)
         if self.use_reranker and self.reranker is not None:
-            from klareco.parser import parse
-            query_ast = parse(query)
             sentences = self._rerank_sentences(sentences, query_ast)
             logger.info(f"Neural reranker reordered {len(sentences)} sentences")
 
@@ -498,15 +602,22 @@ class ExtractiveAnswerGenerator:
         num_facts_before_filter = len(all_facts)
         num_facts_after_filter = len(filtered_facts)
 
+        # Step 2.3: Verify object match (Issue #710)
+        # Re-enabled after confirming it's not causing regression
+        filtered_facts = self._verify_object_match(filtered_facts, query_ast)
+
         # Step 2.5: Filter by M1 selectional preference (plausibility)
         if self.use_m1 and self.m1_filter is not None:
             filtered_facts = self._filter_by_m1_plausibility(filtered_facts)
 
-        # Step 3: Score fact importance
+        # Step 3: Score fact importance (Phase 2: with embedding similarity)
+        # Extract query roots for embedding-based scoring
+        query_roots = self._extract_roots_from_ast(query_ast)
+
         scored_facts = []
         for fact, metadata in filtered_facts:
             score_breakdown = self.importance_scorer.score(
-                fact, question_type, query_entity, metadata
+                fact, question_type, query_entity, query_roots, metadata
             )
             scored_facts.append((fact, score_breakdown))
 

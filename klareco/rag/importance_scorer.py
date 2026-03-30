@@ -19,7 +19,7 @@ Scoring Components (weights):
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from enum import Enum
 
 from klareco.rag.fact_extractor import Fact, RelationType
@@ -43,6 +43,7 @@ class ScoreBreakdown:
     definitional_priority: float
     entity_centrality: float
     semantic_completeness: float
+    embedding_similarity: float
     final_score: float
 
     def __str__(self):
@@ -50,18 +51,21 @@ class ScoreBreakdown:
                 f"[Q:{self.question_relevance:.2f}, "
                 f"D:{self.definitional_priority:.2f}, "
                 f"E:{self.entity_centrality:.2f}, "
-                f"C:{self.semantic_completeness:.2f}]")
+                f"C:{self.semantic_completeness:.2f}, "
+                f"Emb:{self.embedding_similarity:.2f}]")
 
 
 class FactImportanceScorer:
     """Score fact importance with explainable breakdown."""
 
     # Scoring weights (sum to 1.0)
+    # Phase 2: Added embedding_similarity (0.1), reduced other weights proportionally
     WEIGHTS = {
-        'question_relevance': 0.4,
-        'definitional': 0.3,
-        'centrality': 0.2,
-        'completeness': 0.1
+        'question_relevance': 0.35,  # Was 0.4
+        'definitional': 0.30,         # Unchanged (most stable)
+        'centrality': 0.20,           # Unchanged
+        'completeness': 0.05,         # Was 0.1
+        'embedding_similarity': 0.10  # NEW: Phase 2
     }
 
     # Source quality weights (Issue #683 - Quick Win +10% precision)
@@ -74,8 +78,38 @@ class FactImportanceScorer:
         'unknown': 0.3         # Fallback for unspecified sources
     }
 
+    def __init__(self, use_embeddings: bool = True,
+                 embedding_path: Optional[str] = None):
+        """
+        Initialize importance scorer.
+
+        Args:
+            use_embeddings: Whether to use embedding similarity (Phase 2)
+            embedding_path: Path to root embeddings checkpoint (optional)
+        """
+        self.use_embeddings = use_embeddings
+        self.embeddings = None
+
+        if use_embeddings:
+            # Import and load embeddings lazily
+            try:
+                from klareco.rag.ast_semantic_ranker import load_embeddings
+                from pathlib import Path
+
+                if embedding_path:
+                    self.embeddings = load_embeddings(Path(embedding_path))
+                else:
+                    # Use default path
+                    default_path = Path('models/root_embeddings/best_model.pt')
+                    if default_path.exists():
+                        self.embeddings = load_embeddings(default_path)
+            except Exception as e:
+                # Embeddings optional - fall back to deterministic scoring
+                self.embeddings = None
+
     def score(self, fact: Fact, question_type: QuestionType,
               query_entity: Optional[str] = None,
+              query_roots: Optional[List[str]] = None,
               source_metadata: Optional[Dict] = None) -> ScoreBreakdown:
         """
         Score fact importance with explainable breakdown.
@@ -84,6 +118,7 @@ class FactImportanceScorer:
             fact: Fact to score
             question_type: Type of question (WHAT, WHO, etc.)
             query_entity: Entity being queried about
+            query_roots: Query roots for embedding similarity (Phase 2)
             source_metadata: Source document metadata (position, source, etc.)
 
         Returns:
@@ -94,13 +129,15 @@ class FactImportanceScorer:
         d_score = self._score_definitional(fact, source_metadata or {})
         e_score = self._score_entity_centrality(fact, query_entity)
         c_score = self._score_completeness(fact)
+        emb_score = self._score_embedding_similarity(fact, query_roots or [])
 
         # Weighted combination
         final = (
             q_score * self.WEIGHTS['question_relevance'] +
             d_score * self.WEIGHTS['definitional'] +
             e_score * self.WEIGHTS['centrality'] +
-            c_score * self.WEIGHTS['completeness']
+            c_score * self.WEIGHTS['completeness'] +
+            emb_score * self.WEIGHTS['embedding_similarity']
         )
 
         return ScoreBreakdown(
@@ -108,6 +145,7 @@ class FactImportanceScorer:
             definitional_priority=d_score,
             entity_centrality=e_score,
             semantic_completeness=c_score,
+            embedding_similarity=emb_score,
             final_score=final
         )
 
@@ -120,35 +158,59 @@ class FactImportanceScorer:
         WHO questions → prioritize agent/person facts
         WHERE questions → prioritize LOCATED-AT facts
         WHEN questions → prioritize facts with temporal modifiers
+
+        Improvements (2026-03-29):
+        - Proper noun-aware matching (capitalized words = proper nouns)
+        - Exact entity matching to avoid "fundament" matching "fundamentoj"
+        - Stronger IS-A prioritization for WHAT questions
+
+        Phase 1 Ranking Improvements (2026-03-29):
+        - Boost IS-A + WHAT combination (+0.2) to fix "Kio estas hundo?" ranking #22 → #1
+        - Boost agent + WHO combination (+0.15) to fix "Kiu fondis?" ranking #16 → top 3
+        - Penalize generic facts (0.1) for better discrimination
         """
         score = 0.0
 
         if question_type == QuestionType.WHAT:
             # "What is X?" → IS-A facts about X are perfect
             if fact.relation == RelationType.IS_A:
-                if query_entity and fact.entity and fact.entity.lower() == query_entity.lower():
-                    score = 1.0  # Perfect match!
-                elif query_entity and fact.entity and query_entity.lower() in fact.entity.lower():
-                    score = 0.9  # Close match
+                if query_entity and fact.entity:
+                    # Check for exact match (proper noun aware)
+                    if self._entity_matches(query_entity, fact, exact=True):
+                        score = 1.0  # Perfect match!
+                    elif self._entity_matches(query_entity, fact, exact=False):
+                        score = 0.8  # Related match (substring)
+                    else:
+                        score = 0.5  # IS-A fact, but not about query entity
                 else:
-                    score = 0.5  # IS-A fact, but not about query entity
+                    score = 0.5  # IS-A fact, but no entity info
 
-            # Other facts about query entity
-            elif query_entity and fact.entity and fact.entity.lower() == query_entity.lower():
-                score = 0.7  # Relevant fact about entity
+            # Other facts about query entity - significantly lower than IS-A
+            elif query_entity and fact.entity:
+                if self._entity_matches(query_entity, fact, exact=True):
+                    score = 0.5  # Relevant fact, but not definitional (was 0.7)
+                elif self._entity_matches(query_entity, fact, exact=False):
+                    score = 0.3  # Related fact (was 0.4)
+                else:
+                    score = 0.1  # Not about query entity
 
-            # Related facts
+            # Related facts (mentions query entity)
             elif query_entity and query_entity.lower() in str(fact).lower():
-                score = 0.4
+                score = 0.2
 
             else:
-                score = 0.2  # Generic fact
+                score = 0.1  # Generic fact
 
         elif question_type == QuestionType.WHO:
             # "Who created X?" → prioritize CREATED-BY, FOUNDED, etc.
             if fact.relation in [RelationType.CREATED_BY, RelationType.FOUNDED]:
-                if query_entity and fact.entity and query_entity.lower() in fact.entity.lower():
-                    score = 1.0  # Perfect match
+                if query_entity and fact.entity:
+                    if self._entity_matches(query_entity, fact, exact=True):
+                        score = 1.0  # Perfect match
+                    elif self._entity_matches(query_entity, fact, exact=False):
+                        score = 0.8  # Related match
+                    else:
+                        score = 0.6
                 else:
                     score = 0.6
 
@@ -157,13 +219,18 @@ class FactImportanceScorer:
                 score = 0.8
 
             else:
-                score = 0.2
+                score = 0.1  # Generic fact (was 0.2)
 
         elif question_type == QuestionType.WHERE:
             # "Where is X?" → prioritize LOCATED-AT, BORN
             if fact.relation in [RelationType.LOCATED_AT, RelationType.BORN]:
-                if query_entity and fact.entity and query_entity.lower() in fact.entity.lower():
-                    score = 1.0
+                if query_entity and fact.entity:
+                    if self._entity_matches(query_entity, fact, exact=True):
+                        score = 1.0
+                    elif self._entity_matches(query_entity, fact, exact=False):
+                        score = 0.8
+                    else:
+                        score = 0.7
                 else:
                     score = 0.7
 
@@ -172,13 +239,18 @@ class FactImportanceScorer:
                 score = 0.8
 
             else:
-                score = 0.2
+                score = 0.1  # Generic fact (was 0.2)
 
         elif question_type == QuestionType.WHEN:
             # "When was X created?" → prioritize facts with time modifiers
             if 'time' in fact.modifiers:
-                if query_entity and fact.entity and query_entity.lower() in fact.entity.lower():
-                    score = 1.0
+                if query_entity and fact.entity:
+                    if self._entity_matches(query_entity, fact, exact=True):
+                        score = 1.0
+                    elif self._entity_matches(query_entity, fact, exact=False):
+                        score = 0.8
+                    else:
+                        score = 0.7
                 else:
                     score = 0.8
 
@@ -188,18 +260,138 @@ class FactImportanceScorer:
                 score = 0.6
 
             else:
-                score = 0.2
+                score = 0.1  # Generic fact (was 0.2)
 
         else:
             # Generic scoring for other question types
-            if query_entity and fact.entity and fact.entity.lower() == query_entity.lower():
-                score = 0.7
-            elif query_entity and query_entity.lower() in str(fact).lower():
-                score = 0.4
+            if query_entity and fact.entity:
+                if self._entity_matches(query_entity, fact, exact=True):
+                    score = 0.7
+                elif self._entity_matches(query_entity, fact, exact=False):
+                    score = 0.4
+                else:
+                    score = 0.3
             else:
                 score = 0.3
 
+        # Phase 1 Ranking Improvements: Apply targeted boosts
+        # These boosts address ranking failures where correct answers are retrieved but ranked too low
+
+        # Boost 1: IS-A + WHAT combination (fix "Kio estas hundo?" ranking #22 → #1)
+        # For WHAT questions, we want IS-A facts where query entity is either:
+        # 1. The entity (subject): "hund IS-A besto" → answers "What is a dog?"
+        # 2. The type (object): "mi IS-A hund" → less relevant but still about dogs
+        if question_type == QuestionType.WHAT and fact.relation == RelationType.IS_A:
+            if query_entity:
+                # Check if query entity matches fact entity (primary case)
+                if self._entity_matches(query_entity, fact, exact=True):
+                    score = min(1.0, score + 0.2)  # Definitional boost
+                # Also check if query entity is mentioned in type argument (secondary case)
+                elif 'type' in fact.arguments:
+                    type_arg = str(fact.arguments['type']).lower()
+                    query_lower = query_entity.lower()
+                    if query_lower in type_arg or type_arg in query_lower:
+                        score = min(1.0, score + 0.1)  # Smaller boost for reverse direction
+
+        # Boost 2: Agent + WHO combination (fix "Kiu fondis Esperanton?" ranking #16 → top 3)
+        if question_type == QuestionType.WHO:
+            if 'agent' in fact.arguments:
+                # Check if the fact is about the query entity
+                if query_entity and self._entity_matches(query_entity, fact, exact=True):
+                    score = min(1.0, score + 0.15)  # Exact entity match boost
+
         return score
+
+    def _entity_matches(self, query_entity: str, fact, exact: bool = True) -> bool:
+        """
+        Check if query entity matches fact entity with proper noun awareness.
+
+        Args:
+            query_entity: Entity from query (e.g., "fundament")
+            fact: Fact object with entity and proper noun annotations
+            exact: If True, require exact root match. If False, allow substring.
+
+        Returns:
+            True if entities match according to criteria
+
+        Examples:
+            - Query "fundament", Fact(entity="fundament", is_proper=True, cap="Fundamento")
+              → exact=True returns True (proper noun root match)
+            - Query "fundament", Fact(entity="fundamentoj", is_proper=False)
+              → exact=True returns False (different root)
+            - Query "fundament", Fact(entity="fundamentoj", is_proper=False)
+              → exact=False returns True (substring match)
+        """
+        query_lower = query_entity.lower()
+        fact_entity = fact.entity if hasattr(fact, 'entity') else str(fact)
+        fact_lower = fact_entity.lower()
+
+        # Use AST proper noun annotation if available
+        is_proper_noun = getattr(fact, 'entity_is_proper_noun', False)
+        cap_form = getattr(fact, 'entity_capitalized_form', None)
+
+        # Exact mode: check for proper noun or exact root match
+        if exact:
+            # Use explicit proper noun annotation from AST
+            if is_proper_noun:
+                # Proper noun: match if query is prefix + Esperanto ending
+                # "fundament" matches "Fundamento" but not "fundamentoj"
+                if cap_form:
+                    cap_lower = cap_form.lower()
+                    return (cap_lower.startswith(query_lower) and
+                            (len(cap_lower) == len(query_lower) or
+                             cap_lower[len(query_lower)] in 'oaej'))
+                else:
+                    # Fallback to entity field
+                    return (fact_lower.startswith(query_lower) and
+                            (len(fact_lower) == len(query_lower) or
+                             fact_lower[len(query_lower)] in 'oaej'))
+            else:
+                # Common noun: require exact root match (strip Esperanto endings)
+                # "hund" matches "hundo", "hundoj", "hundon" but not "hundego"
+                fact_root = self._strip_esperanto_endings(fact_lower)
+                return query_lower == fact_root
+
+        # Substring mode: allow any substring match
+        else:
+            return query_lower in fact_lower
+
+    def _strip_esperanto_endings(self, word: str) -> str:
+        """
+        Strip Esperanto grammatical endings to get root.
+
+        Args:
+            word: Esperanto word (lowercase)
+
+        Returns:
+            Root form
+
+        Examples:
+            - "hundo" → "hund"
+            - "hundoj" → "hund"
+            - "hundon" → "hund"
+            - "bela" → "bel"
+            - "fundamentoj" → "fundament"
+        """
+        # Strip case endings (-n, -jn)
+        if word.endswith('jn'):
+            word = word[:-2]
+        elif word.endswith('n'):
+            word = word[:-1]
+
+        # Strip plural (-j)
+        if word.endswith('j'):
+            word = word[:-1]
+
+        # Strip part-of-speech endings (-o, -a, -e, -i, -as, -is, -os, -us, -u)
+        if word.endswith('o') or word.endswith('a') or word.endswith('e'):
+            word = word[:-1]
+        elif word.endswith('as') or word.endswith('is') or word.endswith('os') or word.endswith('us'):
+            word = word[:-2]
+        elif word.endswith('i') or word.endswith('u'):
+            word = word[:-1]
+
+        return word
 
     def _score_definitional(self, fact: Fact, source_metadata: Dict) -> float:
         """
@@ -314,6 +506,69 @@ class FactImportanceScorer:
             score += 0.3
 
         return min(score, 1.0)  # Cap at 1.0
+
+    def _score_embedding_similarity(self, fact: Fact, query_roots: List[str]) -> float:
+        """
+        Score semantic similarity using root embeddings (Phase 2).
+
+        Computes cosine similarity between query roots and fact entity/argument roots.
+        Provides learned signal beyond deterministic matching.
+
+        Args:
+            fact: Fact to score
+            query_roots: Roots from query (e.g., ["kiu", "fond", "esperant"])
+
+        Returns:
+            Similarity score [0, 1]
+        """
+        if not self.use_embeddings or not self.embeddings or not query_roots:
+            return 0.5  # Neutral score if embeddings unavailable
+
+        try:
+            import torch
+
+            # Extract roots from fact
+            fact_roots = []
+            if fact.entity:
+                fact_roots.append(fact.entity.lower())
+            for arg_val in fact.arguments.values():
+                if isinstance(arg_val, str):
+                    fact_roots.append(arg_val.lower())
+
+            if not fact_roots:
+                return 0.5  # No roots to compare
+
+            # Get embeddings for query and fact roots
+            query_vecs = []
+            for root in query_roots:
+                if root.lower() in self.embeddings:
+                    query_vecs.append(self.embeddings[root.lower()])
+
+            fact_vecs = []
+            for root in fact_roots:
+                if root in self.embeddings:
+                    fact_vecs.append(self.embeddings[root])
+
+            if not query_vecs or not fact_vecs:
+                return 0.5  # Missing embeddings
+
+            # Compute average embeddings
+            query_avg = torch.stack(query_vecs).mean(dim=0)
+            fact_avg = torch.stack(fact_vecs).mean(dim=0)
+
+            # Cosine similarity
+            cos_sim = torch.nn.functional.cosine_similarity(
+                query_avg.unsqueeze(0), fact_avg.unsqueeze(0)
+            ).item()
+
+            # Normalize from [-1, 1] to [0, 1]
+            normalized = (cos_sim + 1.0) / 2.0
+
+            return normalized
+
+        except Exception as e:
+            # Fallback if embedding computation fails
+            return 0.5
 
 
 def classify_question_type(query: str) -> QuestionType:

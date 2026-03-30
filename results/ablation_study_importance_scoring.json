@@ -1,0 +1,38 @@
+{
+  "Baseline": {
+    "total": 50,
+    "successful": 5,
+    "accuracy": 0.1,
+    "retrieval_success_rate": 0.34,
+    "generation_success_rate": 0.29411764705882354,
+    "retrieval_failures": 33,
+    "generation_failures": 12
+  },
+  "Phase 1 Only": {
+    "total": 50,
+    "successful": 6,
+    "accuracy": 0.12,
+    "retrieval_success_rate": 0.36,
+    "generation_success_rate": 0.3333333333333333,
+    "retrieval_failures": 32,
+    "generation_failures": 12
+  },
+  "Phase 2 Only": {
+    "total": 50,
+    "successful": 3,
+    "accuracy": 0.06,
+    "retrieval_success_rate": 0.36,
+    "generation_success_rate": 0.16666666666666666,
+    "retrieval_failures": 32,
+    "generation_failures": 15
+  },
+  "Phase 1+2 Combined": {
+    "total": 50,
+    "successful": 3,
+    "accuracy": 0.06,
+    "retrieval_success_rate": 0.34,
+    "generation_success_rate": 0.17647058823529413,
+    "retrieval_failures": 33,
+    "generation_failures": 14
+  }
+}

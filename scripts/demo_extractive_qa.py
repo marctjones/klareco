@@ -223,7 +223,11 @@ def extract_query_entity(ast, question_type):
 
         # Get substantivo from objekto
         if kerno.get('vortspeco') == 'substantivo':
-            entity = kerno.get('radiko', '')
+            # Phase 3 FIX: Handle compound words (e.g., "planlingvo" → "planlingv")
+            if kerno.get('kunmetitaj_radikoj'):
+                entity = ''.join(kerno['kunmetitaj_radikoj'])
+            else:
+                entity = kerno.get('radiko', '')
             if entity:
                 return entity
 
@@ -235,7 +239,11 @@ def extract_query_entity(ast, question_type):
         if isinstance(alia, dict):
             if (alia.get('vortspeco') == 'substantivo' and
                 alia.get('kazo') == 'akuzativo'):
-                entity = alia.get('radiko', '')
+                # Phase 3 FIX: Handle compound words
+                if alia.get('kunmetitaj_radikoj'):
+                    entity = ''.join(alia['kunmetitaj_radikoj'])
+                else:
+                    entity = alia.get('radiko', '')
                 if entity:
                     return entity
 
@@ -257,7 +265,11 @@ def extract_query_entity(ast, question_type):
     # Handles: "Kiam... pri Esperanto?", "Kie okazis... Esperanto-Kongreso?"
     for alia in aliaj:
         if isinstance(alia, dict) and alia.get('vortspeco') == 'substantivo':
-            entity = alia.get('radiko', '')
+            # Phase 3 FIX: Handle compound words
+            if alia.get('kunmetitaj_radikoj'):
+                entity = ''.join(alia['kunmetitaj_radikoj'])
+            else:
+                entity = alia.get('radiko', '')
             if entity:
                 return entity
 

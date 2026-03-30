@@ -271,8 +271,15 @@ class WhooshRetriever:
         """
 
         # Execute both queries and merge
-        results_vg = self._execute_kuzu_query(kuzu_query_passive, top_k, [obj_root], query_ast=query_ast)
-        results_simple = self._execute_kuzu_query(kuzu_query_passive_simple, top_k, [obj_root], query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        results_vg = self._execute_kuzu_query(
+            kuzu_query_passive, top_k, [obj_root],
+            query_ast=query_ast, question_type='KIU', query_entity=obj_root
+        )
+        results_simple = self._execute_kuzu_query(
+            kuzu_query_passive_simple, top_k, [obj_root],
+            query_ast=query_ast, question_type='KIU', query_entity=obj_root
+        )
 
         # Merge and deduplicate
         all_results = results_vg + results_simple
@@ -324,7 +331,11 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-            return self._execute_kuzu_query(kuzu_query, top_k, [obj_root], query_ast=query_ast)
+            # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+            return self._execute_kuzu_query(
+                kuzu_query, top_k, [obj_root],
+                query_ast=query_ast, question_type='KIU', query_entity=obj_root
+            )
 
         # Action question pattern: "Kiu VERB-is OBJECT-n?"
         # Use verb synonym expansion for recall
@@ -345,7 +356,11 @@ class WhooshRetriever:
             LIMIT {top_k * 3}
         """
 
-        active_results = self._execute_kuzu_query(kuzu_query_active, top_k, verb_constraint + [obj_root], query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        active_results = self._execute_kuzu_query(
+            kuzu_query_active, top_k, verb_constraint + [obj_root],
+            query_ast=query_ast, question_type='KIU', query_entity=obj_root
+        )
 
         # Phase 2.2: Passive voice pattern (new)
         passive_results = self._retrieve_who_passive_pattern(
@@ -433,7 +448,11 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        base_results = self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        base_results = self._execute_kuzu_query(
+            kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []),
+            query_ast=query_ast, question_type='KIE', query_entity=entity_root
+        )
 
         # Phase 4: Add grammatical variant results (participial, nominalization)
         if entity_root:
@@ -509,7 +528,11 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        base_results = self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        base_results = self._execute_kuzu_query(
+            kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []),
+            query_ast=query_ast, question_type='KIAM', query_entity=entity_root
+        )
 
         # Phase 4: Add grammatical variant results (nominalization, participial)
         if entity_root:
@@ -617,10 +640,23 @@ class WhooshRetriever:
         """
 
         # Try all IS-A patterns and merge results
-        results_direct = self._execute_kuzu_query(kuzu_query_direct, top_k, [entity_root], query_ast=query_ast)
-        results_direct_simple = self._execute_kuzu_query(kuzu_query_direct_simple, top_k, [entity_root], query_ast=query_ast)
-        results_reverse = self._execute_kuzu_query(kuzu_query_reverse, top_k, [entity_root], query_ast=query_ast)
-        results_reverse_simple = self._execute_kuzu_query(kuzu_query_reverse_simple, top_k, [entity_root], query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        results_direct = self._execute_kuzu_query(
+            kuzu_query_direct, top_k, [entity_root],
+            query_ast=query_ast, question_type='KIO', query_entity=entity_root
+        )
+        results_direct_simple = self._execute_kuzu_query(
+            kuzu_query_direct_simple, top_k, [entity_root],
+            query_ast=query_ast, question_type='KIO', query_entity=entity_root
+        )
+        results_reverse = self._execute_kuzu_query(
+            kuzu_query_reverse, top_k, [entity_root],
+            query_ast=query_ast, question_type='KIO', query_entity=entity_root
+        )
+        results_reverse_simple = self._execute_kuzu_query(
+            kuzu_query_reverse_simple, top_k, [entity_root],
+            query_ast=query_ast, question_type='KIO', query_entity=entity_root
+        )
 
         # Merge and deduplicate by id
         all_results = results_direct + results_direct_simple + results_reverse + results_reverse_simple
@@ -671,7 +707,11 @@ class WhooshRetriever:
             LIMIT {top_k * 3}
         """
 
-        generic_results = self._execute_kuzu_query(kuzu_query_generic, top_k, [entity_root], query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        generic_results = self._execute_kuzu_query(
+            kuzu_query_generic, top_k, [entity_root],
+            query_ast=query_ast, question_type='KIO', query_entity=entity_root
+        )
 
         # Merge IS-A + generic, deduplicating by id
         seen_ids = {doc.get('id') for doc in is_a_results}
@@ -747,7 +787,11 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        return self._execute_kuzu_query(
+            kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []),
+            query_ast=query_ast, question_type='KIAL', query_entity=entity_root
+        )
 
     def _retrieve_how_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve HOW questions: manner patterns."""
@@ -785,7 +829,11 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        return self._execute_kuzu_query(
+            kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []),
+            query_ast=query_ast, question_type='KIEL', query_entity=entity_root
+        )
 
     def _retrieve_how_many_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve HOW_MANY questions: numeric patterns."""
@@ -806,7 +854,11 @@ class WhooshRetriever:
             LIMIT {top_k * 5}
         """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, [entity_root], query_ast=query_ast)
+        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+        return self._execute_kuzu_query(
+            kuzu_query, top_k, [entity_root],
+            query_ast=query_ast, question_type='KIOM', query_entity=entity_root
+        )
 
     def _retrieve_generic_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Generic fallback: match verb + entity."""
@@ -828,7 +880,11 @@ class WhooshRetriever:
                 RETURN ft.id AS id, ft.teksto AS text
                 LIMIT {top_k * 5}
             """
-            return self._execute_kuzu_query(kuzu_query, top_k, [verb_root, entity_root], query_ast=query_ast)
+            # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+            return self._execute_kuzu_query(
+                kuzu_query, top_k, [verb_root, entity_root],
+                query_ast=query_ast, question_type='OTHER', query_entity=entity_root
+            )
         elif verb_root:
             kuzu_query = f"""
                 MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
@@ -837,7 +893,11 @@ class WhooshRetriever:
                 RETURN ft.id AS id, ft.teksto AS text
                 LIMIT {top_k * 5}
             """
-            return self._execute_kuzu_query(kuzu_query, top_k, [verb_root], query_ast=query_ast)
+            # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+            return self._execute_kuzu_query(
+                kuzu_query, top_k, [verb_root],
+                query_ast=query_ast, question_type='OTHER', query_entity=None
+            )
         else:
             kuzu_query = f"""
                 MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
@@ -846,7 +906,11 @@ class WhooshRetriever:
                 RETURN ft.id AS id, ft.teksto AS text
                 LIMIT {top_k * 5}
             """
-            return self._execute_kuzu_query(kuzu_query, top_k, [entity_root], query_ast=query_ast)
+            # Phase 3 FIX: Pass question_type and query_entity for importance scoring
+            return self._execute_kuzu_query(
+                kuzu_query, top_k, [entity_root],
+                query_ast=query_ast, question_type='OTHER', query_entity=entity_root
+            )
 
     def _extract_verb_and_object(self, query_ast: Dict) -> tuple:
         """Extract verb and object roots from query AST."""

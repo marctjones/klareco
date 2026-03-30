@@ -22,7 +22,8 @@ try:
     if _fundamento_path.exists():
         with open(_fundamento_path, 'r', encoding='utf-8') as f:
             _fundamento_data = json.load(f)
-            _FUNDAMENTO_ROOTS = set(_fundamento_data.get('roots', {}).keys())
+            # JSON structure: {"hund": {...}, "libr": {...}, ...}
+            _FUNDAMENTO_ROOTS = set(_fundamento_data.keys())
 except Exception:
     pass  # Silently fall back to empty set if file not found
 
@@ -1624,13 +1625,32 @@ def parse(text: str):
                 # "La Fundamento" → proper noun
                 # "Fundamento estas..." → ambiguous, might be sentence-initial
                 if i == 0:
-                    # Sentence-initial capitalization - be conservative
-                    # Don't override unless we have strong signal (e.g., in proper noun dict)
+                    # Sentence-initial capitalization - use NEGATIVE DETECTION
+                    # Strategy: If word parsed BUT root is not a known common word,
+                    # it's likely a proper noun (Zamenhof, Esperanto, etc.)
                     from klareco.proper_nouns import get_proper_noun_dictionary
                     pn_dict = get_proper_noun_dictionary()
+
+                    # Check if in proper noun dictionary first (fastest)
                     if pn_dict.is_proper_noun(w):
                         ast["vortspeco"] = "propra_nomo"
                         ast["kategorio"] = "propranomo_konata"
+                    else:
+                        # Negative detection: Check if root is a common word
+                        root = ast.get("radiko", "").lower()
+
+                        # Check if root is in Fundamento or common words
+                        # If NOT, likely a proper noun
+                        is_common_root = (
+                            root in _FUNDAMENTO_ROOTS or  # Official roots
+                            root in {'la', 'de', 'en', 'kaj', 'aŭ', 'sed'} or  # Function words
+                            len(root) <= 2  # Very short roots (unlikely proper nouns)
+                        )
+
+                        if not is_common_root:
+                            # Root not recognized as common word → likely proper noun
+                            ast["vortspeco"] = "propra_nomo"
+                            ast["kategorio"] = "propranomo"
                 # For non-initial words: capitalization is strong signal
                 elif w not in skip_words:
                     ast["vortspeco"] = "propra_nomo"

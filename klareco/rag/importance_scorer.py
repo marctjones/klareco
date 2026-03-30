@@ -126,7 +126,7 @@ class FactImportanceScorer:
         """
         # Compute component scores
         q_score = self._score_question_relevance(fact, question_type, query_entity)
-        d_score = self._score_definitional(fact, source_metadata or {})
+        d_score = self._score_fact_quality(fact, source_metadata or {}, question_type)
         e_score = self._score_entity_centrality(fact, query_entity)
         c_score = self._score_completeness(fact)
         emb_score = self._score_embedding_similarity(fact, query_roots or [])
@@ -393,9 +393,15 @@ class FactImportanceScorer:
 
         return word
 
-    def _score_definitional(self, fact: Fact, source_metadata: Dict) -> float:
+    def _score_fact_quality(self, fact: Fact, source_metadata: Dict, question_type: QuestionType) -> float:
         """
-        Score how definitional/central the fact is.
+        Score fact quality based on question type.
+
+        RENAMED from _score_definitional() - now question-type-aware.
+
+        Phase 2 Fix: Remove WHAT-bias. Previously only IS-A got 0.9, causing
+        44% penalty on WHO/WHERE/WHEN facts. Now each question type defines
+        what constitutes a "high quality" fact.
 
         Phase 1 improvements:
         - Sentence complexity (simpler = more direct)
@@ -406,11 +412,55 @@ class FactImportanceScorer:
         """
         score = 0.0
 
-        # 1. IS-A facts are definitional by nature
-        if fact.relation == RelationType.IS_A:
-            score = 0.9  # Strong definitional signal
+        # 1. QUESTION-TYPE-AWARE BASE SCORE
+        if question_type == QuestionType.WHAT:
+            if fact.relation == RelationType.IS_A:
+                score = 0.9
+            else:
+                score = 0.5
+
+        elif question_type == QuestionType.WHO:
+            # WHO: agent/creator facts are high quality
+            if fact.relation in [RelationType.CREATED_BY, RelationType.FOUNDED]:
+                score = 0.9  # Was 0.5!
+            elif 'agent' in fact.arguments:
+                score = 0.9  # Was 0.5!
+            else:
+                score = 0.5
+
+        elif question_type == QuestionType.WHERE:
+            # WHERE: location facts are high quality
+            if fact.relation in [RelationType.LOCATED_AT, RelationType.BORN]:
+                score = 0.9  # Was 0.5!
+            elif 'location' in fact.modifiers or 'location' in fact.arguments:
+                score = 0.9  # Was 0.5!
+            else:
+                score = 0.5
+
+        elif question_type == QuestionType.WHEN:
+            # WHEN: temporal facts are high quality
+            if 'time' in fact.modifiers:
+                score = 0.9  # Was 0.5!
+            elif fact.relation in [RelationType.CREATED_BY, RelationType.PUBLISHED,
+                                 RelationType.BORN, RelationType.DIED]:
+                score = 0.7
+            else:
+                score = 0.5
+
+        elif question_type == QuestionType.WHY:
+            # WHY: causal facts are high quality
+            if 'purpose' in fact.modifiers or 'reason' in fact.modifiers:
+                score = 0.9
+            elif 'manner' in fact.modifiers:
+                score = 0.7
+            else:
+                score = 0.5
         else:
-            score = 0.5  # Base score for other facts
+            # OTHER/HOW
+            if fact.relation == RelationType.IS_A:
+                score = 0.7
+            else:
+                score = 0.5
 
         # 2. Sentence complexity (simpler = more direct information)
         if hasattr(fact, 'source_text'):
@@ -459,8 +509,8 @@ class FactImportanceScorer:
         source_weight = self.SOURCE_WEIGHTS.get(source, self.SOURCE_WEIGHTS['unknown'])
         score *= source_weight
 
-        # 7. CONTEXT BOOST (Phase 2 - essentially free!)
-        context_boost = self._calculate_context_boost(fact, source_metadata)
+        # 7. CONTEXT BOOST (Phase 2 - essentially free, question-type-aware!)
+        context_boost = self._calculate_context_boost(fact, source_metadata, question_type)
         score = min(1.0, score + context_boost)
 
         return score
@@ -676,11 +726,13 @@ class FactImportanceScorer:
 
         return 'MENTIONED'
 
-    def _calculate_context_boost(self, fact: Fact, source_metadata: Dict) -> float:
+    def _calculate_context_boost(self, fact: Fact, source_metadata: Dict, question_type: QuestionType) -> float:
         """
-        Calculate context-based boost using neighboring sentences (Phase 2).
+        Calculate context-based boost with question-type awareness (Phase 2).
 
         Context is fetched from Kuzu SEKVA_FRAZOTEKSTO relationships (essentially free!).
+
+        Phase 2 Fix: Add question-specific context patterns for WHO/WHERE/WHEN.
 
         Returns:
             boost: 0.0 to 0.3
@@ -691,39 +743,86 @@ class FactImportanceScorer:
         next_text = source_metadata.get('next_text', '')
 
         if not prev_text and not next_text:
-            return 0.0  # No context available
+            return 0.0
 
         source_text = getattr(fact, 'source_text', '')
         if not source_text:
             return 0.0
 
+        # UNIVERSAL BOOSTS (all question types)
+
         # 1. ANAPHORA RESOLUTION (+0.2)
-        # Current has pronouns, previous provides referent
         if prev_text and self._has_pronouns(source_text):
             if self._resolves_anaphora(source_text, prev_text, fact.entity):
                 boost += 0.2
 
-        # 2. DEFINITIONAL CONTINUATION (+0.15)
-        # Next sentence expands the definition
-        if next_text and self._is_definitional(source_text):
-            if self._continues_definition(source_text, next_text):
-                boost += 0.15
-
-        # 3. ETYMOLOGY/ORIGIN (+0.15)
-        # Next sentence explains name origin
-        if next_text:
-            next_lower = next_text.lower()
-            etymology_markers = ['nomo venas', 'devenas de', 'nomita laŭ',
-                               'la nomo', 'venas el', 'nomiĝas laŭ']
-            if any(marker in next_lower for marker in etymology_markers):
-                boost += 0.15
-
-        # 4. TOPIC COHERENCE (+0.1)
-        # Neighbors mention query entity = topically coherent paragraph
+        # 2. TOPIC COHERENCE (+0.1)
         if fact.entity and (prev_text or next_text):
             neighbor_text = (prev_text + ' ' + next_text).lower()
             if fact.entity.lower() in neighbor_text:
                 boost += 0.1
+
+        # QUESTION-TYPE-SPECIFIC BOOSTS
+
+        if question_type == QuestionType.WHAT:
+            # Definitional continuation (+0.15)
+            if next_text and self._is_definitional(source_text):
+                if self._continues_definition(source_text, next_text):
+                    boost += 0.15
+
+            # Etymology/origin (+0.15)
+            if next_text:
+                etymology_markers = ['nomo venas', 'devenas de', 'nomita laŭ',
+                                   'la nomo', 'venas el', 'nomiĝas laŭ']
+                if any(marker in next_text.lower() for marker in etymology_markers):
+                    boost += 0.15
+
+        elif question_type == QuestionType.WHO:
+            # Biographical continuation (+0.15)
+            if next_text:
+                bio_markers = ['li estis', 'ŝi estis', 'li naskiĝis', 'ŝi naskiĝis',
+                             'li mortis', 'ŝi mortis', 'lia', 'ŝia']
+                if any(marker in next_text.lower() for marker in bio_markers):
+                    boost += 0.15
+
+            # Role/occupation context (+0.15)
+            if prev_text or next_text:
+                role_markers = ['doktor', 'profesor', 'verkist', 'lingvist',
+                              'kreint', 'fondint', 'aŭtor']
+                neighbor = (prev_text + ' ' + next_text).lower()
+                if any(marker in neighbor for marker in role_markers):
+                    boost += 0.15
+
+        elif question_type == QuestionType.WHERE:
+            # Geographic context (+0.15)
+            if next_text or prev_text:
+                geo_markers = ['en ', 'ĉe ', 'apud ', 'proksim', 'urb', 'land',
+                             'region', 'kontinent']
+                neighbor = (prev_text + ' ' + next_text).lower()
+                if any(marker in neighbor for marker in geo_markers):
+                    boost += 0.15
+
+            # Location relationship (+0.15)
+            if next_text:
+                loc_relations = ['troviĝas', 'situas', 'loĝas', 'estas en']
+                if any(marker in next_text.lower() for marker in loc_relations):
+                    boost += 0.15
+
+        elif question_type == QuestionType.WHEN:
+            # Temporal sequence (+0.15)
+            if next_text or prev_text:
+                time_markers = ['en ', 'dum ', 'antaŭ ', 'post ', 'jar', 'jarcent',
+                              'epok', 'period']
+                neighbor = (prev_text + ' ' + next_text).lower()
+                if any(marker in neighbor for marker in time_markers):
+                    boost += 0.15
+
+            # Date/year context (+0.15)
+            if next_text or prev_text:
+                import re
+                neighbor = prev_text + ' ' + next_text
+                if re.search(r'\b\d{4}\b', neighbor):  # Year patterns
+                    boost += 0.15
 
         return min(0.3, boost)  # Cap at 30% boost
 

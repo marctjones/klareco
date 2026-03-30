@@ -1609,10 +1609,44 @@ def parse(text: str):
     # Uses Fundamento-first design for better disambiguation
     # Gracefully handle unknown words by categorizing them
     word_asts = []
-    for w in words:
+    for i, w in enumerate(words):
         try:
             ast = parse_word(w)
             ast["analizstato"] = "sukceso"  # Mark as successfully parsed Esperanto
+
+            # CRITICAL FIX: Proper noun detection with sentence position awareness
+            # Must happen AFTER parse_word, using sentence context
+            if w and w[0].isupper() and len(w) > 1:
+                # Skip function words that are capitalized for grammatical reasons
+                skip_words = {'La', 'De', 'En', 'Kiu', 'Kio', 'Kie', 'Kiam', 'Kial', 'Kiel', 'Kiom'}
+
+                # For first word: only mark as proper noun if preceded by article
+                # "La Fundamento" → proper noun
+                # "Fundamento estas..." → ambiguous, might be sentence-initial
+                if i == 0:
+                    # Sentence-initial capitalization - be conservative
+                    # Don't override unless we have strong signal (e.g., in proper noun dict)
+                    from klareco.proper_nouns import get_proper_noun_dictionary
+                    pn_dict = get_proper_noun_dictionary()
+                    if pn_dict.is_proper_noun(w):
+                        ast["vortspeco"] = "propra_nomo"
+                        ast["kategorio"] = "propranomo_konata"
+                # For non-initial words: capitalization is strong signal
+                elif w not in skip_words:
+                    ast["vortspeco"] = "propra_nomo"
+                    from klareco.proper_nouns import get_proper_noun_dictionary
+                    pn_dict = get_proper_noun_dictionary()
+                    if pn_dict.is_proper_noun(w):
+                        ast["kategorio"] = "propranomo_konata"
+                    else:
+                        ast["kategorio"] = "propranomo"
+
+                # Special case: "la X" pattern → X is definitely a proper noun
+                if i > 0 and words[i-1].lower() == 'la' and w not in skip_words:
+                    ast["vortspeco"] = "propra_nomo"
+                    if ast.get("kategorio") != "propranomo_konata":
+                        ast["kategorio"] = "propranomo"
+
             word_asts.append(ast)
         except ValueError as e:
             # Word failed to parse - categorize it as non-Esperanto

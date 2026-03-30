@@ -23,8 +23,13 @@ Aligns with Pure Esperanto AI thesis:
 
 from typing import Dict, List, Optional, Tuple
 import logging
+from pathlib import Path
+import torch
 
 logger = logging.getLogger(__name__)
+
+# Global cache for embeddings
+_EMBEDDING_CACHE = None
 
 
 def get_ast_verb_root(ast: Dict) -> Optional[str]:
@@ -188,6 +193,176 @@ def score_structural_match(query_ast: Dict, candidate_ast: Dict) -> float:
     return score
 
 
+def load_embeddings(embedding_path: Path = None) -> Dict[str, torch.Tensor]:
+    """
+    Load root embeddings from checkpoint.
+
+    Caches embeddings globally to avoid repeated loading.
+
+    Args:
+        embedding_path: Path to embedding checkpoint (default: models/root_embeddings/best_model.pt)
+
+    Returns:
+        Dict mapping root → embedding vector
+    """
+    global _EMBEDDING_CACHE
+
+    if _EMBEDDING_CACHE is not None:
+        return _EMBEDDING_CACHE
+
+    if embedding_path is None:
+        embedding_path = Path('models/root_embeddings/best_model.pt')
+
+    if not embedding_path.exists():
+        logger.warning(f"Embedding file not found: {embedding_path}")
+        return {}
+
+    try:
+        checkpoint = torch.load(embedding_path, map_location='cpu', weights_only=False)
+
+        # Extract root embeddings (64D vectors)
+        # Try multiple checkpoint formats
+        if 'root_embeddings' in checkpoint:
+            root_embeddings = checkpoint['root_embeddings']
+        elif 'model_state_dict' in checkpoint:
+            # Check for different embedding weight keys
+            state_dict = checkpoint['model_state_dict']
+            if 'root_embeddings.weight' in state_dict:
+                root_embeddings = state_dict['root_embeddings.weight']
+            elif 'embeddings.weight' in state_dict:
+                root_embeddings = state_dict['embeddings.weight']
+            else:
+                logger.warning(f"Could not find embeddings in model_state_dict. Keys: {list(state_dict.keys())}")
+                return {}
+        else:
+            logger.warning(f"Could not find embeddings in checkpoint. Keys: {list(checkpoint.keys())}")
+            return {}
+
+        # Get vocabulary
+        # Try multiple vocabulary key formats
+        if 'root_vocab' in checkpoint:
+            root_vocab = checkpoint['root_vocab']
+        elif 'root_to_idx' in checkpoint:
+            root_vocab = checkpoint['root_to_idx']
+        elif 'vocab' in checkpoint:
+            root_vocab = checkpoint['vocab']
+        else:
+            logger.warning(f"Could not find vocabulary in checkpoint. Keys: {list(checkpoint.keys())}")
+            return {}
+
+        # Build dict: root → embedding
+        embeddings = {}
+        for root, idx in root_vocab.items():
+            embeddings[root] = root_embeddings[idx]
+
+        _EMBEDDING_CACHE = embeddings
+        logger.info(f"Loaded {len(embeddings)} root embeddings from {embedding_path}")
+
+        return embeddings
+
+    except Exception as e:
+        logger.error(f"Failed to load embeddings: {e}")
+        return {}
+
+
+def get_all_roots_from_ast(ast: Dict) -> List[str]:
+    """
+    Extract all roots from an AST (for embedding similarity).
+
+    Returns all content word roots (verbs, nouns, adjectives).
+    """
+    roots = []
+
+    if not ast or ast.get('tipo') != 'frazo':
+        return roots
+
+    # Helper to extract root from node
+    def extract_root(node):
+        if not node:
+            return None
+        if isinstance(node, dict):
+            return node.get('radiko')
+        return None
+
+    # Get verb root
+    verb_root = get_ast_verb_root(ast)
+    if verb_root:
+        roots.append(verb_root)
+
+    # Get object root
+    obj_root = get_ast_object_root(ast)
+    if obj_root:
+        roots.append(obj_root)
+
+    # Get subject root
+    subj_root = get_ast_subject_root(ast)
+    if subj_root:
+        roots.append(subj_root)
+
+    # Get roots from aliaj (modifiers)
+    aliaj = ast.get('aliaj', [])
+    for item in aliaj:
+        root = extract_root(item)
+        if root and root not in roots:
+            # Skip function words (correlatives, pronouns)
+            if item.get('vortspeco') not in ['korelativo', 'pronomo']:
+                roots.append(root)
+
+    return roots
+
+
+def compute_embedding_similarity(
+    query_roots: List[str],
+    candidate_roots: List[str],
+    embeddings: Dict[str, torch.Tensor]
+) -> float:
+    """
+    Compute cosine similarity between query and candidate root embeddings.
+
+    Strategy: Average query vectors, average candidate vectors, compute cosine similarity.
+
+    Args:
+        query_roots: List of roots from query
+        candidate_roots: List of roots from candidate
+        embeddings: Dict mapping root → embedding vector
+
+    Returns:
+        Cosine similarity score [0, 1]
+    """
+    if not embeddings or not query_roots or not candidate_roots:
+        return 0.0
+
+    # Get query embeddings
+    query_vecs = []
+    for root in query_roots:
+        if root in embeddings:
+            query_vecs.append(embeddings[root])
+
+    # Get candidate embeddings
+    cand_vecs = []
+    for root in candidate_roots:
+        if root in embeddings:
+            cand_vecs.append(embeddings[root])
+
+    if not query_vecs or not cand_vecs:
+        return 0.0
+
+    # Average vectors
+    query_avg = torch.stack(query_vecs).mean(dim=0)
+    cand_avg = torch.stack(cand_vecs).mean(dim=0)
+
+    # Cosine similarity
+    cos_sim = torch.nn.functional.cosine_similarity(
+        query_avg.unsqueeze(0),
+        cand_avg.unsqueeze(0)
+    ).item()
+
+    # Normalize to [0, 1] (cosine similarity is [-1, 1])
+    normalized = (cos_sim + 1.0) / 2.0
+
+    return normalized
+
+
 def score_verb_similarity(query_ast: Dict, candidate_ast: Dict) -> float:
     """
     Score verb similarity using synonym distance.
@@ -212,23 +387,41 @@ def score_verb_similarity(query_ast: Dict, candidate_ast: Dict) -> float:
 def rank_ast_matches(
     query_ast: Dict,
     candidates: List[Dict],
-    use_embeddings: bool = False,
-    embedding_weight: float = 0.1
+    use_embeddings: bool = True,  # Now enabled by default
+    embedding_weight: float = 0.1,
+    embedding_path: Path = None,
+    use_importance_scoring: bool = True,  # Phase 3: importance-aware ranking
+    question_type: Optional[str] = None,
+    query_entity: Optional[str] = None,
+    query_roots: Optional[List[str]] = None
 ) -> List[Dict]:
     """
     Rank AST matches by semantic and structural similarity.
 
-    Scoring breakdown:
+    Phase 3 improvement: Integrate importance scoring into retrieval ranking.
+
+    Scoring breakdown (without importance):
     - Verb synonym distance: 40%
     - Object exact match: 30%
     - Subject prominence: 20%
-    - Root embedding similarity: 10% (optional, if use_embeddings=True)
+    - Root embedding similarity: 10% (learned component)
+
+    Scoring breakdown (with importance, Phase 3):
+    - Grammatical match: 30% (verb + object)
+    - Fact importance: 40% (IS-A priority, entity centrality, etc.)
+    - Subject prominence: 20%
+    - Root embedding similarity: 10%
 
     Args:
         query_ast: Parsed query AST
         candidates: List of candidate documents with 'ast' field
-        use_embeddings: Whether to use learned root embeddings (default: False)
+        use_embeddings: Whether to use learned root embeddings (default: True)
         embedding_weight: Weight for embedding similarity (default: 0.1)
+        embedding_path: Path to embeddings (default: models/root_embeddings/best_model.pt)
+        use_importance_scoring: Whether to use importance scoring (Phase 3, default: True)
+        question_type: Question type for importance scoring (e.g., "who", "what")
+        query_entity: Entity being queried (e.g., "hund")
+        query_roots: Query roots for importance scoring
 
     Returns:
         List of candidates with updated 'score' field, sorted by score descending
@@ -237,7 +430,32 @@ def rank_ast_matches(
         logger.warning("No query AST provided, cannot rank")
         return candidates
 
-    logger.info(f"Ranking {len(candidates)} AST matches...")
+    logger.info(f"Ranking {len(candidates)} AST matches (use_embeddings={use_embeddings}, use_importance={use_importance_scoring})...")
+
+    # Load embeddings if needed
+    embeddings = {}
+    if use_embeddings:
+        embeddings = load_embeddings(embedding_path)
+        if embeddings and not query_roots:
+            query_roots = get_all_roots_from_ast(query_ast)
+            logger.debug(f"Query roots for embedding: {query_roots}")
+
+    # Initialize importance scorer if needed (Phase 3)
+    importance_scorer = None
+    from klareco.rag.importance_scorer import QuestionType
+    qt_enum = None
+    if use_importance_scoring:
+        try:
+            from klareco.rag.importance_scorer import FactImportanceScorer, classify_question_type
+            importance_scorer = FactImportanceScorer(use_embeddings=False)  # Embeddings handled separately
+            # Convert question type string to enum
+            if question_type:
+                qt_str = question_type.upper() if isinstance(question_type, str) else str(question_type).split('.')[-1].upper()
+                qt_enum = QuestionType[qt_str] if hasattr(QuestionType, qt_str) else QuestionType.OTHER
+            logger.debug(f"Importance scoring enabled with question_type={qt_enum}")
+        except Exception as e:
+            logger.warning(f"Could not initialize importance scorer: {e}")
+            use_importance_scoring = False
 
     for cand in candidates:
         cand_ast = cand.get('ast')
@@ -246,38 +464,75 @@ def rank_ast_matches(
             cand['score_breakdown'] = {'error': 'No AST'}
             continue
 
-        # Component scores
-        verb_score = score_verb_similarity(query_ast, cand_ast)
-        struct_score = score_structural_match(query_ast, cand_ast)
+        if use_importance_scoring and importance_scorer and qt_enum:
+            # Phase 3: Use importance-aware ranking
+            verb_score = score_verb_similarity(query_ast, cand_ast) * 0.3  # Reduced from 40% to 30%
+            struct_score = score_structural_match(query_ast, cand_ast)  # Still 30% (20% subject + 10% from object reduction)
 
-        # Total score (without embeddings)
-        total_score = verb_score + struct_score
+            # Extract fact from candidate AST and score importance (40% weight)
+            try:
+                from klareco.rag.fact_extractor import FactExtractor
+                extractor = FactExtractor()
+                facts = extractor.extract(cand_ast, source_sentence=cand.get('text', ''))
 
-        # Optional: Add embedding similarity
-        emb_score = 0.0
-        if use_embeddings:
-            # TODO: Implement root embedding similarity
-            # This would load root embeddings and compute cosine similarity
-            # between query roots and candidate roots
+                # Score the first fact (most relevant)
+                importance_score = 0.0
+                if facts:
+                    fact_breakdown = importance_scorer.score(
+                        facts[0], qt_enum, query_entity, query_roots or [],
+                        source_metadata=cand.get('metadata', {})
+                    )
+                    importance_score = fact_breakdown.final_score * 0.4  # 40% weight
+                    logger.debug(f"Importance score: {importance_score:.2f} from {fact_breakdown}")
+            except Exception as e:
+                logger.debug(f"Could not extract/score fact: {e}")
+                importance_score = 0.0
+
+            # Embedding similarity (10%)
             emb_score = 0.0
+            if use_embeddings and embeddings and query_roots:
+                cand_roots = get_all_roots_from_ast(cand_ast)
+                similarity = compute_embedding_similarity(query_roots, cand_roots, embeddings)
+                emb_score = similarity * embedding_weight
 
-        total_score += emb_score
+            total_score = verb_score + struct_score + importance_score + emb_score
 
-        # Update candidate with score
-        cand['score'] = total_score
-        cand['score_breakdown'] = {
-            'verb_similarity': verb_score,
-            'structural_match': struct_score,
-            'embedding_similarity': emb_score,
-            'total': total_score
-        }
+            cand['score'] = total_score
+            cand['score_breakdown'] = {
+                'verb_similarity': verb_score,
+                'structural_match': struct_score,
+                'importance': importance_score,
+                'embedding_similarity': emb_score,
+                'total': total_score
+            }
+        else:
+            # Original ranking (no importance scoring)
+            verb_score = score_verb_similarity(query_ast, cand_ast)
+            struct_score = score_structural_match(query_ast, cand_ast)
 
-        logger.debug(f"Candidate: {cand.get('text', '')[:50]}... → score={total_score:.2f}")
+            emb_score = 0.0
+            if use_embeddings and embeddings and query_roots:
+                cand_roots = get_all_roots_from_ast(cand_ast)
+                similarity = compute_embedding_similarity(query_roots, cand_roots, embeddings)
+                emb_score = similarity * embedding_weight
+
+            total_score = verb_score + struct_score + emb_score
+
+            cand['score'] = total_score
+            cand['score_breakdown'] = {
+                'verb_similarity': verb_score,
+                'structural_match': struct_score,
+                'embedding_similarity': emb_score,
+                'total': total_score
+            }
+
+        logger.debug(f"Candidate: {cand.get('text', '')[:50]}... → score={cand['score']:.2f}")
 
     # Sort by score descending
     ranked = sorted(candidates, key=lambda x: x['score'], reverse=True)
 
-    logger.info(f"Ranked results: scores range {ranked[0]['score']:.2f} to {ranked[-1]['score']:.2f}")
+    if ranked:
+        logger.info(f"Ranked results: scores range {ranked[0]['score']:.2f} to {ranked[-1]['score']:.2f}")
 
     return ranked
 

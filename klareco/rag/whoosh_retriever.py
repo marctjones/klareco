@@ -214,11 +214,88 @@ class WhooshRetriever:
 
         return 'UNKNOWN'
 
+    def _retrieve_who_passive_pattern(self, verb_root: str, verb_synonyms: List[str],
+                                       obj_root: str, top_k: int, query_ast: Dict) -> List[Dict]:
+        """
+        Retrieve WHO questions using passive voice pattern (Phase 2 improvement).
+
+        For query "Kiu fondis Esperanton?" also matches:
+        - "Esperanto estis fondita de Zamenhof" (passive voice)
+        - Looks for: object as subject + "est" + past participle + "de" agent
+
+        Args:
+            verb_root: Main verb root (e.g., "fond")
+            verb_synonyms: Synonym roots (e.g., ["kre"])
+            obj_root: Object/patient root (e.g., "esperant")
+            top_k: Number of results
+            query_ast: Query AST for ranking
+
+        Returns:
+            List of documents with passive voice constructions
+        """
+        # Build list of verb roots to check (including synonyms)
+        all_verbs = [verb_root] + list(verb_synonyms)
+
+        logger.info(f"WHO passive pattern: verbs={all_verbs}, patient={obj_root}")
+
+        # Passive pattern: Patient as subject + "est" + participle-ita
+        # Look for sentences where:
+        # - Subject contains object root (patient becomes subject in passive)
+        # - Verb is "est" (estas, estis)
+        # - Has participle in "aliaj" matching verb roots
+        # - Ideally has "de" preposition introducing agent
+
+        # We'll look for sentences with patient as subject and "est" verb
+        # The participle and agent detection would require more complex pattern matching
+        # For now, match subject=patient + verb="est" which often indicates passive
+
+        kuzu_query_passive = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTGRUPO]->(subj_vg:Vortgrupo)-[:HAVAS_KERNON]->(subj:Vorto)
+            WHERE subj.radiko = '{obj_root}'
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko = 'est'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+
+        # Also try with subject as single Vorto
+        kuzu_query_passive_simple = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTO]->(subj:Vorto)
+            WHERE subj.radiko = '{obj_root}'
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko = 'est'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+
+        # Execute both queries and merge
+        results_vg = self._execute_kuzu_query(kuzu_query_passive, top_k, [obj_root], query_ast=query_ast)
+        results_simple = self._execute_kuzu_query(kuzu_query_passive_simple, top_k, [obj_root], query_ast=query_ast)
+
+        # Merge and deduplicate
+        all_results = results_vg + results_simple
+        seen_ids = set()
+        unique_results = []
+        for doc in all_results:
+            doc_id = doc.get('id')
+            if doc_id not in seen_ids:
+                seen_ids.add(doc_id)
+                unique_results.append(doc)
+
+        logger.info(f"WHO passive pattern found {len(unique_results)} documents")
+
+        return unique_results
+
     def _retrieve_who_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """
-        Retrieve WHO questions: two sub-patterns:
-        1. Action: "Kiu VERB-is OBJECT-n?" (e.g., "Kiu fondis Esperanton?")
-        2. Identity: "Kiu estis ENTITY?" (e.g., "Kiu estis Zamenhof?")
+        Retrieve WHO questions with Phase 2 improvement: passive voice support.
+
+        Patterns:
+        1. Active: "Kiu fondis Esperanton?" → "X fondis Esperanton"
+        2. Passive: "Kiu fondis Esperanton?" → "Esperanto estis fondita de X"
+        3. Identity: "Kiu estis X?" → sentences about X
         """
         from klareco.knowledge import get_synonyms
 
@@ -257,18 +334,65 @@ class WhooshRetriever:
 
         logger.info(f"WHO action pattern: verb={verb_constraint}, object={obj_root}")
 
-        # Kuzu query: Match verb + object (accusative preferred, but also check nominative)
-        kuzu_query = f"""
+        # Phase 2.1: Active voice pattern (original)
+        kuzu_query_active = f"""
             MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko IN [{verb_list_str}]
             MATCH (frazo)-[:HAVAS_OBJEKTON_VORTGRUPO]->(obj_vg:Vortgrupo)-[:HAVAS_KERNON]->(obj_kerno:Vorto)
             WHERE obj_kerno.radiko = '{obj_root}' AND obj_kerno.kazo = 'akuzativo'
             RETURN ft.id AS id, ft.teksto AS text
-            LIMIT {top_k * 5}
+            LIMIT {top_k * 3}
         """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + [obj_root], query_ast=query_ast)
+        active_results = self._execute_kuzu_query(kuzu_query_active, top_k, verb_constraint + [obj_root], query_ast=query_ast)
+
+        # Phase 2.2: Passive voice pattern (new)
+        passive_results = self._retrieve_who_passive_pattern(
+            verb_root, verb_synonyms, obj_root, top_k, query_ast
+        )
+
+        # Merge active + passive results, deduplicating by id
+        seen_ids = {doc.get('id') for doc in active_results}
+        merged_results = active_results[:]
+        for doc in passive_results:
+            if doc.get('id') not in seen_ids:
+                merged_results.append(doc)
+                seen_ids.add(doc.get('id'))
+
+        logger.info(f"WHO pattern: {len(active_results)} active + {len(passive_results)} passive = {len(merged_results)} total")
+
+        # Phase 4: Add grammatical variant results (participial, relative clause, appositive)
+        from klareco.rag.grammatical_variants import GrammaticalVariantGenerator
+
+        variant_gen = GrammaticalVariantGenerator()
+        variants = variant_gen.generate_who_variants(
+            verb_root=verb_root,
+            verb_synonyms=verb_synonyms,
+            obj_root=obj_root,
+            top_k=top_k // 2  # Get fewer results per variant
+        )
+
+        variant_results = self._execute_variant_queries(
+            variants=variants,
+            top_k=top_k // 2,
+            matching_roots=verb_constraint + [obj_root],
+            query_ast=query_ast,
+            question_type='KIU',
+            query_entity=obj_root
+        )
+
+        # Merge variant results
+        for doc in variant_results:
+            if doc.get('id') not in seen_ids:
+                merged_results.append(doc)
+                seen_ids.add(doc.get('id'))
+
+        logger.info(f"WHO pattern with variants: {len(merged_results)} total results")
+
+        # Re-sort by score and return top_k
+        merged_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+        return merged_results[:top_k]
 
     def _retrieve_where_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve WHERE questions: location prepositional phrases."""
@@ -309,7 +433,44 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
+        base_results = self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
+
+        # Phase 4: Add grammatical variant results (participial, nominalization)
+        if entity_root:
+            from klareco.rag.grammatical_variants import GrammaticalVariantGenerator
+
+            variant_gen = GrammaticalVariantGenerator()
+            variants = variant_gen.generate_where_variants(
+                verb_root=verb_root,
+                verb_synonyms=verb_synonyms,
+                entity_root=entity_root,
+                top_k=top_k // 2
+            )
+
+            variant_results = self._execute_variant_queries(
+                variants=variants,
+                top_k=top_k // 2,
+                matching_roots=verb_constraint + [entity_root],
+                query_ast=query_ast,
+                question_type='KIE',
+                query_entity=entity_root
+            )
+
+            # Merge variant results
+            seen_ids = {doc.get('id') for doc in base_results}
+            merged_results = base_results[:]
+            for doc in variant_results:
+                if doc.get('id') not in seen_ids:
+                    merged_results.append(doc)
+                    seen_ids.add(doc.get('id'))
+
+            logger.info(f"WHERE pattern with variants: {len(merged_results)} total results")
+
+            # Re-sort by score and return top_k
+            merged_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+            return merged_results[:top_k]
+        else:
+            return base_results
 
     def _retrieve_when_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve WHEN questions: temporal expressions."""
@@ -348,10 +509,139 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
+        base_results = self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
+
+        # Phase 4: Add grammatical variant results (nominalization, participial)
+        if entity_root:
+            from klareco.rag.grammatical_variants import GrammaticalVariantGenerator
+
+            variant_gen = GrammaticalVariantGenerator()
+            variants = variant_gen.generate_when_variants(
+                verb_root=verb_root,
+                verb_synonyms=verb_synonyms,
+                entity_root=entity_root,
+                top_k=top_k // 2
+            )
+
+            variant_results = self._execute_variant_queries(
+                variants=variants,
+                top_k=top_k // 2,
+                matching_roots=verb_constraint + [entity_root],
+                query_ast=query_ast,
+                question_type='KIAM',
+                query_entity=entity_root
+            )
+
+            # Merge variant results
+            seen_ids = {doc.get('id') for doc in base_results}
+            merged_results = base_results[:]
+            for doc in variant_results:
+                if doc.get('id') not in seen_ids:
+                    merged_results.append(doc)
+                    seen_ids.add(doc.get('id'))
+
+            logger.info(f"WHEN pattern with variants: {len(merged_results)} total results")
+
+            # Re-sort by score and return top_k
+            merged_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+            return merged_results[:top_k]
+        else:
+            return base_results
+
+    def _retrieve_is_a_pattern(self, entity_root: str, top_k: int, query_ast: Dict) -> List[Dict]:
+        """
+        Retrieve IS-A facts for an entity (Phase 1 improvement).
+
+        Matches definitional patterns in priority order:
+        1. Direct IS-A: "X estas Y" (entity as subject)
+        2. Reverse IS-A: "Y estas X" (entity as predicate nominative)
+
+        This fixes WHAT questions which were matching narrative sentences
+        instead of definitional IS-A relations.
+
+        Args:
+            entity_root: Root form of entity (e.g., "hund" for "hundo")
+            top_k: Number of results to return
+            query_ast: Query AST for semantic ranking
+
+        Returns:
+            List of documents with IS-A relations
+        """
+        logger.info(f"IS-A pattern: entity={entity_root}")
+
+        # Priority 1: Direct IS-A (entity as subject)
+        # Pattern: "Hundo estas besto" → entity=hund IS-A besto
+        kuzu_query_direct = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTGRUPO]->(subj_vg:Vortgrupo)-[:HAVAS_KERNON]->(subj:Vorto)
+            WHERE subj.radiko = '{entity_root}'
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko = 'est'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+
+        # Also try with subject as single Vorto (not in Vortgrupo)
+        kuzu_query_direct_simple = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTO]->(subj:Vorto)
+            WHERE subj.radiko = '{entity_root}'
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko = 'est'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+
+        # Priority 2: Reverse IS-A (entity as predicate nominative in objekto)
+        # Pattern: "Besto estas hundo" → besto IS-A hund
+        kuzu_query_reverse = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko = 'est'
+            MATCH (frazo)-[:HAVAS_OBJEKTON_VORTGRUPO]->(obj_vg:Vortgrupo)-[:HAVAS_KERNON]->(obj:Vorto)
+            WHERE obj.radiko = '{entity_root}'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+
+        # Also try with objekto as single Vorto
+        kuzu_query_reverse_simple = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko = 'est'
+            MATCH (frazo)-[:HAVAS_OBJEKTON_VORTO]->(obj:Vorto)
+            WHERE obj.radiko = '{entity_root}'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+
+        # Try all IS-A patterns and merge results
+        results_direct = self._execute_kuzu_query(kuzu_query_direct, top_k, [entity_root], query_ast=query_ast)
+        results_direct_simple = self._execute_kuzu_query(kuzu_query_direct_simple, top_k, [entity_root], query_ast=query_ast)
+        results_reverse = self._execute_kuzu_query(kuzu_query_reverse, top_k, [entity_root], query_ast=query_ast)
+        results_reverse_simple = self._execute_kuzu_query(kuzu_query_reverse_simple, top_k, [entity_root], query_ast=query_ast)
+
+        # Merge and deduplicate by id
+        all_results = results_direct + results_direct_simple + results_reverse + results_reverse_simple
+        seen_ids = set()
+        unique_results = []
+        for doc in all_results:
+            doc_id = doc.get('id')
+            if doc_id not in seen_ids:
+                seen_ids.add(doc_id)
+                unique_results.append(doc)
+
+        logger.info(f"IS-A pattern found {len(unique_results)} unique documents")
+
+        return unique_results[:top_k]
 
     def _retrieve_what_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
-        """Retrieve WHAT questions: definition patterns (estas + entity)."""
+        """
+        Retrieve WHAT questions: prioritize IS-A definitional patterns.
+
+        Phase 1 improvement: Use explicit IS-A pattern matching instead of
+        generic entity mentions. This fixes WHAT questions which were 0% accurate.
+        """
         verb_root, entity_root = self._extract_verb_and_object(query_ast)
 
         if not entity_root:
@@ -360,16 +650,65 @@ class WhooshRetriever:
 
         logger.info(f"WHAT pattern: entity={entity_root}")
 
-        # Kuzu query: Match entity mentions (definition context)
-        kuzu_query = f"""
+        # Phase 1: Try IS-A pattern first (highest priority)
+        is_a_results = self._retrieve_is_a_pattern(entity_root, top_k, query_ast)
+
+        if len(is_a_results) >= top_k // 2:
+            # IS-A retrieval successful, return these results
+            logger.info(f"IS-A retrieval successful: {len(is_a_results)} results")
+            return is_a_results
+
+        # Fallback: Generic entity mention (original behavior)
+        # Only used if IS-A pattern returns too few results
+        logger.info(f"IS-A returned only {len(is_a_results)} results, adding generic mentions")
+
+        kuzu_query_generic = f"""
             MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
             MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
             WHERE alia.radiko = '{entity_root}'
             RETURN ft.id AS id, ft.teksto AS text
-            LIMIT {top_k * 5}
+            LIMIT {top_k * 3}
         """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, [entity_root], query_ast=query_ast)
+        generic_results = self._execute_kuzu_query(kuzu_query_generic, top_k, [entity_root], query_ast=query_ast)
+
+        # Merge IS-A + generic, deduplicating by id
+        seen_ids = {doc.get('id') for doc in is_a_results}
+        merged_results = is_a_results[:]
+        for doc in generic_results:
+            if doc.get('id') not in seen_ids:
+                merged_results.append(doc)
+                seen_ids.add(doc.get('id'))
+
+        # Phase 4: Add grammatical variant results (appositive, relative clause)
+        from klareco.rag.grammatical_variants import GrammaticalVariantGenerator
+
+        variant_gen = GrammaticalVariantGenerator()
+        variants = variant_gen.generate_what_variants(
+            entity_root=entity_root,
+            top_k=top_k // 2
+        )
+
+        variant_results = self._execute_variant_queries(
+            variants=variants,
+            top_k=top_k // 2,
+            matching_roots=[entity_root],
+            query_ast=query_ast,
+            question_type='KIO',
+            query_entity=entity_root
+        )
+
+        # Merge variant results
+        for doc in variant_results:
+            if doc.get('id') not in seen_ids:
+                merged_results.append(doc)
+                seen_ids.add(doc.get('id'))
+
+        logger.info(f"WHAT pattern with variants: {len(merged_results)} total results")
+
+        # Re-sort by score and return top_k
+        merged_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+        return merged_results[:top_k]
 
     def _retrieve_why_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve WHY questions: causal markers (ĉar, pro, por)."""
@@ -551,7 +890,15 @@ class WhooshRetriever:
 
         return verb_root, obj_root
 
-    def _execute_kuzu_query(self, kuzu_query: str, top_k: int, matching_roots: List[str], query_ast: Optional[Dict] = None) -> List[Dict]:
+    def _execute_kuzu_query(
+        self,
+        kuzu_query: str,
+        top_k: int,
+        matching_roots: List[str],
+        query_ast: Optional[Dict] = None,
+        question_type: Optional[str] = None,
+        query_entity: Optional[str] = None
+    ) -> List[Dict]:
         """
         Execute Kuzu query and return formatted documents with semantic ranking.
 
@@ -565,6 +912,8 @@ class WhooshRetriever:
             top_k: Number of top results to return
             matching_roots: Roots that matched (for metadata)
             query_ast: Query AST for semantic ranking (if None, uses rank order)
+            question_type: Question type for importance scoring (Phase 3)
+            query_entity: Query entity for importance scoring (Phase 3)
         """
         try:
             result = self.kuzu_conn.execute(kuzu_query)
@@ -617,10 +966,15 @@ class WhooshRetriever:
             from klareco.rag.ast_semantic_ranker import rank_ast_matches
 
             # Rank candidates by semantic similarity
+            # Phase 3: Enable importance-aware ranking
             ranked_documents = rank_ast_matches(
                 query_ast=query_ast,
                 candidates=documents[:max_parse],
-                use_embeddings=False  # TODO: Enable after testing deterministic ranking
+                use_embeddings=True,  # Now enabled - uses 64D root embeddings
+                use_importance_scoring=True,  # Phase 3: Integrate importance scoring
+                question_type=question_type,   # Phase 3: Pass question type for importance
+                query_entity=query_entity,     # Phase 3: Pass query entity
+                query_roots=matching_roots     # Phase 3: Pass query roots
             )
 
             logger.info(f"Semantic ranking complete. Top score: {ranked_documents[0]['score']:.2f}")
@@ -629,6 +983,72 @@ class WhooshRetriever:
             # Fallback: Use rank order (old behavior)
             logger.warning("No query_ast provided for semantic ranking, using rank order")
             return documents[:top_k]
+
+    def _execute_variant_queries(
+        self,
+        variants: List,  # List[GrammaticalVariant]
+        top_k: int,
+        matching_roots: List[str],
+        query_ast: Optional[Dict] = None,
+        question_type: Optional[str] = None,
+        query_entity: Optional[str] = None
+    ) -> List[Dict]:
+        """
+        Execute grammatical variant queries and merge results.
+
+        Phase 4: Grammatical Variant Framework
+        Execute Cypher queries for participial, nominalization, relative clause,
+        and appositive constructions. Merge with confidence weighting.
+
+        Args:
+            variants: List of GrammaticalVariant objects with cypher_query and confidence
+            top_k: Number of results to return per variant
+            matching_roots: Roots that matched (for metadata)
+            query_ast: Query AST for semantic ranking
+            question_type: Question type for importance scoring
+            query_entity: Query entity for importance scoring
+
+        Returns:
+            Merged list of documents with confidence-weighted scores
+        """
+        all_results = []
+        seen_ids = set()
+
+        for variant in variants:
+            logger.info(f"Executing variant: {variant.description} (confidence={variant.confidence})")
+
+            try:
+                # Execute variant query
+                variant_results = self._execute_kuzu_query(
+                    kuzu_query=variant.cypher_query,
+                    top_k=top_k,
+                    matching_roots=matching_roots,
+                    query_ast=query_ast,
+                    question_type=question_type,
+                    query_entity=query_entity
+                )
+
+                # Apply confidence weighting to scores
+                for doc in variant_results:
+                    if doc.get('id') not in seen_ids:
+                        # Weight score by variant confidence
+                        doc['score'] = doc['score'] * variant.confidence
+                        doc['variant_type'] = variant.pattern_type.value
+                        doc['variant_confidence'] = variant.confidence
+                        all_results.append(doc)
+                        seen_ids.add(doc.get('id'))
+
+                logger.info(f"Variant {variant.pattern_type.value} returned {len(variant_results)} results")
+
+            except Exception as e:
+                logger.warning(f"Variant query failed: {e}")
+                continue
+
+        # Sort by score (already confidence-weighted)
+        all_results.sort(key=lambda x: x['score'], reverse=True)
+
+        logger.info(f"Total unique results from {len(variants)} variants: {len(all_results)}")
+        return all_results[:top_k]
 
     def retrieve(
         self,

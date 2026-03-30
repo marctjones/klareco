@@ -247,7 +247,7 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-            return self._execute_kuzu_query(kuzu_query, top_k, [obj_root])
+            return self._execute_kuzu_query(kuzu_query, top_k, [obj_root], query_ast=query_ast)
 
         # Action question pattern: "Kiu VERB-is OBJECT-n?"
         # Use verb synonym expansion for recall
@@ -268,7 +268,7 @@ class WhooshRetriever:
             LIMIT {top_k * 5}
         """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + [obj_root])
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + [obj_root], query_ast=query_ast)
 
     def _retrieve_where_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve WHERE questions: location prepositional phrases."""
@@ -309,7 +309,7 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []))
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
 
     def _retrieve_when_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve WHEN questions: temporal expressions."""
@@ -348,7 +348,7 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []))
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
 
     def _retrieve_what_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve WHAT questions: definition patterns (estas + entity)."""
@@ -369,7 +369,7 @@ class WhooshRetriever:
             LIMIT {top_k * 5}
         """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, [entity_root])
+        return self._execute_kuzu_query(kuzu_query, top_k, [entity_root], query_ast=query_ast)
 
     def _retrieve_why_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve WHY questions: causal markers (ĉar, pro, por)."""
@@ -407,7 +407,7 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []))
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
 
     def _retrieve_how_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve HOW questions: manner patterns."""
@@ -445,7 +445,7 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []))
+        return self._execute_kuzu_query(kuzu_query, top_k, verb_constraint + ([entity_root] if entity_root else []), query_ast=query_ast)
 
     def _retrieve_how_many_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Retrieve HOW_MANY questions: numeric patterns."""
@@ -466,7 +466,7 @@ class WhooshRetriever:
             LIMIT {top_k * 5}
         """
 
-        return self._execute_kuzu_query(kuzu_query, top_k, [entity_root])
+        return self._execute_kuzu_query(kuzu_query, top_k, [entity_root], query_ast=query_ast)
 
     def _retrieve_generic_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Generic fallback: match verb + entity."""
@@ -488,7 +488,7 @@ class WhooshRetriever:
                 RETURN ft.id AS id, ft.teksto AS text
                 LIMIT {top_k * 5}
             """
-            return self._execute_kuzu_query(kuzu_query, top_k, [verb_root, entity_root])
+            return self._execute_kuzu_query(kuzu_query, top_k, [verb_root, entity_root], query_ast=query_ast)
         elif verb_root:
             kuzu_query = f"""
                 MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
@@ -497,7 +497,7 @@ class WhooshRetriever:
                 RETURN ft.id AS id, ft.teksto AS text
                 LIMIT {top_k * 5}
             """
-            return self._execute_kuzu_query(kuzu_query, top_k, [verb_root])
+            return self._execute_kuzu_query(kuzu_query, top_k, [verb_root], query_ast=query_ast)
         else:
             kuzu_query = f"""
                 MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
@@ -506,7 +506,7 @@ class WhooshRetriever:
                 RETURN ft.id AS id, ft.teksto AS text
                 LIMIT {top_k * 5}
             """
-            return self._execute_kuzu_query(kuzu_query, top_k, [entity_root])
+            return self._execute_kuzu_query(kuzu_query, top_k, [entity_root], query_ast=query_ast)
 
     def _extract_verb_and_object(self, query_ast: Dict) -> tuple:
         """Extract verb and object roots from query AST."""
@@ -551,8 +551,21 @@ class WhooshRetriever:
 
         return verb_root, obj_root
 
-    def _execute_kuzu_query(self, kuzu_query: str, top_k: int, matching_roots: List[str]) -> List[Dict]:
-        """Execute Kuzu query and return formatted documents."""
+    def _execute_kuzu_query(self, kuzu_query: str, top_k: int, matching_roots: List[str], query_ast: Optional[Dict] = None) -> List[Dict]:
+        """
+        Execute Kuzu query and return formatted documents with semantic ranking.
+
+        NEW: Semantic AST ranking (Issue #713)
+        - Parse ASTs for all candidates (not just top_k)
+        - Score by structural and semantic similarity
+        - Return top_k after ranking
+
+        Args:
+            kuzu_query: Cypher query to execute
+            top_k: Number of top results to return
+            matching_roots: Roots that matched (for metadata)
+            query_ast: Query AST for semantic ranking (if None, uses rank order)
+        """
         try:
             result = self.kuzu_conn.execute(kuzu_query)
         except Exception as e:
@@ -571,9 +584,9 @@ class WhooshRetriever:
 
             documents.append({
                 'text': text,
-                'ast': None,  # Lazy parsing
+                'ast': None,  # Will parse below
                 'id': sentence_id,
-                'score': 100.0 - len(documents),  # Rank order score
+                'score': 100.0 - len(documents),  # Temporary rank order score
                 'matching_roots': matching_roots,
                 'num_matches': len(matching_roots),
                 'doc_title': '',
@@ -583,19 +596,39 @@ class WhooshRetriever:
 
         logger.info(f"Kuzu query returned {len(documents)} sentences")
 
-        # Parse ASTs on-demand using parser (faster than Kuzu reconstruction)
-        # Kuzu reconstruction: 58s for 20 ASTs (2.9s per AST)
-        # Parser: ~0.1s per AST (30x faster)
+        if not documents:
+            return []
+
+        # Parse ASTs for ALL candidates (needed for semantic ranking)
+        # Limit parsing to reasonable number to avoid performance issues
+        max_parse = min(len(documents), top_k * 5)  # Parse at most 5x top_k
         from klareco.parser import parse
 
-        for doc in documents[:top_k]:
+        for doc in documents[:max_parse]:
             try:
                 doc['ast'] = parse(doc['text'])
             except Exception as e:
                 logger.warning(f"Failed to parse sentence {doc['id']}: {e}")
                 doc['ast'] = None
 
-        return documents[:top_k]
+        # === NEW: Semantic AST Ranking (Issue #713) ===
+        if query_ast:
+            logger.info("Applying semantic AST ranking...")
+            from klareco.rag.ast_semantic_ranker import rank_ast_matches
+
+            # Rank candidates by semantic similarity
+            ranked_documents = rank_ast_matches(
+                query_ast=query_ast,
+                candidates=documents[:max_parse],
+                use_embeddings=False  # TODO: Enable after testing deterministic ranking
+            )
+
+            logger.info(f"Semantic ranking complete. Top score: {ranked_documents[0]['score']:.2f}")
+            return ranked_documents[:top_k]
+        else:
+            # Fallback: Use rank order (old behavior)
+            logger.warning("No query_ast provided for semantic ranking, using rank order")
+            return documents[:top_k]
 
     def retrieve(
         self,

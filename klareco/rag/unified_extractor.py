@@ -441,6 +441,10 @@ class UnifiedASTExtractor:
         """
         Get entity name from AST node (recursively for vortgrupo).
 
+        Phase 3 FIX: Handle compound words correctly.
+        For "planlingvo", AST has kunmetitaj_radikoj=['plan', 'lingv'], radiko='lingv'
+        We need to extract 'planlingv' (full compound), not just 'lingv'.
+
         Returns:
             Entity name string or None
         """
@@ -448,7 +452,12 @@ class UnifiedASTExtractor:
             return None
 
         if node.get('tipo') == 'vorto':
-            root = node.get('radiko', '')
+            # Phase 3 FIX: Extract full compound word
+            if node.get('kunmetitaj_radikoj'):
+                root = ''.join(node['kunmetitaj_radikoj'])  # "planlingv"
+            else:
+                root = node.get('radiko', '')  # "hund"
+
             # Capitalize proper nouns
             vortspeco = node.get('vortspeco', '')
             if vortspeco == 'propranomo' or (root and root[0].isupper()):

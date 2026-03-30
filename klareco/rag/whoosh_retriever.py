@@ -981,6 +981,11 @@ class WhooshRetriever:
         - Score by structural and semantic similarity
         - Return top_k after ranking
 
+        Phase 2: Context-Aware Scoring
+        - Automatically adds OPTIONAL MATCH for neighboring sentences
+        - Context fetching is essentially free (~5ms overhead per query)
+        - Enables anaphora resolution, definitional continuation, topic coherence
+
         Args:
             kuzu_query: Cypher query to execute
             top_k: Number of top results to return
@@ -989,18 +994,26 @@ class WhooshRetriever:
             question_type: Question type for importance scoring (Phase 3)
             query_entity: Query entity for importance scoring (Phase 3)
         """
+        # Phase 2: Enhance query to fetch context (prev/next sentences)
+        # Insert OPTIONAL MATCH before RETURN statement
+        enhanced_query = self._add_context_to_query(kuzu_query)
+
         try:
-            result = self.kuzu_conn.execute(kuzu_query)
+            result = self.kuzu_conn.execute(enhanced_query)
         except Exception as e:
             logger.error(f"Kuzu query failed: {e}")
+            logger.error(f"Query was: {enhanced_query}")
             return []
 
-        # Build documents
+        # Build documents (now with context!)
         documents = []
         while result.has_next():
             row = result.get_next()
             sentence_id = str(row[0])
             text = row[1]
+            # Phase 2: Extract context (may be None if no prev/next)
+            prev_text = row[2] if len(row) > 2 else None
+            next_text = row[3] if len(row) > 3 else None
 
             if not text:
                 continue
@@ -1013,7 +1026,10 @@ class WhooshRetriever:
                 'matching_roots': matching_roots,
                 'num_matches': len(matching_roots),
                 'doc_title': '',
-                'metadata': '',
+                'metadata': {
+                    'prev_text': prev_text or '',
+                    'next_text': next_text or ''
+                },
                 'retrieval_method': 'ast_role_query'
             })
 
@@ -1057,6 +1073,67 @@ class WhooshRetriever:
             # Fallback: Use rank order (old behavior)
             logger.warning("No query_ast provided for semantic ranking, using rank order")
             return documents[:top_k]
+
+    def _add_context_to_query(self, kuzu_query: str) -> str:
+        """
+        Enhance Kuzu query to fetch neighboring sentences (context).
+
+        Phase 2: Context-Aware Scoring
+        - Adds OPTIONAL MATCH for previous/next sentences via SEKVA_FRAZOTEKSTO
+        - Context fetching is essentially free (~5ms overhead)
+        - Enables anaphora resolution, definitional continuation, topic coherence
+
+        Strategy:
+        1. Find the RETURN statement
+        2. Insert OPTIONAL MATCH clauses before it
+        3. Modify RETURN to include prev.teksto, next.teksto
+
+        Args:
+            kuzu_query: Original Cypher query (expects RETURN ft.id AS id, ft.teksto AS text)
+
+        Returns:
+            Enhanced query with context fetching
+        """
+        import re
+
+        # Find RETURN statement
+        return_match = re.search(r'RETURN\s+', kuzu_query, re.IGNORECASE)
+        if not return_match:
+            logger.warning("Could not find RETURN in query, skipping context enhancement")
+            return kuzu_query
+
+        return_pos = return_match.start()
+
+        # Context clauses to insert before RETURN
+        context_clauses = """
+            OPTIONAL MATCH (prev:Frazoteksto)-[:SEKVA_FRAZOTEKSTO]->(ft)
+            OPTIONAL MATCH (ft)-[:SEKVA_FRAZOTEKSTO]->(next:Frazoteksto)
+        """
+
+        # Insert context clauses
+        enhanced_query = kuzu_query[:return_pos] + context_clauses + kuzu_query[return_pos:]
+
+        # Modify RETURN clause to include context
+        # Find what's being returned (e.g., "ft.id AS id, ft.teksto AS text")
+        return_clause_match = re.search(
+            r'RETURN\s+(.*?)(?:LIMIT|ORDER BY|$)',
+            enhanced_query,
+            re.IGNORECASE | re.DOTALL
+        )
+
+        if return_clause_match:
+            original_return = return_clause_match.group(1).strip()
+            # Add prev.teksto and next.teksto to RETURN
+            enhanced_return = f"{original_return}, prev.teksto AS prev_text, next.teksto AS next_text"
+            enhanced_query = re.sub(
+                r'(RETURN\s+).*?(?=LIMIT|ORDER BY|$)',
+                r'\1' + enhanced_return + '\n            ',
+                enhanced_query,
+                count=1,
+                flags=re.IGNORECASE | re.DOTALL
+            )
+
+        return enhanced_query
 
     def _execute_variant_queries(
         self,

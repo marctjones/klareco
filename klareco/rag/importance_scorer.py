@@ -397,41 +397,73 @@ class FactImportanceScorer:
         """
         Score how definitional/central the fact is.
 
-        IS-A relations are inherently definitional.
-        First sentences in documents are often definitional.
-        Wikipedia lead paragraphs contain definitions.
+        Phase 1 improvements:
+        - Sentence complexity (simpler = more direct)
+        - Clause depth (main clause = more central)
+        - Context awareness (anaphora, continuation, etymology)
 
         Issue #683: Apply source quality weighting for +10% precision.
         """
         score = 0.0
 
-        # IS-A facts are definitional by nature
+        # 1. IS-A facts are definitional by nature
         if fact.relation == RelationType.IS_A:
-            score += 0.5
+            score = 0.9  # Strong definitional signal
+        else:
+            score = 0.5  # Base score for other facts
 
-        # First sentence in document
+        # 2. Sentence complexity (simpler = more direct information)
+        if hasattr(fact, 'source_text'):
+            word_count = len(fact.source_text.split())
+            if word_count <= 10:
+                complexity_mult = 1.0   # Short & direct
+            elif word_count <= 20:
+                complexity_mult = 0.9   # Medium
+            else:
+                complexity_mult = 0.7   # Complex (often narrative)
+            score *= complexity_mult
+
+        # 3. Clause depth (main clause = more central)
+        # Get from fact AST if available
+        clause_depth = self._get_clause_depth(fact)
+        if clause_depth == 0:
+            depth_mult = 1.0    # Main clause
+        elif clause_depth == 1:
+            depth_mult = 0.7    # Relative clause
+        else:
+            depth_mult = 0.4    # Deeply nested
+        score *= depth_mult
+
+        # 4. Entity role (subject = primary)
+        entity_role = self._get_entity_role(fact)
+        if entity_role == 'SUBJECT':
+            role_mult = 1.0     # Primary role
+        elif entity_role == 'OBJECT':
+            role_mult = 0.8     # Secondary role
+        elif entity_role == 'MODIFIER':
+            role_mult = 0.5     # Tertiary role
+        else:
+            role_mult = 0.7     # Unknown/mentioned
+
+        score *= role_mult
+
+        # 5. First sentence in document (often definitional)
         sentence_pos = source_metadata.get('sentence_position', -1)
         if sentence_pos == 0:
-            score += 0.3
+            score = min(1.0, score + 0.2)
         elif sentence_pos == 1:
-            score += 0.2
-        elif sentence_pos == 2:
-            score += 0.1
+            score = min(1.0, score + 0.1)
 
-        # Quick Win #683: Apply source quality weighting
+        # 6. Quick Win #683: Apply source quality weighting
         source = self._detect_source(source_metadata)
         source_weight = self.SOURCE_WEIGHTS.get(source, self.SOURCE_WEIGHTS['unknown'])
+        score *= source_weight
 
-        # Boost score based on source quality
-        # High-quality sources (wikipedia=1.0) get full boost
-        # Lower-quality sources (database=0.5) get reduced boost
-        score = score * source_weight
+        # 7. CONTEXT BOOST (Phase 2 - essentially free!)
+        context_boost = self._calculate_context_boost(fact, source_metadata)
+        score = min(1.0, score + context_boost)
 
-        # Additional bonus for Wikipedia (definitive source)
-        if source == 'wikipedia':
-            score += 0.2
-
-        return min(score, 1.0)  # Cap at 1.0
+        return score
 
     def _detect_source(self, source_metadata: Dict) -> str:
         """
@@ -569,6 +601,162 @@ class FactImportanceScorer:
         except Exception as e:
             # Fallback if embedding computation fails
             return 0.5
+
+    def _get_clause_depth(self, fact: Fact) -> int:
+        """
+        Get clause depth from fact source_ast.
+
+        Returns:
+            0 = main clause (most central)
+            1 = relative clause
+            2+ = deeply nested
+        """
+        # Check if fact has source_ast attribute
+        if not hasattr(fact, 'source_ast') or not fact.source_ast:
+            return 0  # Assume main clause if no AST
+
+        # Simple heuristic: count nesting level
+        # In practice, you'd traverse the AST to find clause depth
+        # For now, use a simple approximation based on sentence structure
+
+        source_text = getattr(fact, 'source_text', '')
+        if not source_text:
+            return 0
+
+        # Count relative pronouns and subordinating conjunctions
+        subordinators = ['kiu', 'kio', 'kie', 'kiam', 'kiom', 'kies',
+                        'ke', 'ĉu', 'se', 'kvankam', 'dum', 'ĉar']
+
+        depth = 0
+        text_lower = source_text.lower()
+        for sub in subordinators:
+            if f' {sub} ' in f' {text_lower} ':
+                depth += 1
+
+        return min(depth, 2)  # Cap at 2
+
+    def _get_entity_role(self, fact: Fact) -> str:
+        """
+        Determine entity's grammatical role in the fact.
+
+        Returns:
+            'SUBJECT', 'OBJECT', 'MODIFIER', or 'MENTIONED'
+        """
+        # Check if fact has source_ast with grammatical role info
+        if not hasattr(fact, 'source_ast') or not fact.source_ast:
+            return 'MENTIONED'  # Unknown role
+
+        ast = fact.source_ast
+
+        # Check if entity is in subject position
+        subjekto = ast.get('subjekto', {})
+        if subjekto:
+            if subjekto.get('tipo') == 'vortgrupo':
+                kerno = subjekto.get('kerno', {})
+                if kerno.get('radiko') == fact.entity:
+                    return 'SUBJECT'
+            elif subjekto.get('radiko') == fact.entity:
+                return 'SUBJECT'
+
+        # Check if entity is in object position
+        objekto = ast.get('objekto', {})
+        if objekto:
+            if objekto.get('tipo') == 'vortgrupo':
+                kerno = objekto.get('kerno', {})
+                if kerno.get('radiko') == fact.entity:
+                    return 'OBJECT'
+            elif objekto.get('radiko') == fact.entity:
+                return 'OBJECT'
+
+        # Check if entity is in modifier position
+        aliaj = ast.get('aliaj', [])
+        for alia in aliaj:
+            if isinstance(alia, dict) and alia.get('radiko') == fact.entity:
+                return 'MODIFIER'
+
+        return 'MENTIONED'
+
+    def _calculate_context_boost(self, fact: Fact, source_metadata: Dict) -> float:
+        """
+        Calculate context-based boost using neighboring sentences (Phase 2).
+
+        Context is fetched from Kuzu SEKVA_FRAZOTEKSTO relationships (essentially free!).
+
+        Returns:
+            boost: 0.0 to 0.3
+        """
+        boost = 0.0
+
+        prev_text = source_metadata.get('prev_text', '')
+        next_text = source_metadata.get('next_text', '')
+
+        if not prev_text and not next_text:
+            return 0.0  # No context available
+
+        source_text = getattr(fact, 'source_text', '')
+        if not source_text:
+            return 0.0
+
+        # 1. ANAPHORA RESOLUTION (+0.2)
+        # Current has pronouns, previous provides referent
+        if prev_text and self._has_pronouns(source_text):
+            if self._resolves_anaphora(source_text, prev_text, fact.entity):
+                boost += 0.2
+
+        # 2. DEFINITIONAL CONTINUATION (+0.15)
+        # Next sentence expands the definition
+        if next_text and self._is_definitional(source_text):
+            if self._continues_definition(source_text, next_text):
+                boost += 0.15
+
+        # 3. ETYMOLOGY/ORIGIN (+0.15)
+        # Next sentence explains name origin
+        if next_text:
+            next_lower = next_text.lower()
+            etymology_markers = ['nomo venas', 'devenas de', 'nomita laŭ',
+                               'la nomo', 'venas el', 'nomiĝas laŭ']
+            if any(marker in next_lower for marker in etymology_markers):
+                boost += 0.15
+
+        # 4. TOPIC COHERENCE (+0.1)
+        # Neighbors mention query entity = topically coherent paragraph
+        if fact.entity and (prev_text or next_text):
+            neighbor_text = (prev_text + ' ' + next_text).lower()
+            if fact.entity.lower() in neighbor_text:
+                boost += 0.1
+
+        return min(0.3, boost)  # Cap at 30% boost
+
+    def _has_pronouns(self, text: str) -> bool:
+        """Check if text contains Esperanto pronouns."""
+        pronouns = ['li', 'ŝi', 'ĝi', 'ili', 'tio', 'tiu', 'si']
+        text_lower = ' ' + text.lower() + ' '
+        return any(f' {p} ' in text_lower for p in pronouns)
+
+    def _resolves_anaphora(self, current: str, previous: str, entity: Optional[str]) -> bool:
+        """Check if previous sentence provides pronoun referent."""
+        if not entity:
+            return False
+
+        # Heuristic: previous mentions entity + current has pronoun
+        return entity.lower() in previous.lower() and self._has_pronouns(current)
+
+    def _is_definitional(self, text: str) -> bool:
+        """Check if sentence is definitional (copula pattern)."""
+        text_lower = text.lower()
+        return ' estas ' in text_lower or ' estis ' in text_lower
+
+    def _continues_definition(self, current: str, next_text: str) -> bool:
+        """Check if next sentence continues the definition."""
+        next_lower = next_text.lower()
+
+        # Look for continuation markers + pronoun reference
+        has_pronoun = self._has_pronouns(next_text)
+        continuation_markers = ['ankaŭ', 'kaj', 'plu', 'krome', 'tio estas',
+                               'ĝi havas', 'ili estas', 'ĝi konsistas']
+        has_continuation = any(marker in next_lower for marker in continuation_markers)
+
+        return has_pronoun and has_continuation
 
 
 def classify_question_type(query: str) -> QuestionType:

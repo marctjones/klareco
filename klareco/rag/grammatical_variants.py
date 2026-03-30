@@ -101,7 +101,7 @@ class GrammaticalVariantGenerator:
             5. Appositive: "X, la kreanto de Esperanto"
         """
         variants = []
-        all_verbs = [verb_root] + verb_synonyms
+        all_verbs = [verb_root] + list(verb_synonyms)
         verb_list = "', '".join(all_verbs)
 
         # Variant 3: Participial construction
@@ -269,7 +269,7 @@ class GrammaticalVariantGenerator:
             3. Nominalization: "La naskiĝo de Zamenhof en [loko]"
         """
         variants = []
-        all_verbs = [verb_root] + verb_synonyms
+        all_verbs = [verb_root] + list(verb_synonyms)
         verb_list = "', '".join(all_verbs)
 
         # Variant 2: Participial with location
@@ -348,7 +348,7 @@ class GrammaticalVariantGenerator:
             3. Participial: "Esperanto, fondita en 1887"
         """
         variants = []
-        all_verbs = [verb_root] + verb_synonyms
+        all_verbs = [verb_root] + list(verb_synonyms)
         verb_list = "', '".join(all_verbs)
 
         # Variant 2: Nominalization with temporal

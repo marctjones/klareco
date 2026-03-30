@@ -571,10 +571,11 @@ class WhooshRetriever:
 
         # Priority 1: Direct IS-A (entity as subject)
         # Pattern: "Hundo estas besto" → entity=hund IS-A besto
+        # NOTE: Use plena_vorto STARTS WITH to match compound words (e.g., "planlingvo")
         kuzu_query_direct = f"""
             MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
             MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTGRUPO]->(subj_vg:Vortgrupo)-[:HAVAS_KERNON]->(subj:Vorto)
-            WHERE subj.radiko = '{entity_root}'
+            WHERE subj.plena_vorto STARTS WITH '{entity_root}'
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko = 'est'
             RETURN ft.id AS id, ft.teksto AS text
@@ -585,7 +586,7 @@ class WhooshRetriever:
         kuzu_query_direct_simple = f"""
             MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
             MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTO]->(subj:Vorto)
-            WHERE subj.radiko = '{entity_root}'
+            WHERE subj.plena_vorto STARTS WITH '{entity_root}'
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko = 'est'
             RETURN ft.id AS id, ft.teksto AS text
@@ -599,7 +600,7 @@ class WhooshRetriever:
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko = 'est'
             MATCH (frazo)-[:HAVAS_OBJEKTON_VORTGRUPO]->(obj_vg:Vortgrupo)-[:HAVAS_KERNON]->(obj:Vorto)
-            WHERE obj.radiko = '{entity_root}'
+            WHERE obj.plena_vorto STARTS WITH '{entity_root}'
             RETURN ft.id AS id, ft.teksto AS text
             LIMIT {top_k * 3}
         """
@@ -610,7 +611,7 @@ class WhooshRetriever:
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko = 'est'
             MATCH (frazo)-[:HAVAS_OBJEKTON_VORTO]->(obj:Vorto)
-            WHERE obj.radiko = '{entity_root}'
+            WHERE obj.plena_vorto STARTS WITH '{entity_root}'
             RETURN ft.id AS id, ft.teksto AS text
             LIMIT {top_k * 3}
         """
@@ -871,9 +872,18 @@ class WhooshRetriever:
             # Extract entity (any noun, regardless of case)
             if alia.get('vortspeco') == 'substantivo':
                 if alia.get('kazo') == 'akuzativo' and not obj_root:
-                    obj_root = alia.get('radiko')
+                    # For compound words, use the joined compound roots
+                    # e.g., "planlingvo" → use "planlingv" not just "lingv"
+                    if alia.get('kunmetitaj_radikoj'):
+                        obj_root = ''.join(alia['kunmetitaj_radikoj'])
+                    else:
+                        obj_root = alia.get('radiko')
                 elif not obj_root:  # Nominative or other case
-                    obj_root = alia.get('radiko')
+                    # For compound words, use the joined compound roots
+                    if alia.get('kunmetitaj_radikoj'):
+                        obj_root = ''.join(alia['kunmetitaj_radikoj'])
+                    else:
+                        obj_root = alia.get('radiko')
 
             # Also check for unknown words (proper names like "Zamenhof")
             if alia.get('vortspeco') == 'nekonata' and not obj_root:

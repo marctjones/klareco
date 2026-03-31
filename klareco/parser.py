@@ -27,6 +27,37 @@ try:
 except Exception:
     pass  # Silently fall back to empty set if file not found
 
+# All function words (grammatical morphemes, not content words)
+# Used for negative detection: these should NEVER be marked as proper nouns
+# even if capitalized at sentence start
+_ALL_FUNCTION_WORDS = set()
+
+def _build_function_word_set():
+    """Build comprehensive set of all Esperanto function words."""
+    # This will be populated after the constants are defined below
+    # We use a function to avoid forward reference issues
+    function_words = set()
+
+    # Pronouns
+    function_words.update(KNOWN_PRONOUNS)
+
+    # Conjunctions
+    function_words.update(KNOWN_CONJUNCTIONS)
+
+    # Prepositions
+    function_words.update(KNOWN_PREPOSITIONS)
+
+    # Particles
+    function_words.update(KNOWN_PARTICLES)
+
+    # Correlatives
+    function_words.update(KNOWN_CORRELATIVES)
+
+    # Article
+    function_words.add("la")
+
+    return function_words
+
 # -----------------------------------------------------------------------------
 # --- Hardcoded Vocabulary (Lexicon)
 # -----------------------------------------------------------------------------
@@ -644,6 +675,9 @@ PROTECTED_ROOTS = PROTECTED_PREFIX_ROOTS | PROTECTED_SUFFIX_ROOTS
 # --- Layer 1: Morphological Analyzer (Fundamento-first design)
 # --- See wiki: Esperanto-Parser-Design.md for architecture
 # -----------------------------------------------------------------------------
+
+# Build comprehensive function word set (now that all constants are defined)
+_ALL_FUNCTION_WORDS = _build_function_word_set()
 
 def parse_word(word: str) -> dict:
     """
@@ -1618,8 +1652,10 @@ def parse(text: str):
             # CRITICAL FIX: Proper noun detection with sentence position awareness
             # Must happen AFTER parse_word, using sentence context
             if w and w[0].isupper() and len(w) > 1:
-                # Skip function words that are capitalized for grammatical reasons
-                skip_words = {'La', 'De', 'En', 'Kiu', 'Kio', 'Kie', 'Kiam', 'Kial', 'Kiel', 'Kiom'}
+                # Build skip_words from comprehensive function word set
+                # Include both lowercase and capitalized forms
+                skip_words = {fw.capitalize() for fw in _ALL_FUNCTION_WORDS}
+                skip_words.add('La')  # Ensure article is included
 
                 # For first word: only mark as proper noun if preceded by article
                 # "La Fundamento" → proper noun
@@ -1637,20 +1673,33 @@ def parse(text: str):
                         ast["kategorio"] = "propranomo_konata"
                     else:
                         # Negative detection: Check if root is a common word
-                        root = ast.get("radiko", "").lower()
+                        # BUT: Only apply if parse_word didn't already identify it
+                        # as a function word (konjunkcio, pronomo, etc.)
+                        current_vortspeco = ast.get("vortspeco", "")
 
-                        # Check if root is in Fundamento or common words
-                        # If NOT, likely a proper noun
-                        is_common_root = (
-                            root in _FUNDAMENTO_ROOTS or  # Official roots
-                            root in {'la', 'de', 'en', 'kaj', 'aŭ', 'sed'} or  # Function words
-                            len(root) <= 2  # Very short roots (unlikely proper nouns)
-                        )
+                        # Don't override function words that were correctly parsed
+                        function_word_types = {
+                            'konjunkcio', 'pronomo', 'prepozicio',
+                            'partiklo', 'korelativo', 'artikolo'
+                        }
 
-                        if not is_common_root:
-                            # Root not recognized as common word → likely proper noun
-                            ast["vortspeco"] = "propra_nomo"
-                            ast["kategorio"] = "propranomo"
+                        if current_vortspeco not in function_word_types:
+                            # This is a content word (substantivo, verbo, adjektivo, adverbo)
+                            # Apply negative detection
+                            root = ast.get("radiko", "").lower()
+
+                            # Check if root is in Fundamento or function words
+                            # If NOT, likely a proper noun
+                            is_common_root = (
+                                root in _FUNDAMENTO_ROOTS or  # Official content roots
+                                root in _ALL_FUNCTION_WORDS or  # Grammatical morphemes
+                                len(root) <= 2  # Very short roots (unlikely proper nouns)
+                            )
+
+                            if not is_common_root:
+                                # Root not recognized as common word → likely proper noun
+                                ast["vortspeco"] = "propra_nomo"
+                                ast["kategorio"] = "propranomo"
                 # For non-initial words: capitalization is strong signal
                 elif w not in skip_words:
                     ast["vortspeco"] = "propra_nomo"

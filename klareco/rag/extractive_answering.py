@@ -30,16 +30,11 @@ from dataclasses import dataclass
 from pathlib import Path
 import logging
 
-import torch
-
 from klareco.rag.unified_extractor import UnifiedASTExtractor, Fact, RelationType
 from klareco.rag.importance_scorer import (
     FactImportanceScorer, ScoreBreakdown, QuestionType, classify_question_type
 )
 from klareco.rag.discourse_planner import DiscoursePlanner, DiscoursePlan
-from klareco.models.reranker import ASTReranker
-from klareco.models.m1_inference import M1Inference
-from klareco.embeddings.compositional import CompositionalEmbedding
 
 logger = logging.getLogger(__name__)
 
@@ -72,25 +67,13 @@ class ExtractiveAnswerGenerator:
 
     def __init__(
         self,
-        reranker_path: Optional[Path] = None,
-        m1_model_path: Optional[Path] = None,
-        embedding_path: Optional[Path] = None,
-        use_reranker: bool = False,  # Disabled by default - reranker hurts accuracy (Issue #708)
-        use_m1: bool = True,
-        m1_threshold: float = 0.3,
         use_ast_extraction: bool = False,
         multi_sentence_question_types: Optional[Dict[QuestionType, bool]] = None
     ):
         """
-        Initialize answer generator with optional neural models.
+        Initialize answer generator.
 
         Args:
-            reranker_path: Path to neural reranker model
-            m1_model_path: Path to M1 selectional preference model
-            embedding_path: Path to root embeddings (needed for reranker and M1)
-            use_reranker: Enable neural reranking (default: True)
-            use_m1: Enable M1 plausibility filtering (default: True)
-            m1_threshold: Minimum plausibility score for M1 filtering (default: 0.3)
             use_ast_extraction: Enable direct answer extraction cascade (default: False - always use multi-sentence)
             multi_sentence_question_types: Dict[QuestionType, bool] controlling whether
                                           each question type should use discourse planning.
@@ -117,88 +100,6 @@ class ExtractiveAnswerGenerator:
             QuestionType.HOW: True,
             QuestionType.OTHER: True,
         }
-
-        # Set default paths if not provided
-        if reranker_path is None:
-            reranker_path = Path('models/reranker/best_model.pt')
-        if m1_model_path is None:
-            m1_model_path = Path('models/m1_selectional/best_model.pt')
-        if embedding_path is None:
-            # Reranker and M1 were trained with 64D embeddings, not 128D phase1_fast
-            embedding_path = Path('models/root_embeddings/best_model.pt')
-
-        # Load neural reranker
-        self.reranker = None
-        self.use_reranker = use_reranker
-        if use_reranker and reranker_path.exists():
-            try:
-                logger.info(f"Loading neural reranker from {reranker_path}")
-
-                # Load compositional embedding checkpoint
-                emb_checkpoint = torch.load(embedding_path, map_location='cpu', weights_only=False)
-
-                # Check if this is a full CompositionalEmbedding checkpoint or skip-gram
-                if 'root_vocab' in emb_checkpoint:
-                    # Full compositional embedding checkpoint
-                    comp_embedding = CompositionalEmbedding(
-                        root_vocab=emb_checkpoint['root_vocab'],
-                        prefix_vocab=emb_checkpoint['prefix_vocab'],
-                        suffix_vocab=emb_checkpoint['suffix_vocab'],
-                        embed_dim=emb_checkpoint.get('embed_dim', 128),
-                    )
-                    comp_embedding.load_state_dict(emb_checkpoint['model_state_dict'])
-                else:
-                    # Skip-gram checkpoint - create minimal CompositionalEmbedding
-                    root_to_idx = emb_checkpoint.get('root_to_idx') or emb_checkpoint.get('vocab')
-                    prefix_vocab = {'<NONE>': 0, '<UNK>': 1}
-                    suffix_vocab = {'<NONE>': 0, '<UNK>': 1}
-
-                    comp_embedding = CompositionalEmbedding(
-                        root_vocab=root_to_idx,
-                        prefix_vocab=prefix_vocab,
-                        suffix_vocab=suffix_vocab,
-                        embed_dim=emb_checkpoint.get('embedding_dim', 64),
-                    )
-
-                    # Load root embeddings from checkpoint
-                    # Try 'embeddings' first (direct tensor), then check model_state_dict
-                    if 'embeddings' in emb_checkpoint:
-                        comp_embedding.root_embed.weight.data = emb_checkpoint['embeddings']
-                    elif 'embeddings.weight' in emb_checkpoint.get('model_state_dict', {}):
-                        comp_embedding.root_embed.weight.data = emb_checkpoint['model_state_dict']['embeddings.weight']
-                    elif 'target_embeddings.weight' in emb_checkpoint.get('model_state_dict', {}):
-                        # Skip-gram has target and context - use target embeddings
-                        comp_embedding.root_embed.weight.data = emb_checkpoint['model_state_dict']['target_embeddings.weight']
-
-                comp_embedding.eval()
-
-                # Load reranker using classmethod
-                self.reranker = ASTReranker.load(reranker_path, comp_embedding)
-                self.reranker.eval()
-
-                logger.info("✓ Neural reranker loaded successfully")
-            except Exception as e:
-                logger.warning(f"Failed to load reranker: {e}. Continuing without reranking.")
-                self.reranker = None
-                self.use_reranker = False
-
-        # Load M1 selectional preference model
-        self.m1_filter = None
-        self.use_m1 = use_m1
-        self.m1_threshold = m1_threshold
-        if use_m1 and m1_model_path.exists():
-            try:
-                logger.info(f"Loading M1 selectional preference from {m1_model_path}")
-                self.m1_filter = M1Inference(
-                    model_path=m1_model_path,
-                    comp_model_path=embedding_path,
-                    device='cpu'
-                )
-                logger.info("✓ M1 model loaded successfully")
-            except Exception as e:
-                logger.warning(f"Failed to load M1: {e}. Continuing without M1 filtering.")
-                self.m1_filter = None
-                self.use_m1 = False
 
     def _verify_object_match(self, facts_with_metadata, query_ast):
         """
@@ -358,128 +259,6 @@ class ExtractiveAnswerGenerator:
 
         return filtered
 
-    def _rerank_sentences(self, sentences: List[Dict], query_ast: Dict) -> List[Dict]:
-        """
-        Rerank sentences using neural reranker.
-
-        Args:
-            sentences: List of sentence dicts with 'text' and 'ast' fields
-            query_ast: Parsed query AST
-
-        Returns:
-            Reranked list of sentences
-        """
-        if not self.use_reranker or self.reranker is None:
-            return sentences
-
-        if not sentences:
-            return sentences
-
-        try:
-            # Extract ASTs
-            doc_asts = [s.get('ast') for s in sentences if s.get('ast')]
-
-            if not doc_asts:
-                return sentences
-
-            # Score all sentences
-            with torch.no_grad():
-                scores = self.reranker.score_batch(query_ast, doc_asts)
-
-            # Sort by score (descending)
-            scored_sentences = list(zip(sentences, scores))
-            scored_sentences.sort(key=lambda x: x[1], reverse=True)
-
-            # Return reranked sentences
-            return [s for s, _ in scored_sentences]
-
-        except Exception as e:
-            logger.warning(f"Reranking failed: {e}. Using original order.")
-            return sentences
-
-    def _filter_by_m1_plausibility(self, facts_with_metadata: List) -> List:
-        """
-        Filter facts by M1 selectional preference (plausibility).
-
-        Removes facts with implausible subject-verb-object combinations.
-
-        Args:
-            facts_with_metadata: List of (fact, metadata) tuples
-
-        Returns:
-            Filtered list of (fact, metadata) tuples
-        """
-        if not self.use_m1 or self.m1_filter is None:
-            return facts_with_metadata
-
-        if not facts_with_metadata:
-            return facts_with_metadata
-
-        filtered = []
-
-        for fact, metadata in facts_with_metadata:
-            # Extract subject-verb-object from fact
-            subject = fact.entity  # Main entity is subject
-            verb = None
-            obj = None
-
-            # Get verb from relation type
-            relation_to_verb = {
-                RelationType.IS_A: 'est',
-                RelationType.HAS: 'hav',
-                RelationType.CREATED_BY: 'kre',
-                RelationType.LOCATED_AT: 'lok',
-                RelationType.BORN: 'nask',
-                RelationType.DIED: 'mort',
-                RelationType.PUBLISHED: 'publik',
-                RelationType.FOUNDED: 'fond',
-            }
-            verb = relation_to_verb.get(fact.relation)
-
-            # Get object from arguments
-            if 'type' in fact.arguments:
-                obj = fact.arguments['type']
-            elif 'agent' in fact.arguments:
-                obj = fact.arguments['agent']
-            elif 'property' in fact.arguments:
-                obj = fact.arguments['property']
-            elif 'object' in fact.arguments:
-                obj = fact.arguments['object']
-
-            # If we can't extract a complete triple, keep the fact (conservative)
-            if not subject or not verb or not obj:
-                filtered.append((fact, metadata))
-                continue
-
-            try:
-                # Score plausibility
-                score = self.m1_filter.score_triple(subject, verb, obj)
-
-                # Keep if plausible
-                if score >= self.m1_threshold:
-                    filtered.append((fact, metadata))
-                else:
-                    logger.debug(f"M1 filtered out: ({subject}, {verb}, {obj}) = {score:.3f}")
-
-            except Exception as e:
-                # If scoring fails, keep the fact (conservative)
-                logger.debug(f"M1 scoring failed for ({subject}, {verb}, {obj}): {e}")
-                filtered.append((fact, metadata))
-
-        # If filtering removed everything, return original (failsafe)
-        if not filtered:
-            logger.warning("M1 filtering removed all facts. Returning original.")
-            return facts_with_metadata
-
-        # Log filtering statistics
-        num_before = len(facts_with_metadata)
-        num_after = len(filtered)
-        num_removed = num_before - num_after
-        if num_removed > 0:
-            logger.info(f"M1 filtering removed {num_removed}/{num_before} facts ({100*num_removed/num_before:.1f}%)")
-
-        return filtered
-
     def generate(self,
                  sentences: List[Dict],
                  query: str,
@@ -557,11 +336,6 @@ class ExtractiveAnswerGenerator:
                 # Multi-sentence enabled: continue to discourse planning with AST answer as seed
                 logger.info(f"AST extraction successful (confidence={ast_answer['confidence']:.2f}), continuing to discourse planning")
 
-        # Step 0: Rerank sentences with neural reranker (if enabled)
-        if self.use_reranker and self.reranker is not None:
-            sentences = self._rerank_sentences(sentences, query_ast)
-            logger.info(f"Neural reranker reordered {len(sentences)} sentences")
-
         # Step 1: Extract facts from all sentences
         all_facts = []
         for i, sent in enumerate(sentences):
@@ -605,10 +379,6 @@ class ExtractiveAnswerGenerator:
         # Step 2.3: Verify object match (Issue #710)
         # Re-enabled after confirming it's not causing regression
         filtered_facts = self._verify_object_match(filtered_facts, query_ast)
-
-        # Step 2.5: Filter by M1 selectional preference (plausibility)
-        if self.use_m1 and self.m1_filter is not None:
-            filtered_facts = self._filter_by_m1_plausibility(filtered_facts)
 
         # Step 3: Score fact importance (Phase 2: with embedding similarity)
         # Extract query roots for embedding-based scoring

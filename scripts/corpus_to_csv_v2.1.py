@@ -40,9 +40,15 @@ import argparse
 import json
 import csv
 import logging
+import sys
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple
 from collections import Counter, defaultdict
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from klareco.parser import parse
 
 logging.basicConfig(
     level=logging.INFO,
@@ -323,9 +329,28 @@ class CorpusToCSVConverter:
 
     def process_entry(self, entry: Dict):
         """Process a single corpus entry with document/section/paragraph awareness."""
-        source = entry['source']
+        # Handle both old format (source is dict) and new format (source is string)
+        if isinstance(entry.get('source'), dict):
+            source = entry['source']
+        else:
+            # New format: metadata at top level, source is just a string
+            source = entry  # Pass full entry as source for metadata access
+
         text = entry['text']
-        ast_dict = entry['ast']
+
+        # Parse text to create AST if not present (using FIXED parser)
+        if 'ast' in entry:
+            ast_dict = entry['ast']
+        else:
+            try:
+                # Parse with fixed parser (comprehensive function word handling)
+                ast_dict = parse(text)
+                if not ast_dict:
+                    logger.warning(f"Failed to parse: {text[:50]}...")
+                    return
+            except Exception as e:
+                logger.warning(f"Parse error: {e} for text: {text[:50]}...")
+                return
 
         # Extract document key (unique identifier for grouping)
         doc_key = self.get_document_key(source)

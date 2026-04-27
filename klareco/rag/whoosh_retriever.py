@@ -63,9 +63,8 @@ def expand_esperanto_root(root: str, question_type: Optional[str] = None, is_ent
 
     forms = [root]  # Always include bare root
 
-    # TEMPORARILY DISABLED: Always use full expansion to test if smart expansion is causing issues
     # If no question type, use full expansion (backward compatibility)
-    if True:  # question_type is None or question_type.lower() not in ['who', 'what', 'when', 'where', 'how', 'why']:
+    if question_type is None or question_type.lower() not in ['who', 'what', 'when', 'where', 'how', 'why']:
         # Full expansion (~15 forms)
         forms.extend([root + 'as', root + 'is', root + 'i'])
         forms.extend([root + 'anta', root + 'inta', root + 'ita'])
@@ -949,8 +948,10 @@ class WhooshRetriever:
                     else:
                         obj_root = alia.get('radiko')
 
-            # Also check for unknown words (proper names like "Zamenhof")
-            if alia.get('vortspeco') == 'nekonata' and not obj_root:
+            # Also check for proper names (both known and unknown)
+            # Known proper names: 'propra_nomo' (e.g., "Esperanton", "Pollando")
+            # Unknown proper names: 'nekonata' (e.g., "Zamenhof", "Lincoln")
+            if alia.get('vortspeco') in ['nekonata', 'propra_nomo'] and not obj_root:
                 obj_root = alia.get('radiko')
 
         # Try objekto field as fallback

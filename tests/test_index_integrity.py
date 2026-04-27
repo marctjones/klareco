@@ -35,9 +35,9 @@ class TestIndexExists:
         return INDEX_PATHS[0]  # Default for error message
 
     def test_index_directory_exists(self, index_dir):
-        """Index directory should exist."""
-        assert index_dir.exists(), \
-            f"Index not found. Tried: {[str(p) for p in INDEX_PATHS]}"
+        """Index directory should exist (skip if data pipeline hasn't run)."""
+        if not index_dir.exists():
+            pytest.skip(f"Index not found — run index_kuzu.py first. Tried: {[str(p) for p in INDEX_PATHS]}")
 
     def test_embeddings_file_exists(self, index_dir):
         """Embeddings file should exist."""

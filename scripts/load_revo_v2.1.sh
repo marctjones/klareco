@@ -26,7 +26,7 @@ fi
 # Set paths
 KUZU_DB="${1:-data/indexes/v2.1_kuzu_index_full}"
 RELATIONS_JSON="${2:-data/raw/eo/dictionaries/revo/revo_semantic_relations.json}"
-TEMP_DIR="${3:-${KUZU_DB}/temp_revo}"
+TEMP_DIR="${3:-data/indexes/temp_revo}"
 LOG_DIR="logs/revo_loading"
 mkdir -p "$LOG_DIR"
 
@@ -45,7 +45,7 @@ if [[ ! -f "$RELATIONS_JSON" ]]; then
     exit 1
 fi
 
-if [[ ! -d "$KUZU_DB" ]]; then
+if [[ ! -e "$KUZU_DB" ]]; then
     echo "ERROR: Kuzu database not found: $KUZU_DB"
     echo "Please run: ./scripts/load_csv_to_kuzu_v2.1.sh"
     exit 1

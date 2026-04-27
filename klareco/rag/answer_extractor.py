@@ -812,6 +812,11 @@ class ASTAnswerExtractor:
                            f"valid={c['validation_score']:.0f}, "
                            f"source={c['source']})")
 
+        # Require minimum confidence: 0.65 filters out candidates with no verb match
+        # (pattern_score=0.5 → total ≤ 0.60) while keeping confident matches (≥ 0.65)
+        if best['total_score'] < 0.65:
+            return None
+
         return {
             'text': best['text'],
             'confidence': best['total_score'],
@@ -1957,6 +1962,11 @@ class ASTAnswerExtractor:
         if text in place_names:
             return True
 
+        # Check parser's proper noun place classification
+        if node.get('tipo') == 'vorto':
+            if node.get('propranoma_kategorio') == 'place':
+                return True
+
         # Check for location-related words
         location_roots = {'urb', 'vilaĝ', 'land', 'region', 'loko', 'teren'}
         if node.get('tipo') == 'vorto':
@@ -2018,6 +2028,11 @@ class ASTAnswerExtractor:
         for word in time_words:
             if word in text.lower():
                 return True
+
+        # Check for time adverbs
+        time_adverbs = {'hieraŭ', 'hodiaŭ', 'morgaŭ', 'nun', 'tiam', 'antaŭhieraŭ', 'postmorgaŭ'}
+        if text.lower() in time_adverbs:
+            return True
 
         return False
 

@@ -931,7 +931,7 @@ def parse_word(word: str) -> dict:
         return None
 
     def check_suffix_gives_fundamento(s: str) -> tuple[str, list[str]] | None:
-        """Check if stripping suffixes from s leads to a Fundamento root.
+        """Check if stripping suffixes from s leads to a known root.
 
         Returns (root, [suffix1, suffix2, ...]) or None.
         Suffixes are returned in extraction order (right-to-left).
@@ -942,11 +942,14 @@ def parse_word(word: str) -> dict:
             for suffix in sorted_suffixes:
                 if temp.endswith(suffix) and len(temp) > len(suffix) + 1:
                     potential = temp[:-len(suffix)]
-                    # Check if potential is a Fundamento root
-                    if potential in _FUNDAMENTO_ROOTS:
+                    # Stop when we reach a Fundamento or protected root.
+                    # KNOWN_ROOTS is intentionally excluded: it contains corpus-extracted stems
+                    # (e.g. "bopatr", "bof") that would cause false early stops.
+                    # Protected roots handle the key case: "esperant" stops "esperant+an" decomposition.
+                    if potential in _FUNDAMENTO_ROOTS or potential in PROTECTED_ROOTS:
                         extracted.append(suffix)
                         return (potential, extracted)
-                    # Check if we can continue stripping
+                    # Continue stripping if potential is not a valid root yet
                     extracted.append(suffix)
                     temp = potential
                     break
@@ -1741,6 +1744,10 @@ def parse(text: str):
     for i, ast in enumerate(word_asts):
         radiko = ast.get("radiko", "").lower()
         if radiko in SUBORDINATING_CONJUNCTIONS:
+            # Ki-correlatives at position 0 are question words ("Kiu fondis?"),
+            # not relative clause introducers ("la homo kiu fondis")
+            if i == 0 and radiko in {'kiu', 'kio', 'kiuj', 'kiujn', 'kiun'}:
+                continue
             subordinate_starts.append(i)
 
     # Find the main components (verb, subject noun, object noun)

@@ -83,7 +83,11 @@ class SemanticRelationDB:
         stats = metadata.get('statistics', {})
 
         # Load synonyms (symmetric)
-        for root1, root2 in data.get('relations', {}).get('synonym', []):
+        for entry in data.get('relations', {}).get('synonym', []):
+            if isinstance(entry, dict):
+                root1, root2 = entry['source'], entry['target']
+            else:
+                root1, root2 = entry
             root1 = root1.lower()
             root2 = root2.lower()
 
@@ -97,7 +101,11 @@ class SemanticRelationDB:
             self.synonyms[root2].add(root1)
 
         # Load antonyms (symmetric)
-        for root1, root2 in data.get('relations', {}).get('antonym', []):
+        for entry in data.get('relations', {}).get('antonym', []):
+            if isinstance(entry, dict):
+                root1, root2 = entry['source'], entry['target']
+            else:
+                root1, root2 = entry
             root1 = root1.lower()
             root2 = root2.lower()
 
@@ -111,7 +119,11 @@ class SemanticRelationDB:
             self.antonyms[root2].add(root1)
 
         # Load hypernyms (asymmetric: more general)
-        for specific, general in data.get('relations', {}).get('hypernym', []):
+        for entry in data.get('relations', {}).get('hypernym', []):
+            if isinstance(entry, dict):
+                specific, general = entry['source'], entry['target']
+            else:
+                specific, general = entry
             specific = specific.lower()
             general = general.lower()
 
@@ -121,7 +133,11 @@ class SemanticRelationDB:
             self.hypernyms[specific].add(general)
 
         # Load hyponyms (asymmetric: more specific)
-        for general, specific in data.get('relations', {}).get('hyponym', []):
+        for entry in data.get('relations', {}).get('hyponym', []):
+            if isinstance(entry, dict):
+                general, specific = entry['source'], entry['target']
+            else:
+                general, specific = entry
             general = general.lower()
             specific = specific.lower()
 

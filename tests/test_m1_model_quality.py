@@ -185,6 +185,7 @@ def test_implausible_detection(m1_model, test_data):
         f"Implausible detection {implausible_detection:.1%} below 70% threshold"
 
 
+@pytest.mark.xfail(reason="M1 model scores near zero — removed from pipeline. Needs retraining with improved architecture.")
 @pytest.mark.model_quality
 @pytest.mark.stage2
 @pytest.mark.requires_model

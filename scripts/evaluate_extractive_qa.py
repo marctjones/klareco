@@ -28,6 +28,7 @@ from demo_extractive_qa import retrieve_sentences, expand_with_embeddings, extra
 from klareco.parser import parse
 from klareco.rag.whoosh_retriever import WhooshRetriever
 from klareco.rag.extractive_answering import ExtractiveAnswerGenerator, classify_question_type
+from klareco.rag.semantic_query_expander import expand_with_semantic_ontology
 
 logging.basicConfig(
     level=logging.WARNING,  # Suppress INFO logs during evaluation
@@ -67,6 +68,8 @@ def evaluate_question(
     generator: ExtractiveAnswerGenerator,
     retriever: WhooshRetriever,
     top_k: int = 20,
+    use_semantic: bool = False,
+    kuzu_db_path: Path = None,
 ) -> Dict:
     """
     Run extractive QA on a single question and check if answer contains expected keywords.
@@ -129,6 +132,16 @@ def evaluate_question(
         if root in synonyms:
             query_roots.update(synonyms[root])
 
+    # Expand with semantic ontology (if enabled)
+    if use_semantic and kuzu_db_path:
+        semantic_expanded = expand_with_semantic_ontology(
+            list(query_roots),
+            kuzu_db_path,
+            max_expansion=20
+        )
+        logger.info(f"Semantic expansion: {len(query_roots)} → {len(semantic_expanded)} roots")
+        query_roots = semantic_expanded
+
     # Expand with embeddings
     embeddings_path = Path('models/root_embeddings_phase1_fast/root_embeddings_best.pt')
     if embeddings_path.exists():
@@ -185,6 +198,8 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='Show detailed output')
     parser.add_argument('--parallel', type=int, default=1, metavar='N',
                        help='Process N questions in parallel (default: 1 = sequential)')
+    parser.add_argument('--use-semantic', action='store_true',
+                       help='Enable semantic query expansion using ontology (verb classes, entity types)')
 
     args = parser.parse_args()
 
@@ -265,7 +280,9 @@ def main():
             expected_keywords,
             generator,
             retriever,
-            args.top_k
+            args.top_k,
+            use_semantic=args.use_semantic,
+            kuzu_db_path=args.db
         )
 
         return {
@@ -324,7 +341,9 @@ def main():
                 expected_keywords,
                 generator,
                 retriever,
-                args.top_k
+                args.top_k,
+                use_semantic=args.use_semantic,
+                kuzu_db_path=args.db
             )
 
             total += 1

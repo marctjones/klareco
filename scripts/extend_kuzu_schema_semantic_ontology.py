@@ -93,7 +93,7 @@ class SemanticOntologySchemaExtension:
 
         # 1. VerbaKlaso (Verb Class) - Hierarchical verb taxonomy
         self.execute("""
-            CREATE NODE TABLE VerbaKlaso (
+            CREATE NODE TABLE IF NOT EXISTS VerbaKlaso (
                 klaso_id STRING,
                 klaso_nomo STRING,
                 priskribo STRING,
@@ -108,7 +108,7 @@ class SemanticOntologySchemaExtension:
 
         # 2. AspektaKlaso (Aspectual Class) - Vendler classification
         self.execute("""
-            CREATE NODE TABLE AspektaKlaso (
+            CREATE NODE TABLE IF NOT EXISTS AspektaKlaso (
                 klaso_id STRING,
                 klaso_nomo STRING,
                 priskribo STRING,
@@ -122,7 +122,7 @@ class SemanticOntologySchemaExtension:
 
         # 3. TemaRolo (Thematic Role) - Agent, Patient, Theme, etc.
         self.execute("""
-            CREATE NODE TABLE TemaRolo (
+            CREATE NODE TABLE IF NOT EXISTS TemaRolo (
                 rolo_id STRING,
                 rolo_nomo STRING,
                 priskribo STRING,
@@ -134,7 +134,7 @@ class SemanticOntologySchemaExtension:
 
         # Relationship: Root belongs to verb class
         self.execute("""
-            CREATE REL TABLE APARTENAS_AL_VERBA_KLASO (
+            CREATE REL TABLE IF NOT EXISTS APARTENAS_AL_VERBA_KLASO (
                 FROM Radiko TO VerbaKlaso,
                 fonto STRING,
                 konfideco DOUBLE DEFAULT 1.0
@@ -143,7 +143,7 @@ class SemanticOntologySchemaExtension:
 
         # Relationship: Root has aspectual class
         self.execute("""
-            CREATE REL TABLE HAVAS_ASPEKTAN_KLASON (
+            CREATE REL TABLE IF NOT EXISTS HAVAS_ASPEKTAN_KLASON (
                 FROM Radiko TO AspektaKlaso,
                 fonto STRING
             )
@@ -157,7 +157,7 @@ class SemanticOntologySchemaExtension:
 
         # 1. SubstantivaKlaso (Noun Class) - Hierarchical noun taxonomy
         self.execute("""
-            CREATE NODE TABLE SubstantivaKlaso (
+            CREATE NODE TABLE IF NOT EXISTS SubstantivaKlaso (
                 klaso_id STRING,
                 klaso_nomo STRING,
                 priskribo STRING,
@@ -172,7 +172,7 @@ class SemanticOntologySchemaExtension:
 
         # 2. EntecaTipo (Entity Type) - Person, Place, Time, etc.
         self.execute("""
-            CREATE NODE TABLE EntecaTipo (
+            CREATE NODE TABLE IF NOT EXISTS EntecaTipo (
                 tipo_id STRING,
                 tipo_nomo STRING,
                 priskribo STRING,
@@ -184,7 +184,7 @@ class SemanticOntologySchemaExtension:
 
         # Relationship: Root belongs to noun class
         self.execute("""
-            CREATE REL TABLE APARTENAS_AL_SUBSTANTIVA_KLASO (
+            CREATE REL TABLE IF NOT EXISTS APARTENAS_AL_SUBSTANTIVA_KLASO (
                 FROM Radiko TO SubstantivaKlaso,
                 fonto STRING,
                 konfideco DOUBLE DEFAULT 1.0
@@ -193,7 +193,7 @@ class SemanticOntologySchemaExtension:
 
         # Relationship: Root has entity type
         self.execute("""
-            CREATE REL TABLE HAVAS_ENTECAN_TIPON (
+            CREATE REL TABLE IF NOT EXISTS HAVAS_ENTECAN_TIPON (
                 FROM Radiko TO EntecaTipo,
                 fonto STRING
             )
@@ -207,7 +207,7 @@ class SemanticOntologySchemaExtension:
 
         # AdjektivaKlaso (Adjective Class)
         self.execute("""
-            CREATE NODE TABLE AdjektivaKlaso (
+            CREATE NODE TABLE IF NOT EXISTS AdjektivaKlaso (
                 klaso_id STRING,
                 klaso_nomo STRING,
                 priskribo STRING,
@@ -220,7 +220,7 @@ class SemanticOntologySchemaExtension:
 
         # Relationship: Root belongs to adjective class
         self.execute("""
-            CREATE REL TABLE APARTENAS_AL_ADJEKTIVA_KLASO (
+            CREATE REL TABLE IF NOT EXISTS APARTENAS_AL_ADJEKTIVA_KLASO (
                 FROM Radiko TO AdjektivaKlaso,
                 fonto STRING
             )
@@ -239,7 +239,7 @@ class SemanticOntologySchemaExtension:
 
         # 1. SemantikKadro (Semantic Frame)
         self.execute("""
-            CREATE NODE TABLE SemantikKadro (
+            CREATE NODE TABLE IF NOT EXISTS SemantikKadro (
                 kadro_id STRING,
                 kadro_nomo STRING,
                 priskribo STRING,
@@ -252,7 +252,7 @@ class SemanticOntologySchemaExtension:
 
         # 2. KadraRolo (Frame Role) - Frame-specific roles
         self.execute("""
-            CREATE NODE TABLE KadraRolo (
+            CREATE NODE TABLE IF NOT EXISTS KadraRolo (
                 rolo_id STRING,
                 rolo_nomo STRING,
                 priskribo STRING,
@@ -264,7 +264,7 @@ class SemanticOntologySchemaExtension:
 
         # Relationship: Verb evokes frame
         self.execute("""
-            CREATE REL TABLE ELVOKIS_KADRON (
+            CREATE REL TABLE IF NOT EXISTS ELVOKIS_KADRON (
                 FROM Radiko TO SemantikKadro,
                 tipeco STRING
             )
@@ -272,7 +272,7 @@ class SemanticOntologySchemaExtension:
 
         # Relationship: Frame has role
         self.execute("""
-            CREATE REL TABLE KADRO_HAVAS_ROLON (
+            CREATE REL TABLE IF NOT EXISTS KADRO_HAVAS_ROLON (
                 FROM SemantikKadro TO KadraRolo,
                 kerneco BOOLEAN,
                 ordigo INT64
@@ -292,7 +292,7 @@ class SemanticOntologySchemaExtension:
 
         # 1. DiskursaRilato (RST Relation)
         self.execute("""
-            CREATE NODE TABLE DiskursaRilato (
+            CREATE NODE TABLE IF NOT EXISTS DiskursaRilato (
                 rilato_id STRING,
                 rilato_nomo STRING,
                 priskribo STRING,
@@ -307,7 +307,7 @@ class SemanticOntologySchemaExtension:
 
         # 2. InformStruktura (Information Structure)
         self.execute("""
-            CREATE NODE TABLE InformStruktura (
+            CREATE NODE TABLE IF NOT EXISTS InformStruktura (
                 strukturo_id STRING,
                 strukturo_nomo STRING,
                 priskribo STRING,
@@ -329,7 +329,7 @@ class SemanticOntologySchemaExtension:
 
         # 1. EnhavaSkemo (Content Schema)
         self.execute("""
-            CREATE NODE TABLE EnhavaSkemo (
+            CREATE NODE TABLE IF NOT EXISTS EnhavaSkemo (
                 skemo_id STRING,
                 skemo_nomo STRING,
                 priskribo STRING,
@@ -341,7 +341,7 @@ class SemanticOntologySchemaExtension:
 
         # 2. SkemaSloto (Schema Slot)
         self.execute("""
-            CREATE NODE TABLE SkemaSloto (
+            CREATE NODE TABLE IF NOT EXISTS SkemaSloto (
                 sloto_id STRING,
                 sloto_nomo STRING,
                 priskribo STRING,
@@ -356,7 +356,7 @@ class SemanticOntologySchemaExtension:
 
         # Relationship: Schema has slot
         self.execute("""
-            CREATE REL TABLE SKEMO_HAVAS_SLOTON (
+            CREATE REL TABLE IF NOT EXISTS SKEMO_HAVAS_SLOTON (
                 FROM EnhavaSkemo TO SkemaSloto,
                 ordigo INT64,
                 devigeco BOOLEAN DEFAULT false
@@ -373,6 +373,14 @@ class SemanticOntologySchemaExtension:
         logger.info("\n" + "=" * 60)
         logger.info("POPULATING CORE TAXONOMY")
         logger.info("=" * 60)
+
+        # Check if data already exists
+        result = self.conn.execute("MATCH (v:VerbaKlaso) RETURN count(v)")
+        existing_count = result.get_next()[0]
+        if existing_count > 0:
+            logger.info(f"✓ Core taxonomy already populated ({existing_count} VerbaKlaso nodes)")
+            logger.info("  Skipping node creation, will only create relationships")
+            return
 
         # Core verb classes (top-level only, detailed annotation comes later)
         verb_classes = [

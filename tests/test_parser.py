@@ -1471,13 +1471,8 @@ class TestParserMultiplePrefixesCombinations(unittest.TestCase):
         self.assertEqual(ast['nombro'], 'pluralo')
         self.assertIn('ge', ast.get('prefiksoj', []))
 
-    @unittest.expectedFailure
     def test_prefix_eks_prezidanto(self):
-        """Test eksprezidanto (ex-president) = eks + prezid + ant + o.
-
-        KNOWN LIMITATION: Parser incorrectly splits 'prezid' as 'prez' + 'id'.
-        The -id suffix (offspring) should not apply here - 'prezid' is a root.
-        """
+        """Test eksprezidanto (ex-president) = eks + prezid + ant + o."""
         ast = parse_word("eksprezidanto")
         self.assertEqual(ast['tipo'], 'vorto')
         self.assertEqual(ast['vortspeco'], 'substantivo')
@@ -1655,13 +1650,8 @@ class TestParserAllOfficialPrefixes(unittest.TestCase):
         self.assertIn('for', ast.get('prefiksoj', []))
         self.assertEqual(ast.get('radiko'), 'ir')
 
-    @unittest.expectedFailure
     def test_prefix_vic(self):
-        """Test vic- (vice): vicprezidanto = vic + prezid + ant + o.
-
-        KNOWN LIMITATION: Parser incorrectly splits 'prezid' as 'prez' + 'id'.
-        The -id suffix (offspring) should not apply here - 'prezid' is a root.
-        """
+        """Test vic- (vice): vicprezidanto = vic + prezid + ant + o."""
         ast = parse_word("vicprezidanto")
         self.assertIn('vic', ast.get('prefiksoj', []))
         self.assertEqual(ast.get('radiko'), 'prezid')

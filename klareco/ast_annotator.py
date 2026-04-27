@@ -419,10 +419,14 @@ class DeterministicAnnotator(ASTAnnotator):
         # Try deterministic annotation first
         ast, success = self._annotate_deterministic(ast, context)
 
-        if not success and self.fallback_model is not None:
-            # Fallback to learned model for OOV/ambiguous cases
-            logger.debug(f"{self.model_name}: Deterministic annotation failed, using fallback model")
-            ast = self._annotate_fallback(ast, context)
+        if not success:
+            if self.fallback_model is not None:
+                logger.debug(f"{self.model_name}: Deterministic annotation failed, using fallback model")
+                ast = self._annotate_fallback(ast, context)
+            else:
+                raise RuntimeError(
+                    f"{self.model_name}: No fallback model configured but deterministic annotation failed"
+                )
 
         return ast
 

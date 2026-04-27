@@ -276,7 +276,7 @@ class QuestionClassifier:
         """
         # "Kio estas X?" pattern → DEFINITION
         if question_word.lower() in ['kio', 'kion']:
-            verb = ast.get('verbo', {})
+            verb = ast.get('verbo') or {}
             if verb.get('tipo') == 'vorto':
                 verb_root = verb.get('radiko', '').lower()
                 if verb_root == 'est':  # "estas" = "is"

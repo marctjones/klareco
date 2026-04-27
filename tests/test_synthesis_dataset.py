@@ -8,8 +8,18 @@ from unittest.mock import MagicMock, patch
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.create_synthesis_dataset import create_training_examples, generate_question_from_ast, process_corpus
+try:
+    from scripts.create_synthesis_dataset import create_training_examples, generate_question_from_ast, process_corpus
+    _SYNTHESIS_AVAILABLE = True
+except ImportError:
+    _SYNTHESIS_AVAILABLE = False
+
 from klareco.ast_to_graph import ASTToGraphConverter
+
+pytestmark = pytest.mark.skipif(
+    not _SYNTHESIS_AVAILABLE,
+    reason="scripts/create_synthesis_dataset.py not found"
+)
 
 
 # Mock the parse function from klareco.parser

@@ -60,6 +60,7 @@ class RootEmbeddingsAnnotator(ASTAnnotator):
         """
         # Initialize attributes BEFORE calling super().__init__()
         # because parent calls _validate_setup() which checks these
+        self.model_name = "RootEmbeddings"  # Set early so _load_model can log
         self.device = torch.device(device)
         self.model_path = model_path
         self.vocab_path = vocab_path

@@ -19,8 +19,11 @@ def db():
 @pytest.fixture
 def db_empty():
     """Create empty semantic database (for testing missing file)."""
-    # Use non-existent path
-    return SemanticRelationDB(revo_path=Path('/nonexistent/path/revo.json'))
+    # Use non-existent paths for both sources so DB is truly empty
+    return SemanticRelationDB(
+        revo_path=Path('/nonexistent/path/revo.json'),
+        curated_path=Path('/nonexistent/path/curated.json'),
+    )
 
 
 class TestDatabaseLoading:

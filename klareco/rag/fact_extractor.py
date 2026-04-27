@@ -527,8 +527,8 @@ class FactExtractor:
                 prep_found = True
                 continue
 
-            # If we found the prep, next substantivo is the object
-            if prep_found and alia.get('vortspeco') == 'substantivo':
+            # If we found the prep, next substantivo or proper noun is the object
+            if prep_found and alia.get('vortspeco') in ('substantivo', 'propra_nomo'):
                 return alia.get('radiko', '')
 
         return None
@@ -555,17 +555,27 @@ class FactExtractor:
                 kerno = objekto
 
             if kerno.get('vortspeco') == 'korelativo':
-                # Pattern: "Subjekto Verbo kiun..." where kiun is in objekto
-                # Agent is in aliaj after the correlative
+                # Pattern: "Subjekto [kiun Agent Verb]" - relative clause with correlative in objekto
+                # The relative clause verb may be in aliaj when parser's main verbo is null.
                 aliaj = frazo.get('aliaj', [])
                 subjekto = frazo.get('subjekto')
                 verbo = frazo.get('verbo')
 
-                if verbo:
-                    verb_root = verbo.get('radiko', '').lower()
+                # Find verb: prefer main verbo, else scan aliaj for content verb
+                verb_node = verbo
+                if verb_node is None:
+                    for alia in aliaj:
+                        if isinstance(alia, dict) and alia.get('vortspeco') == 'verbo':
+                            root = alia.get('radiko', '').lower()
+                            if root != 'est':
+                                verb_node = alia
+                                break
+
+                if verb_node:
+                    verb_root = verb_node.get('radiko', '').lower()
                     relation = self.verb_to_relation.get(verb_root, RelationType.ACTION)
 
-                    # Entity is the subject
+                    # Entity is the subject of the main clause
                     entity = None
                     if subjekto:
                         entity = self._get_entity_name(subjekto)

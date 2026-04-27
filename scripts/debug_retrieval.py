@@ -1,141 +1,190 @@
 #!/usr/bin/env python3
 """
-Debug script to analyze retrieval quality for failing questions.
+Debug Retrieval System
+
+Investigates why retrieval is failing for specific questions.
+Shows detailed information about each retrieval step.
+
+Usage:
+    python scripts/debug_retrieval.py "Kio estas hundo?"
+    python scripts/debug_retrieval.py "Kiu fondis Esperanton?"
 """
 
+import argparse
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from klareco.parser import parse
 from klareco.rag.whoosh_retriever import WhooshRetriever
-from klareco.knowledge import get_synonyms
+from klareco.rag.importance_scorer import classify_question_type
 
-def extract_roots_from_ast(ast):
-    """Extract content roots from AST."""
-    roots = set()
-    skip_vortspeco = {'korelativo', 'pronomo', 'artikolo', 'prepozicio', 'konjunkcio'}
+def debug_retrieval(question: str, top_k: int = 20):
+    """Debug retrieval for a single question."""
+    print("=" * 80)
+    print(f"DEBUGGING RETRIEVAL: {question}")
+    print("=" * 80)
 
-    def extract(node):
-        if not node or not isinstance(node, dict):
-            return
-        if node.get('tipo') == 'vorto':
-            vortspeco = node.get('vortspeco', '')
-            if vortspeco not in skip_vortspeco:
+    # Step 1: Parse question
+    print("\n[STEP 1] Parse question")
+    print("-" * 80)
+    query_ast = parse(question)
+    question_type = classify_question_type(question)
+    print(f"Question type: {question_type.value}")
+    print(f"AST: {query_ast}")
+
+    # Step 2: Extract roots
+    print("\n[STEP 2] Extract roots from AST")
+    print("-" * 80)
+    roots = []
+    def extract_roots(node):
+        if isinstance(node, dict):
+            if node.get('tipo') == 'vorto':
                 root = node.get('radiko', '')
-                if root and len(root) >= 2:
-                    roots.add(root.lower())
-        elif node.get('tipo') == 'vortgrupo':
-            extract(node.get('kerno'))
-            for p in node.get('priskriboj', []):
-                extract(p)
-        elif node.get('tipo') == 'frazo':
-            extract(node.get('subjekto'))
-            extract(node.get('verbo'))
-            extract(node.get('objekto'))
-            for a in node.get('aliaj', []):
-                extract(a)
+                if root:
+                    roots.append(root.lower())
+            elif node.get('tipo') == 'vortgrupo':
+                extract_roots(node.get('kerno'))
+                for p in node.get('priskriboj', []):
+                    extract_roots(p)
+            elif node.get('tipo') == 'frazo':
+                extract_roots(node.get('subjekto'))
+                extract_roots(node.get('verbo'))
+                extract_roots(node.get('objekto'))
+                for a in node.get('aliaj', []):
+                    extract_roots(a)
 
-    extract(ast)
-    return roots
+    extract_roots(query_ast)
+    print(f"Extracted roots: {roots}")
 
-# Test question
-query = 'Kiu fondis Esperanton?'
-expected = ['zamenhof', 'ludovic', 'lazaro']
+    # Step 3: Initialize retriever
+    print("\n[STEP 3] Initialize Whoosh retriever")
+    print("-" * 80)
+    retriever = WhooshRetriever(
+        whoosh_index_dir=Path('data/indexes/whoosh_fts'),
+        kuzu_db_path=Path('data/indexes/v2.1_kuzu_index_full')
+    )
+    print("✓ Retriever initialized")
 
-print(f'Query: {query}')
-print(f'Expected answer: {expected}')
-print('=' * 80)
+    # Step 4: Inspect Whoosh schema
+    print("\n[STEP 4] Inspect Whoosh index schema")
+    print("-" * 80)
+    print(f"Whoosh index fields: {list(retriever.ix.schema.names())}")
+    print(f"Schema details:")
+    for field_name in retriever.ix.schema.names():
+        field = retriever.ix.schema[field_name]
+        print(f"  - {field_name}: {type(field).__name__}")
 
-# Parse and extract roots
-ast = parse(query)
-roots = extract_roots_from_ast(ast)
-print(f'\nExtracted roots: {sorted(roots)}')
+    # Step 5: Build Whoosh query (CORRECTED - use text_lower field)
+    print("\n[STEP 5] Build Whoosh query")
+    print("-" * 80)
+    # OLD (WRONG): query_string = ' OR '.join([f'roots:{root}' for root in roots])
+    # NEW (CORRECT): Search text_lower field directly
+    query_string = ' OR '.join(roots)
+    print(f"Whoosh query: {query_string}")
+    print(f"Search field: text_lower")
 
-# Expand (current behavior - ALL synonyms)
-expanded = list(roots)
-for root in roots:
-    if root != 'esperant':  # Skip entity
-        syns = get_synonyms(root)
-        expanded.extend(syns)
+    # Step 6: Test Whoosh search
+    print("\n[STEP 6] Search Whoosh index")
+    print("-" * 80)
+    from whoosh.qparser import QueryParser
 
-print(f'Expanded roots ({len(expanded)}): {sorted(set(expanded))}')
+    with retriever.ix.searcher() as searcher:
+        # CORRECTED: Use text_lower field instead of non-existent roots field
+        parser_obj = QueryParser("text_lower", retriever.ix.schema)
+        query_obj = parser_obj.parse(query_string)
+        results = searcher.search(query_obj, limit=top_k * 10)
 
-# Initialize retriever
-retriever = WhooshRetriever(
-    whoosh_index_dir=Path('data/indexes/whoosh_fts'),
-    kuzu_db_path=Path('data/indexes/v2.1_kuzu_index_full')
-)
+        print(f"Total results: {len(results)}")
+        if len(results) > 0:
+            print(f"\nTop {min(5, len(results))} results:")
+            for i, result in enumerate(results[:5], 1):
+                print(f"\n  [{i}] Score: {result.score:.3f}")
+                print(f"      Sentence ID: {result['id']}")
+                print(f"      Text: {result['text'][:150]}...")
+        else:
+            print("⚠️  NO RESULTS FOUND!")
 
-# Retrieve with CURRENT expansion
-print('\n' + '=' * 80)
-print('RETRIEVING WITH CURRENT EXPANSION (16 roots)...')
-print('=' * 80)
+    # Step 7: Test full retrieval pipeline (AST-first)
+    print("\n[STEP 7] Test full retrieval pipeline (AST-first)")
+    print("-" * 80)
+    print("NOTE: Current WhooshRetriever is AST-first ONLY (no Whoosh fallback)")
+    print("      It uses grammatical role queries via Kuzu, not text search")
 
-documents = retriever.retrieve(
-    query_roots=expanded,
-    top_k=10,
-    retrieval_limit=200
-)
+    # Enable debug logging to see Kuzu queries
+    import logging
+    logging.getLogger('klareco.rag.whoosh_retriever').setLevel(logging.DEBUG)
 
-print(f'\nRetrieved {len(documents)} documents')
-print('\n--- TOP 10 DOCUMENTS ---')
+    documents = retriever.retrieve(
+        query_roots=roots,
+        top_k=top_k,
+        retrieval_limit=200,
+        question_type=question_type.value,
+        query_entity=None,
+        query_ast=query_ast
+    )
 
-for i, doc in enumerate(documents[:10]):
-    text = doc['text']
-    score = doc['score']
+    print(f"Documents retrieved: {len(documents)}")
+    if len(documents) > 0:
+        print(f"\nTop {min(3, len(documents))} retrieved documents:")
+        for i, doc in enumerate(documents[:3], 1):
+            print(f"\n  [{i}] Score: {doc.get('score', 0):.3f}")
+            print(f"      Text: {doc.get('text', '')[:200]}...")
+    else:
+        print("⚠️  NO DOCUMENTS RETRIEVED!")
 
-    # Check if contains expected answer
-    contains_zamenhof = any(exp in text.lower() for exp in expected)
+    # Step 8: Check if any results mention expected keywords
+    print("\n[STEP 8] Check for expected keywords in results")
+    print("-" * 80)
 
-    print(f'\n[{i+1}] Score: {score:.4f} | Contains Zamenhof: {contains_zamenhof}')
-    print(f'Text: {text[:200]}...')
+    # Hardcode expected keywords for known test questions
+    expected_keywords = {
+        "Kio estas hundo?": ["besto", "hundo", "best"],
+        "Kiu fondis Esperanton?": ["Zamenhof", "zamenhof"],
+        "Kio estas Esperanto?": ["planlingvo", "lingvo"],
+        "Kio estas libro?": ["skribaĵo", "skrib"],
+    }
 
-    # Show which roots matched
-    matched = [r for r in expanded if r in text.lower()]
-    print(f'Matched roots: {matched[:5]}{"..." if len(matched) > 5 else ""}')
+    keywords = expected_keywords.get(question, [])
+    if keywords:
+        print(f"Expected keywords: {keywords}")
 
-# Now try with LIMITED expansion (only core synonyms)
-print('\n' + '=' * 80)
-print('TESTING WITH LIMITED EXPANSION (top 3 synonyms only)...')
-print('=' * 80)
+        if len(documents) > 0:
+            found_in_docs = []
+            for i, doc in enumerate(documents, 1):
+                text = doc.get('text', '').lower()
+                for keyword in keywords:
+                    if keyword in text:
+                        found_in_docs.append((i, keyword, doc.get('text', '')[:150]))
 
-limited_expanded = list(roots)
-for root in roots:
-    if root != 'esperant':
-        syns = get_synonyms(root)
-        # Take only top 3 most common/core synonyms
-        # Sort alphabetically for consistency, take top 3
-        top_syns = sorted(syns)[:3]
-        limited_expanded.extend(top_syns)
+            if found_in_docs:
+                print(f"\n✓ Found expected keywords in {len(found_in_docs)} documents:")
+                for doc_num, keyword, text in found_in_docs[:3]:
+                    print(f"  Doc #{doc_num}: keyword '{keyword}'")
+                    print(f"    Text: {text}...")
+            else:
+                print("\n✗ Expected keywords NOT FOUND in any retrieved documents")
+        else:
+            print("\n✗ Cannot check keywords - no documents retrieved")
+    else:
+        print("(No expected keywords defined for this question)")
 
-print(f'Limited expansion ({len(set(limited_expanded))}): {sorted(set(limited_expanded))}')
+    print("\n" + "=" * 80)
+    print("DEBUG COMPLETE")
+    print("=" * 80)
 
-documents_limited = retriever.retrieve(
-    query_roots=list(set(limited_expanded)),
-    top_k=10,
-    retrieval_limit=200
-)
 
-print(f'\nRetrieved {len(documents_limited)} documents')
-print('\n--- TOP 10 DOCUMENTS (LIMITED) ---')
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('question', help='Question to debug')
+    parser.add_argument('--top-k', type=int, default=20, help='Number of documents to retrieve')
 
-for i, doc in enumerate(documents_limited[:10]):
-    text = doc['text']
-    score = doc['score']
+    args = parser.parse_args()
 
-    contains_zamenhof = any(exp in text.lower() for exp in expected)
+    debug_retrieval(args.question, args.top_k)
+    return 0
 
-    print(f'\n[{i+1}] Score: {score:.4f} | Contains Zamenhof: {contains_zamenhof}')
-    print(f'Text: {text[:200]}...')
 
-# Compare
-print('\n' + '=' * 80)
-print('COMPARISON')
-print('=' * 80)
-
-count_current = sum(1 for doc in documents[:10] if any(exp in doc['text'].lower() for exp in expected))
-count_limited = sum(1 for doc in documents_limited[:10] if any(exp in doc['text'].lower() for exp in expected))
-
-print(f'Current expansion: {count_current}/10 top docs contain answer')
-print(f'Limited expansion: {count_limited}/10 top docs contain answer')
+if __name__ == '__main__':
+    sys.exit(main())

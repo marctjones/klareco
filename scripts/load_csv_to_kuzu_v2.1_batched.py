@@ -158,8 +158,9 @@ class BatchedCSVLoader:
             logger.info(f"  Loading {table}...")
 
             # Use COPY FROM with PARALLEL=false for memory efficiency
+            # Explicitly set QUOTE and ESCAPE for proper CSV parsing with embedded quotes
             self.conn.execute(f"""
-                COPY {table} FROM '{csv_file}' (HEADER=true, PARALLEL=false)
+                COPY {table} FROM '{csv_file}' (HEADER=true, PARALLEL=false, QUOTE='"', ESCAPE='"')
             """)
 
             # Count rows
@@ -210,8 +211,9 @@ class BatchedCSVLoader:
             logger.info(f"  Loading {table}...")
 
             # Use COPY FROM with PARALLEL=false for memory efficiency
+            # Explicitly set QUOTE and ESCAPE for proper CSV parsing with embedded quotes
             self.conn.execute(f"""
-                COPY {table} FROM '{csv_file}' (HEADER=true, PARALLEL=false)
+                COPY {table} FROM '{csv_file}' (HEADER=true, PARALLEL=false, QUOTE='"', ESCAPE='"')
             """)
 
             # Count relationships

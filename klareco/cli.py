@@ -47,47 +47,37 @@ def cmd_parse(args):
 
 
 def cmd_query(args):
-    """Query corpus using AST-aware retrieval."""
-    from klareco.rag.ast_aware_retriever import ASTAwareRetriever
+    """Answer an Esperanto question using the orchestration pipeline."""
+    from klareco.orchestrator import build_default_pipeline
 
-    # Initialize retriever
-    index_dir = Path(args.index_dir or "data/indexes/slot_hybrid")
+    whoosh_dir = args.whoosh_dir or "data/indexes/whoosh"
+    kuzu_path = args.kuzu_path or "data/indexes/v2.1_kuzu_index_full"
 
     try:
-        retriever = ASTAwareRetriever(
-            index_path=index_dir,
-            use_prefilter=True,
-            use_keyword_prefilter=True,
+        pipeline = build_default_pipeline(
+            whoosh_index_dir=whoosh_dir,
+            kuzu_db_path=kuzu_path,
+            top_k=args.top_k,
         )
     except Exception as e:
-        print(f"ERROR initializing retriever: {e}", file=sys.stderr)
-        print(f"Make sure index exists at {index_dir}", file=sys.stderr)
+        print(f"ERROR initializing pipeline: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Get query text
     if args.query:
         query_text = args.query
     else:
-        print("Enter query in Esperanto:")
+        print("Enter question in Esperanto:")
         query_text = input().strip()
 
-    # Retrieve
     try:
-        results = retriever.search(
-            query_text,
-            top_k=args.top_k,
-        )
-
-        print(f"\n=== Query: {query_text} ===\n")
-        for i, (score, doc) in enumerate(results, 1):
-            print(f"{i}. [Score: {score:.4f}]")
-            print(f"   {doc.get('text', '')}")
-            if args.verbose and 'source' in doc:
-                print(f"   Source: {doc['source']}")
+        result = pipeline.answer(query_text)
+        print(f"\n=== {query_text} ===\n")
+        print(result.text or "(no answer)")
+        if args.verbose:
             print()
-
+            result.print_trace()
     except Exception as e:
-        print(f"ERROR during retrieval: {e}", file=sys.stderr)
+        print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -260,16 +250,12 @@ POC Goals:
     parser_parse.set_defaults(func=cmd_parse)
 
     # --- query command ---
-    parser_query = subparsers.add_parser('query', help='Query corpus with two-stage retrieval')
-    parser_query.add_argument('query', nargs='?', help='Query in Esperanto')
-    parser_query.add_argument('--index-dir', help='Path to corpus index (default: data/corpus_index_v3)')
-    parser_query.add_argument('--model-path', help='Path to Tree-LSTM model')
-    parser_query.add_argument('--top-k', type=int, default=3, help='Number of results (default: 3)')
-    parser_query.add_argument('--neural-only', action='store_true',
-                             help='Skip structural filtering (neural-only retrieval)')
-    parser_query.add_argument('--device', default='cpu', choices=['cpu', 'cuda'],
-                             help='Device for neural model (default: cpu)')
-    parser_query.add_argument('-v', '--verbose', action='store_true', help='Show source info')
+    parser_query = subparsers.add_parser('query', help='Answer an Esperanto question')
+    parser_query.add_argument('query', nargs='?', help='Question in Esperanto')
+    parser_query.add_argument('--whoosh-dir', help='Path to Whoosh index (default: data/indexes/whoosh)')
+    parser_query.add_argument('--kuzu-path', help='Path to Kuzu DB (default: data/indexes/v2.1_kuzu_index_full)')
+    parser_query.add_argument('--top-k', type=int, default=10, help='Passages to retrieve (default: 10)')
+    parser_query.add_argument('-v', '--verbose', action='store_true', help='Show pipeline trace')
     parser_query.set_defaults(func=cmd_query)
 
     # --- translate command ---

@@ -880,3 +880,6 @@ def classify_question_type(query: str) -> QuestionType:
         return QuestionType.WHY
     else:
         return QuestionType.OTHER
+
+# Backward-compatible alias
+ImportanceScorer = FactImportanceScorer

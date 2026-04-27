@@ -31,11 +31,18 @@ ROOT_PATTERN = re.compile(r"^([a-zĉĝĥĵŝŭ]{2,})[''7]", re.UNICODE)
 
 # Roots the parser sees in source but are correctly excluded from the JSON
 KNOWN_EXCLUSIONS = frozenset({
-    # Grammatical affixes (not content roots)
+    # Grammatical affixes (not content roots — live in suffix embedding table)
     'ad',       # -ad- (continuous action suffix)
     'aĵ',       # -aĵ- (concrete object suffix)
     'ĉj',       # -ĉj- (masculine diminutive name affix)
     'nj',       # -nj- (feminine diminutive name affix)
+    # Participial endings — purely grammatical, belong in suffix embedding table not root vocab
+    'ant',      # active present participle ending (-anta, -ante, -anto)
+    'int',      # active past participle ending (-inta, -inte, -into)
+    'ont',      # active future participle ending (-onta, -onte, -onto)
+    'at',       # passive present participle ending (-ata, -ate, -ato)
+    'it',       # passive past participle ending (-ita, -ite, -ito)
+    'ot',       # passive future participle ending (-ota, -ote, -oto)
     # OCR artifacts / corrupted entries in the source text
     'leĝf',       # should be 'leĝ' (law) — stray 'f'
     'nasklĝ',     # should be 'naskiĝ' — 'i' dropped by OCR
@@ -45,6 +52,11 @@ KNOWN_EXCLUSIONS = frozenset({
     'ĝr',         # 2-char fragment from compound 'preĝ' — OCR garbled
     'ionnix',     # Cyrillic OCR garbage line
     'kazywac',    # Polish OCR garbage line (backslash raw_line)
+    # OCR errors removed from JSON — these were extracted but are wrong roots
+    'rug',        # OCR corruption of ruĝ (red) — circumflex dropped; ruĝ is in JSON
+    'no',         # OCR garbage — Cyrillic continuation line of ial entry, not a root
+    'id',         # OCR corruption of iĝ suffix — ĝ→d by OCR; iĝ is a suffix anyway
+    'obo',        # OCR corruption of obe (to obey) — obe'→obo'; obe is in JSON
 })
 
 
@@ -78,9 +90,9 @@ class TestFundamentoJSON:
         assert FUNDAMENTO_JSON.exists(), f"Missing: {FUNDAMENTO_JSON}"
 
     def test_minimum_size(self, json_roots):
-        """Should have at least 2400 roots (well above the 2176 pre-expansion baseline)."""
-        assert len(json_roots) >= 2400, \
-            f"Only {len(json_roots)} roots — expected 2400+"
+        """Should have at least 2480 roots (UV + Unua Libro, minus OCR errors and participial suffixes)."""
+        assert len(json_roots) >= 2480, \
+            f"Only {len(json_roots)} roots — expected 2480+"
 
     def test_no_single_char_roots(self, json_roots):
         """No root should be a single character (those are OCR artifacts)."""
@@ -178,8 +190,14 @@ class TestFundamentoSourceCoverage:
             # Special-char roots (the ones that were all missing pre-expansion)
             'ĉambr', 'reĝ', 'ŝip', 'feliĉ', 'ĝoj',
             'ĵet', 'ŝton', 'kaŝ', 'sufiĉ', 'kuraĝ',
-            # Newly added in 2025-04
+            # Added in 2025-04 expansion
             'anĝel', 'ĉef', 'ĉirkaŭ', 'moŝt',
+            # Added via Unua Libro (1887) cross-check — missed by UV OCR extraction
+            'leĝ', 'ruĝ', 'klar', 'sinjor', 'orel',
+            'rest', 'somer', 'sovaĝ', 'lig', 'obe',
+            'dik', 'larĝ', 'spec', 'sak', 'soif',
+            'horloĝ', 'etaĝ', 'fajf', 'bar', 'konven',
+            'ŝtof', 'ŝel', 'turk', 'ekster', 'kontraŭ',
         ]
         missing = [r for r in required if r not in json_roots]
         assert len(missing) == 0, f"Required roots missing from JSON: {missing}"

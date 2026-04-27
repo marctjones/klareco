@@ -84,14 +84,19 @@ class SemanticPlusGrammarEmbedding:
         return {prefix: i for i, prefix in enumerate(prefixes[:20])}
 
     def _build_suffix_vocab(self) -> Dict[str, int]:
-        """Build suffix vocabulary (top 30 suffixes)."""
+        """Build suffix vocabulary covering all Fundamento affixes."""
         suffixes = [
+            # Derivational suffixes
             'ig', 'iĝ', 'ad', 'aĵ', 'an', 'ar', 'ebl', 'ec', 'eg',
-            'ej', 'em', 'end', 'er', 'estr', 'et', 'id', 'ig', 'il',
+            'ej', 'em', 'end', 'er', 'estr', 'et', 'id', 'il',
             'in', 'ind', 'ing', 'ism', 'ist', 'obl', 'on', 'op', 'uj',
-            'ul', 'um', 'ind'
+            'ul', 'um',
+            # Participial endings (moved from root vocab — purely grammatical)
+            'ant', 'int', 'ont', 'at', 'it', 'ot',
         ]
-        return {suffix: i for i, suffix in enumerate(suffixes[:30])}
+        seen = set()
+        deduped = [s for s in suffixes if not (s in seen or seen.add(s))]
+        return {suffix: i for i, suffix in enumerate(deduped)}
 
     def embed_word(self, word_info: Dict) -> np.ndarray:
         """

@@ -423,6 +423,20 @@ KNOWN_NUMBERS = {
     "naŭdek",  # ninety
 }
 
+# Generate compound numerals algorithmically: ducent (200), tricent (300), ..., dumil (2000), ...
+_DIGIT_WORDS_FOR_COMPOUND = ["du", "tri", "kvar", "kvin", "ses", "sep", "ok", "naŭ"]
+for _d in _DIGIT_WORDS_FOR_COMPOUND:
+    KNOWN_NUMBERS.add(_d + "cent")   # ducent, tricent, kvarcent, kvincent, sescent, sepcent, okcent, naŭcent
+    KNOWN_NUMBERS.add(_d + "mil")    # dumil, trimil, kvarmil, ...
+del _DIGIT_WORDS_FOR_COMPOUND, _d
+
+# Simple (non-compound) numeral roots — these CAN take grammatical endings (a/e/o/i)
+# to form adjectives/adverbs/nouns and must NOT be caught by the inflected-compound check.
+_BASIC_NUMERAL_ROOTS = frozenset({
+    "unu", "du", "tri", "kvar", "kvin", "ses", "sep", "ok", "naŭ",
+    "dek", "cent", "mil", "nul",
+})
+
 # Semantic roots (radikoj) - core vocabulary
 # Expanded to cover common Esperanto words
 KNOWN_ROOTS = {
@@ -670,6 +684,36 @@ if _protected_roots_path.exists():
 # Combined set for fast lookup
 PROTECTED_ROOTS = PROTECTED_PREFIX_ROOTS | PROTECTED_SUFFIX_ROOTS
 
+# Common Esperanto abbreviations — matched before any morphological analysis
+_KNOWN_ABBREVIATIONS: dict[str, str] = {
+    "s-ro":   "Sinjoro",        # Mr.
+    "s-ino":  "Sinjorino",      # Mrs./Ms.
+    "d-ro":   "doktoro",        # Dr. (male)
+    "d-ra":   "doktorino",      # Dr. (female)
+    "n-ro":   "numero",         # No. (number)
+    "k.t.p.": "kaj tiel plu",   # etc.
+    "ktp":    "kaj tiel plu",   # etc. (no-dot form)
+    "k.a.":   "kaj aliaj",      # et al.
+    "prof.":  "profesoro",      # Prof.
+    "kp.":    "komparu",        # cf. / compare
+}
+
+# Phonological validity check for Esperanto roots (for neologism acceptance)
+_EO_VOWELS = frozenset("aeiou")
+_EO_VALID_CHARS = frozenset("abcĉdefgĝhĥijĵklmnoprstŭvzŝ") | _EO_VOWELS
+
+
+def _is_valid_eo_stem(s: str) -> bool:
+    """Return True if s is phonologically valid as an Esperanto root.
+
+    Criteria: at least one vowel, only Esperanto characters, minimum length 2.
+    Used to accept neologisms whose roots are not yet in any vocabulary.
+    """
+    if len(s) < 2:
+        return False
+    s_lower = s.lower()
+    return any(c in _EO_VOWELS for c in s_lower) and all(c in _EO_VALID_CHARS for c in s_lower)
+
 
 # -----------------------------------------------------------------------------
 # --- Layer 1: Morphological Analyzer (Fundamento-first design)
@@ -710,6 +754,16 @@ def parse_word(word: str) -> dict:
         "prefiksoj": [],
         "sufiksoj": [],
     }
+
+    # ==========================================================================
+    # STEP -1: Abbreviation check (before hyphen split so S-ro is not torn apart)
+    # ==========================================================================
+    if lower_word in _KNOWN_ABBREVIATIONS:
+        ast["radiko"] = lower_word
+        ast["vortspeco"] = "mallongigo"
+        ast["ekspansiita"] = _KNOWN_ABBREVIATIONS[lower_word]
+        ast["estas_mallongigo"] = True
+        return ast
 
     # ==========================================================================
     # STEP 0: Hyphenated Compound Word Check
@@ -804,6 +858,18 @@ def parse_word(word: str) -> dict:
         if lower_word in KNOWN_NUMBERS:
             ast["radiko"] = lower_word
             ast["vortspeco"] = "numero"
+            return ast
+        # Inflected compound numeral: ducentoj → ducent + oj
+        # Exclude basic digit roots (du, tri, ...) — they take grammatical endings
+        # to form adjectives/adverbs/nouns (dua, trio, duoj) and must fall through.
+        if temp_num in KNOWN_NUMBERS and temp_num not in _BASIC_NUMERAL_ROOTS:
+            ast["radiko"] = temp_num
+            ast["vortspeco"] = "numero"
+            suffix_part = lower_word[len(temp_num):]
+            if "n" in suffix_part:
+                ast["kazo"] = "akuzativo"
+            if "j" in suffix_part:
+                ast["nombro"] = "pluralo"
             return ast
         # Otherwise continue with regular parsing for inflected numbers
 
@@ -917,17 +983,30 @@ def parse_word(word: str) -> dict:
         return None
 
     def check_prefix_gives_fundamento(s: str) -> tuple[str, str] | None:
-        """Check if s = prefix + Fundamento root. Return (prefix, root) or None."""
+        """Check if s = prefix(es) + Fundamento root.
+
+        Returns (first_prefix, ultimate_fundamento_root) or None.
+        Handles double-prefix cases (e.g. malrefar → mal + re + far).
+        """
         for prefix in sorted_prefixes:
             if s.startswith(prefix) and len(s) > len(prefix):
                 remainder = s[len(prefix):]
-                # Check if remainder is a Fundamento root
+                # Check if remainder is directly a Fundamento root
                 if remainder in _FUNDAMENTO_ROOTS:
                     return (prefix, remainder)
-                # Check if remainder minus suffixes is Fundamento
+                # Check if remainder minus suffixes leads to Fundamento
                 fund = find_fundamento_root(remainder)
                 if fund:
                     return (prefix, fund)
+                # Double-prefix: remainder itself starts with a prefix + Fundamento root
+                for prefix2 in sorted_prefixes:
+                    if remainder.startswith(prefix2) and len(remainder) > len(prefix2):
+                        remainder2 = remainder[len(prefix2):]
+                        if remainder2 in _FUNDAMENTO_ROOTS:
+                            return (prefix, remainder2)
+                        fund2 = find_fundamento_root(remainder2)
+                        if fund2:
+                            return (prefix, fund2)
         return None
 
     def check_suffix_gives_fundamento(s: str) -> tuple[str, list[str]] | None:
@@ -1032,41 +1111,41 @@ def parse_word(word: str) -> dict:
         max_prefix_depth = 3
         for _ in range(max_prefix_depth):
             # STOP if stem is now a Fundamento/protected root
-            # E.g., after extracting "mal-" from "malbon", stem="bon" is Fundamento
-            # Do NOT try to extract "bo-" from "bon"!
             if stem in _FUNDAMENTO_ROOTS or stem in PROTECTED_ROOTS:
                 break
+
+            # STOP if stem can be cleanly decomposed as fundamento_root + suffix,
+            # UNLESS a prefix+Fundamento decomposition also exists (which takes priority).
+            # Without this guard, "bonec" after "mal" → incorrectly "bo"+"nec" (corpus root).
+            # Exception: "disig" has dis+ig (both Fundamento) — prefix should win.
+            _local_suf = check_suffix_gives_fundamento(stem)
+            if _local_suf and (_local_suf[0] in _FUNDAMENTO_ROOTS or _local_suf[0] in PROTECTED_ROOTS):
+                if not check_prefix_gives_fundamento(stem):
+                    break
 
             found_prefix = False
             for prefix in sorted_prefixes:
                 if stem.startswith(prefix) and len(stem) > len(prefix):
                     remainder = stem[len(prefix):]
 
-                    # CRITICAL: Only extract prefix if:
-                    # 1. The ORIGINAL stem (before extraction) is NOT a protected root
-                    # 2. The remainder leads to a valid root
-                    #
-                    # Example: "malbon" is NOT protected, and "bon" is a valid root
-                    # So we extract "mal-" + "bon"
-                    #
-                    # Example: "region" IS protected (looks like re-gion)
-                    # So we do NOT extract - it's atomic
-
-                    # Check if remainder leads to a Fundamento root
+                    # Check if remainder leads to a Fundamento root (directly or via suffixes)
                     fund_root = find_fundamento_root(remainder)
                     if fund_root:
-                        # Valid prefix extraction!
                         extracted_prefixes.append(prefix)
                         stem = remainder
                         found_prefix = True
                         break
 
-                    # Also check if remainder is in KNOWN_ROOTS
-                    # Note: remainder being in PROTECTED_PREFIX_ROOTS is OK here!
-                    # E.g., "mal" + "bon" → "bon" is protected (starts with bo-),
-                    # but that's fine because "bon" IS a valid Fundamento root.
-                    # CRITICAL: Require minimum root length of 2 to avoid accepting
-                    # garbage like "ĝ", "l", "m" from the polluted KNOWN_ROOTS
+                    # Double-prefix: remainder = prefix2 + fundamento_root (e.g. malrefar → mal + refar)
+                    # We extract the outer prefix and let the next loop iteration handle the inner one.
+                    if check_prefix_gives_fundamento(remainder) is not None:
+                        extracted_prefixes.append(prefix)
+                        stem = remainder
+                        found_prefix = True
+                        break
+
+                    # Corpus-vocabulary fallback: only accept if no Fundamento-based
+                    # decomposition was possible and the remainder is a complete word.
                     if remainder in KNOWN_ROOTS and len(remainder) >= 2:
                         extracted_prefixes.append(prefix)
                         stem = remainder
@@ -1186,6 +1265,14 @@ def parse_word(word: str) -> dict:
     # STEP 7: Identify Root (with compound word fallback)
     # ==========================================================================
 
+    # Capitalization guard: if the original word was capitalized and the stem is
+    # not a Fundamento/protected root, it's a proper noun (or foreign word) that
+    # had an Esperanto-like ending stripped (e.g. "Shakespeare" → -e → "shakespear").
+    # Route directly to categorize_unknown_word instead of accepting a corpus root
+    # with the wrong word class.
+    if original_word[0].isupper() and stem not in _FUNDAMENTO_ROOTS and stem not in PROTECTED_ROOTS:
+        return categorize_unknown_word(original_word)
+
     if stem in KNOWN_ROOTS or stem in _FUNDAMENTO_ROOTS or stem in PROTECTED_ROOTS:
         ast["radiko"] = stem
         return ast
@@ -1195,20 +1282,37 @@ def parse_word(word: str) -> dict:
         return ast
 
     # Try compound word decomposition (root + root)
+    # Patterns run in priority order across ALL split positions before the next pattern.
+    # This prevents an early split with a lower-priority pattern from shadowing the
+    # correct split found at a later position by a higher-priority pattern.
     if len(stem) >= 4:
-        # Pattern 1: root1 + o + root2 (linking vowel)
-        for i in range(2, len(stem) - 2):
-            first = stem[:i]
-            rest = stem[i:]
+        splits = [(stem[:i], stem[i:]) for i in range(2, len(stem) - 2)]
 
+        # Pattern 1 (highest priority): root1 + o + root2 (linking vowel)
+        for first, rest in splits:
             if rest.startswith("o") and len(rest) > 2:
                 second = rest[1:]
                 if first in KNOWN_ROOTS and second in KNOWN_ROOTS:
-                    ast["radiko"] = second  # Head is typically second root
+                    ast["radiko"] = second
                     ast["kunmetitaj_radikoj"] = [first, second]
                     return ast
 
-            # Pattern 2: root1 + root2 (no linking vowel)
+        # Pattern 2b: root1 + (fundamento_root2 + suffix)
+        # Preferred over Pattern 2 to produce a Fundamento root as the head.
+        # Example: librvendejo → libr + (vend + ej) rather than libr + vendej.
+        for first, rest in splits:
+            if (first in KNOWN_ROOTS or first in _FUNDAMENTO_ROOTS) and len(rest) >= 3:
+                for suffix in sorted_suffixes:
+                    if rest.endswith(suffix) and len(rest) > len(suffix) + 1:
+                        second = rest[:-len(suffix)]
+                        if second in _FUNDAMENTO_ROOTS or second in PROTECTED_ROOTS:
+                            ast["radiko"] = second
+                            ast["kunmetitaj_radikoj"] = [first, second]
+                            ast["sufiksoj"] = ast.get("sufiksoj", []) + [suffix]
+                            return ast
+
+        # Pattern 2: root1 + root2 (no linking vowel)
+        for first, rest in splits:
             if first in KNOWN_ROOTS and rest in KNOWN_ROOTS:
                 ast["radiko"] = rest
                 ast["kunmetitaj_radikoj"] = [first, rest]
@@ -1223,14 +1327,19 @@ def parse_word(word: str) -> dict:
                     ast["prefiksoj"].insert(0, prep)
                     return ast
 
-    # Last resort: treat stem as unknown root
-    # Still set it as the root so the AST is complete
-    ast["radiko"] = stem
-
-    # If we couldn't find a valid root, raise an error
+    # Last resort: if no valid Esperanto root found, try phonological acceptance
+    # for neologisms (valid Esperanto phonology but not yet in any vocabulary),
+    # then fall back to categorize_unknown_word for genuine foreign/unknown words.
     if stem not in KNOWN_ROOTS and stem not in _FUNDAMENTO_ROOTS:
-        raise ValueError(f"Ne povis trovi validan radikon en '{original_word}'. Restaĵo: '{stem}'")
+        if _is_valid_eo_stem(stem):
+            # Phonologically valid Esperanto root not in vocabulary = neologism.
+            # Accept it so modern words (komput, ekran, retum, ...) parse correctly.
+            ast["radiko"] = stem
+            ast["kategorio"] = "neologismo"
+            return ast
+        return categorize_unknown_word(original_word, f"Ne povis trovi validan radikon. Restaĵo: '{stem}'")
 
+    ast["radiko"] = stem
     return ast
 
 
@@ -1408,14 +1517,209 @@ SUBORDINATING_CONJUNCTIONS = {
 }
 
 
+# =============================================================================
+# RELATIVE CLAUSE HANDLING
+# =============================================================================
+
+
+def _is_ki_correlative(ast: dict) -> bool:
+    """Return True if *ast* is a ki- correlative (kiu/kiun/kio/kie/kiam…)."""
+    return (ast.get("vortspeco") == "korelativo" and
+            ast.get("korelativo_prefikso") == "ki")
+
+
+def _find_relative_clause_end(word_asts: list, start: int) -> int:
+    """
+    Return the end index (exclusive) of the relative clause whose
+    ki-correlative is at *start*.
+
+    The clause ends right before the second finite verb at nesting depth 0.
+    Each new subordinate opener (another ki-correlative or ke/se/ĉar/…)
+    pushes depth; the next verb at that depth pops it.
+
+    Returns len(word_asts) if the clause runs to the end of the sentence.
+    """
+    depth = 0       # extra nesting inside this relative clause
+    verb_count = 0  # finite verbs seen at depth 0
+
+    non_sub_coords = {"kaj", "sed", "aŭ", "nek", "do", "tial"}
+
+    for j in range(start + 1, len(word_asts)):
+        ast = word_asts[j]
+        radiko = ast.get("radiko", "").lower()
+        vortspeco = ast.get("vortspeco", "")
+
+        if _is_ki_correlative(ast):
+            depth += 1
+        elif radiko in SUBORDINATING_CONJUNCTIONS and radiko not in non_sub_coords:
+            depth += 1
+        elif vortspeco == "verbo":
+            if depth > 0:
+                depth -= 1      # verb closes a nested sub-clause
+            else:
+                verb_count += 1
+                if verb_count >= 2:
+                    return j    # second verb = first word of main clause
+
+    return len(word_asts)
+
+
+def find_relative_clause_spans(word_asts: list) -> list:
+    """
+    Return list of (start, end) spans (end exclusive) for every relative
+    clause in *word_asts*.
+
+    A relative clause is introduced by a ki-correlative that is NOT at
+    sentence position 0 (position-0 ki-correlatives are question words).
+    Multi-level nesting is handled transparently: scanning jumps past each
+    already-found span.
+    """
+    spans = []
+    i = 0
+    while i < len(word_asts):
+        if i > 0 and _is_ki_correlative(word_asts[i]):
+            end = _find_relative_clause_end(word_asts, i)
+            spans.append((i, end))
+            i = end         # jump past the whole clause
+        else:
+            i += 1
+    return spans
+
+
+def _build_relative_clause_node(correlative_ast: dict,
+                                 clause_words: list) -> dict:
+    """
+    Build a *rilata_subfrazo* node from a ki-correlative and its body words.
+
+    Handles multi-level nesting recursively: nested ki-correlatives inside
+    *clause_words* are detected and turned into their own rilata_subfrazo
+    nodes attached to the appropriate inner noun group.
+
+    The outer correlative's case tells its syntactic role:
+      - nominativo (kiu)  → fills inner subjekto if empty
+      - akuzativo (kiun)  → fills inner objekto if empty
+    """
+    # --- nested relative clauses inside the clause body ---
+    nested_spans = find_relative_clause_spans(clause_words)
+    nested_set = {i for s, e in nested_spans for i in range(s, e)}
+
+    # Parse the main (non-nested) words
+    main_words = [w for i, w in enumerate(clause_words) if i not in nested_set]
+    if main_words:
+        inner = parse_clause(main_words)
+    else:
+        inner = {
+            "tipo": "frazo",
+            "subjekto": None, "verbo": None, "objekto": None, "aliaj": []
+        }
+
+    # Fill in the outer correlative's own syntactic role
+    kazo = correlative_ast.get("kazo", "nominativo")
+    if kazo == "nominativo" and inner["subjekto"] is None:
+        inner["subjekto"] = {
+            "tipo": "vortgrupo", "kerno": correlative_ast, "priskriboj": []
+        }
+    elif kazo == "akuzativo" and inner["objekto"] is None:
+        inner["objekto"] = {
+            "tipo": "vortgrupo", "kerno": correlative_ast, "priskriboj": []
+        }
+
+    # Recursively build and attach nested rilata_subfrazo nodes
+    for n_start, n_end in nested_spans:
+        n_corr = clause_words[n_start]
+        n_words = clause_words[n_start + 1:n_end]
+        nested_node = _build_relative_clause_node(n_corr, n_words)
+
+        # Find antecedent: last content word before n_start that is not
+        # itself inside another nested span
+        attached = False
+        for i in range(n_start - 1, -1, -1):
+            if i in nested_set:
+                continue
+            ast = clause_words[i]
+            vs = ast.get("vortspeco", "")
+            if vs in ("substantivo", "propra_nomo", "pronomo", "nekonata"):
+                if inner["subjekto"] and ast is inner["subjekto"]["kerno"]:
+                    inner["subjekto"].setdefault("priskriboj", []).append(nested_node)
+                    attached = True
+                elif inner["objekto"] and ast is inner["objekto"]["kerno"]:
+                    inner["objekto"].setdefault("priskriboj", []).append(nested_node)
+                    attached = True
+                break
+        if not attached:
+            inner.setdefault("aliaj", []).append(nested_node)
+
+    return {
+        "tipo": "rilata_subfrazo",
+        "rilata_pronomo": correlative_ast,
+        "subjekto": inner["subjekto"],
+        "verbo": inner["verbo"],
+        "objekto": inner["objekto"],
+        "aliaj": inner.get("aliaj", []),
+    }
+
+
+def _attach_relative_clauses(sentence_ast: dict, word_asts: list,
+                               relative_spans: list) -> dict:
+    """
+    For each relative clause span: build a rilata_subfrazo, attach it to the
+    antecedent noun's priskriboj, and strip the clause words from aliaj.
+    """
+    if not relative_spans:
+        return sentence_ast
+
+    # All indices covered by any relative clause
+    relative_indices: set = set()
+    for start, end in relative_spans:
+        relative_indices.update(range(start, end))
+
+    for start, end in relative_spans:
+        correlative_ast = word_asts[start]
+        clause_words = word_asts[start + 1:end]
+        rilata_node = _build_relative_clause_node(correlative_ast, clause_words)
+
+        # Antecedent = last content word strictly before *start* that is not
+        # itself inside a relative clause
+        antecedent_role = None
+        for i in range(start - 1, -1, -1):
+            if i in relative_indices:
+                continue
+            ast = word_asts[i]
+            vs = ast.get("vortspeco", "")
+            if vs in ("substantivo", "propra_nomo", "pronomo", "nekonata"):
+                if (sentence_ast["subjekto"] and
+                        ast is sentence_ast["subjekto"]["kerno"]):
+                    antecedent_role = "subjekto"
+                elif (sentence_ast["objekto"] and
+                        ast is sentence_ast["objekto"]["kerno"]):
+                    antecedent_role = "objekto"
+                break
+
+        if antecedent_role:
+            sentence_ast[antecedent_role].setdefault("priskriboj", []).append(rilata_node)
+        else:
+            sentence_ast["aliaj"].append(rilata_node)
+
+    # Strip relative clause words from aliaj (now inside rilata_subfrazo nodes)
+    relative_ids = {id(word_asts[i]) for i in relative_indices}
+    sentence_ast["aliaj"] = [
+        w for w in sentence_ast["aliaj"]
+        if not (isinstance(w, dict) and id(w) in relative_ids)
+    ]
+    return sentence_ast
+
+
+# =============================================================================
+
+
 def parse_subordinate_clauses(sentence_ast: dict, word_asts: list) -> dict:
     """
     Parse subordinate clauses from aliaj[] and create nested frazo nodes.
 
     Handles:
     - ke-clauses (complement): attach to objekto
-    - Relative clauses (kiu/kio): attach to noun's priskriboj
     - Adverbial clauses (kiam/se/ĉar): keep in aliaj[] but as frazo
+    - Relative clauses are handled separately by _attach_relative_clauses.
 
     Args:
         sentence_ast: The sentence AST with subject, verb, object, aliaj
@@ -1438,6 +1742,12 @@ def parse_subordinate_clauses(sentence_ast: dict, word_asts: list) -> dict:
         # Check if this is a subordinating conjunction
         if radiko in SUBORDINATING_CONJUNCTIONS:
             clause_type = SUBORDINATING_CONJUNCTIONS[radiko]
+
+            # Relative clauses are handled separately by _attach_relative_clauses.
+            if clause_type == "relative":
+                new_aliaj.append(word)
+                i += 1
+                continue
 
             # Collect words for subordinate clause
             clause_words = []
@@ -1467,14 +1777,6 @@ def parse_subordinate_clauses(sentence_ast: dict, word_asts: list) -> dict:
                 clause_words.append(next_word)
                 j += 1
 
-                # For relative clauses, stop at next verb (main clause continuation)
-                if clause_type == "relative":
-                    # Look ahead - if we see another verb after collecting subject+verb+object, stop
-                    verbs_in_clause = sum(1 for w in clause_words if w.get("vortspeco") == "verbo")
-                    if verbs_in_clause >= 1 and next_word.get("vortspeco") == "verbo":
-                        # We've hit the main clause verb, stop here
-                        break
-
             # Parse collected words as a subordinate clause
             if clause_words:
                 # Reconstruct sentence text from clause words
@@ -1490,23 +1792,6 @@ def parse_subordinate_clauses(sentence_ast: dict, word_asts: list) -> dict:
                     if clause_type == "complement":
                         # ke-clause becomes the object
                         sentence_ast["objekto"] = sub_frazo
-
-                    elif clause_type == "relative":
-                        # Relative clause modifies the nearest preceding noun
-                        # Find the noun it modifies (should be right before "kiu")
-                        if i > 0:
-                            prev_word = aliaj[i - 1]
-                            # Check if it's already part of subject or object
-                            if sentence_ast["subjekto"] and prev_word == sentence_ast["subjekto"]["kerno"]:
-                                sentence_ast["subjekto"]["priskriboj"].append(sub_frazo)
-                            elif sentence_ast["objekto"] and prev_word == sentence_ast["objekto"]["kerno"]:
-                                sentence_ast["objekto"]["priskriboj"].append(sub_frazo)
-                            else:
-                                # Standalone relative clause, keep in aliaj
-                                new_aliaj.append(sub_frazo)
-                        else:
-                            new_aliaj.append(sub_frazo)
-
                     else:
                         # Adverbial clauses (temporal, conditional, causal, etc.)
                         # Keep in aliaj[] but as frazo, not individual words
@@ -1738,24 +2023,31 @@ def parse(text: str):
         "aliaj": [] # Other parts
     }
 
-    # Detect subordinating conjunctions to avoid assigning their words to main clause
-    # Issue #691: Find where subordinate clauses start
-    subordinate_starts = []
+    # Detect subordinate clause boundaries to avoid assigning their words to main clause.
+    # Relative clauses: tracked with precise (start, end) spans via find_relative_clause_spans.
+    # Other subordinates (ke/se/ĉar/…): tracked by start position only (old behaviour).
+    relative_spans = find_relative_clause_spans(word_asts)
+    relative_span_set = {i for start, end in relative_spans for i in range(start, end)}
+
+    other_subordinate_starts = []
     for i, ast in enumerate(word_asts):
         radiko = ast.get("radiko", "").lower()
         if radiko in SUBORDINATING_CONJUNCTIONS:
-            # Ki-correlatives at position 0 are question words ("Kiu fondis?"),
-            # not relative clause introducers ("la homo kiu fondis")
-            if i == 0 and radiko in {'kiu', 'kio', 'kiuj', 'kiujn', 'kiun'}:
+            # Position-0 ki-correlatives are question words, not relative pronouns
+            if i == 0 and _is_ki_correlative(ast):
                 continue
-            subordinate_starts.append(i)
+            # Relative clauses are handled by relative_spans — skip here
+            if i in relative_span_set:
+                continue
+            other_subordinate_starts.append(i)
 
     # Find the main components (verb, subject noun, object noun)
     # Rule 6: Case determines grammatical function (nominative=subject, accusative=object)
     # Pronouns (pronomoj) function exactly like nouns (substantivoj) grammatically
     for i, ast in enumerate(word_asts):
-        # Skip words that are in subordinate clauses
-        in_subordinate = any(i > start for start in subordinate_starts)
+        # Skip words that are inside any subordinate clause
+        in_subordinate = (i in relative_span_set or
+                          any(i > start for start in other_subordinate_starts))
 
         if ast["vortspeco"] == "verbo" and not sentence_ast["verbo"] and not in_subordinate:
             sentence_ast["verbo"] = ast
@@ -1817,8 +2109,11 @@ def parse(text: str):
             sentence_ast["aliaj"].append(ast)
 
     # --- Issue #691: Parse subordinate clauses as nested frazo nodes ---
-    # Handle ke-clauses, relative clauses, temporal clauses, etc.
+    # Handle ke-clauses, temporal clauses, etc.
     sentence_ast = parse_subordinate_clauses(sentence_ast, word_asts)
+    # Build rilata_subfrazo nodes for relative clauses and attach to antecedents
+    if relative_spans:
+        sentence_ast = _attach_relative_clauses(sentence_ast, word_asts, relative_spans)
 
     # --- Issue #87: Sentence type detection ---
     # Determine fraztipo (sentence type): demando, ordono, deklaro
@@ -1839,12 +2134,13 @@ def parse(text: str):
             demandotipo = 'ĉu'
             break
 
-    # 3. Check for ki- correlatives (question words: kio, kiu, kie, kiam, kiel, etc.)
+    # 3. Check for ki- correlatives that are QUESTION WORDS (not relative pronouns).
+    # A ki-correlative inside a relative_span is a relative pronoun, not a question word.
     if not demandotipo:
-        for ast in word_asts:
+        for i, ast in enumerate(word_asts):
             if ast.get("vortspeco") == "korelativo":
                 prefix = ast.get("korelativo_prefikso", "")
-                if prefix == "ki":
+                if prefix == "ki" and i not in relative_span_set:
                     is_question = True
                     demandotipo = 'ki'
                     break

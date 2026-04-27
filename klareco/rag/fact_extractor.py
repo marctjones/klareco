@@ -445,7 +445,7 @@ class FactExtractor:
 
                     # Collect capitalized words (proper nouns)
                     if plena_vorto and plena_vorto[0].isupper():
-                        proper_nouns.append(alia.get('radiko', ''))
+                        proper_nouns.append(alia.get('radiko', '').lower())
                     elif proper_nouns:
                         # Stop collecting when we hit a non-capitalized word
                         # (unless it's a preposition/conjunction)
@@ -543,6 +543,23 @@ class FactExtractor:
         """
         facts = []
 
+        # Check rilata_subfrazo nodes in subjekto.priskriboj and objekto.priskriboj.
+        # These are relative clauses now properly parsed by the deterministic handler.
+        for slot_name in ('subjekto', 'objekto'):
+            slot = frazo.get(slot_name)
+            if not slot or not isinstance(slot, dict):
+                continue
+            antecedent = slot.get('kerno', {})
+            antecedent_root = self._get_root(antecedent) if antecedent else None
+            if not antecedent_root:
+                continue
+            for prisk in slot.get('priskriboj', []):
+                if not isinstance(prisk, dict) or prisk.get('tipo') != 'rilata_subfrazo':
+                    continue
+                rf = self._extract_from_rilata_subfrazo(prisk, antecedent_root, source_sentence)
+                if rf:
+                    facts.append(rf)
+
         # Check if objekto is a correlative (relative clause pattern)
         objekto = frazo.get('objekto')
         if objekto and isinstance(objekto, dict):
@@ -583,10 +600,10 @@ class FactExtractor:
                         if isinstance(alia, dict):
                             plena = alia.get('plena_vorto', '')
                             if plena and plena[0].isupper():
-                                agent = alia.get('radiko', '')
+                                agent = alia.get('radiko', '').lower()
                                 break
                             elif alia.get('vortspeco') == 'substantivo' and not agent:
-                                agent = alia.get('radiko', '')
+                                agent = alia.get('radiko', '').lower()
                                 break
 
                     if entity and relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
@@ -645,6 +662,54 @@ class FactExtractor:
 
         return facts
 
+    def _extract_from_rilata_subfrazo(
+        self, rilata: Dict, antecedent_root: str, source_sentence: Optional[str]
+    ) -> Optional[Fact]:
+        """
+        Extract a fact from a rilata_subfrazo node (relative clause).
+
+        The antecedent noun (what the relative clause modifies) becomes the
+        entity.  The subject of the relative clause becomes the agent.
+        Only high-value semantic relations are extracted.
+        """
+        verbo = rilata.get('verbo')
+        if not verbo:
+            return None
+        verb_root = self._get_root(verbo)
+        if not verb_root:
+            return None
+
+        relation = self.verb_to_relation.get(verb_root, RelationType.ACTION)
+        if relation not in {
+            RelationType.CREATED_BY, RelationType.FOUNDED,
+            RelationType.PUBLISHED, RelationType.BORN,
+            RelationType.DIED, RelationType.LOCATED_AT,
+        }:
+            return None
+
+        # Agent is the subject of the relative clause (if it is a content word)
+        agent = None
+        rilata_subj = rilata.get('subjekto')
+        if rilata_subj and isinstance(rilata_subj, dict):
+            kerno = rilata_subj.get('kerno', {})
+            vs = kerno.get('vortspeco', '')
+            radiko = kerno.get('radiko', '')
+            if vs in ('propra_nomo', 'substantivo', 'pronomo') and radiko and radiko.lower() != 'kiu':
+                agent = radiko.lower()
+
+        if not agent:
+            return None
+
+        return Fact(
+            entity=antecedent_root,
+            relation=relation,
+            arguments={'agent': agent},
+            modifiers=self._extract_modifiers(rilata.get('aliaj', [])),
+            source_sentence=source_sentence,
+            source_ast=rilata,
+            confidence=0.8,
+        )
+
     def _find_verb_after_position(self, aliaj: List[Dict], start_pos: int) -> Optional[int]:
         """Find the next verb in aliaj starting from start_pos."""
         for i in range(start_pos, min(start_pos + 15, len(aliaj))):
@@ -679,9 +744,9 @@ class FactExtractor:
                 # Look for proper nouns or substantivo
                 plena = elem.get('plena_vorto', '')
                 if plena and plena[0].isupper():
-                    agent = elem.get('radiko', '')
+                    agent = elem.get('radiko', '').lower()
                 elif elem.get('vortspeco') == 'substantivo' and not agent:
-                    agent = elem.get('radiko', '')
+                    agent = elem.get('radiko', '').lower()
 
         # Find object (usually after the verb)
         entity = None
@@ -788,8 +853,8 @@ class FactExtractor:
                         (plena_vorto and plena_vorto[0].isupper()))
 
             if is_proper:
-                # Preserve capitalization for proper nouns
-                return (root, True, plena_vorto)
+                # Normalize to lowercase for lookup; capitalized_form preserves display form
+                return (root.lower(), True, plena_vorto or root)
             else:
                 # Lowercase for common nouns
                 return (root.lower(), False, None)

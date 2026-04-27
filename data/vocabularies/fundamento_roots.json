@@ -449,12 +449,6 @@
     "raw_line": "anser' oie | goose | Gans | rycb | g§ŝ.",
     "source": "Fundamento Universala Vortaro"
   },
-  "ant": {
-    "description": "marque le participe prĉsent actif",
-    "fundamento": true,
-    "raw_line": "ant' marque le participe prĉsent actif | ending of pres. part.act. in",
-    "source": "Fundamento Universala Vortaro"
-  },
   "antaŭ": {
     "description": "tuk' tablier, devantier",
     "fundamento": true,
@@ -701,12 +695,6 @@
     "raw_line": "aspid' aspic | asp, adder | Natter | acniui> (aMf.u; | zmija.",
     "source": "Fundamento Universala Vortaro"
   },
-  "at": {
-    "description": "marque le participe preseut passif",
-    "fundamento": true,
-    "raw_line": "at' marque le participe preseut passif | ending of pres. part. pass.",
-    "source": "Fundamento Universala Vortaro"
-  },
   "atak": {
     "description": "attaquer",
     "fundamento": true,
@@ -940,6 +928,11 @@
     "fundamento": true,
     "raw_line": "bapt'o'patr' parrain | god-father | Pathe, Taufvater | KpecTHbni",
     "source": "Fundamento Universala Vortaro"
+  },
+  "bar": {
+    "description": "to bar, block, obstruct",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "barakt": {
     "description": "gigotter, piĉtiner",
@@ -2021,6 +2014,11 @@
     "raw_line": "digest' digĉrer j digest | verdauen j nepeBapiiBUTb (o jKe^/iKk) |",
     "source": "Fundamento Universala Vortaro"
   },
+  "dik": {
+    "description": "thick, fat",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "dikt": {
     "description": "dicter",
     "fundamento": true,
@@ -2387,6 +2385,11 @@
     "raw_line": "ekspozici' exposi|ion | exposition | Ausstellung | BbicTaBKa |",
     "source": "Fundamento Universala Vortaro"
   },
+  "ekster": {
+    "description": "outside, external; also prefix ekster-",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "eksterm": {
     "description": "exterminer",
     "fundamento": true,
@@ -2681,6 +2684,11 @@
     "raw_line": "etat' ĉtat | condition | Etat | uiTaT-b | etat.",
     "source": "Fundamento Universala Vortaro"
   },
+  "etaĝ": {
+    "description": "floor, storey (of a building)",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "etend": {
     "description": "ĉtendre",
     "fundamento": true,
@@ -2776,6 +2784,11 @@
     "fundamento": true,
     "raw_line": "fajenc' falence | delft ware | Fayence | *aaHCT> | fajans.",
     "source": "Fundamento Universala Vortaro"
+  },
+  "fajf": {
+    "description": "to whistle, pipe, play a wind instrument",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "fajl": {
     "description": "limer",
@@ -4373,6 +4386,11 @@
     "raw_line": "horizontal' horizontal | horizontal | wagerecht | ropii30HTa;ibnbiri |",
     "source": "Fundamento Universala Vortaro"
   },
+  "horloĝ": {
+    "description": "clock, watch, timepiece",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "hortulan": {
     "description": "ortolan",
     "fundamento": true,
@@ -4431,12 +4449,6 @@
     "description": "ibis",
     "fundamento": true,
     "raw_line": "ibis' ibis | ibis | Ibis | hoiict, | lukodzidb.",
-    "source": "Fundamento Universala Vortaro"
-  },
-  "id": {
-    "description": "se faire, devenir...; ex. pal' pale — pal'iĝ' palir; sid' etre assis",
-    "fundamento": true,
-    "raw_line": "id' se faire, devenir...; ex. pal' pale — pal'iĝ' palir; sid' etre assis",
     "source": "Fundamento Universala Vortaro"
   },
   "idili": {
@@ -4667,12 +4679,6 @@
     "raw_line": "insult' injurier | insult | schelten, schimpfen | pvraTb | besztaĉ,",
     "source": "Fundamento Universala Vortaro"
   },
-  "int": {
-    "description": "ayant fait",
-    "fundamento": true,
-    "raw_line": "int' ayant fait | ending of past part. act. in verbs; e. g. am'int'",
-    "source": "Fundamento Universala Vortaro"
-  },
   "intenc": {
     "description": "se proposer de",
     "fundamento": true,
@@ -4755,12 +4761,6 @@
     "description": "marque la profession; ex. bot' botte — bot'ist' botlier; mar'",
     "fundamento": true,
     "raw_line": "ist' marque la profession; ex. bot' botte — bot'ist' botlier; mar'",
-    "source": "Fundamento Universala Vortaro"
-  },
-  "it": {
-    "description": "marque le participe passe passif; ex. far' faire — far'it'fait",
-    "fundamento": true,
-    "raw_line": "it' marque le participe passe passif; ex. far' faire — far'it'fait",
     "source": "Fundamento Universala Vortaro"
   },
   "izol": {
@@ -5555,6 +5555,11 @@
     "raw_line": "klap' clapet | flap | Klappe | luianaHi» | klapka, zasuwka, zastawka.",
     "source": "Fundamento Universala Vortaro"
   },
+  "klar": {
+    "description": "clear, evident, distinct",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "klarnet": {
     "description": "clarinette",
     "fundamento": true,
@@ -6137,6 +6142,11 @@
     "raw_line": "kontrakt' contracter | contract | einen Vertrag abschliessen | :»a-",
     "source": "Fundamento Universala Vortaro"
   },
+  "kontraŭ": {
+    "description": "against, opposite, counter; also prefix kontraŭ-",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "kontur": {
     "description": "contour",
     "fundamento": true,
@@ -6160,6 +6170,11 @@
     "fundamento": true,
     "raw_line": "konval' muguet | mav flower | Maiblŭmchen | Jiaujbinib | kon-",
     "source": "Fundamento Universala Vortaro"
+  },
+  "konven": {
+    "description": "to suit, be fitting, be proper, be appropriate",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "konvert": {
     "description": "convertir",
@@ -6965,6 +6980,11 @@
     "raw_line": "larv' larve | chrysalis | Larve | jiipiniiKa | poczwarka, liszka.",
     "source": "Fundamento Universala Vortaro"
   },
+  "larĝ": {
+    "description": "wide, broad",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "las": {
     "description": "laisser, abandonner",
     "fundamento": true,
@@ -7163,6 +7183,11 @@
     "raw_line": "levkoj' giroflĉe | stock-gillyflower | Levkoje | jieKoii | lewkonja.",
     "source": "Fundamento Universala Vortaro"
   },
+  "leĝ": {
+    "description": "law, statute, rule",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "leŭtenant": {
     "description": "lieutenant",
     "fundamento": true,
@@ -7204,6 +7229,11 @@
     "fundamento": true,
     "raw_line": "lien' rate | spleen | Milz | cejie3eima | ŝledziona.",
     "source": "Fundamento Universala Vortaro"
+  },
+  "lig": {
+    "description": "to tie, bind, fasten, attach",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "lign": {
     "description": "bois",
@@ -8525,12 +8555,6 @@
     "raw_line": "niĉ' niche | niche | Nische | Hiima | nisza.",
     "source": "Fundamento Universala Vortaro"
   },
-  "no": {
-    "description": "ieMy-iin6y.ib",
-    "fundamento": true,
-    "raw_line": "no'ieMy-iin6y.ib | dla jakiejŝ przvczvnv.",
-    "source": "Fundamento Universala Vortaro"
-  },
   "nobel": {
     "description": "noble (subst.), gentilhomme",
     "fundamento": true,
@@ -8645,6 +8669,11 @@
     "raw_line": "nutr' nourrir | nourish | nahren j nuTaTb, kopmiitl | karmiĉ.",
     "source": "Fundamento Universala Vortaro"
   },
+  "obe": {
+    "description": "to obey, comply with",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "objekt": {
     "description": "oiijet",
     "fundamento": true,
@@ -8661,12 +8690,6 @@
     "description": "pain a cacheter",
     "fundamento": true,
     "raw_line": "oblat' pain a cacheter | wafer | Oblate | o6.iaTKa | oplatek.",
-    "source": "Fundamento Universala Vortaro"
-  },
-  "obo": {
-    "description": "obeir",
-    "fundamento": true,
-    "raw_line": "obo' obeir | obev | gehorchen | iioBinioBaTLCH | byĉ pos!usznym.",
     "source": "Fundamento Universala Vortaro"
   },
   "observ": {
@@ -8831,12 +8854,6 @@
     "raw_line": "onkl' oncle | uncle | Onkel | juuh | wuj, strvj.",
     "source": "Fundamento Universala Vortaro"
   },
-  "ont": {
-    "description": "marque le participe futur d’un verbe actif",
-    "fundamento": true,
-    "raw_line": "ont' marque le participe futur d’un verbe actif | ending of fut.",
-    "source": "Fundamento Universala Vortaro"
-  },
   "opal": {
     "description": "opale",
     "fundamento": true,
@@ -8897,6 +8914,11 @@
     "raw_line": "ordon' ordonner | order, command | befehlen | npiiKa3biBaTL | roz-",
     "source": "Fundamento Universala Vortaro"
   },
+  "orel": {
+    "description": "ear",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "orgen": {
     "description": "orgue",
     "fundamento": true,
@@ -8931,12 +8953,6 @@
     "description": "huitre",
     "fundamento": true,
     "raw_line": "ostr' huitre | oyster | Auster | ycTpima | ostrvga.",
-    "source": "Fundamento Universala Vortaro"
-  },
-  "ot": {
-    "description": "marque le participe futur d’un verbe passif",
-    "fundamento": true,
-    "raw_line": "ot' marque le participe futur d’un verbe passif | ending of fut. part.",
     "source": "Fundamento Universala Vortaro"
   },
   "ov": {
@@ -10973,6 +10989,11 @@
     "raw_line": "respond'ec' responsable | responsal | Veranhvortlichkeit | ot-",
     "source": "Fundamento Universala Vortaro"
   },
+  "rest": {
+    "description": "to remain, stay, be left over, rest",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "restoraci": {
     "description": "restaurant, auberge",
     "fundamento": true,
@@ -11273,12 +11294,6 @@
     "raw_line": "rubrik' rubrique | rubric | Rubrik | pyopiiKa | rubryka.",
     "source": "Fundamento Universala Vortaro"
   },
-  "rug": {
-    "description": "rouge",
-    "fundamento": true,
-    "raw_line": "rug' rouge | red | roth | KpacHbin | czervvony.",
-    "source": "Fundamento Universala Vortaro"
-  },
   "ruin": {
     "description": "ig' ruiner",
     "fundamento": true,
@@ -11315,6 +11330,11 @@
     "raw_line": "ruz' rusd, astucieux | trick, ruse | listig | xinpbin | chvtry.",
     "source": "Fundamento Universala Vortaro"
   },
+  "ruĝ": {
+    "description": "red",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "sabat": {
     "description": "samedi",
     "fundamento": true,
@@ -11350,6 +11370,11 @@
     "fundamento": true,
     "raw_line": "sagac' subtil; argutieux | subtle, crafty, sharp | spitzlindig | 3aMbi-",
     "source": "Fundamento Universala Vortaro"
+  },
+  "sak": {
+    "description": "bag, sack, pocket, pouch",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "sakr": {
     "description": "ĉpine du dos",
@@ -11831,6 +11856,11 @@
     "raw_line": "singult' avoir le hoquet | hiccough | schlucksen | imoTa | czkawka.",
     "source": "Fundamento Universala Vortaro"
   },
+  "sinjor": {
+    "description": "mister, sir, lord, master",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "siojor": {
     "description": "monsieur",
     "fundamento": true,
@@ -12017,6 +12047,11 @@
     "raw_line": "sof' sofa | sofa | Sofa | co«i»a | sofa.",
     "source": "Fundamento Universala Vortaro"
   },
+  "soif": {
+    "description": "thirst, longing, craving",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "sojl": {
     "description": "seuil",
     "fundamento": true,
@@ -12046,6 +12081,11 @@
     "fundamento": true,
     "raw_line": "solv' rĉsoudre | loosen, dissolve | auflosen | ptuiaTb, pa3ptuiaTb |",
     "source": "Fundamento Universala Vortaro"
+  },
+  "somer": {
+    "description": "summer",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "son": {
     "description": "8erpent' serpent a sonnettes",
@@ -12101,6 +12141,11 @@
     "raw_line": "sorĉ' pratiquer la magie, la sorcellerie | witchcraft | zaubern 1",
     "source": "Fundamento Universala Vortaro"
   },
+  "sovaĝ": {
+    "description": "wild, savage, uncivilized",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "spalir": {
     "description": "espalier",
     "fundamento": true,
@@ -12112,6 +12157,11 @@
     "fundamento": true,
     "raw_line": "spat'ĉparvin, spath | spavin, spar | Spath | mnaTB | spat.",
     "source": "Fundamento Universala Vortaro"
+  },
+  "spec": {
+    "description": "kind, sort, species, type, variety",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "spegul": {
     "description": "miroir",
@@ -13282,6 +13332,11 @@
     "fundamento": true,
     "raw_line": "turd' grive | thrush | Drossel | Tpoajn» | drozd.",
     "source": "Fundamento Universala Vortaro"
+  },
+  "turk": {
+    "description": "Turkish, Turk",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "turkis": {
     "description": "turquoise",
@@ -14579,6 +14634,11 @@
     "raw_line": "ŝaŭm' ĉcume | foam | Schaum | nkHa | piana.",
     "source": "Fundamento Universala Vortaro"
   },
+  "ŝel": {
+    "description": "shell, peel, husk, rind, bark",
+    "fundamento": true,
+    "source": "unua_libro_1887"
+  },
   "ŝelk": {
     "description": "breeches-bearer",
     "fundamento": true,
@@ -14734,6 +14794,11 @@
     "fundamento": true,
     "raw_line": "ŝtip' bloc, billot | block, log | Klotz | Kojioaa, | kloc, pniak.",
     "source": "Fundamento Universala Vortaro"
+  },
+  "ŝtof": {
+    "description": "cloth, fabric, material, stuff",
+    "fundamento": true,
+    "source": "unua_libro_1887"
   },
   "ŝton": {
     "description": "stone",

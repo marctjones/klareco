@@ -72,5 +72,146 @@ class TestScratchDeparser(unittest.TestCase):
         )
 
 
+class TestDeparsePunctuation(unittest.TestCase):
+
+    def test_declarative_sentence_ends_with_period(self):
+        ast = parse("mi amas vin")
+        result = deparse(ast)
+        self.assertTrue(result.endswith('.'), f"Expected '.', got '{result[-1]}'")
+
+    def test_question_ends_with_question_mark(self):
+        ast = parse("Kiu fondis Esperanton?")
+        result = deparse(ast)
+        self.assertTrue(result.endswith('?'), f"Expected '?', got '{result[-1]}'")
+
+    def test_imperative_ends_with_exclamation(self):
+        ast = parse("Venu!")
+        result = deparse(ast)
+        self.assertTrue(result.endswith('!'), f"Expected '!', got '{result[-1]}'")
+
+    def test_first_word_capitalised(self):
+        ast = parse("mi manĝas panon")
+        result = deparse(ast)
+        self.assertTrue(result[0].isupper(), f"Expected capital first letter, got '{result[0]}'")
+
+
+class TestDeparsePropraVorto(unittest.TestCase):
+
+    def test_proper_noun_preserved_verbatim(self):
+        ast = parse("Zamenhof fondis Esperanton")
+        result = deparse(ast)
+        self.assertIn('Zamenhof', result)
+        self.assertIn('Esperanton', result)
+
+    def test_proper_noun_uses_plena_vorto(self):
+        word_ast = {
+            "tipo": "vorto",
+            "vortspeco": "propra_nomo",
+            "plena_vorto": "Varsovio",
+            "radiko": "Varsovi",
+        }
+        self.assertEqual(_reconstruct_word(word_ast), "Varsovio")
+
+
+class TestDeparseCompoundWords(unittest.TestCase):
+
+    def test_kunmetitaj_radikoj_reconstruction(self):
+        word_ast = {
+            "tipo": "vorto",
+            "vortspeco": "substantivo",
+            "kunmetitaj_radikoj": ["libr", "vend"],
+            "radiko": "vend",
+            "sufiksoj": ["ist"],
+            "nombro": "singularo",
+            "kazo": "nominativo",
+        }
+        result = _reconstruct_word(word_ast)
+        # 'libr' + linking 'o' + 'vend' + suffix 'ist' + POS 'o' → librovendisto
+        self.assertEqual(result, "librovendisto")
+
+    def test_single_root_unaffected(self):
+        word_ast = {
+            "tipo": "vorto",
+            "vortspeco": "substantivo",
+            "kunmetitaj_radikoj": ["hund"],
+            "radiko": "hund",
+            "nombro": "singularo",
+            "kazo": "nominativo",
+        }
+        result = _reconstruct_word(word_ast)
+        self.assertEqual(result, "hundo")
+
+
+class TestDeparseVerbMoods(unittest.TestCase):
+
+    def test_kondicionalo(self):
+        word_ast = {
+            "tipo": "vorto",
+            "vortspeco": "verbo",
+            "radiko": "est",
+            "modo": "kondicionalo",
+        }
+        self.assertEqual(_reconstruct_word(word_ast), "estus")
+
+    def test_imperativo(self):
+        word_ast = {
+            "tipo": "vorto",
+            "vortspeco": "verbo",
+            "radiko": "vid",
+            "modo": "imperativo",
+        }
+        self.assertEqual(_reconstruct_word(word_ast), "vidu")
+
+    def test_infinitivo(self):
+        word_ast = {
+            "tipo": "vorto",
+            "vortspeco": "verbo",
+            "radiko": "kur",
+            "modo": "infinitivo",
+        }
+        self.assertEqual(_reconstruct_word(word_ast), "kuri")
+
+    def test_no_tempo_or_modo_defaults_to_infinitive(self):
+        word_ast = {
+            "tipo": "vorto",
+            "vortspeco": "verbo",
+            "radiko": "ir",
+        }
+        self.assertEqual(_reconstruct_word(word_ast), "iri")
+
+
+class TestDeparseRelativeClause(unittest.TestCase):
+
+    def test_round_trip_nominative_kiu(self):
+        # Sentence without predicate adjectives so parser preserves word order.
+        original = "La homo kiu vidas la hundon venas."
+        ast = parse(original)
+        result = deparse(ast)
+        self.assertEqual(result.lower().rstrip('.'), original.lower().rstrip('.'))
+
+    def test_round_trip_accusative_kiun(self):
+        # Sentence without predicate adjectives so parser preserves word order.
+        original = "La hundo kiun mi vidas kuras."
+        ast = parse(original)
+        result = deparse(ast)
+        self.assertEqual(result.lower().rstrip('.'), original.lower().rstrip('.'))
+
+    def test_relative_pronoun_not_duplicated(self):
+        ast = parse("La homo kiu amas bonon estas feliĉa")
+        result = deparse(ast)
+        kiu_count = result.lower().count('kiu')
+        self.assertEqual(kiu_count, 1, f"'kiu' appeared {kiu_count} times in: {result}")
+
+
+class TestDeparseKeClause(unittest.TestCase):
+
+    def test_ke_clause_round_trip(self):
+        original = "mi scias ke vi amas lin."
+        ast = parse(original)
+        result = deparse(ast)
+        self.assertIn('ke', result.lower())
+        self.assertEqual(result.lower().rstrip('.'), original.lower().rstrip('.'))
+
+
 if __name__ == '__main__':
     unittest.main()

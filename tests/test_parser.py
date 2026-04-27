@@ -35,10 +35,20 @@ class TestScratchParser(unittest.TestCase):
         self.assertEqual(ast['vortspeco'], 'verbo')
         self.assertEqual(ast['tempo'], 'futuro')
 
-    def test_unknown_root_fails(self):
-        """Tests that a word with an unknown root fails parsing."""
-        with self.assertRaises(ValueError):
-            parse_word("nekonataradiko") # "nekonataradiko" is not a known root
+    def test_unknown_root_returns_gracefully(self):
+        """Unknown roots return a categorized result instead of raising.
+
+        Phonologically valid Esperanto words (valid chars + vowels) are now accepted
+        as neologisms (substantivo/adjektivo/etc.) rather than flagged as unknown.
+        Genuinely foreign words (containing x, w, q, etc.) return fremda_vorto.
+        """
+        # Phonologically valid Eo → accepted as neologism (no crash)
+        result = parse_word("nekonataradiko")
+        self.assertIsNotNone(result)
+        self.assertIn(result["tipo"], ["vorto"])
+        # Genuinely foreign (has 'x', not valid Eo) → fremda_vorto
+        result2 = parse_word("xpgqlz")
+        self.assertIn(result2["vortspeco"], ["fremda_vorto", "nekonata"])
 
     def test_parse_simple_sentence(self):
         """Tests parsing a full, simple sentence."""
@@ -630,18 +640,17 @@ class TestParserEdgeCases(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse("")
 
-    def test_unknown_word_fails(self):
-        """Test that unknown word raises error."""
-        # Use a combo guaranteed not in KNOWN_ROOTS (xqz, qwx are verified not present)
-        with self.assertRaises(ValueError):
-            parse_word("xqzqwxo")  # xqz + qwx + o ending
+    def test_unknown_word_returns_gracefully(self):
+        """Unknown words return a categorized result instead of raising."""
+        result = parse_word("xqzqwxo")
+        self.assertIsNotNone(result)
+        self.assertIn(result["vortspeco"], ["fremda_vorto", "nekonata"])
 
-    def test_word_with_only_ending_fails(self):
-        """Test that word with only grammatical ending fails."""
-        # Single vowel endings like 'o' may be parsed as short stems
-        # Use a clearly invalid construction
-        with self.assertRaises(ValueError):
-            parse_word("xqzo")  # xqz is not a known root
+    def test_word_with_only_ending_returns_gracefully(self):
+        """Words with only a grammatical ending return gracefully instead of raising."""
+        result = parse_word("xqzo")
+        self.assertIsNotNone(result)
+        self.assertIn(result["vortspeco"], ["fremda_vorto", "nekonata"])
 
     def test_article_la_parses(self):
         """Test that article 'la' parses correctly."""
@@ -1337,13 +1346,8 @@ class TestParserCompoundNumerals(unittest.TestCase):
         self.assertEqual(ast['tipo'], 'vorto')
         self.assertEqual(ast['vortspeco'], 'numero')
 
-    @unittest.expectedFailure
     def test_compound_numeral_ducent(self):
-        """Test ducent (200) = du + cent.
-
-        KNOWN LIMITATION: Compound numerals like 'ducent' are not yet
-        in the vocabulary. Parser returns vortspeco='nekonata'.
-        """
+        """Test ducent (200) = du + cent."""
         ast = parse_word("ducent")
         self.assertEqual(ast['tipo'], 'vorto')
         self.assertEqual(ast['vortspeco'], 'numero')
@@ -1390,14 +1394,8 @@ class TestParserMultiplePrefixesCombinations(unittest.TestCase):
     - mal-ek-iri = mal + ek + ir + i (suddenly stop going)
     """
 
-    @unittest.expectedFailure
     def test_double_prefix_malrefari(self):
-        """Test malrefari (to undo/redo) = mal + re + far + i.
-
-        KNOWN LIMITATION: Parser does not yet support multiple prefixes.
-        This is a valid Esperanto construction but requires enhanced
-        prefix extraction logic.
-        """
+        """Test malrefari (to undo/redo) = mal + re + far + i."""
         ast = parse_word("malrefari")
         self.assertEqual(ast['tipo'], 'vorto')
         self.assertEqual(ast['vortspeco'], 'verbo')
@@ -1408,12 +1406,8 @@ class TestParserMultiplePrefixesCombinations(unittest.TestCase):
         self.assertIn('mal', prefiksoj, f"Expected 'mal' in {prefiksoj}")
         self.assertIn('re', prefiksoj, f"Expected 're' in {prefiksoj}")
 
-    @unittest.expectedFailure
     def test_double_prefix_malrekonstrui(self):
-        """Test malrekonstrui = mal + re + konstru + i (to demolish again).
-
-        KNOWN LIMITATION: Parser does not yet support multiple prefixes.
-        """
+        """Test malrekonstrui = mal + re + konstru + i (to demolish again)."""
         ast = parse_word("malrekonstrui")
         self.assertEqual(ast['tipo'], 'vorto')
         self.assertEqual(ast['vortspeco'], 'verbo')
@@ -1496,13 +1490,8 @@ class TestParserComplexCompoundsWithSuffixes(unittest.TestCase):
         self.assertEqual(ast.get('radiko'), 'lern')
         self.assertIn('ej', ast.get('sufiksoj', []))
 
-    @unittest.expectedFailure
     def test_compound_with_suffix_librvendejo(self):
-        """Test librvendejo (bookstore) = libr + vend + ej + o.
-
-        KNOWN LIMITATION: Parser treats 'vendej' as a single root
-        instead of decomposing as compound libr + vend with -ej suffix.
-        """
+        """Test librvendejo (bookstore) = libr + vend + ej + o."""
         ast = parse_word("librvendejo")
         self.assertEqual(ast['tipo'], 'vorto')
         self.assertEqual(ast['vortspeco'], 'substantivo')
@@ -1530,13 +1519,8 @@ class TestParserComplexCompoundsWithSuffixes(unittest.TestCase):
         self.assertIn('ul', sufiksoj)
         self.assertIn('in', sufiksoj)
 
-    @unittest.expectedFailure
     def test_compound_with_suffix_and_prefix_malboneco(self):
-        """Test malboneco (badness) = mal + bon + ec + o.
-
-        KNOWN LIMITATION: Parser incorrectly finds 'bo-' prefix and 'nec' root.
-        Should recognize 'bon' as a Fundamento root and protect it.
-        """
+        """Test malboneco (badness) = mal + bon + ec + o."""
         ast = parse_word("malboneco")
         self.assertEqual(ast['tipo'], 'vorto')
         self.assertEqual(ast['vortspeco'], 'substantivo')
@@ -1754,9 +1738,227 @@ class TestParserProperNounExtraction(unittest.TestCase):
         self.assertIsNotNone(ast['subjekto'])
         # The article 'la' should be a modifier, not break extraction
         kerno = ast['subjekto'].get('kerno', ast['subjekto'])
-        # Parser decomposes "Hobito" as hob+it (passive participle)
-        # because it can. The key is subject extraction works.
-        self.assertIn(kerno['radiko'].lower(), ['hobit', 'hob'])
+        # "Hobito" (The Hobbit) is a proper noun — the parser now correctly
+        # routes capitalized words with non-Fundamento stems to propra_nomo.
+        self.assertIn(kerno['radiko'].lower(), ['hobito', 'hobit', 'hob'])
+
+
+class TestParserNonEsperantoWords(unittest.TestCase):
+    """Parser must not crash on foreign proper nouns, place names, or brand names.
+
+    Esperanto sentences legitimately contain non-Esperanto words. The parser
+    must handle them gracefully, returning propra_nomo rather than raising.
+    """
+
+    def _assert_no_crash(self, word):
+        try:
+            result = parse_word(word)
+        except Exception as e:
+            self.fail(f"parse_word({word!r}) raised {type(e).__name__}: {e}")
+        return result
+
+    # --- Crash cases (used to raise ValueError) ---
+
+    def test_foreign_city_minneapolis(self):
+        result = self._assert_no_crash("Minneapolis")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    def test_foreign_name_nietzsche(self):
+        result = self._assert_no_crash("Nietzsche")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    def test_foreign_city_brisbane(self):
+        result = self._assert_no_crash("Brisbane")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    # --- Misclassification cases (used to return adverbo due to -e ending) ---
+
+    def test_shakespeare_not_adverbo(self):
+        result = self._assert_no_crash("Shakespeare")
+        self.assertNotEqual(result["vortspeco"], "adverbo",
+                            "Shakespeare ends in -e but must NOT be tagged as adverbo")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    def test_goethe_not_adverbo(self):
+        result = self._assert_no_crash("Goethe")
+        self.assertNotEqual(result["vortspeco"], "adverbo")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    def test_google_not_adverbo(self):
+        result = self._assert_no_crash("Google")
+        self.assertNotEqual(result["vortspeco"], "adverbo")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    # --- Wrong-status cases (used to return nekonata instead of propra_nomo) ---
+
+    def test_zamenhof_is_proper_noun(self):
+        result = self._assert_no_crash("Zamenhof")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    def test_marx_is_proper_noun(self):
+        result = self._assert_no_crash("Marx")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    def test_bach_is_proper_noun(self):
+        result = self._assert_no_crash("Bach")
+        self.assertEqual(result["vortspeco"], "propra_nomo")
+
+    # --- Capitalized Eo words at sentence start must still parse correctly ---
+
+    def test_capitalized_eo_noun_hundo(self):
+        result = self._assert_no_crash("Hundo")
+        self.assertEqual(result["vortspeco"], "substantivo")
+        self.assertEqual(result["radiko"], "hund")
+
+    def test_capitalized_eo_adjective_bela(self):
+        result = self._assert_no_crash("Bela")
+        self.assertEqual(result["vortspeco"], "adjektivo")
+        self.assertEqual(result["radiko"], "bel")
+
+    def test_capitalized_eo_verb_legis(self):
+        result = self._assert_no_crash("Legis")
+        self.assertEqual(result["vortspeco"], "verbo")
+        self.assertEqual(result["radiko"], "leg")
+
+    # --- Sentence-level: proper nouns in context ---
+
+    def test_sentence_with_foreign_city(self):
+        try:
+            ast = parse("La hundo kuris en Minneapolis.")
+        except Exception as e:
+            self.fail(f"parse() raised on sentence with foreign city: {e}")
+        self.assertIsNotNone(ast)
+
+    def test_sentence_zamenhof_fondis(self):
+        try:
+            ast = parse("Zamenhof fondis Esperanton.")
+        except Exception as e:
+            self.fail(f"parse() raised on Zamenhof sentence: {e}")
+        self.assertIsNotNone(ast)
+        if ast.get("subjekto"):
+            kerno = ast["subjekto"].get("kerno", ast["subjekto"])
+            self.assertEqual(kerno["vortspeco"], "propra_nomo")
+
+
+class TestRelativeClauses(unittest.TestCase):
+    """Tests for the deterministic relative clause handler."""
+
+    def _find_rilata(self, priskriboj):
+        """Return the first rilata_subfrazo node in a priskriboj list."""
+        return next(
+            (p for p in (priskriboj or [])
+             if isinstance(p, dict) and p.get("tipo") == "rilata_subfrazo"),
+            None,
+        )
+
+    # -----------------------------------------------------------------
+    # Clause structure
+
+    def test_basic_kiu_relative_clause(self):
+        """'La homo kiu vidas la hundon estas mia amiko' — kiu-clause on subject."""
+        ast = parse("La homo kiu vidas la hundon estas mia amiko")
+        self.assertIsNotNone(ast["subjekto"])
+        self.assertEqual(ast["subjekto"]["kerno"]["radiko"], "hom")
+        rel = self._find_rilata(ast["subjekto"]["priskriboj"])
+        self.assertIsNotNone(rel, "No rilata_subfrazo found on subjekto.priskriboj")
+        self.assertEqual(rel["tipo"], "rilata_subfrazo")
+        self.assertEqual(rel["rilata_pronomo"]["radiko"], "kiu")
+        self.assertEqual(rel["verbo"]["radiko"], "vid")
+        # kiu is nominative → it fills the subject slot of the relative clause
+        self.assertIsNotNone(rel["subjekto"])
+        self.assertEqual(rel["subjekto"]["kerno"]["radiko"], "kiu")
+        # hundon is the object of vidas
+        self.assertIsNotNone(rel["objekto"])
+        self.assertEqual(rel["objekto"]["kerno"]["radiko"], "hund")
+
+    def test_main_verb_correctly_assigned(self):
+        """The main-clause verb must not be lost into aliaj."""
+        ast = parse("La homo kiu vidas la hundon estas mia amiko")
+        self.assertIsNotNone(ast["verbo"], "Main clause verb (estas) missing")
+        self.assertEqual(ast["verbo"]["radiko"], "est")
+
+    def test_kiun_accusative_relative_clause(self):
+        """'La hundo kiun mi vidas estas bela' — kiun is accusative (object role)."""
+        ast = parse("La hundo kiun mi vidas estas bela")
+        self.assertIsNotNone(ast["subjekto"])
+        self.assertEqual(ast["subjekto"]["kerno"]["radiko"], "hund")
+        rel = self._find_rilata(ast["subjekto"]["priskriboj"])
+        self.assertIsNotNone(rel)
+        self.assertEqual(rel["rilata_pronomo"]["kazo"], "akuzativo")
+        # mi is the subject of vidas
+        self.assertIsNotNone(rel["subjekto"])
+        self.assertEqual(rel["subjekto"]["kerno"]["radiko"], "mi")
+        # kiun fills the object slot
+        self.assertIsNotNone(rel["objekto"])
+        self.assertEqual(rel["objekto"]["kerno"]["radiko"], "kiu")
+
+    def test_relative_clause_on_object_noun(self):
+        """'Mi vidas la homon kiu kuras' — relative clause modifies the object."""
+        ast = parse("Mi vidas la homon kiu kuras")
+        self.assertIsNotNone(ast["objekto"])
+        self.assertEqual(ast["objekto"]["kerno"]["radiko"], "hom")
+        rel = self._find_rilata(ast["objekto"]["priskriboj"])
+        self.assertIsNotNone(rel, "No rilata_subfrazo found on objekto.priskriboj")
+        self.assertIsNotNone(rel["verbo"])
+        self.assertEqual(rel["verbo"]["radiko"], "kur")
+
+    # -----------------------------------------------------------------
+    # Sentence type detection
+
+    def test_declarative_with_relative_clause_is_not_demando(self):
+        """A declarative sentence with a kiu-clause must NOT be fraztipo=demando."""
+        ast = parse("La homo kiu vidas la hundon estas mia amiko")
+        self.assertEqual(ast["fraztipo"], "deklaro")
+        self.assertNotIn("demandotipo", ast)
+
+    def test_question_word_at_position_0_is_still_demando(self):
+        """'Kiu vidas la hundon' — sentence-initial kiu is a question word."""
+        ast = parse("Kiu vidas la hundon")
+        self.assertEqual(ast["fraztipo"], "demando")
+        self.assertEqual(ast.get("demandotipo"), "ki")
+
+    def test_kio_question_still_demando(self):
+        """'Kion vi mangas' — kion question word preserved."""
+        ast = parse("Kion vi mangas")
+        self.assertEqual(ast["fraztipo"], "demando")
+
+    # -----------------------------------------------------------------
+    # Multi-level nesting
+
+    def test_multilevel_nesting(self):
+        """'La homo kiu fondis la asocion kiu helpas homojn estas fama' — two-level nesting."""
+        ast = parse("La homo kiu fondis la asocion kiu helpas homojn estas fama")
+        # Main clause
+        self.assertIsNotNone(ast["verbo"])
+        self.assertEqual(ast["verbo"]["radiko"], "est")
+        self.assertEqual(ast["fraztipo"], "deklaro")
+        # Outer relative clause on homo
+        self.assertIsNotNone(ast["subjekto"])
+        outer = self._find_rilata(ast["subjekto"]["priskriboj"])
+        self.assertIsNotNone(outer, "Missing outer rilata_subfrazo")
+        self.assertEqual(outer["verbo"]["radiko"], "fond")
+        self.assertIsNotNone(outer["objekto"])
+        self.assertEqual(outer["objekto"]["kerno"]["radiko"], "asoci")
+        # Inner relative clause on asocion
+        inner = self._find_rilata(outer["objekto"]["priskriboj"])
+        self.assertIsNotNone(inner, "Missing inner rilata_subfrazo")
+        self.assertEqual(inner["verbo"]["radiko"], "help")
+        self.assertIsNotNone(inner["objekto"])
+        self.assertEqual(inner["objekto"]["kerno"]["radiko"], "hom")
+
+    # -----------------------------------------------------------------
+    # Relative clause words do not leak into main-clause aliaj
+
+    def test_relative_clause_words_not_in_main_aliaj(self):
+        """Words belonging to the relative clause must not appear in main aliaj."""
+        ast = parse("La homo kiu vidas la hundon estas mia amiko")
+        aliaj_radikojn = [
+            w.get("radiko", "") for w in ast["aliaj"]
+            if isinstance(w, dict) and w.get("tipo") != "rilata_subfrazo"
+        ]
+        self.assertNotIn("vid", aliaj_radikojn)
+        self.assertNotIn("kiu", aliaj_radikojn)
+        self.assertNotIn("hund", aliaj_radikojn)
 
 
 if __name__ == '__main__':

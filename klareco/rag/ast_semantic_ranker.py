@@ -471,8 +471,8 @@ def rank_ast_matches(
 
             # Extract fact from candidate AST and score importance (40% weight)
             try:
-                from klareco.rag.fact_extractor import FactExtractor
-                extractor = FactExtractor()
+                from klareco.rag.unified_extractor import UnifiedASTExtractor
+                extractor = UnifiedASTExtractor()
                 facts = extractor.extract(cand_ast, source_sentence=cand.get('text', ''))
 
                 # Score the first fact (most relevant)

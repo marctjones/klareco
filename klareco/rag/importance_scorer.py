@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional, List
 from enum import Enum
 
-from klareco.rag.fact_extractor import Fact, RelationType
+from klareco.rag.unified_extractor import Fact, RelationType
 
 
 class QuestionType(Enum):

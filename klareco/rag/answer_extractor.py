@@ -1,46 +1,22 @@
 #!/usr/bin/env python3
 """
-AST-Based Answer Extraction (Deterministic)
+AST-Based Answer Extraction - DEPRECATED
 
-Extracts precise answers from retrieved documents by matching AST patterns.
+ASTAnswerExtractor functionality is now integrated into
+klareco.rag.unified_extractor.UnifiedASTExtractor (extract_answer method)
+and klareco.rag.extractive_answering.ExtractiveAnswerGenerator.
 
-This is the PRIMARY answer extraction method for Klareco's RAG system.
-It uses deterministic pattern matching on Abstract Syntax Trees to extract
-grammatically and semantically correct answers.
-
-Architecture:
-1. Parse question AST to determine question type (WHO, WHAT, WHERE, WHEN, HOW_MANY)
-2. Parse document AST
-3. Match patterns based on question type
-4. Extract answer as complete vortgrupo (not just root)
-5. Return structured answer with confidence and explanation
-
-Question Type Detection:
-- WHO (kiu): Extract person/agent (subject or object with animate semantics)
-- WHAT (kio): Extract thing/concept (subject, object, or predicate)
-- WHERE (kie): Extract location (aliaj with location semantics)
-- WHEN (kiam): Extract time (aliaj with temporal semantics)
-- HOW_MANY (kiom): Extract quantity (numeric modifier)
-- WHICH (kiu + noun): Extract specific instance from category
-- WHY (kial): Extract reason/cause (aliaj with causal semantics)
-- HOW (kiel): Extract manner (aliaj with manner semantics)
-
-Example:
-    Query: "Kiu fondis Esperanton?"
-    Document: "Zamenhof fondis Esperanton en 1887."
-
-    Question type: WHO (kiu)
-    Match pattern: subject of "fond"
-    Extract: "Zamenhof" (complete vortgrupo)
-
-    Answer: {
-        'text': 'Zamenhof',
-        'confidence': 0.95,
-        'method': 'ast_pattern_match',
-        'explanation': 'Subject of verb "fond" matching query pattern',
-        'ast': {...}
-    }
+This module is kept for backwards compatibility but will be removed.
 """
+
+import warnings
+warnings.warn(
+    "klareco.rag.answer_extractor is deprecated. "
+    "Use klareco.rag.unified_extractor.UnifiedASTExtractor.extract_answer() "
+    "or klareco.rag.extractive_answering.ExtractiveAnswerGenerator instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from typing import Dict, Optional, List, Tuple, Set
 import logging

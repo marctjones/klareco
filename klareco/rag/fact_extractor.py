@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """
-Fact Extractor - Extract Semantic Facts from ASTs
+Fact Extractor - DEPRECATED
 
-Extracts structured semantic facts from Esperanto ASTs. Uses deterministic
-mapping from verb roots to semantic relation types.
-
-Design Philosophy:
-- Deterministic extraction using verb→relation mappings
-- Exploit Esperanto's compositional morphology
-- Extract from AST structure, not text
-- No learned components (100% rule-based)
-
-Example:
-    ast = parse("Zamenhof kreis Esperanton en 1887")
-    fact = extract_facts(ast)[0]
-    # → Fact(entity="Esperanto", relation="CREATED-BY",
-    #         arguments={"agent": "Zamenhof"},
-    #         modifiers={"time": "1887"})
+Use klareco.rag.unified_extractor.UnifiedASTExtractor instead.
+Fact and RelationType are re-exported here for backwards compatibility.
 """
+
+import warnings
+warnings.warn(
+    "klareco.rag.fact_extractor is deprecated. "
+    "Use klareco.rag.unified_extractor.UnifiedASTExtractor instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from klareco.rag.unified_extractor import Fact, RelationType
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any

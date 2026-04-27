@@ -23,7 +23,7 @@ from typing import List, Tuple, Optional
 from enum import Enum
 import random
 
-from klareco.rag.fact_extractor import Fact, RelationType
+from klareco.rag.unified_extractor import Fact, RelationType
 
 
 class DiscourseRelation(Enum):

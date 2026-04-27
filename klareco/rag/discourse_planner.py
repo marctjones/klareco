@@ -119,8 +119,8 @@ class DiscoursePlanner:
         4. NONE: Default
         """
         # 1. SEQUENCE: Check temporal ordering
-        time_a = fact_a.modifiers.get('time')
-        time_b = fact_b.modifiers.get('time')
+        time_a = fact_a.modifiers.get('tempo')
+        time_b = fact_b.modifiers.get('tempo')
 
         if time_a and time_b:
             # Try to parse years

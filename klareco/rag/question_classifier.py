@@ -16,16 +16,16 @@ from enum import Enum
 
 class QuestionType(Enum):
     """Types of questions we can classify."""
-    WHO = "who"           # Kiu? - seeks PERSON
-    WHAT = "what"         # Kio? - seeks THING/DEFINITION
-    WHERE = "where"       # Kie? - seeks PLACE
-    WHEN = "when"         # Kiam? - seeks TIME
-    HOW = "how"           # Kiel? - seeks METHOD/MANNER
-    WHY = "why"           # Kial? - seeks REASON
-    WHICH = "which"       # Kiu/Kiuj? (with noun) - seeks SPECIFIC
-    HOW_MANY = "how_many" # Kiom? - seeks QUANTITY
-    BOOLEAN = "boolean"   # Ĉu? - seeks YES/NO
-    UNKNOWN = "unknown"   # Can't classify
+    WHO = "kiu"           # Kiu? - seeks PERSON
+    WHAT = "kio"         # Kio? - seeks THING/DEFINITION
+    WHERE = "kie"       # Kie? - seeks PLACE
+    WHEN = "kiam"         # Kiam? - seeks TIME
+    HOW = "kiel"           # Kiel? - seeks METHOD/MANNER
+    WHY = "kial"           # Kial? - seeks REASON
+    WHICH = "kiuj"       # Kiu/Kiuj? (with noun) - seeks SPECIFIC
+    HOW_MANY = "kiom" # Kiom? - seeks QUANTITY
+    BOOLEAN = "ĉu"   # Ĉu? - seeks YES/NO
+    UNKNOWN = "nekonata"   # Can't classify
 
 
 class EntityType(Enum):

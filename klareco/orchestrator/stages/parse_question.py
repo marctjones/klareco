@@ -16,15 +16,15 @@ from klareco.parser import parse
 logger = logging.getLogger(__name__)
 
 _CORRELATIVE_TO_TYPE = {
-    'KIU':  'who',
-    'KIO':  'what',
-    'KIE':  'where',
-    'KIAM': 'when',
-    'KIEL': 'how',
-    'KIAL': 'why',
-    'KIOM': 'how_many',
-    'CXU':  'boolean',
-    'ĈU':   'boolean',
+    'KIU':  'kiu',
+    'KIO':  'kio',
+    'KIE':  'kie',
+    'KIAM': 'kiam',
+    'KIEL': 'kiel',
+    'KIAL': 'kial',
+    'KIOM': 'kiom',
+    'CXU':  'ĉu',
+    'ĈU':   'ĉu',
 }
 
 
@@ -90,4 +90,4 @@ def _classify_from_ast(ast: dict) -> str:
             if radiko in _CORRELATIVE_TO_TYPE:
                 return _CORRELATIVE_TO_TYPE[radiko]
 
-    return 'unknown'
+    return 'nekonata'

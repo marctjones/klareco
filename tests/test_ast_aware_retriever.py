@@ -128,7 +128,7 @@ class TestExplainRetrieval:
             'query': 'Kiu fondis Esperanton?',
             'document': 'Zamenhof fondis Esperanton.',
             'classification': {
-                'question_type': 'who',
+                'question_type': 'kiu',
                 'entity_type': 'person',
                 'focus': 'SUBJ',
                 'target_slots': ['SUBJ', 'VERB'],

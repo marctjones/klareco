@@ -134,15 +134,15 @@ class ExtractiveAnswerGenerator:
                 logger.debug(f"  ✓ Fact entity matches: {fact.entity}")
 
             # Check if object is in fact arguments
-            elif 'object' in fact.arguments:
-                fact_obj = fact.arguments['object']
+            elif 'objekto' in fact.arguments:
+                fact_obj = fact.arguments['objekto']
                 if fact_obj and fact_obj.lower() == query_obj.lower():
                     keep = True
                     logger.debug(f"  ✓ Fact object argument matches: {fact_obj}")
 
             # Check other relevant arguments that might contain the object
-            elif 'type' in fact.arguments:
-                fact_type = fact.arguments['type']
+            elif 'tipo' in fact.arguments:
+                fact_type = fact.arguments['tipo']
                 if fact_type and fact_type.lower() == query_obj.lower():
                     keep = True
                     logger.debug(f"  ✓ Fact type argument matches: {fact_type}")
@@ -226,7 +226,7 @@ class ExtractiveAnswerGenerator:
 
             if question_type == QuestionType.WHEN:
                 # WHEN questions: Only keep facts with temporal modifiers
-                if 'time' not in fact.modifiers:
+                if 'tempo' not in fact.modifiers:
                     # Exception: Relations that often have temporal info
                     if fact.relation not in [RelationType.CREATED_BY, RelationType.PUBLISHED,
                                             RelationType.BORN, RelationType.DIED]:
@@ -234,14 +234,14 @@ class ExtractiveAnswerGenerator:
 
             elif question_type == QuestionType.WHERE:
                 # WHERE questions: Only keep facts with location info
-                if 'location' not in fact.modifiers and 'location' not in fact.arguments:
+                if 'loko' not in fact.modifiers and 'loko' not in fact.arguments:
                     # Exception: Relations that specify location
                     if fact.relation not in [RelationType.LOCATED_AT, RelationType.BORN]:
                         keep = False
 
             elif question_type == QuestionType.WHO:
                 # WHO questions: Only keep facts with agent/person info
-                if 'agent' not in fact.arguments:
+                if 'aganto' not in fact.arguments:
                     # Exception: Relations that identify people
                     if fact.relation not in [RelationType.CREATED_BY, RelationType.FOUNDED]:
                         # Still allow IS-A facts (they might define who someone is)

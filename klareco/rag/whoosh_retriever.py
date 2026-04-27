@@ -64,7 +64,7 @@ def expand_esperanto_root(root: str, question_type: Optional[str] = None, is_ent
     forms = [root]  # Always include bare root
 
     # If no question type, use full expansion (backward compatibility)
-    if question_type is None or question_type.lower() not in ['who', 'what', 'when', 'where', 'how', 'why']:
+    if question_type is None or question_type.lower() not in ['kiu', 'kio', 'kiam', 'kie', 'kiel', 'kial']:
         # Full expansion (~15 forms)
         forms.extend([root + 'as', root + 'is', root + 'i'])
         forms.extend([root + 'anta', root + 'inta', root + 'ita'])
@@ -76,7 +76,7 @@ def expand_esperanto_root(root: str, question_type: Optional[str] = None, is_ent
     # Smart expansion based on question type
     question_type = question_type.lower()
 
-    if question_type == 'who':
+    if question_type == 'kiu':
         # For WHO questions, focus on agent nouns and past tense
         forms.extend([
             root + 'is',    # past tense (most common in Wikipedia)
@@ -84,7 +84,7 @@ def expand_esperanto_root(root: str, question_type: Optional[str] = None, is_ent
             root + 'anto',  # present agent
         ])
 
-    elif question_type == 'what':
+    elif question_type == 'kio':
         # For WHAT questions, focus on nouns and adjectives
         forms.extend([
             root + 'o',     # noun
@@ -93,7 +93,7 @@ def expand_esperanto_root(root: str, question_type: Optional[str] = None, is_ent
             root + 'aĵo',   # thing characterized by root
         ])
 
-    elif question_type == 'when':
+    elif question_type == 'kiam':
         # For WHEN questions, focus on verb forms
         forms.extend([
             root + 'is',    # past tense
@@ -1498,13 +1498,13 @@ class WhooshRetriever:
             boost_multiplier = 1.0
 
             # WHO questions: "Kiu kreis Esperanton?" → esperant should be OBJECT (accusative)
-            if question_type_lower == 'who':
+            if question_type_lower == 'kiu':
                 if self._entity_in_object(ast, query_entity):
                     boost_multiplier = 3.0  # Strong boost for correct grammatical role
                     logger.debug(f"AST boost: {query_entity} in OBJECT position")
 
             # WHAT questions: "Kio estas Esperanto?" → esperant should be SUBJECT
-            elif question_type_lower == 'what':
+            elif question_type_lower == 'kio':
                 if self._entity_in_subject(ast, query_entity):
                     boost_multiplier = 2.5
                     logger.debug(f"AST boost: {query_entity} in SUBJECT position")
@@ -1512,14 +1512,14 @@ class WhooshRetriever:
                     boost_multiplier = 1.5  # Moderate boost for object position
 
             # WHERE questions: "Kie estas Pollando?" → pol should be SUBJECT
-            elif question_type_lower == 'where':
+            elif question_type_lower == 'kie':
                 if self._entity_in_subject(ast, query_entity):
                     boost_multiplier = 2.5
                 elif self._entity_in_location_modifier(ast, query_entity):
                     boost_multiplier = 2.0  # "en Pollando" is also valid
 
             # WHEN questions: entity could be subject or object
-            elif question_type_lower == 'when':
+            elif question_type_lower == 'kiam':
                 if self._entity_in_subject(ast, query_entity):
                     boost_multiplier = 2.0
                 elif self._entity_in_object(ast, query_entity):

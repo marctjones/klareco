@@ -18,7 +18,7 @@ def test_extract_is_a_fact():
     assert fact.entity == "esperant"
     assert fact.relation == RelationType.IS_A
     # "planlingvo" is compound (plan+lingv), extractor returns root
-    assert fact.arguments['type'] == "lingv"
+    assert fact.arguments['tipo'] == "lingv"
 
 
 def test_extract_created_by_fact():
@@ -32,7 +32,7 @@ def test_extract_created_by_fact():
     fact = facts[0]
     assert fact.entity == "esperant"
     assert fact.relation == RelationType.CREATED_BY
-    assert fact.arguments['agent'] == "zamenhof"
+    assert fact.arguments['aganto'] == "zamenhof"
 
 
 def test_extract_has_fact():
@@ -47,7 +47,7 @@ def test_extract_has_fact():
     assert fact.entity == "esperant"
     assert fact.relation == RelationType.HAS
     # "parolantojn" has root "parol" (suffix -ant- is separate)
-    assert fact.arguments['property'] == "parol"
+    assert fact.arguments['eco'] == "parol"
 
 
 def test_extract_temporal_modifiers():
@@ -59,7 +59,7 @@ def test_extract_temporal_modifiers():
 
     assert len(facts) == 1
     fact = facts[0]
-    assert 'time' in fact.modifiers
+    assert 'tempo' in fact.modifiers
     # Should extract "1887" from the temporal modifier
 
 
@@ -104,8 +104,8 @@ def test_extract_from_participial_noun_with_agent():
 
     fact = created_by_facts[0]
     assert fact.entity == 'esperant', f"Expected entity='esperant', got '{fact.entity}'"
-    assert fact.arguments.get('agent') == 'zamenhof', \
-        f"Expected agent='zamenhof', got '{fact.arguments.get('agent')}'"
+    assert fact.arguments.get('aganto') == 'zamenhof', \
+        f"Expected aganto='zamenhof', got '{fact.arguments.get('aganto')}'"
     assert fact.confidence >= 0.9
 
 
@@ -135,8 +135,8 @@ def test_extract_from_nested_relative_clause_simple():
     assert len(created_by_facts) > 0
 
     # Find the fact with the correct agent (filter out spurious extraction)
-    correct_facts = [f for f in created_by_facts if f.arguments.get('agent') == 'zamenhof']
-    assert len(correct_facts) > 0, "Should extract fact with agent='zamenhof'"
+    correct_facts = [f for f in created_by_facts if f.arguments.get('aganto') == 'zamenhof']
+    assert len(correct_facts) > 0, "Should extract fact with aganto='zamenhof'"
 
     fact = correct_facts[0]
     assert fact.entity == 'lingv'
@@ -157,11 +157,11 @@ def test_extract_from_nested_clause_with_temporal():
     assert len(published_facts) > 0, "Should extract PUBLISHED fact"
 
     fact = published_facts[0]
-    assert fact.arguments.get('agent') == 'zamenhof', \
-        f"Expected agent='zamenhof', got '{fact.arguments.get('agent')}'"
+    assert fact.arguments.get('aganto') == 'zamenhof', \
+        f"Expected aganto='zamenhof', got '{fact.arguments.get('aganto')}'"
     assert fact.entity == 'libr', f"Expected entity='libr', got '{fact.entity}'"
-    assert fact.modifiers.get('time') == '1887', \
-        f"Expected time='1887', got '{fact.modifiers.get('time')}'"
+    assert fact.modifiers.get('tempo') == '1887', \
+        f"Expected tempo='1887', got '{fact.modifiers.get('tempo')}'"
 
 
 def test_citation_tracking():

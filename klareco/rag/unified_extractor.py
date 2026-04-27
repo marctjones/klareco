@@ -22,7 +22,7 @@ Usage:
     # Extract facts (structured triples)
     extractor = UnifiedASTExtractor()
     facts = extractor.extract(ast, mode='facts')
-    # → [Fact(entity='Esperanto', relation='CREATED_BY', arguments={'agent': 'Zamenhof'})]
+    # → [Fact(entity='Esperanto', relation='CREATED_BY', arguments={'aganto': 'Zamenhof'})]
 
     # Extract answer spans (text fragments)
     answer = extractor.extract_answer(query_ast, doc_ast, doc_text, mode='spans')
@@ -57,16 +57,16 @@ logger = logging.getLogger(__name__)
 
 class RelationType(Enum):
     """Semantic relation types mapped from verb roots."""
-    IS_A = "IS-A"              # estas → IS-A (category membership)
-    HAS = "HAS"                # havas → HAS (property/possession)
-    CREATED_BY = "CREATED-BY"  # kreis → CREATED-BY (creation)
-    LOCATED_AT = "LOCATED-AT"  # loĝas, troviĝas → LOCATED-AT
-    BORN = "BORN"              # naskiĝis → BORN
-    DIED = "DIED"              # mortis → DIED
-    PUBLISHED = "PUBLISHED"    # publikigis → PUBLISHED
-    USED_BY = "USED-BY"        # uzas → USED-BY
-    FOUNDED = "FOUNDED"        # fondis → FOUNDED
-    ACTION = "ACTION"          # Generic action (fallback)
+    IS_A = "ESTAS"              # estas → ESTAS (category membership)
+    HAS = "HAVAS"                # havas → HAVAS (property/possession)
+    CREATED_BY = "KREIS"  # kreis → KREIS (creation)
+    LOCATED_AT = "SITUAS"  # loĝas, troviĝas → SITUAS
+    BORN = "NASKIĜIS"              # naskiĝis → NASKIĜIS
+    DIED = "MORTIS"              # mortis → MORTIS
+    PUBLISHED = "PUBLIKIGIS"    # publikigis → PUBLIKIGIS
+    USED_BY = "UZATAS"        # uzas → UZATAS
+    FOUNDED = "FONDIS"        # fondis → FONDIS
+    ACTION = "AGAS"          # Generic action (fallback)
 
 
 @dataclass
@@ -117,7 +117,7 @@ VERB_SEMANTICS = {
     'hav': {
         'relation': RelationType.HAS,
         'synonyms': ['posedas', 'apart'],
-        'answer_extraction': 'object',
+        'answer_extraction': 'objekto',
     },
     'lok': {
         'relation': RelationType.LOCATED_AT,
@@ -147,7 +147,7 @@ VERB_SEMANTICS = {
     'uz': {
         'relation': RelationType.USED_BY,
         'synonyms': ['aplikas', 'utiligas'],
-        'answer_extraction': 'object',
+        'answer_extraction': 'objekto',
     },
 }
 
@@ -555,17 +555,17 @@ class UnifiedASTExtractor:
             # Time modifiers - years
             if vortspeco == 'numero':
                 if len(root) == 4 and root.isdigit():
-                    modifiers['time'] = root
+                    modifiers['tempo'] = root
                 else:
-                    modifiers['quantity'] = root
+                    modifiers['kvanto'] = root
 
             # Quantity modifiers
             elif 'milion' in root or vortspeco == 'nombro':
-                modifiers['quantity'] = self._get_entity_name(alia)
+                modifiers['kvanto'] = self._get_entity_name(alia)
 
             # Manner modifiers (adverbs)
             elif vortspeco == 'adverbo':
-                modifiers['manner'] = self._get_entity_name(alia)
+                modifiers['maniero'] = self._get_entity_name(alia)
 
         return modifiers
 
@@ -632,7 +632,7 @@ class UnifiedASTExtractor:
         return Fact(
             entity=entity,
             relation=RelationType.IS_A,
-            arguments={'type': category},
+            arguments={'tipo': category},
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
@@ -658,7 +658,7 @@ class UnifiedASTExtractor:
         return Fact(
             entity=entity,
             relation=RelationType.CREATED_BY,
-            arguments={'agent': agent},
+            arguments={'aganto': agent},
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
@@ -684,7 +684,7 @@ class UnifiedASTExtractor:
         return Fact(
             entity=entity,
             relation=RelationType.HAS,
-            arguments={'property': property_val},
+            arguments={'eco': property_val},
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
@@ -718,7 +718,7 @@ class UnifiedASTExtractor:
         return Fact(
             entity=entity,
             relation=RelationType.LOCATED_AT,
-            arguments={'location': location} if location else {},
+            arguments={'loko': location} if location else {},
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
@@ -760,7 +760,7 @@ class UnifiedASTExtractor:
 
         arguments = {}
         if agent:
-            arguments['agent'] = agent
+            arguments['aganto'] = agent
 
         return Fact(
             entity=entity,
@@ -787,7 +787,7 @@ class UnifiedASTExtractor:
         if objekto:
             obj_name = self._get_entity_name(objekto)
             if obj_name:
-                arguments['object'] = obj_name
+                arguments['objekto'] = obj_name
 
         modifiers = self._extract_modifiers(frazo.get('aliaj', []))
 
@@ -913,7 +913,7 @@ class UnifiedASTExtractor:
             arguments = {}
             if relation in [RelationType.CREATED_BY, RelationType.FOUNDED, RelationType.PUBLISHED]:
                 if agent:
-                    arguments['agent'] = agent
+                    arguments['aganto'] = agent
 
             modifiers = self._extract_modifiers(aliaj)
 
@@ -1046,7 +1046,7 @@ class UnifiedASTExtractor:
                     if entity and relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
                         arguments = {}
                         if agent:
-                            arguments['agent'] = agent
+                            arguments['aganto'] = agent
 
                         modifiers = self._extract_modifiers(aliaj)
 
@@ -1155,7 +1155,7 @@ class UnifiedASTExtractor:
                 if elem.get('vortspeco') == 'numero':
                     root = elem.get('radiko', '')
                     if len(root) == 4 and root.isdigit():
-                        modifiers['time'] = root
+                        modifiers['tempo'] = root
 
         # Build fact based on relation type
         if relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
@@ -1164,7 +1164,7 @@ class UnifiedASTExtractor:
 
             arguments = {}
             if agent:
-                arguments['agent'] = agent
+                arguments['aganto'] = agent
 
             return Fact(
                 entity=entity,
@@ -1224,13 +1224,13 @@ class UnifiedASTExtractor:
                 'index': i,
                 'score': score,
                 'subclause': subclause,
-                'type': subclause.get('subclause_type', 'unknown'),
+                'tipo': subclause.get('subclause_type', 'unknown'),
             })
 
         # Sort by score
         scored_subclauses.sort(key=lambda x: x['score'], reverse=True)
 
-        logger.debug(f"Subclause scores: {[(s['index'], s['type'], s['score']) for s in scored_subclauses[:3]]}")
+        logger.debug(f"Subclause scores: {[(s['index'], s['tipo'], s['score']) for s in scored_subclauses[:3]]}")
 
         # Try extraction from top-scoring subclauses
         for ranked_subclause in scored_subclauses:
@@ -1257,7 +1257,7 @@ class UnifiedASTExtractor:
                 answer['method'] = 'subclause_match'
                 answer['explanation'] = (
                     f"{answer['explanation']} "
-                    f"(from {ranked_subclause['type']} subclause, score: {ranked_subclause['score']:.1f})"
+                    f"(from {ranked_subclause['tipo']} subclause, score: {ranked_subclause['score']:.1f})"
                 )
                 logger.debug(f"Extracted from subclause #{ranked_subclause['index']}: {answer['text']}")
                 return answer
@@ -1981,7 +1981,7 @@ class UnifiedASTExtractor:
                             'ast': objekto,
                             'text': answer_text,
                             'pattern_score': 0.9,  # High - object matches pattern
-                            'source': 'object',
+                            'source': 'objekto',
                         })
 
             # Candidate 4: Subject (if not already added)

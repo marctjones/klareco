@@ -27,13 +27,13 @@ from klareco.rag.unified_extractor import Fact, RelationType
 
 class QuestionType(Enum):
     """Question types for question-aware scoring."""
-    WHAT = "what"
-    WHO = "who"
-    WHERE = "where"
-    WHEN = "when"
-    HOW = "how"
-    WHY = "why"
-    OTHER = "other"
+    WHAT = "kio"
+    WHO = "kiu"
+    WHERE = "kie"
+    WHEN = "kiam"
+    HOW = "kiel"
+    WHY = "kial"
+    OTHER = "alia"
 
 
 @dataclass
@@ -215,7 +215,7 @@ class FactImportanceScorer:
                     score = 0.6
 
             # Facts with agent argument
-            elif 'agent' in fact.arguments:
+            elif 'aganto' in fact.arguments:
                 score = 0.8
 
             else:
@@ -235,7 +235,7 @@ class FactImportanceScorer:
                     score = 0.7
 
             # Has location modifier
-            elif 'location' in fact.modifiers or 'location' in fact.arguments:
+            elif 'loko' in fact.modifiers or 'loko' in fact.arguments:
                 score = 0.8
 
             else:
@@ -243,7 +243,7 @@ class FactImportanceScorer:
 
         elif question_type == QuestionType.WHEN:
             # "When was X created?" → prioritize facts with time modifiers
-            if 'time' in fact.modifiers:
+            if 'tempo' in fact.modifiers:
                 if query_entity and fact.entity:
                     if self._entity_matches(query_entity, fact, exact=True):
                         score = 1.0
@@ -287,15 +287,15 @@ class FactImportanceScorer:
                 if self._entity_matches(query_entity, fact, exact=True):
                     score = min(1.0, score + 0.2)  # Definitional boost
                 # Also check if query entity is mentioned in type argument (secondary case)
-                elif 'type' in fact.arguments:
-                    type_arg = str(fact.arguments['type']).lower()
+                elif 'tipo' in fact.arguments:
+                    type_arg = str(fact.arguments['tipo']).lower()
                     query_lower = query_entity.lower()
                     if query_lower in type_arg or type_arg in query_lower:
                         score = min(1.0, score + 0.1)  # Smaller boost for reverse direction
 
         # Boost 2: Agent + WHO combination (fix "Kiu fondis Esperanton?" ranking #16 → top 3)
         if question_type == QuestionType.WHO:
-            if 'agent' in fact.arguments:
+            if 'aganto' in fact.arguments:
                 # Check if the fact is about the query entity
                 if query_entity and self._entity_matches(query_entity, fact, exact=True):
                     score = min(1.0, score + 0.15)  # Exact entity match boost
@@ -423,7 +423,7 @@ class FactImportanceScorer:
             # WHO: agent/creator facts are high quality
             if fact.relation in [RelationType.CREATED_BY, RelationType.FOUNDED]:
                 score = 0.9  # Was 0.5!
-            elif 'agent' in fact.arguments:
+            elif 'aganto' in fact.arguments:
                 score = 0.9  # Was 0.5!
             else:
                 score = 0.5
@@ -432,14 +432,14 @@ class FactImportanceScorer:
             # WHERE: location facts are high quality
             if fact.relation in [RelationType.LOCATED_AT, RelationType.BORN]:
                 score = 0.9  # Was 0.5!
-            elif 'location' in fact.modifiers or 'location' in fact.arguments:
+            elif 'loko' in fact.modifiers or 'loko' in fact.arguments:
                 score = 0.9  # Was 0.5!
             else:
                 score = 0.5
 
         elif question_type == QuestionType.WHEN:
             # WHEN: temporal facts are high quality
-            if 'time' in fact.modifiers:
+            if 'tempo' in fact.modifiers:
                 score = 0.9  # Was 0.5!
             elif fact.relation in [RelationType.CREATED_BY, RelationType.PUBLISHED,
                                  RelationType.BORN, RelationType.DIED]:
@@ -451,7 +451,7 @@ class FactImportanceScorer:
             # WHY: causal facts are high quality
             if 'purpose' in fact.modifiers or 'reason' in fact.modifiers:
                 score = 0.9
-            elif 'manner' in fact.modifiers:
+            elif 'maniero' in fact.modifiers:
                 score = 0.7
             else:
                 score = 0.5

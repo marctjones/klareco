@@ -183,13 +183,13 @@ def expand_by_question_type(roots: Set[str], question_type: str, query_text: str
     """
     question_type = question_type.lower()
 
-    if question_type == 'when' or question_type == 'kiam':
+    if question_type == 'kiam':
         return expand_when_question(roots)
 
-    elif question_type == 'what' or question_type == 'kio':
+    elif question_type == 'kio':
         return expand_what_question(roots)
 
-    elif question_type == 'who' or question_type == 'kiu':
+    elif question_type == 'kiu':
         return expand_who_question(roots, query_text)
 
     # WHERE, WHY, HOW - no expansion for now

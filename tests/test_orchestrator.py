@@ -94,7 +94,7 @@ class TestContextImmutability(unittest.TestCase):
     def test_symbolic_layer_is_frozen(self):
         sym = SymbolicLayer()
         with self.assertRaises((dataclasses.FrozenInstanceError, AttributeError)):
-            sym.question_type = 'who'  # type: ignore[misc]
+            sym.question_type = 'kiu'  # type: ignore[misc]
 
     def test_latent_layer_is_frozen(self):
         lat = LatentLayer()
@@ -174,12 +174,12 @@ class TestApplyDelta(unittest.TestCase):
         ctx = _make_ctx()
         ast = {'tipo': 'frazo', 'subjekto': None, 'verbo': None, 'objekto': None, 'aliaj': []}
         delta = ContextDelta(
-            symbolic={'question_ast': ast, 'question_type': 'who'},
+            symbolic={'question_ast': ast, 'question_type': 'kiu'},
             metrics=_minimal_metrics(),
         )
         new_ctx = ctx.apply(delta)
         self.assertEqual(new_ctx.symbolic.question_ast, ast)
-        self.assertEqual(new_ctx.symbolic.question_type, 'who')
+        self.assertEqual(new_ctx.symbolic.question_type, 'kiu')
 
     def test_apply_does_not_mutate_original(self):
         ctx = _make_ctx()
@@ -215,7 +215,7 @@ class TestApplyDelta(unittest.TestCase):
         sym = SymbolicLayer(passage_asts=passages)
         ctx = QueryContext(question='test', symbolic=sym)
         delta = ContextDelta(
-            symbolic={'question_type': 'who'},
+            symbolic={'question_type': 'kiu'},
             metrics=_minimal_metrics(),
         )
         new_ctx = ctx.apply(delta)
@@ -257,8 +257,8 @@ class TestStageInterface(unittest.TestCase):
 
     def test_context_delta_symbolic_dict_mutable(self):
         delta = ContextDelta()
-        delta.symbolic['question_type'] = 'who'
-        self.assertEqual(delta.symbolic['question_type'], 'who')
+        delta.symbolic['question_type'] = 'kiu'
+        self.assertEqual(delta.symbolic['question_type'], 'kiu')
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +270,7 @@ class TestOrchestrator(unittest.TestCase):
     def test_single_stage_applies_delta(self):
         metrics = _minimal_metrics('echo')
         delta = ContextDelta(
-            symbolic={'question_type': 'who'},
+            symbolic={'question_type': 'kiu'},
             metrics=metrics,
         )
         orch = Orchestrator(stages=[EchoStage(delta)])
@@ -305,19 +305,19 @@ class TestOrchestrator(unittest.TestCase):
         metrics1 = _minimal_metrics('s1')
         metrics2 = _minimal_metrics('s2')
         s1 = EchoStage(ContextDelta(
-            symbolic={'question_type': 'who'},
+            symbolic={'question_type': 'kiu'},
             metrics=metrics1,
         ))
         s2 = EchoStage(ContextDelta(
-            symbolic={'question_type': 'what'},
+            symbolic={'question_type': 'kio'},
             metrics=metrics2,
         ))
         orch = Orchestrator(stages=[s1, s2])
         result = orch.answer("test")
         # ctx_before of s2 should reflect s1's output
-        self.assertEqual(result.trace[1].ctx_before.symbolic.question_type, 'who')
+        self.assertEqual(result.trace[1].ctx_before.symbolic.question_type, 'kiu')
         # ctx_before of s1 should be the initial context
-        self.assertEqual(result.trace[0].ctx_before.symbolic.question_type, 'UNKNOWN')
+        self.assertEqual(result.trace[0].ctx_before.symbolic.question_type, 'nekonata')
 
     def test_stage_trace_ctx_after_property(self):
         metrics = _minimal_metrics('echo')
@@ -385,19 +385,19 @@ class TestParseQuestionStage(unittest.TestCase):
 
     def test_who_question_classified_correctly(self):
         new_ctx = self._run("Kiu fondis Esperanton?")
-        self.assertEqual(new_ctx.symbolic.question_type, 'who')
+        self.assertEqual(new_ctx.symbolic.question_type, 'kiu')
 
     def test_what_question_classified_correctly(self):
         new_ctx = self._run("Kio estas Esperanto?")
-        self.assertEqual(new_ctx.symbolic.question_type, 'what')
+        self.assertEqual(new_ctx.symbolic.question_type, 'kio')
 
     def test_where_question_classified_correctly(self):
         new_ctx = self._run("Kie loĝas Zamenhof?")
-        self.assertEqual(new_ctx.symbolic.question_type, 'where')
+        self.assertEqual(new_ctx.symbolic.question_type, 'kie')
 
     def test_when_question_classified_correctly(self):
         new_ctx = self._run("Kiam naskiĝis Zamenhof?")
-        self.assertEqual(new_ctx.symbolic.question_type, 'when')
+        self.assertEqual(new_ctx.symbolic.question_type, 'kiam')
 
     def test_confidence_increases(self):
         stage = ParseQuestionStage()

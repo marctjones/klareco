@@ -29,12 +29,12 @@ from klareco.rag.importance_scorer import QuestionType
 logger = logging.getLogger(__name__)
 
 _TYPE_MAP: dict[str, QuestionType] = {
-    'who':      QuestionType.WHO,
-    'what':     QuestionType.WHAT,
-    'where':    QuestionType.WHERE,
-    'when':     QuestionType.WHEN,
-    'how':      QuestionType.HOW,
-    'why':      QuestionType.WHY,
+    'kiu':      QuestionType.WHO,
+    'kio':     QuestionType.WHAT,
+    'kie':    QuestionType.WHERE,
+    'kiam':     QuestionType.WHEN,
+    'kiel':      QuestionType.HOW,
+    'kial':      QuestionType.WHY,
 }
 # All unmapped types (how_many, boolean, unknown) fall back to OTHER
 

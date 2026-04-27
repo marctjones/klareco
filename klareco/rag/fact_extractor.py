@@ -190,7 +190,7 @@ class FactExtractor:
         return Fact(
             entity=entity,
             relation=RelationType.IS_A,
-            arguments={'type': category},
+            arguments={'tipo': category},
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
@@ -219,7 +219,7 @@ class FactExtractor:
         return Fact(
             entity=entity,
             relation=RelationType.CREATED_BY,
-            arguments={'agent': agent},
+            arguments={'aganto': agent},
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
@@ -245,7 +245,7 @@ class FactExtractor:
         return Fact(
             entity=entity,
             relation=RelationType.HAS,
-            arguments={'property': property_val},
+            arguments={'eco': property_val},
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
@@ -279,7 +279,7 @@ class FactExtractor:
         return Fact(
             entity=entity,
             relation=RelationType.LOCATED_AT,
-            arguments={'location': location} if location else {},
+            arguments={'loko': location} if location else {},
             modifiers=modifiers,
             source_sentence=source_sentence,
             source_ast=frazo,
@@ -323,7 +323,7 @@ class FactExtractor:
 
         arguments = {}
         if agent:
-            arguments['agent'] = agent
+            arguments['aganto'] = agent
 
         return Fact(
             entity=entity,
@@ -350,7 +350,7 @@ class FactExtractor:
         if objekto:
             obj_name = self._get_entity_name(objekto)
             if obj_name:
-                arguments['object'] = obj_name
+                arguments['objekto'] = obj_name
 
         modifiers = self._extract_modifiers(frazo.get('aliaj', []))
 
@@ -471,7 +471,7 @@ class FactExtractor:
             arguments = {}
             if relation in [RelationType.CREATED_BY, RelationType.FOUNDED, RelationType.PUBLISHED]:
                 if agent:
-                    arguments['agent'] = agent
+                    arguments['aganto'] = agent
 
             modifiers = self._extract_modifiers(aliaj)
 
@@ -609,7 +609,7 @@ class FactExtractor:
                     if entity and relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
                         arguments = {}
                         if agent:
-                            arguments['agent'] = agent
+                            arguments['aganto'] = agent
 
                         modifiers = self._extract_modifiers(aliaj)
 
@@ -703,7 +703,7 @@ class FactExtractor:
         return Fact(
             entity=antecedent_root,
             relation=relation,
-            arguments={'agent': agent},
+            arguments={'aganto': agent},
             modifiers=self._extract_modifiers(rilata.get('aliaj', [])),
             source_sentence=source_sentence,
             source_ast=rilata,
@@ -764,7 +764,7 @@ class FactExtractor:
                 if elem.get('vortspeco') == 'numero':
                     root = elem.get('radiko', '')
                     if len(root) == 4 and root.isdigit():
-                        modifiers['time'] = root
+                        modifiers['tempo'] = root
 
         # Build fact based on relation type
         if relation in [RelationType.CREATED_BY, RelationType.PUBLISHED, RelationType.FOUNDED]:
@@ -773,7 +773,7 @@ class FactExtractor:
 
             arguments = {}
             if agent:
-                arguments['agent'] = agent
+                arguments['aganto'] = agent
 
             return Fact(
                 entity=entity,
@@ -805,17 +805,17 @@ class FactExtractor:
             elif vortspeco == 'numero':
                 # Check if it's a year (4 digits)
                 if len(root) == 4 and root.isdigit():
-                    modifiers['time'] = root
+                    modifiers['tempo'] = root
                 else:
-                    modifiers['quantity'] = root
+                    modifiers['kvanto'] = root
 
             # Quantity modifiers
             elif 'milion' in root or vortspeco == 'nombro':
-                modifiers['quantity'] = self._get_entity_name(alia)
+                modifiers['kvanto'] = self._get_entity_name(alia)
 
             # Manner modifiers (adverbs)
             elif vortspeco == 'adverbo':
-                modifiers['manner'] = self._get_entity_name(alia)
+                modifiers['maniero'] = self._get_entity_name(alia)
 
         return modifiers
 

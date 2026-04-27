@@ -91,7 +91,7 @@ class SymbolicLayer:
     All sequences are tuples for structural immutability.
     """
     question_ast: Optional[dict] = None
-    question_type: str = 'UNKNOWN'    # 'who'|'what'|'where'|'when'|'how'|'why'|'unknown'
+    question_type: str = 'nekonata'    # 'kiu'|'kio'|'kie'|'kiam'|'kiel'|'kial'|'nekonata'
     passage_asts: tuple = ()          # tuple[ParsedPassage]
     fact_fragments: tuple = ()        # tuple[FactFragment]
     answer_segments: tuple = ()       # tuple[Segment]

@@ -363,7 +363,6 @@ class GrammaticalVariantGenerator:
             WHERE entity_mention.radiko = '{entity_root}'
             MATCH (frazo)-[:HAVAS_ALIAJN]->(temporal:Vorto)
             WHERE temporal.radiko IN ['jar', 'jarcent', 'dato', 'temp']
-                OR regexp_matches(temporal.plena_vorto, '\\\\d{{4}}')
             RETURN ft.id AS id, ft.teksto AS text
             LIMIT {top_k}
         """
@@ -387,7 +386,6 @@ class GrammaticalVariantGenerator:
                 AND participle.sufiksoj CONTAINS 'it'
             MATCH (frazo)-[:HAVAS_ALIAJN]->(temporal:Vorto)
             WHERE temporal.radiko IN ['jar', 'jarcent', 'dato', 'temp']
-                OR regexp_matches(temporal.plena_vorto, '\\\\d{{4}}')
             RETURN ft.id AS id, ft.teksto AS text
             LIMIT {top_k}
         """

@@ -1,0 +1,948 @@
+{
+  "summary": {
+    "n": 50,
+    "answer_accuracy": 0.16,
+    "retrieval_recall": 0.24,
+    "mrr": 0.13352380952380952,
+    "avg_latency_sec": 25.3,
+    "rank_distribution": {
+      "1": 5,
+      "2-3": 2,
+      "4-10": 5,
+      "11+": 0,
+      "none": 38
+    }
+  },
+  "by_type": {
+    "WHO": {
+      "n": 10,
+      "answer_accuracy": 0.2,
+      "retrieval_recall": 0.2,
+      "mrr": 0.2,
+      "avg_latency_sec": 49.28,
+      "rank_distribution": {
+        "1": 2,
+        "2-3": 0,
+        "4-10": 0,
+        "11+": 0,
+        "none": 8
+      }
+    },
+    "WHAT": {
+      "n": 10,
+      "answer_accuracy": 0.0,
+      "retrieval_recall": 0.0,
+      "mrr": 0.0,
+      "avg_latency_sec": 42.51,
+      "rank_distribution": {
+        "1": 0,
+        "2-3": 0,
+        "4-10": 0,
+        "11+": 0,
+        "none": 10
+      }
+    },
+    "WHERE": {
+      "n": 10,
+      "answer_accuracy": 0.2,
+      "retrieval_recall": 0.5,
+      "mrr": 0.17595238095238094,
+      "avg_latency_sec": 18.88,
+      "rank_distribution": {
+        "1": 1,
+        "2-3": 0,
+        "4-10": 4,
+        "11+": 0,
+        "none": 5
+      }
+    },
+    "WHEN": {
+      "n": 10,
+      "answer_accuracy": 0.2,
+      "retrieval_recall": 0.2,
+      "mrr": 0.125,
+      "avg_latency_sec": 7.72,
+      "rank_distribution": {
+        "1": 1,
+        "2-3": 0,
+        "4-10": 1,
+        "11+": 0,
+        "none": 8
+      }
+    },
+    "HOW_MANY": {
+      "n": 5,
+      "answer_accuracy": 0.2,
+      "retrieval_recall": 0.2,
+      "mrr": 0.06666666666666667,
+      "avg_latency_sec": 8.97,
+      "rank_distribution": {
+        "1": 0,
+        "2-3": 1,
+        "4-10": 0,
+        "11+": 0,
+        "none": 4
+      }
+    },
+    "WHY": {
+      "n": 2,
+      "answer_accuracy": 0.0,
+      "retrieval_recall": 0.5,
+      "mrr": 0.16666666666666666,
+      "avg_latency_sec": 6.64,
+      "rank_distribution": {
+        "1": 0,
+        "2-3": 1,
+        "4-10": 0,
+        "11+": 0,
+        "none": 1
+      }
+    },
+    "HOW": {
+      "n": 2,
+      "answer_accuracy": 0.0,
+      "retrieval_recall": 0.0,
+      "mrr": 0.0,
+      "avg_latency_sec": 6.43,
+      "rank_distribution": {
+        "1": 0,
+        "2-3": 0,
+        "4-10": 0,
+        "11+": 0,
+        "none": 2
+      }
+    },
+    "WHICH": {
+      "n": 1,
+      "answer_accuracy": 1.0,
+      "retrieval_recall": 1.0,
+      "mrr": 1.0,
+      "avg_latency_sec": 9.97,
+      "rank_distribution": {
+        "1": 1,
+        "2-3": 0,
+        "4-10": 0,
+        "11+": 0,
+        "none": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "question": "Kiu fondis Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "1672: John Wilkins, angla episkopo, naturfilozofo, kriptografiisto, kunfondinto de la Reĝa Societo de Londono, kies libro Reala Karaktero kaj Filozofia Lingvo inspiris Ludovikon Zamenhof krei esperanton (n. 1614) [1] Sekve, esperantiĝis 1902. Provis fondi Esperantistan Maristan Ligon, 1907- Komitatano de la Pariza Grupo [2] Tiam, la 23-an de februaro 1913 kreiĝis Hungara Esperantista Societo Laborista (HESL) kun la celo disvastigi Esperanton inter la laboristoj [3] Antaŭe, en 1937 li kreis la Esperantan departementon de Brazila Spiritisma Federacio (FEB) kaj ekuzis ties presejon por eldonado de diversaj verkoj [4]\n\n[1] Unknown — 1672: John Wilkins, angla episkopo, naturfilozofo, kriptografiisto, kunfondinto…\n[2] Unknown — Esperantiĝis 1902. Provis fondi Esperantistan Maristan Ligon, 1907- Komitatano d…\n[3] Unknown — La 23-an de februaro 1913 kreiĝis Hungara Esperantista Societo Laborista (HESL)…\n[4] Unknown — En 1937 li kreis la Esperantan departementon de Brazila Spiritisma Federacio (FE…",
+      "matched_keywords": [
+        "Zamenhof"
+      ],
+      "answer_correct": true,
+      "retrieved_count": 10,
+      "first_relevant_rank": 1,
+      "retrieval_recall@k": true,
+      "mrr": 1.0,
+      "latency_sec": 72.22
+    },
+    {
+      "id": 2,
+      "question": "Kiu kreis Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "1672: John Wilkins, angla episkopo, naturfilozofo, kriptografiisto, kunfondinto de la Reĝa Societo de Londono, kies libro Reala Karaktero kaj Filozofia Lingvo inspiris Ludovikon Zamenhof krei esperanton (n. 1614) [1] Esperantan version de OpenOffice kreis internacia skipo, sub projekto aŭspiciata de UEA [2] La 23-an de februaro 1913 kreiĝis Hungara Esperantista Societo Laborista (HESL) kun la celo disvastigi Esperanton inter la laboristoj [3] Antaŭe, en 1937 li kreis la Esperantan departementon de Brazila Spiritisma Federacio (FEB) kaj ekuzis ties presejon por eldonado de diversaj verkoj [4]\n\n[1] Unknown — 1672: John Wilkins, angla episkopo, naturfilozofo, kriptografiisto, kunfondinto…\n[2] Unknown — Esperantan version de OpenOffice kreis internacia skipo, sub projekto aŭspiciata…\n[3] Unknown — La 23-an de februaro 1913 kreiĝis Hungara Esperantista Societo Laborista (HESL)…\n[4] Unknown — En 1937 li kreis la Esperantan departementon de Brazila Spiritisma Federacio (FE…",
+      "matched_keywords": [
+        "Zamenhof"
+      ],
+      "answer_correct": true,
+      "retrieved_count": 10,
+      "first_relevant_rank": 1,
+      "retrieval_recall@k": true,
+      "mrr": 1.0,
+      "latency_sec": 51.61
+    },
+    {
+      "id": 3,
+      "question": "Kiu estis Zamenhof?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "okulisto"
+      ],
+      "answer": "Kulmino en 1929 estis vizito de la bahaaninoj Lidia Zamenhof kaj Marta Ruth kiuj prelegis dum klubvespero pri la bahaa religio kaj vekis grandan publikan atenton [1] Zamenhofaj Vortoj estas radikoj uzitaj de Zamenhof kaj netroveblaj en la Universala Vortaro [2] |- ! | Identigila kodo ! | Urbo ! | Kategorio ! | Oficiala nomo (ekde kiam) ! | Notoj |- | || Joao Pessoa || Strato || Esperanto Avenuo (1949) || |- | || Joao Pessoa || Strato || Rua Doutor Luiz Zamenhof || |- | || Joinville || Strato || Rua Esperanto || |- | || Juiz de Fora || Stratoj, bushaltejo kaj monumentoj || 1.Zamenhof strato (1953)2.Rua Esperanto kaj bushaltejo (1970) 3. Zamenhof-monumento (1980)|| 2.Vale dos Bandeirantes, MG, 36047-060, |- | || Jundiaí || Strato kaj placo || 1.Zamenhof-placo (1962) 2.Rua Esperanto (1962)|| 2. |- | || Lajeado (RS) || Stratoj || 1.Strato Esperanto (1983) 2.Strato Zamenhof (1986) |\"La 16-an de majo 1983 la urbestro de la urbo Lajeado, Erni Petry, dank’al influo de la esperantisto D-ro Lenio Marobin, donis la nomon Esperanto al grava promenejo de la urbo.\" |- | || Livramento |Promenejo |Passeio Esperanto (1983) |- |br-053 || Londrina (PR) || Stratoj || 1.Esperanto-avenuo 2.Strato Zamenhof || 1. |- | || Lorena || Monumento || Zamenhof monumento (2003) || Laŭ la Ondo de Esperanto n-ro 108 : 14 sep okaze de la 53a Esperanto-Renkontiĝo de Paraíba-Valo (Brazilo) en ĉeesto de la urbestro, vicurbestro kaj aliaj aŭtoritatuloj, muzikistaro k ĥoro, estis inaŭgurita monumento Zamenhof en la centra placo de Lorena. (Paulo Sergio Viana) Vidu ankaŭ Foton de César Dorneles ĉe Ipernity. |} [3]\n\n[1] Unknown — Kulmino en 1929 estis vizito de la bahaaninoj Lidia Zamenhof kaj Marta Ruth kiuj…\n[2] Unknown — Zamenhofaj Vortoj estas radikoj uzitaj de Zamenhof kaj netroveblaj en la Univers…\n[3] Unknown — |- ! | Identigila kodo ! | Urbo ! | Kategorio ! | Oficiala nomo (ekde kiam) ! |…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 7.27
+    },
+    {
+      "id": 4,
+      "question": "Kiu verkis la Fundamenton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "Robinsohn kreis teoriajn fundamentojn pri memstara esploradscienco de lernejaj horartabuloj kun respekto de socialpolitikaj kuntekstoj de malsimile strukturigitaj socioj [1] Beck kreis la fundamenton por la studado de tiaj misformoj, kaj lia studento David D [2] Ĝuste poloj kreis la fundamenton de ĉifrado, pri kio ili povis montri sian kontribuon nur en la 70-aj jaroj [3] Estante tre varieca kaj forme malfermita artisto li kreis fundamentojn gravajn por la plua evoluo de la aŭstra artosceno [4]\n\n[1] Unknown — Robinsohn kreis teoriajn fundamentojn pri memstara esploradscienco de lernejaj h…\n[2] Unknown — Beck kreis la fundamenton por la studado de tiaj misformoj, kaj lia studento Dav…\n[3] Unknown — Ĝuste poloj kreis la fundamenton de ĉifrado, pri kio ili povis montri sian kontr…\n[4] Unknown — Estante tre varieca kaj forme malfermita artisto li kreis fundamentojn gravajn p…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 46.46
+    },
+    {
+      "id": 5,
+      "question": "Kiu publikigis la unuan libron pri Esperanto?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "UEA publikigis en 2002 Esperantan version de eldonaĵo (1998) de EBLUL, Diskutlibro pri malpli uzataj lingvoj [1] En Kadizo Garzón Ruiz publikigis en 1910 (januaro-decembro) \"Gazeto Andaluzia\", unuan Esperantan revuon de tiu regiono; tiu gazeto, post malapero de \"La Suno Hispana\", fariĝis oficiala organo de Hispana Asocio por propagando de Esperanto kun la nomo Gazeto Hispana (januaro-decembro 1911) kaj de januaro 1912 ludis tiun rolon \"Nova Sento\" de Bilbao [2] Eldonejo Stafeto fondita de Juan Régulo Pérez. *Ivo Lapenna publikiĝis Faktoj pri la Internacia Lingvo. *Eklernis Esperanton: Aldo de' Giorgi [3] Komence de 2020 Grimley Evans publikigis Esperantan tradukon de la anglalingva romano Little Brother verkita de Cory Doctorow kun la titolo «Malgranda gefrato» [4]\n\n[1] Unknown — UEA publikigis en 2002 Esperantan version de eldonaĵo (1998) de EBLUL, Diskutlib…\n[2] Unknown — En Kadizo Garzón Ruiz publikigis en 1910 (januaro-decembro) \"Gazeto Andaluzia\",…\n[3] Unknown — Eldonejo Stafeto fondita de Juan Régulo Pérez. *Ivo Lapenna publikiĝis Faktoj pr…\n[4] Unknown — Komence de 2020 Grimley Evans publikigis Esperantan tradukon de la anglalingva r…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 43.42
+    },
+    {
+      "id": 6,
+      "question": "Kiu estis la patro de Esperanto?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "Ekzemple, la patrino preskaŭ ĉiam estas atendata prizorgi siajn infanojn kaj la patro subteni la patrinon kaj iliajn komunajn infanojn [1] Elstaraj luktistoj kontraŭotomanaj estis Mircea cel Bătrân, elvokita en la poemo de Eminescu, Vlad Țepeș, Ștefan cel Mare, Mikaelo de Valaĥio kaj iuj inkludas tie al Iancu de Hunedoara, reganto de Transilvanio kaj patro de la reĝo de Hungario Matiaso Korvino [2] Ekzemple, la patrino preskaŭ ĉiam estas atendata prizorgi siajn infanojn kaj la patro subteni la patrinon kaj iliajn komunajn infanojn [1] Lia patro Joseph Léopold Sigisbert Hugo estis generalo en la armeo de Napoleono; lia patrino Sophie Trébuchet estis el burĝa familio de Nantes [3]\n\n[1] Unknown — Ekzemple, la patrino preskaŭ ĉiam estas atendata prizorgi siajn infanojn kaj la…\n[2] Unknown — Elstaraj luktistoj kontraŭotomanaj estis Mircea cel Bătrân, elvokita en la poemo…\n[3] Unknown — Lia patro Joseph Léopold Sigisbert Hugo estis generalo en la armeo de Napoleono;…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 16.11
+    },
+    {
+      "id": 7,
+      "question": "Kiu inventis la internacian lingvon?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "Jam en 1947 André Schild kreis lingvon nomatan Neolatino, poste, en 1948, portugala lingvisto João Campos Lima proponis lingvon nomatan Internacional, kiel internacian komunikilon kaj alternativon al Esperanto [1] Sonodesegnisto Ben Burtt kreis la lingvon surbaze de la keĉua, la lingvo de la inkaoj [2] Ben Burtt kreis la lingvon surbaze de la tibeta [3] Ben Burtt kreis la lingvon surbaze de la zulua [4]\n\n[1] Unknown — Jam en 1947 André Schild kreis lingvon nomatan Neolatino, poste, en 1948, portug…\n[2] Unknown — Sonodesegnisto Ben Burtt kreis la lingvon surbaze de la keĉua, la lingvo de la i…\n[3] Unknown — Ben Burtt kreis la lingvon surbaze de la tibeta…\n[4] Unknown — Ben Burtt kreis la lingvon surbaze de la zulua…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 72.93
+    },
+    {
+      "id": 8,
+      "question": "Kiu proponis Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "La kantonaj esperantistoj proponis al Lucien instrui Esperanton en urbaj altlernejoj [1] Barcelono: la aŭtoro; 1995, 33. p. (proponas esperantigojn surbaze de la katalunaj loknomoj anstataŭ la francaj aŭ hispanaj) #Bernard GOLDEN. \"Principoj por la esperantigo de hispanlingvaj vortoj kaj propraj nomoj\" [2] Esplorprojekto Distribuita Lingvo-Tradukado proponas la esperanton kiel pivotlingvo, kaj la Majstro Tradukvortaro uzas la internacian lingvon laŭ tia maniero en la esperanto-retejo Majstro.com [3] En 1920 li kiel belga delegito en la Ligo de Nacioj nesukcese provis proponi Esperanton kiel internacian lingvon [4]\n\n[1] Unknown — La kantonaj esperantistoj proponis al Lucien instrui Esperanton en urbaj altlern…\n[2] Unknown — Barcelono: la aŭtoro; 1995, 33. p. (proponas esperantigojn surbaze de la katalun…\n[3] Unknown — Esplorprojekto Distribuita Lingvo-Tradukado proponas la esperanton kiel pivotlin…\n[4] Unknown — En 1920 li kiel belga delegito en la Ligo de Nacioj nesukcese provis proponi Esp…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 61.78
+    },
+    {
+      "id": 9,
+      "question": "Kiu ellaboris Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "Unu inter esperantistoj relative konata membro de GRECE estas la franca profesoro de juro Guy Héraud (1921-2003), kiu estis membro de la patrona komitato de Nouvelle École [1] En Esperanto, simile kiel en iuj naciaj lingvoj kiel ekzemple la nederlanda aŭ dana, la vorto hokeo kutime signifas la teamajn sportojn ludatajn per hokeiloj kaj pilko sur firma tero (la subĉiela klasika variaĵo, halhokeo, kaj variaĵoj kiel rulhokeo kaj unihokeo), dum glacihokeo konsideratas aparta teama sporto ludata per (iom alispecaj) hokeiloj kaj disko sur glacio - do glacihokeo ne konsideratas variaĵo de hokeo, samkiel ankaŭ ekzemple teniso kaj tabloteniso estas du malsamaj sportoj [2] Esperanta morfologio estas ekstreme aglutina, t.e. vortoj ofte konsistas el pluraj morfemoj, kiuj esprimas po unu elementon de signifo kaj havas malmultajn alomorfojn (en Esperanto nur unu) [3] Esperanto estas konata tie de la jaro 1902, kiam sinjoro Henri de Coppet komencis instrui la lingvon en lernejo (rue Saint Ferdinand) [4]\n\n[1] Unknown — Unu inter esperantistoj relative konata membro de GRECE estas la franca profesor…\n[2] Unknown — En Esperanto, simile kiel en iuj naciaj lingvoj kiel ekzemple la nederlanda aŭ d…\n[3] Unknown — Esperanta morfologio estas ekstreme aglutina, t.e. vortoj ofte konsistas el plur…\n[4] Unknown — Esperanto estas konata tie de la jaro 1902, kiam sinjoro Henri de Coppet komenci…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 70.03
+    },
+    {
+      "id": 10,
+      "question": "Kiu iniciatis Esperanton?",
+      "question_type": "WHO",
+      "expected_keywords": [
+        "Zamenhof"
+      ],
+      "answer": "Esperantido de Antido estas unu el la multaj proponoj de René de Saussure; ĝi estis proponita en 1922. Ŝanĝoj kompare kun E-o: -u anstataŭ -on, -un anstataŭ -ojn, -an anstataŭ -aj [1] Esperantigo de la francaj nomoj estas problemo aparte malfacila, multe pli malfacila ol esperantigo de nomoj el aliaj nacilingvoj eŭropaj (ekz-e la germana) [2] k̃], en Esperanto Kaeno, historie ankaŭ kelte *Catumagos, latine Kadomum kaj normande Kaen, estas grava urbo kaj komunumo en la nordokcidenta parto de Francio [3] Nur estus pli bone ne skribi la raporton Esperante, tiuokaze la ŝanco pri solvo tre malpligrandiĝus. --Petrus Adamus 09:38, 14. Nov 2009 (UTC) :::Hungare skribi estas sensenca [4]\n\n[1] Unknown — Esperantido de Antido estas unu el la multaj proponoj de René de Saussure; ĝi es…\n[2] Unknown — Esperantigo de la francaj nomoj estas problemo aparte malfacila, multe pli malfa…\n[3] Unknown — k̃], en Esperanto Kaeno, historie ankaŭ kelte *Catumagos, latine Kadomum kaj nor…\n[4] Unknown — Nur estus pli bone ne skribi la raporton Esperante, tiuokaze la ŝanco pri solvo…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 50.97
+    },
+    {
+      "id": 11,
+      "question": "Kio estas Esperanto?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "planlingvo"
+      ],
+      "answer": "La esperantigo bazelo estas konstruita laŭ la PIV-a modelo Pilosella > pilozelo, tiel respektante la elparoladon de tiu vorto en la naciaj lingvoj, precipe tiun de la litero s, kvazaŭ z (ekz. Базелла ruse) [1] Unu inter esperantistoj relative konata membro de GRECE estas la franca profesoro de juro Guy Héraud (1921-2003), kiu estis membro de la patrona komitato de Nouvelle École [2] Poste, nun, aktiva esperantisto en la urbo estas interalie d-ro Matthias Hecking, almenaŭ inter la jaroj 2013 kaj 2017 unu el tri estraranoj de la Rejnlando-Palatinata Esperanto-Ligo [3] En esperanto: ** [n] kaj [ŋ] estas du formoj el fonemo /n/ kiu varias laŭ la kunteksto: /n/ iĝas [ŋ] antaŭ velara konsonanto ([k] kaj [ɡ]). ** La du sonoj neniam distingas vortojn en esperanto, kaj se oni ne elparolas la fonemon /n/ precize same en ambaŭ kazoj, tio estas akcenta diferenco, ne malĝustaĵo [4]\n\n[1] Unknown — La esperantigo bazelo estas konstruita laŭ la PIV-a modelo Pilosella > pilozelo,…\n[2] Unknown — Unu inter esperantistoj relative konata membro de GRECE estas la franca profesor…\n[3] Unknown — Nun, aktiva esperantisto en la urbo estas interalie d-ro Matthias Hecking, almen…\n[4] Unknown — En esperanto: ** [n] kaj [ŋ] estas du formoj el fonemo /n/ kiu varias laŭ la kun…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 32.88
+    },
+    {
+      "id": 12,
+      "question": "Kio estas planlingvo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "artefarita lingvo"
+      ],
+      "answer": "Kelkaj aliaj planlingvoj ekde Latino Sen Fleksio (proponita en 1903) estas rektaj simpligoj de klasika Latino [1] Tiam, lia unua konata planlingvaĵo estis la projekto Weltdeutsch, \"Monda germana\", mallongite Wede, libroforme prezentita en 1915 – meze de la Unua Mondmilito (ankaŭ ekzistas iom da aliaj projektoj kiu iom uzas la saman nomon) [2] Inter la planlingvoj (ekzemple, Interlingvao kaj Loĵbano), Esperanto estas la plej uzata kaj la sola kun evoluintaj daŭraj aplikoj en preskaŭ ĉiuj vivosferoj [3] Inter la planlingvoj menciitaj sube en la sama kolumno, Esperanto, lanĉita de Ludoviko Lazaro Zamenhof en 1887, estas klare la plej disvastiĝinta [4]\n\n[1] Unknown — Kelkaj aliaj planlingvoj ekde Latino Sen Fleksio (proponita en 1903) estas rekta…\n[2] Unknown — Lia unua konata planlingvaĵo estis la projekto Weltdeutsch, \"Monda germana\", mal…\n[3] Unknown — Inter la planlingvoj (ekzemple, Interlingvao kaj Loĵbano), Esperanto estas la pl…\n[4] Unknown — Inter la planlingvoj menciitaj sube en la sama kolumno, Esperanto, lanĉita de Lu…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 32.17
+    },
+    {
+      "id": 13,
+      "question": "Kio estas la Fundamento?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "dokumento"
+      ],
+      "answer": "Aparte spektindaj estas la belaj fundamentoj kiuj troviĝas en strato Loreto kaj en Calle del Triunfo, krome la domaro de Korikanĉa (kiu signifas: ora ĉirkaŭbaro, tio estas la antikva templo de la suno) nur parte transformita en preĝejon de Sankta Dominiko, kaj kiu entenas multajn partojn originalajn [1] La fundamento de la statuo de Bartholdi estis metota ene de Fort Wood, neuzita armea stacio sur la Insulo Bedloe konstruita inter 1807 kaj 1811. Ekde 1823, ĝi malofte estis uzita, kvankam dum la enlanda milito, ĝi funkciis kiel rekruta stacio [2] Antaŭe, la fundamento de la artkolekto estis amorigita fare de la Turku Arta Societoy, fondita en 1891 fare de Gustav Cygnaeus (1851-1907), lekciisto, ĵurnalisto kaj la unua prezidanto de la societo [3] Ĉe la fundamento de la starigo de la komitato estis la deziro esplori, dokumenti kaj denunci la maljusticojn de la antaŭa reĝimo kaj la terorismon de la opoziciaj organizaĵoj kiuj batalis kontraŭ ĝi, por kompensi kaj rehabiliti la viktimojn de la rasapartismo ambaŭflanke, helpi en trankvila kaj orda transigo de potenco de la manoj de la blankula malplimulto al la nigrula plimulto sen rankoro aŭ venĝo, kaj meti vojmontrilan averton kontraŭ la ripetiĝo fare de similaj reĝimoj [4]\n\n[1] Unknown — Aparte spektindaj estas la belaj fundamentoj kiuj troviĝas en strato Loreto kaj…\n[2] Unknown — La fundamento de la statuo de Bartholdi estis metota ene de Fort Wood, neuzita a…\n[3] Unknown — La fundamento de la artkolekto estis amorigita fare de la Turku Arta Societoy, f…\n[4] Unknown — Ĉe la fundamento de la starigo de la komitato estis la deziro esplori, dokumenti…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 44.85
+    },
+    {
+      "id": 14,
+      "question": "Kio estas hundo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "besto"
+      ],
+      "answer": "La hundo estu lavata regule por forigo de malpuro kaj evito de ŝtupo de poroj en la haŭto [1] Nur 3% de hundoj en Ĉinio estas vakcinitaj (2005), kaj en 2005, entute 69 000 homoj estis kuracitaj kontraŭ rabio nur en Pekino [2] \"Du el niaj tri grandaj hundoj estas laŭ ĉio ĉe sinjoro Floriano, kun kiu ili faris antaŭ kvaronhoro ekskurson al la senarba deklivo; sed la tria hundo, la plej furioza, kiu estas senĉese alligita, estas ĵus senĉenigita kaj kuŝas aŭ en la budo aŭ kuras en la korto [3] Malsimile al meksika nuda hundo, haroza vario de perua nuda hundo estas rigardata kontraŭnorma kaj ne partoprenas en hundaj ekspozicioj [4]\n\n[1] Unknown — La hundo estu lavata regule por forigo de malpuro kaj evito de ŝtupo de poroj en…\n[2] Unknown — Nur 3% de hundoj en Ĉinio estas vakcinitaj (2005), kaj en 2005, entute 69 000 ho…\n[3] Unknown — \"Du el niaj tri grandaj hundoj estas laŭ ĉio ĉe sinjoro Floriano, kun kiu ili fa…\n[4] Unknown — Malsimile al meksika nuda hundo, haroza vario de perua nuda hundo estas rigardat…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 228.32
+    },
+    {
+      "id": 15,
+      "question": "Kio estas libro?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "skribaĵo"
+      ],
+      "answer": "La plej malnova presita kaj konservita libro estas 5 metrojn longa ĉina rulaĵo el la jaro 868, kiu temas pri sankta budhisma teksto [1] Liaj unuaj libroj estis iom malfacile legeblaj, ĉar enhavantaj multajn detalojn, sed lia stilo evoluis kaj ebligis al multaj homoj ekscion pri la vivmaniero de la keltoj [2] La studenta amikeca libro (germane Stammbuch, latine Album Amicorum) estis frua formo de poezia albumo, mezepoka memorlibro, kaj kiu estiĝis dum la reformacio, kiel modo por kolekti aŭtografojn de famaj reformatoroj [3] Laŭ la libro estis en la jaro 1957 filmita anglalingve The Bridge on the River Kwai, kiu akiris sep Akademiajn Premiojn kaj en taksado de la plej bonaj filmoj laŭ servilo Interreta filma datenbazo ĝi lokiĝis sur la 57-a loko [4]\n\n[1] Unknown — La plej malnova presita kaj konservita libro estas 5 metrojn longa ĉina rulaĵo e…\n[2] Unknown — Liaj unuaj libroj estis iom malfacile legeblaj, ĉar enhavantaj multajn detalojn,…\n[3] Unknown — La studenta amikeca libro (germane Stammbuch, latine Album Amicorum) estis frua…\n[4] Unknown — Laŭ la libro estis en la jaro 1957 filmita anglalingve The Bridge on the River K…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 21.96
+    },
+    {
+      "id": 16,
+      "question": "Kio estas lingvo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "komunikilo"
+      ],
+      "answer": "La lingvoj estis instruataj laŭ jena ordo: la latina, la franca, la malnovgreka, la hebrea - la laste menciita kompreneble nur por la aspirontoj al teologio [1] La dargva lingvo aŭ dargina lingvo estas unu el multaj lingvoj parolataj en Nordorienta Kaŭkazio (respubliko Dagestano) [2] En la hebrea lingvo kutime estas konata sub nomo ARI (), kiu havas kelkajn deĉifrojn, ekzemple, Aŝkenazi Rabbi Icĥak aŭ Adonejnu Rabejnu Icĥak [3] La ubiĥa eble estas la lingvo kun la plej multaj frotsonoj (entute dudek sep), iuj el kiuj ne havas simbolojn nek diakriton en la IFA [4]\n\n[1] Unknown — La lingvoj estis instruataj laŭ jena ordo: la latina, la franca, la malnovgreka,…\n[2] Unknown — La dargva lingvo aŭ dargina lingvo estas unu el multaj lingvoj parolataj en Nord…\n[3] Unknown — En la hebrea lingvo kutime estas konata sub nomo ARI (), kiu havas kelkajn deĉif…\n[4] Unknown — La ubiĥa eble estas la lingvo kun la plej multaj frotsonoj (entute dudek sep), i…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 14.25
+    },
+    {
+      "id": 17,
+      "question": "Kio estas akvo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "likvaĵo"
+      ],
+      "answer": "Estas sufiĉa akvo en Supra lago al kovri la tuta lando (maso, amaso) de Nordo kaj Sudameriko kun (piedo, futo) (30 cm) akva [1] La varma akvo estas konstante pasita super la maturigaj basenoj plenaj per la koto, kio antaŭenigas la maturiĝon de la algoj kaj mikroorganismoj [2] La akvo super la kresto estas proksimume 200 m (650 (futojn)) profunda, kompare al malglate 400 m (1,300 (futoj)) profunda en la norda baseno kaj 800 m ()) profunda en la suda [3] La akvejo mem estas agnoskita kiel Ramsar-loko kaj Biosfera Rezervejo, pro la ekzisto de multaj marĉoj kaj malsekejoj kiuj estas ofte vizitataj de akvobirdoj [4]\n\n[1] Unknown — Estas sufiĉa akvo en Supra lago al kovri la tuta lando (maso, amaso) de Nordo ka…\n[2] Unknown — La varma akvo estas konstante pasita super la maturigaj basenoj plenaj per la ko…\n[3] Unknown — La akvo super la kresto estas proksimume 200 m (650 (futojn)) profunda, kompare…\n[4] Unknown — La akvejo mem estas agnoskita kiel Ramsar-loko kaj Biosfera Rezervejo, pro la ek…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 12.68
+    },
+    {
+      "id": 18,
+      "question": "Kio estas domo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "konstruaĵo"
+      ],
+      "answer": "La domo estis parte detruita de fajro la nokton inter la 6-a kaj la 7-a de septembro de 2005. Rekonstruo de la tegmento okazis en 2007. En loĝejo en la teretaĝo troviĝis ĝis proks. 2014 la biblioteko de Esperanto-Ligo Berlin (\"Espoteko\") [1] La domo ekde la jaro 1636 estis posedaĵo de la dana reĝo [2] Komparita al la grandaj ŝtuparaj domoj en Anglio kaj de la Renesanco, la 17-a-jarcenta nederlanda domo estis pli malgranda, kaj estis nur loĝita fare de ĝis kvar al kvin membroj [3] Estas 3 784 domanaroj en la urbo el kiuj 23,9% havas infanojn sub la aĝo de 18 jaroj, 53,2% estas geedzuloj loĝantaj kune, 8,5% havas domaninon sen ĉeesta edzo, kaj 35,7% estas ne-familioj. 32,4% da ĉiuj domanaroj konsistas de soluloj, kaj 19,6% havas solulon 65 jara aŭ pli aĝa [4]\n\n[1] Unknown — La domo estis parte detruita de fajro la nokton inter la 6-a kaj la 7-a de septe…\n[2] Unknown — La domo ekde la jaro 1636 estis posedaĵo de la dana reĝo…\n[3] Unknown — Komparita al la grandaj ŝtuparaj domoj en Anglio kaj de la Renesanco, la 17-a-ja…\n[4] Unknown — Estas 3 784 domanaroj en la urbo el kiuj 23,9% havas infanojn sub la aĝo de 18 j…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 12.96
+    },
+    {
+      "id": 19,
+      "question": "Kio estas tablo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "meblo"
+      ],
+      "answer": "Sur unu tablo estis postsignoj de ĥemia laborado, diversaj mezuritaj amasetoj de ia blanka salo kuŝis sur vitraj pelvetoj, kvazaŭ por ia eksperimento, ĉe kiu la malfeliĉulo estis malhelpita [1] La antikvaj, renesancaj tabloj estis riĉaj je skulptaĵoj kaj ornamriĉaj piedoj, formantaj ofte bestopiedojn [2] Interne la diserva tablo el marmoro estis kreita en 1862. Kruĉo estis farita en 1789, kupra pokalo en la 16-a jarcento, sed nun ĝi estas en muzeo [3] Antaŭe, el la \"ronda tablo\" ekestis asocio kun la nomo Arbeitsgemeinschaft Neue Demokratische Jugendverbände (ANDJ, \"Laborkomunumo novaj demokratiaj junularaj asocioj\"), el kiu iuj junularaj asocioj malgraviĝis, aliaj malfondiĝis, sed restis la Esperanto-Junularo unu- kaj asocio de junaj gejoj aliflanke, kiuj decidis teni la koalicion kaj en 1991 aliĝi kiel plia korporacia membroasocio al la Germana Federacia Junulara Ligo (al tiu ligiĝis malmembriĝo de GEJ el la antaŭa koalicio AzJ) [4]\n\n[1] Unknown — Sur unu tablo estis postsignoj de ĥemia laborado, diversaj mezuritaj amasetoj de…\n[2] Unknown — La antikvaj, renesancaj tabloj estis riĉaj je skulptaĵoj kaj ornamriĉaj piedoj,…\n[3] Unknown — Interne la diserva tablo el marmoro estis kreita en 1862. Kruĉo estis farita en…\n[4] Unknown — El la \"ronda tablo\" ekestis asocio kun la nomo Arbeitsgemeinschaft Neue Demokrat…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 12.04
+    },
+    {
+      "id": 20,
+      "question": "Kio estas arbo?",
+      "question_type": "WHAT",
+      "expected_keywords": [
+        "planto"
+      ],
+      "answer": "En suda arbaro de kverko-karjo de Misurio, la Ruĝokulaj pipiloj forestis antaŭ klarigado aŭ el proksimaj nefortranĉitaj arbaroj post fortranĉado, sed loĝis en averaĝa denseco de 9.3 birdoj/10 ha en 3-jara klarejo [1] La selektata arbo estas plej ofte unu en heĝo aŭ en la bordopinto de arbareto, de kie la birdo povas observi entrudulojn el konsiderinda distanco [2] Sekaj arbaroj estas tre vundeblaj por supermezura forbrulado kaj senarbarigo; troa enarbara paŝtado kaj ekzotikaj specioj ankaŭ rapide povas ŝanĝi naturajn komunumojn; restariĝo estas ebla sed malfacila, precipe se la degrado estas estinta intensa kaj longedaŭra [3] Ofte la arbo ne estas sufiĉe frostrezista en multaj regionoj de Eŭropo [4]\n\n[1] Unknown — En suda arbaro de kverko-karjo de Misurio, la Ruĝokulaj pipiloj forestis antaŭ k…\n[2] Unknown — La selektata arbo estas plej ofte unu en heĝo aŭ en la bordopinto de arbareto, d…\n[3] Unknown — Sekaj arbaroj estas tre vundeblaj por supermezura forbrulado kaj senarbarigo; tr…\n[4] Unknown — Ofte la arbo ne estas sufiĉe frostrezista en multaj regionoj de Eŭropo…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 13.0
+    },
+    {
+      "id": 21,
+      "question": "Kie naskiĝis Zamenhof?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "Bjalistoko"
+      ],
+      "answer": "Ludwik Lejzer Zamenhof (naskiĝis en 1859 en Białystok; mortis en 1917 en Varsovio), oftalmologo kaj filologo, iniciatinto de la lingvo Esperanto [1] Tiam, franca esperantisto - Pola esperantisto Romana ZAMENHOF (naskiĝis en 1904 en Varsovio, mortis en oktobro 1975 en Parizo pro koratako), d-rino, estis filino de Felikso Zamenhof, frato de Ludoviko Lazaro Zamenhof [2] Franca esperantisto - Pola esperantisto Romana ZAMENHOF (naskiĝis en 1904 en Varsovio, mortis en oktobro 1975 en Parizo pro koratako), d-rino, estis filino de Felikso Zamenhof, frato de Ludoviko Lazaro Zamenhof [2] Hersz Zamenhof (alia nomo Gersz Zamengof) naskiĝis en majo aŭ junio 1870 en Bjalistoko (tiam en Rusio) [3]\n\n[1] Unknown — Ludwik Lejzer Zamenhof (naskiĝis en 1859 en Białystok; mortis en 1917 en Varsovi…\n[2] Unknown — Franca esperantisto - Pola esperantisto Romana ZAMENHOF (naskiĝis en 1904 en Var…\n[3] Unknown — Hersz Zamenhof (alia nomo Gersz Zamengof) naskiĝis en majo aŭ junio 1870 en Bjal…",
+      "matched_keywords": [
+        "Bjalistoko"
+      ],
+      "answer_correct": true,
+      "retrieved_count": 10,
+      "first_relevant_rank": 4,
+      "retrieval_recall@k": true,
+      "mrr": 0.25,
+      "latency_sec": 21.08
+    },
+    {
+      "id": 22,
+      "question": "Kie kreiĝis Esperanto?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "Pollando"
+      ],
+      "answer": "En 1937 establiĝis en Brazila Spiritisma Federacio Esperanta Fako sub la gvidado de Ismael Gomes Braga, kiu tiam komencis eldonadi per la eldona fako de BSF diversajn Esperantajn verkojn (i.a. tradukojn, lernolibrojn, legolibrojn kaj antologiojn) [1] KORUSO: Esperanto, Esperanto La pasporto al la tuta mondo La interpopola senmurigilo Zamenhof, pacama homo, Lingvon kreis por la mondo; Komuniki nun ni povas Ni amikojn novajn trovas. [Koruso] Ni facile povas lerni Gramatikon kaj parole Kun precizo, tre bonvole, Frue, ĝue kaj belsone! [Koruso] [2] En 2022 Jacob Nordfalk kreis la Android-an aplikaĵon \"Esperanta Parolrekono\", kiu uzas Vosk-n por krei voĉan klavaron en Esperanto por Android-aj poŝtelefonoj [3] La Bolivia bolivjano - hispane nomata „Boliviano“, sed tiu formo en Esperanto kreus konfuzon kun la vorto por ŝtatano de Bolivio - estas la nacia valuto de Bolivio [4]\n\n[1] Unknown — En 1937 establiĝis en Brazila Spiritisma Federacio Esperanta Fako sub la gvidado…\n[2] Unknown — KORUSO: Esperanto, Esperanto La pasporto al la tuta mondo La interpopola senmuri…\n[3] Unknown — En 2022 Jacob Nordfalk kreis la Android-an aplikaĵon \"Esperanta Parolrekono\", ki…\n[4] Unknown — La Bolivia bolivjano - hispane nomata „Boliviano“, sed tiu formo en Esperanto kr…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 17.68
+    },
+    {
+      "id": 23,
+      "question": "Kie vivis Zamenhof?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "Varsovio"
+      ],
+      "answer": "Kaj vivadu l' Elspensinto Zamenhof Doktoro, Al li donu ĉiuj homoj Dankojn kaj honoro [1] Eld.: Bulgara Esperantista Asocio, Sofio, 1987. # Ni vivos! – dokumenta dramo pri Lidia Zamenhof - grandformata gramofondisko [2] Iuj proverboj ekzistas ankaŭ en aliaj eŭropaj lingvoj kaj kelkaj el ili eniris eĉ la Proverbaron de Zamenhof [3] Vivu Doktoro Zamenhof [4]\n\n[1] Unknown — Kaj vivadu l' Elspensinto Zamenhof Doktoro, Al li donu ĉiuj homoj Dankojn kaj ho…\n[2] Unknown — Eld.: Bulgara Esperantista Asocio, Sofio, 1987. # Ni vivos! – dokumenta dramo pr…\n[3] Unknown — Iuj proverboj ekzistas ankaŭ en aliaj eŭropaj lingvoj kaj kelkaj el ili eniris e…\n[4] Unknown — Vivu Doktoro Zamenhof…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 17.02
+    },
+    {
+      "id": 24,
+      "question": "Kie estas Pollando?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "Eŭropo"
+      ],
+      "answer": "Ekde la jaro 1945 ĝi estas parto de Pollando [1] Ścinawa (ĝis 1945 germane Steinau an der Oder) estas urbo en la nuna provinco Malsupra Silezio de Pollando [2] Świerzawa (ĝis 1945 germane Schönau an der Katzbach) estas urbo en la nuna provinco Malsupra Silezio de Pollando [3] Jaworzynka (ĉeĥe: Javořinka) estas vilaĝo en suda Pollando en Silezia provinco en distrikto Cieszyn en komunumo Istebna situanta sur ĉeĥa-pola-slovaka dislimejo [4]\n\n[1] Unknown — Ekde la jaro 1945 ĝi estas parto de Pollando…\n[2] Unknown — Ścinawa (ĝis 1945 germane Steinau an der Oder) estas urbo en la nuna provinco Ma…\n[3] Unknown — Świerzawa (ĝis 1945 germane Schönau an der Katzbach) estas urbo en la nuna provi…\n[4] Unknown — Jaworzynka (ĉeĥe: Javořinka) estas vilaĝo en suda Pollando en Silezia provinco e…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": 6,
+      "retrieval_recall@k": true,
+      "mrr": 0.16666666666666666,
+      "latency_sec": 17.56
+    },
+    {
+      "id": 25,
+      "question": "Kie troviĝas Bjalistoko?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "Pollando"
+      ],
+      "answer": "La Centro Ludoviko Zamenhof estas urba kultur-institucio establita en Bjalistoko en Pollando laŭ la propono de urbestro de Bjalistoko, okaze de UK 2009. La okazis oficiala malfermo de la Centro por la loĝantaro de Bjalistoko [1] Jan Nowak-Jeziorański), kiu revene forportis partojn de akirita de la Enlanda Armeo germana raketo V-2; Pola Enlanda Armeo: urbo Ryki estis, post foriro de germanoj, okupita de la taĉmento de majoro Marian Bernaciak kaj alia taĉmento en Nowy Wiśnicz post batalo liberigis germanan malliberejon - antaŭ forveturigo de 128 politikaj malliberuloj al Aŭŝvico; lublina 8-a infanteria regimento konkeris aerodromon en Świdnik; taĉmento de Enlanda Armeo partoprenis en liberigo de Międzyrzec Podlaski, la aliaj en Siemianówka (Distrikto Hajnowski) reĵetis atakon de germana-ukraina taĉmento SS Galizien; taĉmentoj de Enlanda Armeo (sume 38 soldatoj) tute frakasis garnizonon de Wehrmacht en Iwonicz-Zdrój (kreitan de 300-persona krima bataliono SS Galizien) kaj ekregis la urbeton - enklavo de libera Pollando dum 2 monatoj; germanaj soldatoj vivbruligis en Tryczówka (proksime al Bjalistoko) de la 24-a ĝis la 26-a de julio 27 polojn kaj belorusojn, kaj pafmortigis en Lipniczek 12 soldatojn de Kamparanaj Batalionoj, kaj germana polico pafmortigis en Varsovio kelkdekon kaj en Tyczyn dekkelkajn personojn, kaj en Pawiak germanoj pafmortigis komunistajn aktivulojn Paweł Finder kaj Małgorzata Fornalska; la Ruĝa Armeo konkeris Dęblin kaj Puławy; sovetaj regopovoj anoncis apartenecon de Bjalistoko al Sovetunio; alvoko \"Al Pola Nacio\": delegito de la pola ekzila registaro vicĉefministro Jan Stanisław Jankowski kaj Ĉefkomandanto de Pola Enlanda Armeo Leopold Okulicki kondamnis KRN (Landa Nacia Konsilio) kaj PKWN kiel uzurpajn kaj komunistajn regopovojn; Pola Komitato de Nacia Liberigo subskribis en Moskvo sekretan interkonsenton pri la pola-soveta landlimo - Orientaj Limregionoj de la Dua Pola Respubliko eksterleĝe ektroviĝis flanke de Sovetunio; en Tria Regno la duan fojon estis anoncita totala mobilizo [2] Ortodoksa preĝejo al sankta Maria Magdalena estas unu el la plej malnovaj ekzistantaj religiaj konstruaĵoj en Bjalistoko [3] Michałowo (, Miĥalova) estas urbo en Pollando en la Podlaĥia provinco, distrikto Bjalistoko, komunumo Michałowo ĉe la provinca vojo n-ro 686. En la jaroj 1975–1998 ĝi apartenis al la Bjalistoka provinco [4]\n\n[1] Unknown — La Centro Ludoviko Zamenhof estas urba kultur-institucio establita en Bjalistoko…\n[2] Unknown — Jan Nowak-Jeziorański), kiu revene forportis partojn de akirita de la Enlanda Ar…\n[3] Unknown — Ortodoksa preĝejo al sankta Maria Magdalena estas unu el la plej malnovaj ekzist…\n[4] Unknown — Michałowo (, Miĥalova) estas urbo en Pollando en la Podlaĥia provinco, distrikto…",
+      "matched_keywords": [
+        "Pollando"
+      ],
+      "answer_correct": true,
+      "retrieved_count": 10,
+      "first_relevant_rank": 1,
+      "retrieval_recall@k": true,
+      "mrr": 1.0,
+      "latency_sec": 16.15
+    },
+    {
+      "id": 26,
+      "question": "Kie estas Varsovio?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "Pollando"
+      ],
+      "answer": "Alojzy Sroga, Na drodze stał Kołobrzeg (Sur la vojo estis Kołobrzeg), Wydawnictwo Ministerstwa Obrony Narodowej, Varsovio 1985, dua eldono, ​ISBN 83-11-06357-5​, p. 607 [1] Śródmieście (pole, signifo simple \"urbocentro\") estas administra parto de Varsovio [2] Mieczysław JASTRUN (Korolówka, la 29-an de oktobro 1903 – Varsovio; la 22-an de februaro 1983) estis pola poeto kaj verkisto [3] Zygmunt GREFFKOWICZ (pseŭdonimo Gryff), n. la 19-an de novembro 1885 en Varsovio, m. en aĝo de 55 jaroj la 16-an de decembro 1940 samurbe, estis pola pionira esperantisto kaj ĵurnala propagandisto [4]\n\n[1] Unknown — Alojzy Sroga, Na drodze stał Kołobrzeg (Sur la vojo estis Kołobrzeg), Wydawnictw…\n[2] Unknown — Śródmieście (pole, signifo simple \"urbocentro\") estas administra parto de Varsov…\n[3] Unknown — Mieczysław JASTRUN (Korolówka, la 29-an de oktobro 1903 – Varsovio; la 22-an de…\n[4] Unknown — Zygmunt GREFFKOWICZ (pseŭdonimo Gryff), n. la 19-an de novembro 1885 en Varsovio…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": 7,
+      "retrieval_recall@k": true,
+      "mrr": 0.14285714285714285,
+      "latency_sec": 17.77
+    },
+    {
+      "id": 27,
+      "question": "Kie estas Eŭropo?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "kontinento"
+      ],
+      "answer": "Tamen, Hispanio estis konsiderinde malfortigita pro la Napoleona Milito kaj ne povis reteni siajn amerikajn koloniojn, el kiuj preskaŭ ĉiuj proklamis siajn sendependigojn per ribeloj kaj militoj inter 1810 kaj 1820. Revolucio tiam disvastiĝis reen al suda Eŭropo en 1820, kun ribeloj en Portugalio, Hispanio, Italio, kaj Grekio [1] Bildarchiv Austria) estas unu el la plej grandaj bild-datumbankoj en Eŭropo kaj apartenas al la Aŭstria Nacia Biblioteko [2] La Eŭrosistemo estas distinga el la Eŭropa Sistemo de Centraj Bankoj (ESCB), kiu enhavas kaj la ECB kaj la centrajn bankojn de ĉiuj el la 28 membroj ŝtatoj de la Eŭropa Unio, inklude tiujn kiuj ne estas parto de la Eŭrozono [3] Altaelv, nomata ankaŭ Altaelva, Kautokeinoelv aŭ Kautokeinoelva (nordsamee: Álttáeatnu) estas rivero en Norvegio kaj unu el la 4 plej nordaj riveroj de Eŭropo (la aliaj tri estas Tanaelva, Reisa kaj la rusa Titovka.) [4]\n\n[1] Unknown — Tamen, Hispanio estis konsiderinde malfortigita pro la Napoleona Milito kaj ne p…\n[2] Unknown — Bildarchiv Austria) estas unu el la plej grandaj bild-datumbankoj en Eŭropo kaj…\n[3] Unknown — La Eŭrosistemo estas distinga el la Eŭropa Sistemo de Centraj Bankoj (ESCB), kiu…\n[4] Unknown — Altaelv, nomata ankaŭ Altaelva, Kautokeinoelv aŭ Kautokeinoelva (nordsamee: Áltt…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 21.83
+    },
+    {
+      "id": 28,
+      "question": "Kie okazas konversacio?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "loko"
+      ],
+      "answer": "Ĉiujare (ekde 1952) tie okazas tri dusemajnaj etapoj en julio ĝis mezo de aŭgusto, por komencantoj, progresintoj kaj konversaciaj kursoj [1] Sekve, zlatko Tišljar faris esploron pri ofteco de uzataj morfemoj en la parolata Esperanto (en la UK 1979 en Lucerno) li surbendigis parolatan materialon de esperantistoj en ĉiutagaj konversacioj - 60 000 vortojn (kiun li komputile prilaboris) - kaj ricevis la liston kun entute 1 500 morfemoj el kiuj la unuaj 467 laŭ ofteco kovris 95% de la tuta korpuso [2] Komunikado okazas ĉefe per konstantaj konversacioj (konversaciaj maŝinoj), kiuj ĉiam antaŭsupozas la rutinojn de la ĉiutaga mondo [3] Komunikado okazas ĉefe per konstantaj konversacioj (konversaciaj maŝinoj), kiuj ĉiam antaŭsupozas la rutinojn de la ĉiutaga mondo [3]\n\n[1] Unknown — Ĉiujare (ekde 1952) tie okazas tri dusemajnaj etapoj en julio ĝis mezo de aŭgust…\n[2] Unknown — Zlatko Tišljar faris esploron pri ofteco de uzataj morfemoj en la parolata Esper…\n[3] Unknown — Komunikado okazas ĉefe per konstantaj konversacioj (konversaciaj maŝinoj), kiuj…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 17.69
+    },
+    {
+      "id": 29,
+      "question": "Kie loĝas homoj?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "domo"
+      ],
+      "answer": "Nun loĝas en Som 1150 da homoj, (1130 hungaroj) [1] En 2002 loĝis en Donji Tavankut 2631 da homoj [2] En 1910 loĝis en Vári 2625 da homoj, (2612 hungaroj) [3] En 1910 loĝis en Pinkamiske 642 da homoj, plejparte aŭstroj [4]\n\n[1] Unknown — Nun loĝas en Som 1150 da homoj, (1130 hungaroj)…\n[2] Unknown — En 2002 loĝis en Donji Tavankut 2631 da homoj…\n[3] Unknown — En 1910 loĝis en Vári 2625 da homoj, (2612 hungaroj)…\n[4] Unknown — En 1910 loĝis en Pinkamiske 642 da homoj, plejparte aŭstroj…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 21.52
+    },
+    {
+      "id": 30,
+      "question": "Kie staras arbo?",
+      "question_type": "WHERE",
+      "expected_keywords": [
+        "tero"
+      ],
+      "answer": "Kaptante Perry je la ŝultro, mi starigis lin per unu tiro, kaj rapidante al pli malgranda arbo, kiun Perry povis facile ĉirkaŭteni per siaj brakoj kaj kruroj, mi levis lin tiel alten kiel eble, kaj tiam mi lasis lin al sia sorto, ĉar ekrigardo super mian ŝultron montris, ke la terura besto jam preskaŭ atingis min [1] Tiuj starigas telefonligon inter sia observpozicio kaj la arbaro kie la sepa kompanio estas grupigita [2] Nur tie kaj tie ĉi staras malalta arbeto, arbetaĵo aŭ krado, tra kiu oni povas eniri la kamparon aŭ la herbejon transe de la longfosoj [3] Nur tie kaj tie ĉi staras malalta arbeto, arbetaĵo aŭ krado, tra kiu oni povas eniri la kamparon aŭ la herbejon transe de la longfosoj [3]\n\n[1] Unknown — Kaptante Perry je la ŝultro, mi starigis lin per unu tiro, kaj rapidante al pli…\n[2] Unknown — Tiuj starigas telefonligon inter sia observpozicio kaj la arbaro kie la sepa kom…\n[3] Unknown — Nur tie kaj tie ĉi staras malalta arbeto, arbetaĵo aŭ krado, tra kiu oni povas e…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": 5,
+      "retrieval_recall@k": true,
+      "mrr": 0.2,
+      "latency_sec": 20.47
+    },
+    {
+      "id": 31,
+      "question": "Kiam estis fondita Esperanto?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1887"
+      ],
+      "answer": "Vicente HERNÁNDEZ LLUSERA (1915—2009) estis esperantisto el Katalunio, Hispanio [1] Richard Ledermann (naskita la en Kaufbeuren, mortinta en 1972) estis germana esperantisto [2]\n\n[1] Unknown — Vicente HERNÁNDEZ LLUSERA (1915—2009) estis esperantisto el Katalunio, Hispanio…\n[2] Unknown — Richard Ledermann (naskita la en Kaufbeuren, mortinta en 1972) estis germana esp…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 7.21
+    },
+    {
+      "id": 32,
+      "question": "Kiam naskiĝis Zamenhof?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1859"
+      ],
+      "answer": "Ludwik Lejzer Zamenhof (naskiĝis en 1859 en Białystok; mortis en 1917 en Varsovio), oftalmologo kaj filologo, iniciatinto de la lingvo Esperanto [1] Tiam, franca esperantisto - Pola esperantisto Romana ZAMENHOF (naskiĝis en 1904 en Varsovio, mortis en oktobro 1975 en Parizo pro koratako), d-rino, estis filino de Felikso Zamenhof, frato de Ludoviko Lazaro Zamenhof [2] Franca esperantisto - Pola esperantisto Romana ZAMENHOF (naskiĝis en 1904 en Varsovio, mortis en oktobro 1975 en Parizo pro koratako), d-rino, estis filino de Felikso Zamenhof, frato de Ludoviko Lazaro Zamenhof [2] Hersz Zamenhof (alia nomo Gersz Zamengof) naskiĝis en majo aŭ junio 1870 en Bjalistoko (tiam en Rusio) [3]\n\n[1] Unknown — Ludwik Lejzer Zamenhof (naskiĝis en 1859 en Białystok; mortis en 1917 en Varsovi…\n[2] Unknown — Franca esperantisto - Pola esperantisto Romana ZAMENHOF (naskiĝis en 1904 en Var…\n[3] Unknown — Hersz Zamenhof (alia nomo Gersz Zamengof) naskiĝis en majo aŭ junio 1870 en Bjal…",
+      "matched_keywords": [
+        "1859"
+      ],
+      "answer_correct": true,
+      "retrieved_count": 10,
+      "first_relevant_rank": 1,
+      "retrieval_recall@k": true,
+      "mrr": 1.0,
+      "latency_sec": 3.24
+    },
+    {
+      "id": 33,
+      "question": "Kiam aperis Esperanto?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1887"
+      ],
+      "answer": "La Belga Adresaro Esperantista (1910) kaj la revuo Belga Katoliko (1911-1913) aperigis membrolistojn kun po ĉirkaŭ 20 personoj el Kortrijk: nur kelkaj nomoj aperas en ambaŭ listoj [1] Poste, jadwiga aperas jam en la 50a Universala Kongreso de Esperanto en Tokio (1965) kun Vojaĝo al verdaj ombroj de Finn Methling kaj en la 51a Universala Kongreso de Esperanto en Budapeŝto (1966) kun La Eta Princo laŭ Antoine de Saint-Exupéry [2] Tiam, willem Verloren van Themaat (Nederlando), kiu opiniis aparte pluginda kampo la tradukadon de originalaj Esperantaj literaturaĵoj: aperis liaj nederlandigoj de La Infana Raso de William Auld (Het Kinderras, 1982) kaj de 16 poemoj en la antologio Zeg, Luister Eens (1981); lia bibliografio de Esperantaj beletraĵoj tradukitaj en aliajn lingvojn [3] En 1914 en Liepaja (Latvio) aperis unua numero de \"Litova Stelo\", kaj informojn pri Esperanto (en la litova) preparis S [4]\n\n[1] Unknown — La Belga Adresaro Esperantista (1910) kaj la revuo Belga Katoliko (1911-1913) ap…\n[2] Unknown — Jadwiga aperas jam en la 50a Universala Kongreso de Esperanto en Tokio (1965) ku…\n[3] Unknown — Willem Verloren van Themaat (Nederlando), kiu opiniis aparte pluginda kampo la t…\n[4] Unknown — En 1914 en Liepaja (Latvio) aperis unua numero de \"Litova Stelo\", kaj informojn…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 4.35
+    },
+    {
+      "id": 34,
+      "question": "Kiam publikiĝis la unua libro?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1887"
+      ],
+      "answer": "Robert Antelme publikigis pri la koncentrejoj faman libron, L'Espèce humaine, en 1947. Tiu libro tamen ne sukcesis kaj estis preskaŭ forgesita [1] Sekve, ĵelev verkis nombron da libroj kaj publikaĵoj, el kiuj plej menciindas lia kontroverse diskutita laboraĵo de 1982 Faŝizmat (bulgare Фашизмът; \"La Faŝismo\") [2] Tiam, ekde 1996, Kimhi publikigis kolekton de noveloj, du romanojn, kaj unu infanlibron [3] Tiam, barrera Tyszka publikigis kvin romanojn (2017), plurajn kolektojn de noveloj kaj plurajn nefikciajn librojn [4]\n\n[1] Unknown — Robert Antelme publikigis pri la koncentrejoj faman libron, L'Espèce humaine, en…\n[2] Unknown — Ĵelev verkis nombron da libroj kaj publikaĵoj, el kiuj plej menciindas lia kontr…\n[3] Unknown — Ekde 1996, Kimhi publikigis kolekton de noveloj, du romanojn, kaj unu infanlibro…\n[4] Unknown — Barrera Tyszka publikigis kvin romanojn (2017), plurajn kolektojn de noveloj kaj…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 5.11
+    },
+    {
+      "id": 35,
+      "question": "Kiam mortis Zamenhof?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1917"
+      ],
+      "answer": "Josef Aumayr (nask. en 1853?, mortis la 7-an de julio 1928) estis la unua Esperanto-pioniro en Linz kaj citita de Zamenhof en la Adresaro de la personoj kiuj ellernis la lingvon \"Esperanto\"/Serio XVI, sekve li eklernis la lingvon inter 1893 kaj 1895. Li verkis Esperanto-lernolibreton [1] Poste, jean PRAGER (1909 - mortis komence de aŭgusto 2001 en Aŭgsburgo, Germanio) estis dumviva membro, regula ano de Societo Zamenhof, frato de la eminenta Cseh-metoda instruisto Sigismundo Pragano [2] Anne WHITTEKER (1919-1999), dumviva membro de UEA kaj de ELNA, ano de Societo Zamenhof, mortis la 10-an de marto [3] Willy KEIZER (1917-1998), ofta partoprenantino de UK-oj, fidela membro de Societo Zamenhof, mortis la 22-an de oktobro en Heemstede (Nederlando) [4]\n\n[1] Unknown — Josef Aumayr (nask. en 1853?, mortis la 7-an de julio 1928) estis la unua Espera…\n[2] Unknown — Jean PRAGER (1909 - mortis komence de aŭgusto 2001 en Aŭgsburgo, Germanio) estis…\n[3] Unknown — Anne WHITTEKER (1919-1999), dumviva membro de UEA kaj de ELNA, ano de Societo Za…\n[4] Unknown — Willy KEIZER (1917-1998), ofta partoprenantino de UK-oj, fidela membro de Societ…",
+      "matched_keywords": [
+        "1917"
+      ],
+      "answer_correct": true,
+      "retrieved_count": 10,
+      "first_relevant_rank": 4,
+      "retrieval_recall@k": true,
+      "mrr": 0.25,
+      "latency_sec": 5.67
+    },
+    {
+      "id": 36,
+      "question": "Kiam okazis la unua kongreso?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1905"
+      ],
+      "answer": "Kun Hurban kaj Hodža li okazigis en Liptovský Mikuláš (1848) popolkunvenon, kiu aprobis kaj akceptis la Postulojn de la slovaka nacio, en kiuj estis formulitaj la bazaj kondiĉoj de la nacia vivo de Slovakoj sur sia propra teritorio. Štúr kunagis ankaŭ ĉe la kunvoko de la Slava kongreso en Prago (1848), kune kun Hurban li partoprenis en la praga ribelo kaj organizis la volontulojn por la slovaka nacia revolucio (1848-9) [1] Antaŭe, en Vigo okazis du hispanaj kongresoj en 1972 kaj 1986 kaj ĝi havas esperanto-straton en sufiĉe centra parto de la urbo, inaŭguritan okaze de la Tago de Zamenhof en 1987. Elstaris en la historio de ĝia esperanto-movado Julio Bueno Cortés (1903-1988), vera animo de la loka grupo Paco kaj Amo, kiu tenis longdaŭrajn rilatojn kun la samideanaro el Porto de Portugalio [2] Sviták. 1946-01-19 je la 20-a horo okazis amika kunesto de 85 kongresanoj en klubejo de kafejo Louvre kaj la 20-an de januaro 1946 je la 10-a horo komenciĝis la unua Ĉs. postmilita kongreso de AE ĈSR en la salono de kafejo Louvre kun ĉeesto de 105 personoj. 1947 EKP kunvenas regule ĉiun merkredon je la 20-a horo en kafejo Louvre, Praha II, Národní 20. La programoj de la kunvenoj estas por ĉiu monato antaŭe fiksitaj kaj havas ĝenerale altan nivelon [3] Sviták. 1946-01-19 je la 20-a horo okazis amika kunesto de 85 kongresanoj en klubejo de kafejo Louvre kaj la 20-an de januaro 1946 je la 10-a horo komenciĝis la unua Ĉs. postmilita kongreso de AE ĈSR en la salono de kafejo Louvre kun ĉeesto de 105 personoj. 1947 EKP kunvenas regule ĉiun merkredon je la 20-a horo en kafejo Louvre, Praha II, Národní 20. La programoj de la kunvenoj estas por ĉiu monato antaŭe fiksitaj kaj havas ĝenerale altan nivelon [3]\n\n[1] Unknown — Kun Hurban kaj Hodža li okazigis en Liptovský Mikuláš (1848) popolkunvenon, kiu…\n[2] Unknown — En Vigo okazis du hispanaj kongresoj en 1972 kaj 1986 kaj ĝi havas esperanto-str…\n[3] Unknown — Sviták. 1946-01-19 je la 20-a horo okazis amika kunesto de 85 kongresanoj en klu…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 12.15
+    },
+    {
+      "id": 37,
+      "question": "Kiam estis kreita la Fundamento?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1905"
+      ],
+      "answer": "SAS en 1980 estis certagrade studenta ekvivalento de „Solidarność” kaj grupigis junulojn, kiuj volis studentan organizaĵon sendependan de ŝtataj regopovoj, krome demokratiigon de la akademia vivo, respekton de fundamentaj politikaj liberecoj en la lando kaj homrajtojn, estimon al polaj sendependecaj kaj patriotaj tradicioj [1]\n\n[1] Unknown — SAS en 1980 estis certagrade studenta ekvivalento de „Solidarność” kaj grupigis…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 13.49
+    },
+    {
+      "id": 38,
+      "question": "Kiam komenciĝis Esperanto?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "1887"
+      ],
+      "answer": "José Lins de Albuquerque kaj José Eduardo Ribeiro, la plej entuziasmaj, komencis je la 26-a de Marto 1950, programon de disvastigo de Esperanto pere de radiostacio PRE-9, ĉiu dimanĉo de la dua ĝis la dua kaj kvarono posttagmeze [1] FET fondiĝis en 1936 okaze de la kunfandiĝoj inter du francaj laboristaj esperanto-asocioj: Fédération Espérantiste Ouvrière, ligita al SAT, kaj Fédération Espérantiste Prolétarienne, ligita al Internacio de Proleta Esperantistaro (IPE) [2] En 1905 Ágoston Marich fondis la Hungarlandan Esperantistan Societon (HES) kaj en majo 1905 aperis la unua presita propaganda gazeto sub la titolo Esperanto, kiu post du jaroj ŝanĝis la titolon je La Verda Standardo (LVSt), ambaŭ redaktitaj de Marich [3] Sekve, en 1922 fondiĝis provizore, kaj en 1929 permanente, Sveda Esperanto-Instituto, kies tasko longtempe ĉefe estis aranĝi ekzamenojn en Esperanto, kaj estis kaj estas instigi la studadon de kaj la scion pri Esperanto [4]\n\n[1] Unknown — José Lins de Albuquerque kaj José Eduardo Ribeiro, la plej entuziasmaj, komencis…\n[2] Unknown — FET fondiĝis en 1936 okaze de la kunfandiĝoj inter du francaj laboristaj esperan…\n[3] Unknown — En 1905 Ágoston Marich fondis la Hungarlandan Esperantistan Societon (HES) kaj e…\n[4] Unknown — En 1922 fondiĝis provizore, kaj en 1929 permanente, Sveda Esperanto-Instituto, k…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 9.44
+    },
+    {
+      "id": 39,
+      "question": "Kiam vivis Zamenhof?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "19a jarcento"
+      ],
+      "answer": "Eld.: Bulgara Esperantista Asocio, Sofio, 1987. # Ni vivos! – dokumenta dramo pri Lidia Zamenhof - grandformata gramofondisko [1]\n\n[1] Unknown — Eld.: Bulgara Esperantista Asocio, Sofio, 1987. # Ni vivos! – dokumenta dramo pr…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 8.02
+    },
+    {
+      "id": 40,
+      "question": "Kiam oni parolas Esperanton?",
+      "question_type": "WHEN",
+      "expected_keywords": [
+        "nun"
+      ],
+      "answer": "En novembro 2015 laŭ la koncerna Facebook-paĝo pri Esperanto \"330.000 uzantoj parolas\" Esperanton [1] Unu kelnero parolas Esperanton. 1917 D-ro Kamaryt aranĝis kunvenon de la Bohema Societo Esperantista en la restoracio Kolář (en la strato Celetná) kaj prelegis pri la mortinta Zamenhof 1917-12-09 en la malgranda salono de restoracio Brejška en Prago okazis konferenco de ĉeĥaj esperantistoj [2]\n\n[1] Unknown — En novembro 2015 laŭ la koncerna Facebook-paĝo pri Esperanto \"330.000 uzantoj pa…\n[2] Unknown — Unu kelnero parolas Esperanton. 1917 D-ro Kamaryt aranĝis kunvenon de la Bohema…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 8.51
+    },
+    {
+      "id": 41,
+      "question": "Kiom da homoj parolas Esperanton?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "milionoj"
+      ],
+      "answer": "Sinmortigintoj estas homoj, kiuj mortis pro sinmortigo [1] Otidoj estas sociaj bestoj escepte dum reproduktado, sed ne akceptas homan proksimecon [2] Dulingvulo estas homo kiu flue scipovas du lingvojn, kaj simile trilingvulo estas homo kiu flue scipovas tri lingvojn [3] Adorno :27 :en:Techno :27 :en:Epithelium :27 :en:Arius :27 :en:Moroni, Comoros :27 :en:Second Punic War :27 :en:Santorini :27 :en:Space Shuttle Discovery :27 :en:Space Shuttle Columbia :27 :en:Iran national football team :27 :en:Priština :27 :en:Superconductivity :27 :en:Skepticism :27 :en:Romanov :27 :en:Roberto Baggio :27 :en:Harry Potter and the Prisoner of Azkaban :27 :en:ARPANET :27 :en:Giro d'Italia :27 :en:Pope Anterus :27 :en:Phenotype :27 :en:Pope Urban II :27 :en:Pope Gregory XIII :27 :en:Pope Pius II :27 :en:Anthony Hopkins :27 :en:Finding Nemo :27 :en:CHAOS (Linŭ distribution) :27 :en:Swiss Psalm :27 :en:Danish krone :27 :en:Rudolf Christoph Eucken :27 :en:Anselm of Canterbury :27 :en:Northern Territory :27 :en:Warren Buffett :27 :en:Gozo :27 :en:Remus Lupin :27 :en:Musical Instrument Digital Interface :27 :en:May Day :27 :en:Anicius Manlius Severinus Boethius :27 :en:Maimonides :27 :en:Heat capacity :27 :en:Mariana Trench :27 :en:Mongols :27 :en:Markup language :27 :en:Mersenne prime :27 :en:Assamese language -> Asama lingvo :27 :en:Family Guy :27 :en:Lilith :27 :en:Adana :27 :en:Braunau am Inn :27 :en:Heinz Guderian :27 :en:Eurozone :27 :en:Taumatawhakatangihangakoauauotamateapokaiwhenuakitanatahu :27 :en:Halland County :27 :en:Stratigraphy :27 :en:Luftwaffe :27 :en:Amin Maalouf :27 :en:Lee Harvey Oswald :27 :en:Flag of Norway :27 :en:Jianĝi :27 :en:Hertzsprung-Russell diagram → :eo:Diagramo de Hertzsprung-Russell :27 :en:Kurt Waldheim :27 :en:José Raúl Capablanca :27 :en:Flag of the Vatican City :27 :en:Flag of Ireland :27 :en:Amazons :27 :en:Liepāja :27 :en:Bad Religion :27 :en:2010 FIFA World Cup :27 :en:Nu (letter) :27 :en:Xi :27 :en:Chi (letter) :27 :en:Jaipur :27 :en:Jiangsu :27 :en:Design pattern (computer science) :27 :en:Steffi Graf :27 :en:Kubuntu :27 :en:Battle of Cannae :27 :en:1970 FIFA World Cup :27 :en:Ginny Weasley :27 :en:Han Chinese :27 :en:Indian National Congress :27 :en:Osijek :27 :en:Erection :27 :en:Battalion :27 :en:Homo habilis :27 :en:Flag of Estonia :27 :en:Anno Domini :27 :en:Gävleborg County :27 :en:Dalarna County :27 :en:Freedom of speech :27 :en:Västra Götaland County :27 :en:1994 Winter Olympics :27 :en:Djoser :27 :en:Angola national football team :27 :en:Earless seal :27 :en:Jöns Jakob Berzelius :27 :en:Saudi Arabia national football team :27 :en:Ghana national football team :27 :en:Edward VI of England :27 :en:Ukraine national football team :27 :en:Annapurna :26 :en:Epistle to the Romans :26 :en:Ecclesiastes :26 :en:Axon :26 :en:European Community :26 :en:Aretha In Paris :26 :en:Crab :26 :en:Yalta Conference :26 :en:Boeing 777 :26 :en:Jörmungandr :26 :en:Iðunn :26 :en:Cologne Cathedral :26 :en:God Rama :26 :en:Iris (mythology) :26 :en:Amhrán na bhFiann :26 :en:Geocentric model :26 :en:Cactus/Temp :26 :en:Dyslexia :26 :en:Novella :26 :en:Ganymede :26 :en:Selene :26 :en:Buckwheat :26 :en:Data compression :26 :en:Dentistry :26 :en:Pindar :26 :en:Francis William Aston :26 :en:Windows Me :26 :en:Chauvinism :26 :en:Sundial :26 :en:Clock Tower, Palace of Westminster :26 :en:1976 Summer Olympics :26 :en:Central nervous system :26 :en:Asian Football Confederation :26 :en:Molar volume :26 :en:Christian Doppler :26 :en:Var (department) :26 :en:Catherine of Aragon :26 :en:Germaine Greer :26 :en:Constantius II :26 :en:Old Trafford (football ground) :26 :en:American National Standards Institute :26 :en:Thebes, Egypt :26 :en:Felipe Massa :26 :en:Modest Mussorgsky :26 :en:Potassium nitrate :26 :en:Ceres :26 :en:Aragorn :26 :en:Puberty :26 :en:Amedeo Modigliani :26 :en:Academy Award for Best Picture :26 :en:Pavel Nedvěd :26 :en:1958 FIFA World Cup :26 :en:Romulus and Remus :26 :en:Amphitrite :26 :en:1950 FIFA World Cup :26 :en:Hexagon :26 :en:Sagrada Família :26 :en:Serbs :26 :en:Thermal conductivity :26 :en:Suez Crisis :26 :en:Proletariat :26 :en:Denmark national football team :26 :en:Sea of Okhotsk :26 :en:Sweden national football team :26 :en:Agoraphobia :26 :en:Santo Domingo :26 :en:Nukuʻalofa :26 :en:Hristo Stoichkov :26 :en:Cyberpunk :26 :en:Cognitive science :26 :en:Antonio Gramsci :26 :en:Star Wars Episode III: Revenge of the Sith :26 :en:HD DVD :26 :en:Ludwig Boltzmann :26 :en:Sturmabteilung :26 :en:Hamburger SV :26 :en:Pritzker Prize :26 :en:Frank Gehry :26 :en:Pope Fabian :26 :en:Battle of Verdun :26 :en:2018 :26 :en:Zaha Hadid :26 :en:Amartya Sen :26 :en:Charlize Theron :26 :en:Pope Pontian :26 :en:Star Wars Episode VI: Return of the Jedi :26 :en:Patrice Lumumba :26 :en:Hallucination :26 :en:Robert Andrews Millikan :26 :en:Deflation (economics) :26 :en:Homo (genus) :26 :en:Venus of Willendorf :26 :en:Atmospheric pressure :26 :en:Charles the Bald :26 :en:Trout :26 :en:Fertilisation :26 :en:Henry III of England :26 :en:West Ham United F.C. :26 :en:Menelaus :26 :en:Fever :26 :en:Boston Tea Party :26 :en:Flag of Lithuania :26 :en:Flag of Israel :26 :en:Pyrite :26 :en:Dacia :26 :en:Lexical category :26 :en:Franco-Prussian War :26 :en:Amen :26 :en:Patna :26 :en:Alex Ferguson :26 :en:Flag of Georgia (country) :26 :en:Hubble's law :26 :en:Birth control :26 :en:Data mining :26 :en:Brian May :26 :en:Battery (electricity) :26 :en:Flag of Angola :26 :en:Boeing 767 :26 :en:Inkscape :26 :en:Canute the Great :26 :en:NTFS :26 :en:Armenian SSR :26 :en:Niacin :26 :en:Anglo-Saxons :26 :en:CBS :26 :en:Mycenae :26 :en:10s BC :26 :en:The Who :26 :en:List of sports :26 :en:440s :26 :en:180s :26 :en:700s :26 :en:800s :26 :en:120s :26 :en:William Wordsworth :26 :en:Wassily Kandinsky :26 :en:Jujutsu :26 :en:Waffen-SS :26 :en:Valencia CF :26 :en:Bože pravde :26 :en:Amicable number :26 :en:United Nations member states :26 :en:Giraffidae :26 :en:Spring (hydrosphere) :26 :en:Twin paradox :26 :en:Durban :26 :en:Gyanendra of Nepal :26 :en:Olympia, Greece :26 :en:Divinity (academic discipline) :26 :en:Torque :26 :en:Valley of the Kings :26 :en:Transcendental number :26 :en:Chipset :26 :en:Trademark :26 :en:Troll :26 :en:Quince :26 :en:Sapphire :26 :en:S.S [4]\n\n[1] Unknown — Sinmortigintoj estas homoj, kiuj mortis pro sinmortigo…\n[2] Unknown — Otidoj estas sociaj bestoj escepte dum reproduktado, sed ne akceptas homan proks…\n[3] Unknown — Dulingvulo estas homo kiu flue scipovas du lingvojn, kaj simile trilingvulo esta…\n[4] Unknown — Adorno :27 :en:Techno :27 :en:Epithelium :27 :en:Arius :27 :en:Moroni, Comoros :…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 12.7
+    },
+    {
+      "id": 42,
+      "question": "Kiom da jaroj havas Esperanto?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "pli ol 130"
+      ],
+      "answer": "Finkonstruita ĝi estis en la jaro 1898 sub gvido de arkitekto Gustav Wiedermann [1] Sara estis la domina influo en la fruaj jaroj de Franklin; ŝi siatempe deklaris, \"mia filo Franklin estas Delano, ne Roosevelt entute.\" Oftaj ekskursetoj al Eŭropo - li faris sian unuan en la aĝo de du, kaj iris kun siaj gepatroj ĉiun jaron de la aĝoj de sep al 15 - helpis Roosevelt iĝi sperta en la germana kaj la franca; esti arestita kun sia tutoro fare de polico kvar fojojn en unu tago en Nigra Arbaro por negravaj deliktoj eble influis la opinion de la estonta prezidento pri germana karaktero [2] Ekde la fino de la 1960-aj jaroj estis diversaj malfuroroj ĉe novaj komedioj kiujn li parte mem dramaturge aranĝis [3] Vojaĝo ankaŭ estas la nomo de serio de koncertoj, kiuj okazos en Londono ekde la 27-a de majo 2022. La originaj ABBA-membroj (kiuj ĉiuj estas en siaj 70-aj jaroj) ne prezentos sin, sed hologramoj estos uzataj [4]\n\n[1] Unknown — Finkonstruita ĝi estis en la jaro 1898 sub gvido de arkitekto Gustav Wiedermann…\n[2] Unknown — Sara estis la domina influo en la fruaj jaroj de Franklin; ŝi siatempe deklaris,…\n[3] Unknown — Ekde la fino de la 1960-aj jaroj estis diversaj malfuroroj ĉe novaj komedioj kiu…\n[4] Unknown — Vojaĝo ankaŭ estas la nomo de serio de koncertoj, kiuj okazos en Londono ekde la…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 7.81
+    },
+    {
+      "id": 43,
+      "question": "Kiom da landoj uzas Esperanton?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "multaj"
+      ],
+      "answer": "Armenio estas montara lando kaj adekvatas por kelkaj sportoj kiaj skiado kaj alpismo estu amase praktikataj [1] Samkiel Sud-Osetio, ankaŭ Abĥazio estas agnoskita de sole 4 landoj en la mondo: Rusio, Nikaragvo, Venezuelo kaj Nauro [2] Robert Koĉarjan, la nuna prezidanto de la lando ekde 1998, ne estas ano de la komunisma partio, ankoraŭ tre forta pro la heredo kiun lasis la eksa Sovetio en Armenio [3] Nuntempe Armenio estas lando sen marelirejo situanta en Malgranda Azio, inter la maroj Nigra kaj Kaspia [4]\n\n[1] Unknown — Armenio estas montara lando kaj adekvatas por kelkaj sportoj kiaj skiado kaj alp…\n[2] Unknown — Samkiel Sud-Osetio, ankaŭ Abĥazio estas agnoskita de sole 4 landoj en la mondo:…\n[3] Unknown — Robert Koĉarjan, la nuna prezidanto de la lando ekde 1998, ne estas ano de la ko…\n[4] Unknown — Nuntempe Armenio estas lando sen marelirejo situanta en Malgranda Azio, inter la…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 9.06
+    },
+    {
+      "id": 44,
+      "question": "Kiom da vortoj estas en Esperanto?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "mil"
+      ],
+      "answer": "Azudo (de la araba \"as sad\"), estas vorto de araba deveno kiu signifas 'bariero', kaj utilas por aludi al konstruaĵo plej ofte realigata por plialtigi la nivelo de fluejo aŭ rivero cele al devojigo de parto de tiu fluejo (akvokvanto) al la kanaletoj ĉu irigaciaj aŭ alicelaj [1] Muzikgrupo Kaláka estis fama muzika grupo en Hungario fondita en 1969. Kaláka estas hungara vorto kaj signifas komunan laboron, plej ofte en vilaĝo oni konstruas novan domon al la geedza paro [2] Storge (στοργή, storgē, store-gae), nomita ankaŭ familia amo, estas la greka vorto por natura kor-inklino, kia la amo de patro al ido kaj reciproke [3] Ĝia oficiala nomo \"Patria\" estas la latina vorto por \"Patrujo\" [4]\n\n[1] Unknown — Azudo (de la araba \"as sad\"), estas vorto de araba deveno kiu signifas 'bariero'…\n[2] Unknown — Muzikgrupo Kaláka estis fama muzika grupo en Hungario fondita en 1969. Kaláka es…\n[3] Unknown — Storge (στοργή, storgē, store-gae), nomita ankaŭ familia amo, estas la greka vor…\n[4] Unknown — Ĝia oficiala nomo \"Patria\" estas la latina vorto por \"Patrujo\"…",
+      "matched_keywords": [
+        "mil"
+      ],
+      "answer_correct": true,
+      "retrieved_count": 10,
+      "first_relevant_rank": 3,
+      "retrieval_recall@k": true,
+      "mrr": 0.3333333333333333,
+      "latency_sec": 7.08
+    },
+    {
+      "id": 45,
+      "question": "Kiom da reguloj havas Esperanto?",
+      "question_type": "HOW_MANY",
+      "expected_keywords": [
+        "16"
+      ],
+      "answer": "La Gramática castellana (En Esperanto: Kastilia gramatiko), originala titolo en la latina: Grammatica Antonii Nebrissensis, estas gramatiko de la hispana lingvo skribita de Antonio de Nebrija kaj publikigita en 1492. Ĝi estis la unua verko dediĉita al studado de la hispana lingvo kaj siaj reguloj [1] Poste, konstitucia dekreto de la prezidento de respubliko pri reguligo de la ĉeĥoslovaka ŝtata civitaneco de personoj de la naciecoj germana kaj hungara estis dekreto de la prezidento de respubliko eldonita de la ĉeĥoslovaka prezidento Edvard Beneš kaj proklamita en Kolektaro de leĝoj sub numero 33/1945 Sb [2] Spektakloj kaj kunvenoj malregule okazas nun [3] Ĝustadire, ĉiu kristalo konsistas je ripetado da miloj kaj miloj je similaj ĉelunuoj, regule kunigitaj, kaj funkciante kiel aŭtentaj konstrublokoj de la kristalo, kiuj finfine determinas ĝian makrostrukturon [4]\n\n[1] Unknown — La Gramática castellana (En Esperanto: Kastilia gramatiko), originala titolo en…\n[2] Unknown — Konstitucia dekreto de la prezidento de respubliko pri reguligo de la ĉeĥoslovak…\n[3] Unknown — Spektakloj kaj kunvenoj malregule okazas nun…\n[4] Unknown — Ĝustadire, ĉiu kristalo konsistas je ripetado da miloj kaj miloj je similaj ĉelu…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 8.2
+    },
+    {
+      "id": 46,
+      "question": "Kial Zamenhof kreis Esperanton?",
+      "question_type": "WHY",
+      "expected_keywords": [
+        "paco"
+      ],
+      "answer": "Kiam Zamenhof kreadis Esperanton, li dum ĉiuj fazoj uzis kiel bazon la latinan alfabeton kun ties suplementaj literoj J, j, K, k, U, u, kaj Z, z, sed mankanta je Q, q, X, x, Y, y (W, w estis uzata en Praesperanto) [1]\n\n[1] Unknown — Kiam Zamenhof kreadis Esperanton, li dum ĉiuj fazoj uzis kiel bazon la latinan a…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": 3,
+      "retrieval_recall@k": true,
+      "mrr": 0.3333333333333333,
+      "latency_sec": 5.96
+    },
+    {
+      "id": 47,
+      "question": "Kial oni lernas Esperanton?",
+      "question_type": "WHY",
+      "expected_keywords": [
+        "facila"
+      ],
+      "answer": "Esperanton kaj la germanan Adnadj lernis private ĉe la instruistino Ida Kadelburg, esperantistino en Vukovar [1] Karl Heinz SCHAEFFER lernis Esperanton 1979 aŭtostudinte laŭ \"Testo 5.000\", bazita sur \"Esperanto Programita 1-4\" de Hermann Behrmann.Post ellernado estis fondita de li la Esperanto-Grupo Alena [2] Li lernis Esperanton en 1927 kadre de laborista urbodistrikta grupo en Vieno, sekve kunlaboris en la estraro de la Aŭstria Laborista Ligo Esperantista (ALLE) kaj en la loka grupo, gvidis kursojn [3] Sekve, esperanton ŝi eklernis en koresponda kurso en 1977 ĉe Vladimír Škoda kaj aktivas en Esperantujo ekde 1981, antaŭe precipe en Ĉeĥa Esperanto-Junularo kaj en Pedagogia Sekcio de ĈEA (estrarano en ambaŭ en 1984-1992, En 1983-1992 estrino de Praga Junulara E-Klubo) [4]\n\n[1] Unknown — Esperanton kaj la germanan Adnadj lernis private ĉe la instruistino Ida Kadelbur…\n[2] Unknown — Karl Heinz SCHAEFFER lernis Esperanton 1979 aŭtostudinte laŭ \"Testo 5.000\", bazi…\n[3] Unknown — Li lernis Esperanton en 1927 kadre de laborista urbodistrikta grupo en Vieno, se…\n[4] Unknown — Esperanton ŝi eklernis en koresponda kurso en 1977 ĉe Vladimír Škoda kaj aktivas…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 7.32
+    },
+    {
+      "id": 48,
+      "question": "Kiel oni lernas Esperanton?",
+      "question_type": "HOW",
+      "expected_keywords": [
+        "studate"
+      ],
+      "answer": "Alessio Giordano lernis Esperanton en 2018 per la reta kurso KIREK de Itala Esperanto-Federacio kaj per Manuale di Esperanto (Manlibro pri Esperanto) de Bruno Migliorini; samjare partoprenis la 85-an italan kongreson de Esperanto, tiam en San-Marino, danke al stipendio de IEF [1] Lee Chong-Yeong lernis Esperanton aŭtodidakte en 1948, esperantistiĝis en 1949 kaj estis prezidanto de Korea Esperanto-Asocio (KEA) en jaroj 1994-95, prezidanto de UEA en jaroj 1995-1998, denove prezidanto de KEA (1998-2001) kaj vicprezidanto de UEA (2001-2004) [2] En 1983, Valdenir Pessoa lernis Esperanton kun Ramiro Barros de Castro, de Klubo Esperantista Zamenhof (Belém, subŝtato Parao) kaj post kiam li estis preparita fondis la Santarem Esperanto-Asocio kune amika grupeto por lerni Esperanton [3] Tymiński eklernis Esperanton en 1904 kaj lin altiris ekspozicioj pri Esperanto en 1909 kaj 1910 en Częstochowa, organizitaj de Aleksandro Brzostowski [4]\n\n[1] Unknown — Alessio Giordano lernis Esperanton en 2018 per la reta kurso KIREK de Itala Espe…\n[2] Unknown — Lee Chong-Yeong lernis Esperanton aŭtodidakte en 1948, esperantistiĝis en 1949 k…\n[3] Unknown — En 1983, Valdenir Pessoa lernis Esperanton kun Ramiro Barros de Castro, de Klubo…\n[4] Unknown — Tymiński eklernis Esperanton en 1904 kaj lin altiris ekspozicioj pri Esperanto e…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 6.86
+    },
+    {
+      "id": 49,
+      "question": "Kiel funkcias Esperanto?",
+      "question_type": "HOW",
+      "expected_keywords": [
+        "regule"
+      ],
+      "answer": "Claude tre bone funkcias en Esperanto kaj kapablas krei Esperantajn tekstojn kun malmultaj eraroj.Chu vi povas paroli Esperanton kun mi? \"Jes, kompreneble [1] Ekde la jaro 1989 funkcias en la urbo Esperanto-klubo Esperanto 3000. Okaze de la jubilea jaro 2000 la loka Esperanto-klubo plantis Jubilean arbon (\"Milleniumboom\") en la urbocentro sur bordo de la rivero Dejlo, kiu dek jarojn poste devis esti forigita pro alikonstruo de la bordo en tiu loko (el kiu fariĝis la Dijle-terasoj) ĝis ĝi fine trovis sian novan lokon en proksima parko [2] Propagando funkciis ankaŭ inter komercistoj, kiuj metis en vitrinojn de siaj entreprenoj tabuletojn kun la surskribo Ĉi tie oni parolas Esperanton kaj publikigis reklamojn en la lingvo internacia [3] Lektoroj de Esperanto funkciis ĉe la universitatoj en Ĝenevo (Edmond Privat) kaj Liverpool (William Edward Collinson), ĉe la teknikaj altlernejoj en Prago (ĉe la germana Emil Michal kaj ĉe la ĉeĥa Augustin Pitlík) kaj en Wien (Josef Schamanek, poste Franz Wollmann) [4]\n\n[1] Unknown — Claude tre bone funkcias en Esperanto kaj kapablas krei Esperantajn tekstojn kun…\n[2] Unknown — Ekde la jaro 1989 funkcias en la urbo Esperanto-klubo Esperanto 3000. Okaze de l…\n[3] Unknown — Propagando funkciis ankaŭ inter komercistoj, kiuj metis en vitrinojn de siaj ent…\n[4] Unknown — Lektoroj de Esperanto funkciis ĉe la universitatoj en Ĝenevo (Edmond Privat) kaj…",
+      "matched_keywords": [],
+      "answer_correct": false,
+      "retrieved_count": 10,
+      "first_relevant_rank": null,
+      "retrieval_recall@k": false,
+      "mrr": 0.0,
+      "latency_sec": 6.0
+    },
+    {
+      "id": 50,
+      "question": "Kiu lingvo estas Esperanto?",
+      "question_type": "WHICH",
+      "expected_keywords": [
+        "planlingvo"
+      ],
+      "answer": "SPL aŭ Simpligita Latina lingvo estas planlingvo bazita sur latina lingvo, proponita de usonano Richardius Dominicus (eble plumnomo) en 1982. ;Bibliografio [1] Nuntempe la Maoria lingvo estas unu el la tri oficialaj lingvoj de Nov-Zelando (la aliaj estas la angla kaj nov-zelanda gestolingvo) [2] Kramm en 2004. Ĝi estas nur la angla lingvo skribata fonetike per Internacia Fonetika Alfabeto laŭ la moderna prononco de Usono [3] Internacia Lingvo estas apriora planlingvo proponita de Johann Michael Schmid (1767-1821) en Germanio dum la komenco de 19-a jarcento kaj tuj forgesita [4]\n\n[1] Unknown — SPL aŭ Simpligita Latina lingvo estas planlingvo bazita sur latina lingvo, propo…\n[2] Unknown — Nuntempe la Maoria lingvo estas unu el la tri oficialaj lingvoj de Nov-Zelando (…\n[3] Unknown — Kramm en 2004. Ĝi estas nur la angla lingvo skribata fonetike per Internacia Fon…\n[4] Unknown — Internacia Lingvo estas apriora planlingvo proponita de Johann Michael Schmid (1…",
+      "matched_keywords": [
+        "planlingvo"
+      ],
+      "answer_correct": true,
+      "retrieved_count": 10,
+      "first_relevant_rank": 1,
+      "retrieval_recall@k": true,
+      "mrr": 1.0,
+      "latency_sec": 9.97
+    }
+  ]
+}

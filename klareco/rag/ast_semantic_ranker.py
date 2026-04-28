@@ -457,6 +457,12 @@ def rank_ast_matches(
             logger.warning(f"Could not initialize importance scorer: {e}")
             use_importance_scoring = False
 
+    # Build the fact extractor once, not per candidate (each init re-loads ReVo CSV)
+    extractor = None
+    if use_importance_scoring and importance_scorer and qt_enum:
+        from klareco.rag.unified_extractor import UnifiedASTExtractor
+        extractor = UnifiedASTExtractor()
+
     for cand in candidates:
         cand_ast = cand.get('ast')
         if not cand_ast:
@@ -471,8 +477,6 @@ def rank_ast_matches(
 
             # Extract fact from candidate AST and score importance (40% weight)
             try:
-                from klareco.rag.unified_extractor import UnifiedASTExtractor
-                extractor = UnifiedASTExtractor()
                 facts = extractor.extract(cand_ast, source_sentence=cand.get('text', ''))
 
                 # Score the first fact (most relevant)

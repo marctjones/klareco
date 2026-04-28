@@ -133,12 +133,11 @@ class SemanticQuery:
                 RETURN v.klaso_id
             """)
 
-            if result.has_next():
-                klaso_id = result.get_next()[0]
-                self._cache[cache_key] = klaso_id
-                return klaso_id
-
-            return None
+            klaso_id = result.get_next()[0] if result.has_next() else None
+            # Cache the result even if None — most roots aren't yet linked to classes,
+            # and re-querying for every miss is the dominant cost in retrieval ranking.
+            self._cache[cache_key] = klaso_id
+            return klaso_id
 
         except Exception as e:
             logger.error(f"Error querying verb class for {verb_root}: {e}")

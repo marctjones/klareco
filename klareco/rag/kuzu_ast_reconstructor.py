@@ -1,169 +1,139 @@
 """
-Kùzu AST Reconstructor
+Kuzu AST Reconstructor.
 
-Reconstructs AST dictionaries from Kùzu graph structure.
-This avoids re-parsing sentences that have already been parsed and stored.
-
-Usage:
-    reconstructor = KuzuASTReconstructor(kuzu_conn)
-    ast = reconstructor.reconstruct_ast(sentence_id)
+Rebuild parsed-AST dicts from precomputed Vorto/Vortgrupo nodes in the v2.1 graph
+in a single batched query, returning primitive properties (not Kuzu node handles)
+because Kuzu's node-object serialization across the Python boundary is the
+dominant cost — measured 13.8s for 25 nodes vs <50ms when returning scalars.
 """
+from __future__ import annotations
 
-import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import kuzu
 
-logger = logging.getLogger(__name__)
+
+_VORTO_FIELDS = (
+    'plena_vorto', 'radiko', 'vortspeco', 'kazo', 'nombro',
+    'tempo', 'modo', 'prefiksoj', 'sufiksoj',
+)
 
 
 class KuzuASTReconstructor:
-    """Reconstruct AST dictionaries from Kùzu graph structure."""
+    """Fetch sentence ASTs from the graph in batches without per-row overhead."""
 
     def __init__(self, kuzu_conn: kuzu.Connection):
         self.kuzu_conn = kuzu_conn
 
+    def reconstruct_ast(self, sentence_id: int) -> Optional[Dict[str, Any]]:
+        return self.reconstruct_ast_batch([sentence_id]).get(sentence_id)
+
     def reconstruct_ast_batch(self, sentence_ids: List[int]) -> Dict[int, Dict]:
-        """
-        Reconstruct ASTs for multiple sentences in one query.
-
-        Args:
-            sentence_ids: List of Frazoteksto IDs
-
-        Returns:
-            Dict mapping sentence_id → AST dict
-        """
         if not sentence_ids:
             return {}
 
         ids_str = ','.join(str(sid) for sid in sentence_ids)
 
-        # Query to get basic AST structure
-        # NOTE: This is a simplified query. Full reconstruction would need
-        # recursive traversal or multiple queries for vortgrupo structure.
+        # Returning scalars (not node objects) — node serialization is what was slow.
         query = f"""
             MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
             WHERE ft.id IN [{ids_str}]
 
             OPTIONAL MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
-            OPTIONAL MATCH (verb)-[:HAVAS_RADIKON]->(verb_rad:Radiko)
-
             OPTIONAL MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTO]->(subj_v:Vorto)
-            OPTIONAL MATCH (subj_v)-[:HAVAS_RADIKON]->(subj_rad:Radiko)
-
             OPTIONAL MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTGRUPO]->(subj_vg:Vortgrupo)
-            OPTIONAL MATCH (subj_vg)-[:HAVAS_KERNON]->(subj_kern:Vorto)
-            OPTIONAL MATCH (subj_kern)-[:HAVAS_RADIKON]->(subj_kern_rad:Radiko)
-
+                            -[:HAVAS_KERNON]->(subj_kern:Vorto)
             OPTIONAL MATCH (frazo)-[:HAVAS_OBJEKTON_VORTO]->(obj_v:Vorto)
-            OPTIONAL MATCH (obj_v)-[:HAVAS_RADIKON]->(obj_rad:Radiko)
-
             OPTIONAL MATCH (frazo)-[:HAVAS_OBJEKTON_VORTGRUPO]->(obj_vg:Vortgrupo)
-            OPTIONAL MATCH (obj_vg)-[:HAVAS_KERNON]->(obj_kern:Vorto)
-            OPTIONAL MATCH (obj_kern)-[:HAVAS_RADIKON]->(obj_kern_rad:Radiko)
+                            -[:HAVAS_KERNON]->(obj_kern:Vorto)
 
-            RETURN ft.id, a, frazo,
-                   verb, verb_rad,
-                   subj_v, subj_rad,
-                   subj_vg, subj_kern, subj_kern_rad,
-                   obj_v, obj_rad,
-                   obj_vg, obj_kern, obj_kern_rad
+            RETURN
+                ft.id,
+                a.tutaj_vortoj, a.sukcesoprocento,
+                verb.plena_vorto, verb.radiko, verb.vortspeco,
+                verb.kazo, verb.nombro, verb.tempo, verb.modo,
+                verb.prefiksoj, verb.sufiksoj,
+                subj_v.plena_vorto, subj_v.radiko, subj_v.vortspeco,
+                subj_v.kazo, subj_v.nombro, subj_v.tempo, subj_v.modo,
+                subj_v.prefiksoj, subj_v.sufiksoj,
+                subj_kern.plena_vorto, subj_kern.radiko, subj_kern.vortspeco,
+                subj_kern.kazo, subj_kern.nombro, subj_kern.tempo, subj_kern.modo,
+                subj_kern.prefiksoj, subj_kern.sufiksoj,
+                obj_v.plena_vorto, obj_v.radiko, obj_v.vortspeco,
+                obj_v.kazo, obj_v.nombro, obj_v.tempo, obj_v.modo,
+                obj_v.prefiksoj, obj_v.sufiksoj,
+                obj_kern.plena_vorto, obj_kern.radiko, obj_kern.vortspeco,
+                obj_kern.kazo, obj_kern.nombro, obj_kern.tempo, obj_kern.modo,
+                obj_kern.prefiksoj, obj_kern.sufiksoj
         """
 
         result = self.kuzu_conn.execute(query)
+        asts: Dict[int, Dict[str, Any]] = {}
 
-        asts = {}
         while result.has_next():
             row = result.get_next()
             sentence_id = row[0]
-            ast_node = row[1]
-            frazo = row[2]
-
-            # Reconstruct AST dict
-            ast = {
+            ast: Dict[str, Any] = {
                 'tipo': 'frazo',
                 'parse_statistics': {
-                    'total_words': ast_node.get('tutaj_vortoj', 0),
-                    'success_rate': ast_node.get('sukcesoprocento', 0.0)
-                }
+                    'total_words':  row[1] or 0,
+                    'success_rate': row[2] or 0.0,
+                },
+                'aliaj': [],  # not reconstructed in this fast path
             }
 
-            # Verb (row[3] = verb Vorto, row[4] = verb Radiko)
-            if row[3]:
-                ast['verbo'] = self._vorto_to_dict(row[3], row[4])
+            verb = self._row_slice_to_vorto(row, 3)
+            if verb:
+                ast['verbo'] = verb
 
-            # Subject (either Vorto or Vortgrupo)
-            if row[5]:  # subj_v
-                ast['subjekto'] = self._vorto_to_dict(row[5], row[6])
-            elif row[7]:  # subj_vg
-                ast['subjekto'] = self._vortgrupo_to_dict(row[7], row[8], row[9])
+            subj_v = self._row_slice_to_vorto(row, 12)
+            subj_kern = self._row_slice_to_vorto(row, 21)
+            if subj_v:
+                ast['subjekto'] = subj_v
+            elif subj_kern:
+                ast['subjekto'] = {'tipo': 'vortgrupo', 'kerno': subj_kern,
+                                   'priskriboj': [], 'aliaj': []}
 
-            # Object (either Vorto or Vortgrupo)
-            if row[10]:  # obj_v
-                ast['objekto'] = self._vorto_to_dict(row[10], row[11])
-            elif row[12]:  # obj_vg
-                ast['objekto'] = self._vortgrupo_to_dict(row[12], row[13], row[14])
-
-            # TODO: Reconstruct 'aliaj' (modifiers, adverbs, etc.)
-            # This requires additional queries for full fidelity
-            ast['aliaj'] = []
+            obj_v = self._row_slice_to_vorto(row, 30)
+            obj_kern = self._row_slice_to_vorto(row, 39)
+            if obj_v:
+                ast['objekto'] = obj_v
+            elif obj_kern:
+                ast['objekto'] = {'tipo': 'vortgrupo', 'kerno': obj_kern,
+                                  'priskriboj': [], 'aliaj': []}
 
             asts[sentence_id] = ast
 
         return asts
 
-    def _vorto_to_dict(self, vorto_node: Dict, radiko_node: Optional[Dict]) -> Dict:
-        """Convert Vorto node to AST dict format."""
+    @staticmethod
+    def _row_slice_to_vorto(row, offset: int) -> Optional[Dict[str, Any]]:
+        """Materialize a 9-field Vorto slice from a row, or None if all-null."""
+        plena = row[offset]
+        if plena is None:
+            return None
         return {
             'tipo': 'vorto',
-            'plena_vorto': vorto_node.get('plena_vorto', ''),
-            'radiko': vorto_node.get('radiko', ''),
-            'vortspeco': vorto_node.get('vortspeco', ''),
-            'kazo': vorto_node.get('kazo'),
-            'nombro': vorto_node.get('nombro'),
-            'tempo': vorto_node.get('tempo'),
-            'modo': vorto_node.get('modo'),
-            'prefiksoj': vorto_node.get('prefiksoj'),
-            'sufiksoj': vorto_node.get('sufiksoj'),
+            'plena_vorto': plena,
+            'radiko':      row[offset + 1] or '',
+            'vortspeco':   row[offset + 2] or '',
+            'kazo':        row[offset + 3],
+            'nombro':      row[offset + 4],
+            'tempo':       row[offset + 5],
+            'modo':        row[offset + 6],
+            'prefiksoj':   row[offset + 7],
+            'sufiksoj':    row[offset + 8],
         }
-
-    def _vortgrupo_to_dict(
-        self,
-        vortgrupo_node: Dict,
-        kerno_vorto: Optional[Dict],
-        kerno_radiko: Optional[Dict]
-    ) -> Dict:
-        """Convert Vortgrupo node to AST dict format."""
-        vg = {
-            'tipo': 'vortgrupo',
-            'priskriboj': [],  # TODO: Query descriptors
-            'aliaj': []
-        }
-
-        if kerno_vorto:
-            vg['kerno'] = self._vorto_to_dict(kerno_vorto, kerno_radiko)
-
-        return vg
-
-    def reconstruct_ast(self, sentence_id: int) -> Optional[Dict]:
-        """Reconstruct single AST."""
-        asts = self.reconstruct_ast_batch([sentence_id])
-        return asts.get(sentence_id)
 
 
 def has_precomputed_asts(kuzu_conn: kuzu.Connection) -> bool:
-    """
-    Check if Kùzu database has pre-computed ASTs.
-
-    Returns:
-        True if database has FRAZOTEKSTO_HAVAS_AST relationship
-    """
+    """Check if the graph has precomputed ASTs available."""
     try:
         result = kuzu_conn.execute("""
-            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)
-            RETURN a LIMIT 1;
+            MATCH (a:AST) RETURN count(a) AS n LIMIT 1
         """)
-        return result.has_next()
-    except Exception as e:
-        logger.debug(f"No pre-computed ASTs found: {e}")
+        if result.has_next():
+            return result.get_next()[0] > 0
+    except Exception:
         return False
+    return False

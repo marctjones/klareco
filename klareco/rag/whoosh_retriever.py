@@ -1367,23 +1367,18 @@ class WhooshRetriever:
         # Sort by score (BM25 + meta-content penalty) BEFORE parsing
         documents.sort(key=lambda d: d['score'], reverse=True)
 
-        # Fetch precomputed ASTs from graph (10x faster than parsing!)
-        # OLD APPROACH: parse(text) for each sentence = 50ms per sentence
-        # NEW APPROACH: fetch from graph in batch = <5ms total (10x speedup)
+        # Fetch precomputed ASTs from graph (batched).
         parse_limit = min(50, len(documents))
         sentence_ids_to_parse = [int(documents[i]['id']) for i in range(parse_limit)]
 
         logger.debug(f"Fetching {len(sentence_ids_to_parse)} precomputed ASTs from graph")
         reconstructed_asts = self.ast_reconstructor.reconstruct_ast_batch(sentence_ids_to_parse)
-        logger.debug(f"Retrieved {len(reconstructed_asts)} ASTs from graph")
 
         for i in range(parse_limit):
             sentence_id = int(documents[i]['id'])
             documents[i]['ast'] = reconstructed_asts.get(sentence_id)
-
-            # Fallback to parsing if AST not found in graph (shouldn't happen in v2.1+)
+            # Fallback: parse text if not in graph
             if documents[i]['ast'] is None:
-                logger.warning(f"AST not found for sentence {sentence_id}, falling back to parsing")
                 documents[i]['ast'] = parse(documents[i]['text'])
 
         # AST-aware filtering: boost documents where entity appears in correct grammatical role

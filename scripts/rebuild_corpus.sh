@@ -205,7 +205,6 @@ if python scripts/build_unified_corpus.py \
     echo "  2. Rebuild Kuzu index:"
     echo "     ./scripts/index_kuzu.sh --fresh"
     echo "  3. Train models with new corpus:"
-    echo "     ./scripts/train_m1_semantic_tier_priority.sh"
     echo ""
 
     exit 0

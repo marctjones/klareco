@@ -131,7 +131,6 @@ fi
 if should_run "train"; then
     echo -e "${GREEN}=== Stage 6: TRAIN ===${NC}"
     ./scripts/train_roots.sh
-    ./scripts/train_affixes.sh
     echo ""
 fi
 
@@ -147,6 +146,6 @@ echo -e "${GREEN}  Pipeline Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
-echo "  - Run demo: python scripts/demo_rag.py --interactive"
+echo "  - Run demo: klareco query --verbose"
 echo "  - Check indexes: ls -la data/indexes/"
 echo ""

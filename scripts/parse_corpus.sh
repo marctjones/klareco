@@ -111,7 +111,8 @@ if python scripts/build_unified_corpus.py \
     echo "     ./scripts/index_kuzu.sh --fresh"
     echo ""
     echo "  2. Train M1 with tier priority:"
-    echo "     ./scripts/train_m1_semantic_tier_priority.sh"
+    echo "  2. Rebuild Kuzu DB:"
+    echo "     ./scripts/reindex_kuzu_v2.1.sh"
     echo ""
 
 else

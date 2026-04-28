@@ -105,7 +105,6 @@ if python scripts/merge_tier0_into_corpus.py \
     
     echo "Next steps:"
     echo "  1. Test with tier priority training:"
-    echo "     ./scripts/train_m1_semantic_tier_priority.sh"
     echo ""
     
 else

@@ -1,394 +1,251 @@
 #!/usr/bin/env python3
 """
-Evaluate Extractive QA System on Test Set
+Evaluate Klareco Extractive QA on a Test Set.
 
-Runs demo_extractive_qa.py logic on each test question and checks if answer contains expected keywords.
+VERSION: v2.1
+COMPATIBLE WITH: v2.1 Kuzu DB, orchestrator pipeline (klareco.orchestrator)
+DEPENDENCIES: Whoosh index, Kuzu DB
+STAGE: Evaluation
+
+Reports two metrics:
+  1. Answer keyword match — does the generated answer contain expected keywords?
+  2. Retrieval ranking — at what rank does a passage containing expected
+     keywords first appear in the top-k?
 
 Usage:
     python scripts/evaluate_extractive_qa.py
-    python scripts/evaluate_extractive_qa.py --no-m1 --no-rerank  # Deterministic baseline
-    python scripts/evaluate_extractive_qa.py --limit 10           # Test first 10 questions
+    python scripts/evaluate_extractive_qa.py --limit 10
+    python scripts/evaluate_extractive_qa.py --test-set data/test_sets/qa_test_diverse_30.jsonl
+    python scripts/evaluate_extractive_qa.py --top-k 20
+    python scripts/evaluate_extractive_qa.py --output results/qa_eval_$(date +%Y%m%d).json
+
+Inputs:
+    Test set JSONL with one entry per line:
+      {"id": int, "question": str, "expected_keywords": [str], "question_type": str}
+
+Outputs:
+    Per-question JSON with answer, retrieval ranks, latency.
+    Aggregate summary printed to stdout.
 """
+from __future__ import annotations
 
 import argparse
 import json
 import logging
-import re
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 from pathlib import Path
-from typing import Dict, List
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Quiet retriever logging
+logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
+logging.getLogger('klareco').setLevel(logging.WARNING)
 
-sys.path.insert(0, str(Path(__file__).parent))  # Add scripts/ to path
-from demo_extractive_qa import retrieve_sentences, expand_with_embeddings, extract_query_entity
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from klareco.parser import parse
-from klareco.rag.whoosh_retriever import WhooshRetriever
-from klareco.rag.extractive_answering import ExtractiveAnswerGenerator, classify_question_type
-from klareco.rag.semantic_query_expander import expand_with_semantic_ontology
-
-logging.basicConfig(
-    level=logging.WARNING,  # Suppress INFO logs during evaluation
-    format='%(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+from klareco.orchestrator import build_default_pipeline
 
 
-def check_keywords_in_text(text: str, keywords: List[str]) -> Dict:
-    """
-    Check if any keywords appear in text.
-
-    Returns:
-        {
-            'found': bool,
-            'matched_keywords': List[str],
-            'match_count': int
-        }
-    """
-    text_lower = text.lower()
-    matched = []
-
-    for kw in keywords:
-        if kw.lower() in text_lower:
-            matched.append(kw)
-
-    return {
-        'found': len(matched) > 0,
-        'matched_keywords': matched,
-        'match_count': len(matched)
-    }
+def keywords_in_text(keywords: list[str], text: str) -> list[str]:
+    """Return keywords that appear (case-insensitive substring) in text."""
+    if not text:
+        return []
+    text_lc = text.lower()
+    return [kw for kw in keywords if kw.lower() in text_lc]
 
 
-def evaluate_question(
-    question: str,
-    expected_keywords: List[str],
-    generator: ExtractiveAnswerGenerator,
-    retriever: WhooshRetriever,
-    top_k: int = 20,
-    use_semantic: bool = False,
-    kuzu_db_path: Path = None,
-) -> Dict:
-    """
-    Run extractive QA on a single question and check if answer contains expected keywords.
+def first_relevant_rank(keywords: list[str], passages) -> int | None:
+    """1-based rank of the first passage containing any expected keyword."""
+    for i, p in enumerate(passages, start=1):
+        if keywords_in_text(keywords, p.text):
+            return i
+    return None
 
-    Returns:
-        {
-            'answer_text': str,
-            'found_keywords': bool,
-            'matched_keywords': List[str],
-            'facts_extracted': int,
-            'facts_selected': int
-        }
-    """
-    # Parse question
-    query_ast = parse(question)
-    question_type = classify_question_type(question)
-    query_entity = extract_query_entity(query_ast, question_type)
 
-    # Extract roots from question
-    roots = []
-    def extract_roots(node):
-        if isinstance(node, dict):
-            if node.get('tipo') == 'vorto':
-                # For proper names (capitalized words), use full word instead of root
-                # This handles cases like "Lincoln" which parser might misparse as compound
-                plena_vorto = node.get('plena_vorto', '')
-                root = node.get('radiko', '')
+def evaluate_question(pipeline, entry: dict) -> dict:
+    """Run one test question and return per-question metrics."""
+    question = entry['question']
+    expected_kw = entry.get('expected_keywords', [])
 
-                # Exclude question words and correlatives from being treated as proper names
-                question_words = {'kiu', 'kio', 'kie', 'kiam', 'kial', 'kiel', 'kiom', 'kia', 'kies'}
+    t0 = time.time()
+    result = pipeline.answer(question)
+    elapsed = time.time() - t0
 
-                if plena_vorto and plena_vorto[0].isupper() and plena_vorto.lower() not in question_words:
-                    # Proper name - use full word, strip Esperanto endings (-n, -j, -jn)
-                    word = plena_vorto.rstrip('n').rstrip('j').rstrip('n')  # Strip -n, -jn
-                    roots.append(word)
-                elif root:
-                    # Common word - use lowercase root
-                    roots.append(root.lower())
-            elif node.get('tipo') == 'vortgrupo':
-                extract_roots(node.get('kerno'))
-                for p in node.get('priskriboj', []):
-                    extract_roots(p)
-            elif node.get('tipo') == 'frazo':
-                extract_roots(node.get('subjekto'))
-                extract_roots(node.get('verbo'))
-                extract_roots(node.get('objekto'))
-                for a in node.get('aliaj', []):
-                    extract_roots(a)
+    # Find the retrieve stage trace to inspect ranked passages
+    passages = ()
+    for tr in result.trace:
+        if tr.stage_name == 'retrieve' and tr.delta is not None:
+            passages = tr.ctx_after.symbolic.passage_asts
+            break
 
-    extract_roots(query_ast)
-
-    # Manual synonyms for common words
-    synonyms = {
-        'fond': ['kre', 'establ', 'startig'],
-        'est': ['est'],
-    }
-
-    query_roots = set(roots)
-    for root in roots:
-        if root in synonyms:
-            query_roots.update(synonyms[root])
-
-    # Expand with semantic ontology (if enabled)
-    if use_semantic and kuzu_db_path:
-        semantic_expanded = expand_with_semantic_ontology(
-            list(query_roots),
-            kuzu_db_path,
-            max_expansion=20
-        )
-        logger.info(f"Semantic expansion: {len(query_roots)} → {len(semantic_expanded)} roots")
-        query_roots = semantic_expanded
-
-    # Expand with embeddings
-    embeddings_path = Path('models/root_embeddings_phase1_fast/root_embeddings_best.pt')
-    if embeddings_path.exists():
-        expanded = expand_with_embeddings(
-            list(query_roots),
-            embeddings_path,
-            k=5,
-            threshold=0.65  # Use updated threshold
-        )
-        query_roots = expanded
-
-    # Retrieve sentences using AST role constraints
-    sentences = retrieve_sentences(retriever, list(query_roots), question_type.value, query_entity, top_k, query_ast=query_ast)
-
-    if not sentences:
-        return {
-            'answer_text': '',
-            'found_keywords': False,
-            'matched_keywords': [],
-            'facts_extracted': 0,
-            'facts_selected': 0,
-            'error': 'No sentences retrieved'
-        }
-
-    # Generate answer
-    answer = generator.generate(sentences, question, question_type=question_type, query_entity=query_entity)
-
-    # Check if answer contains expected keywords
-    keyword_check = check_keywords_in_text(answer.text, expected_keywords)
+    rank = first_relevant_rank(expected_kw, passages)
+    matched = keywords_in_text(expected_kw, result.text or '')
 
     return {
-        'answer_text': answer.text[:200] + '...' if len(answer.text) > 200 else answer.text,
-        'found_keywords': keyword_check['found'],
-        'matched_keywords': keyword_check['matched_keywords'],
-        'facts_extracted': answer.num_facts_extracted,
-        'facts_selected': answer.num_facts_selected,
+        'id':                  entry.get('id'),
+        'question':            question,
+        'question_type':       entry.get('question_type'),
+        'expected_keywords':   expected_kw,
+        'answer':              (result.text or '').strip(),
+        'matched_keywords':    matched,
+        'answer_correct':      bool(matched),
+        'retrieved_count':     len(passages),
+        'first_relevant_rank': rank,
+        'retrieval_recall@k':  rank is not None,
+        'mrr':                 (1.0 / rank) if rank else 0.0,
+        'latency_sec':         round(elapsed, 2),
     }
+
+
+def summarize(results: list[dict]) -> dict:
+    n = len(results)
+    if n == 0:
+        return {}
+    n_correct = sum(1 for r in results if r['answer_correct'])
+    n_recall = sum(1 for r in results if r['retrieval_recall@k'])
+    mrr = sum(r['mrr'] for r in results) / n
+    avg_latency = sum(r['latency_sec'] for r in results) / n
+
+    rank_buckets = {'1': 0, '2-3': 0, '4-10': 0, '11+': 0, 'none': 0}
+    for r in results:
+        rk = r['first_relevant_rank']
+        if rk is None:
+            rank_buckets['none'] += 1
+        elif rk == 1:
+            rank_buckets['1'] += 1
+        elif rk <= 3:
+            rank_buckets['2-3'] += 1
+        elif rk <= 10:
+            rank_buckets['4-10'] += 1
+        else:
+            rank_buckets['11+'] += 1
+
+    return {
+        'n':                  n,
+        'answer_accuracy':    n_correct / n,
+        'retrieval_recall':   n_recall / n,
+        'mrr':                mrr,
+        'avg_latency_sec':    round(avg_latency, 2),
+        'rank_distribution':  rank_buckets,
+    }
+
+
+def print_summary(summary: dict, breakdown_by_type: dict):
+    print('\n' + '=' * 70)
+    print('AGGREGATE RESULTS')
+    print('=' * 70)
+    print(f"  Questions evaluated:   {summary['n']}")
+    print(f"  Answer accuracy:       {summary['answer_accuracy']:.1%}  "
+          f"(answer text contains >=1 expected keyword)")
+    print(f"  Retrieval recall@k:    {summary['retrieval_recall']:.1%}  "
+          f"(>=1 retrieved passage contains expected keyword)")
+    print(f"  Mean Reciprocal Rank:  {summary['mrr']:.3f}")
+    print(f"  Avg latency / query:   {summary['avg_latency_sec']:.1f}s")
+    print()
+    print('  First-relevant-rank distribution:')
+    rd = summary['rank_distribution']
+    print(f"    rank 1     {rd['1']:>4d}   (best -- top result is relevant)")
+    print(f"    rank 2-3   {rd['2-3']:>4d}")
+    print(f"    rank 4-10  {rd['4-10']:>4d}")
+    print(f"    rank 11+   {rd['11+']:>4d}")
+    print(f"    none       {rd['none']:>4d}   (no retrieved passage contains any expected keyword)")
+
+    if breakdown_by_type:
+        print()
+        print('  By question type:')
+        for qt, sub in sorted(breakdown_by_type.items()):
+            if not sub:
+                continue
+            print(f"    {qt:8s}  n={sub['n']:>3d}  "
+                  f"answer={sub['answer_accuracy']:.0%}  "
+                  f"recall={sub['retrieval_recall']:.0%}  "
+                  f"mrr={sub['mrr']:.2f}")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument('--test-set', type=Path, default=Path('data/test_sets/qa_test_set_50.jsonl'))
-    parser.add_argument('--db', type=Path, default=Path('data/indexes/v2.1_kuzu_index_full'))
-    parser.add_argument('--top-k', type=int, default=20)
-    parser.add_argument('--no-m1', action='store_true', help='Disable M1 filtering')
-    parser.add_argument('--no-rerank', action='store_true', help='Disable neural reranking')
-    parser.add_argument('--single-span-types', type=str, nargs='+',
-                       choices=['KIU', 'KIO', 'KIE', 'KIAM', 'KIAL', 'KIEL'],
-                       help='Question types that should return single-span answers (Esperanto: kiu/kio/kie/kiam/kial/kiel)')
-    parser.add_argument('--limit', type=int, help='Limit to first N questions')
-    parser.add_argument('--verbose', action='store_true', help='Show detailed output')
-    parser.add_argument('--parallel', type=int, default=1, metavar='N',
-                       help='Process N questions in parallel (default: 1 = sequential)')
-    parser.add_argument('--use-semantic', action='store_true',
-                       help='Enable semantic query expansion using ontology (verb classes, entity types)')
-
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--test-set', default='data/test_sets/qa_test_set_50.jsonl',
+                        help='Path to JSONL test set (default: %(default)s)')
+    parser.add_argument('--whoosh-dir', default='data/indexes/whoosh_fts',
+                        help='Whoosh index directory')
+    parser.add_argument('--kuzu-path', default='data/indexes/v2.1_kuzu_index_full',
+                        help='Kuzu DB path')
+    parser.add_argument('--top-k', type=int, default=10,
+                        help='Passages to retrieve per question (default: 10)')
+    parser.add_argument('--limit', type=int, default=None,
+                        help='Evaluate only the first N questions')
+    parser.add_argument('--output', default=None,
+                        help='Optional JSON file to write per-question results')
     args = parser.parse_args()
 
-    if args.verbose:
-        logging.getLogger().setLevel(logging.INFO)
-
     # Load test set
-    print(f"Loading test set from {args.test_set}")
-    test_questions = []
-    with open(args.test_set) as f:
+    test_path = Path(args.test_set)
+    if not test_path.exists():
+        print(f"ERROR: test set not found at {test_path}", file=sys.stderr)
+        sys.exit(1)
+
+    entries = []
+    with open(test_path) as f:
         for line in f:
-            test_questions.append(json.loads(line))
-
+            line = line.strip()
+            if line:
+                entries.append(json.loads(line))
     if args.limit:
-        test_questions = test_questions[:args.limit]
+        entries = entries[:args.limit]
 
-    print(f"Evaluating {len(test_questions)} questions")
-    print()
+    print(f"Loaded {len(entries)} questions from {test_path}")
+    print(f"Building pipeline (Whoosh={args.whoosh_dir}, Kuzu={args.kuzu_path}, top_k={args.top_k})...")
 
-    # Initialize Whoosh retriever
-    print("Loading Whoosh FTS index...")
-    retriever = WhooshRetriever(
-        whoosh_index_dir=Path('data/indexes/whoosh_fts'),
-        kuzu_db_path=args.db
+    pipeline = build_default_pipeline(
+        whoosh_index_dir=args.whoosh_dir,
+        kuzu_db_path=args.kuzu_path,
+        top_k=args.top_k,
     )
-    print("✓ Whoosh loaded\n")
 
-    # Build multi_sentence_question_types dict from --single-span-types flag
-    multi_sentence_config = None
-    if args.single_span_types:
-        from klareco.rag.importance_scorer import QuestionType
+    print(f"\nEvaluating {len(entries)} questions...")
+    print('-' * 70)
 
-        # Map Esperanto question words to QuestionType enum
-        eo_to_enum = {
-            'KIU': QuestionType.WHO,
-            'KIO': QuestionType.WHAT,
-            'KIE': QuestionType.WHERE,
-            'KIAM': QuestionType.WHEN,
-            'KIAL': QuestionType.WHY,
-            'KIEL': QuestionType.HOW,
-        }
-
-        single_span_enums = {eo_to_enum[word] for word in args.single_span_types}
-
-        multi_sentence_config = {
-            QuestionType.WHO: QuestionType.WHO not in single_span_enums,
-            QuestionType.WHAT: QuestionType.WHAT not in single_span_enums,
-            QuestionType.WHERE: QuestionType.WHERE not in single_span_enums,
-            QuestionType.WHEN: QuestionType.WHEN not in single_span_enums,
-            QuestionType.WHY: QuestionType.WHY not in single_span_enums,
-            QuestionType.HOW: QuestionType.HOW not in single_span_enums,
-            QuestionType.OTHER: True,
-        }
-        print(f"Single-span types: {args.single_span_types} (Esperanto question words)")
-
-    # Initialize generator
-    print("Loading extractive QA system...")
-    generator = ExtractiveAnswerGenerator(
-        use_reranker=not args.no_rerank,
-        use_m1=not args.no_m1,
-        multi_sentence_question_types=multi_sentence_config
-    )
-    print()
-
-    # Evaluate each question (sequential or parallel)
     results = []
-    correct = 0
-    total = 0
-
-    def evaluate_one_question(test_q, i):
-        """Wrapper for evaluating a single question (for parallel processing)."""
-        question = test_q['question']
-        expected_keywords = test_q['expected_keywords']
-        question_type = test_q['question_type']
-
-        result = evaluate_question(
-            question,
-            expected_keywords,
-            generator,
-            retriever,
-            args.top_k,
-            use_semantic=args.use_semantic,
-            kuzu_db_path=args.db
-        )
-
-        return {
-            'index': i,
-            'question_id': test_q['id'],
-            'question': question,
-            'question_type': question_type,
-            'expected_keywords': expected_keywords,
-            **result
-        }
-
-    if args.parallel > 1:
-        # Parallel processing
-        print(f"Processing {len(test_questions)} questions with {args.parallel} workers in parallel\n")
-
-        with ThreadPoolExecutor(max_workers=args.parallel) as executor:
-            # Submit all questions
-            futures = {
-                executor.submit(evaluate_one_question, test_q, i): i
-                for i, test_q in enumerate(test_questions, 1)
-            }
-
-            # Process as they complete
-            for future in as_completed(futures):
-                i = futures[future]
-                result = future.result()
-
-                total += 1
-                if result['found_keywords']:
-                    correct += 1
-                    status = "✓"
-                else:
-                    status = "✗"
-
-                print(f"[{result['index']}/{len(test_questions)}] {result['question_type']}: {result['question']}")
-                print(f"  {status} Expected: {result['expected_keywords']}")
-                print(f"    Matched: {result['matched_keywords']}")
-
-                if args.verbose or not result['found_keywords']:
-                    print(f"    Answer: {result['answer_text']}")
-
-                print()
-                results.append(result)
-
-    else:
-        # Sequential processing (original behavior)
-        for i, test_q in enumerate(test_questions, 1):
-            question = test_q['question']
-            expected_keywords = test_q['expected_keywords']
-            question_type = test_q['question_type']
-
-            print(f"[{i}/{len(test_questions)}] {question_type}: {question}")
-
-            result = evaluate_question(
-                question,
-                expected_keywords,
-                generator,
-                retriever,
-                args.top_k,
-                use_semantic=args.use_semantic,
-                kuzu_db_path=args.db
-            )
-
-            total += 1
-            if result['found_keywords']:
-                correct += 1
-                status = "✓"
-            else:
-                status = "✗"
-
-            print(f"  {status} Expected: {expected_keywords}")
-            print(f"    Matched: {result['matched_keywords']}")
-
-            if args.verbose or not result['found_keywords']:
-                print(f"    Answer: {result['answer_text']}")
-
-            print()
-
+    for i, entry in enumerate(entries, 1):
+        try:
+            r = evaluate_question(pipeline, entry)
+            results.append(r)
+            mark = 'OK' if r['answer_correct'] else '--'
+            rk = r['first_relevant_rank']
+            rk_str = f"rk={rk:>2d}" if rk else 'rk= -'
+            print(f"  [{i:>2}/{len(entries)}] {mark} {rk_str}  "
+                  f"{entry['question'][:55]:55s}  ({r['latency_sec']:.1f}s)")
+        except Exception as e:
+            print(f"  [{i:>2}/{len(entries)}] ERROR: {e}")
             results.append({
-                'question_id': test_q['id'],
-                'question': question,
-                'question_type': question_type,
-                'expected_keywords': expected_keywords,
-                **result
+                'id':                  entry.get('id'),
+                'question':            entry['question'],
+                'error':               str(e),
+                'answer_correct':      False,
+                'retrieval_recall@k':  False,
+                'mrr':                 0.0,
+                'first_relevant_rank': None,
+                'latency_sec':         0,
+                'expected_keywords':   entry.get('expected_keywords', []),
+                'question_type':       entry.get('question_type'),
             })
 
-    # Summary
-    accuracy = (correct / total * 100) if total > 0 else 0
-    print("=" * 80)
-    print(f"RESULTS: {correct}/{total} correct ({accuracy:.1f}% accuracy)")
-    print("=" * 80)
+    summary = summarize(results)
 
-    # Breakdown by question type
     by_type = {}
     for r in results:
-        qtype = r['question_type']
-        if qtype not in by_type:
-            by_type[qtype] = {'correct': 0, 'total': 0}
-        by_type[qtype]['total'] += 1
-        if r['found_keywords']:
-            by_type[qtype]['correct'] += 1
+        qt = r.get('question_type') or 'OTHER'
+        by_type.setdefault(qt, []).append(r)
+    breakdown = {qt: summarize(rs) for qt, rs in by_type.items()}
 
-    print("\nBy Question Type:")
-    for qtype, stats in sorted(by_type.items()):
-        acc = (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0
-        print(f"  {qtype}: {stats['correct']}/{stats['total']} ({acc:.1f}%)")
+    print_summary(summary, breakdown)
+
+    if args.output:
+        out = {'summary': summary, 'by_type': breakdown, 'results': results}
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, 'w') as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
+        print(f"\nFull results written to {args.output}")
 
 
 if __name__ == '__main__':

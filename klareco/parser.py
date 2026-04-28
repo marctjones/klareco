@@ -1632,6 +1632,24 @@ def _build_relative_clause_node(correlative_ast: dict,
 
         # Find antecedent: last content word before n_start that is not
         # itself inside another nested span
+        def _inner_head(slot):
+            if not slot:
+                return None
+            if slot.get("tipo") == "vortgrupo":
+                return slot.get("kerno")
+            return slot
+
+        def _attach(role):
+            slot = inner[role]
+            if slot.get("tipo") != "vortgrupo":
+                inner[role] = {
+                    "tipo": "vortgrupo",
+                    "kerno": slot,
+                    "priskriboj": [nested_node],
+                }
+            else:
+                slot.setdefault("priskriboj", []).append(nested_node)
+
         attached = False
         for i in range(n_start - 1, -1, -1):
             if i in nested_set:
@@ -1639,11 +1657,11 @@ def _build_relative_clause_node(correlative_ast: dict,
             ast = clause_words[i]
             vs = ast.get("vortspeco", "")
             if vs in ("substantivo", "propra_nomo", "pronomo", "nekonata"):
-                if inner["subjekto"] and ast is inner["subjekto"]["kerno"]:
-                    inner["subjekto"].setdefault("priskriboj", []).append(nested_node)
+                if ast is _inner_head(inner["subjekto"]):
+                    _attach("subjekto")
                     attached = True
-                elif inner["objekto"] and ast is inner["objekto"]["kerno"]:
-                    inner["objekto"].setdefault("priskriboj", []).append(nested_node)
+                elif ast is _inner_head(inner["objekto"]):
+                    _attach("objekto")
                     attached = True
                 break
         if not attached:
@@ -1668,6 +1686,14 @@ def _attach_relative_clauses(sentence_ast: dict, word_asts: list,
     if not relative_spans:
         return sentence_ast
 
+    def _head(slot):
+        # subjekto/objekto can be either a vortgrupo (with 'kerno') or a bare vorto
+        if not slot:
+            return None
+        if slot.get("tipo") == "vortgrupo":
+            return slot.get("kerno")
+        return slot
+
     # All indices covered by any relative clause
     relative_indices: set = set()
     for start, end in relative_spans:
@@ -1687,16 +1713,23 @@ def _attach_relative_clauses(sentence_ast: dict, word_asts: list,
             ast = word_asts[i]
             vs = ast.get("vortspeco", "")
             if vs in ("substantivo", "propra_nomo", "pronomo", "nekonata"):
-                if (sentence_ast["subjekto"] and
-                        ast is sentence_ast["subjekto"]["kerno"]):
+                if ast is _head(sentence_ast.get("subjekto")):
                     antecedent_role = "subjekto"
-                elif (sentence_ast["objekto"] and
-                        ast is sentence_ast["objekto"]["kerno"]):
+                elif ast is _head(sentence_ast.get("objekto")):
                     antecedent_role = "objekto"
                 break
 
         if antecedent_role:
-            sentence_ast[antecedent_role].setdefault("priskriboj", []).append(rilata_node)
+            slot = sentence_ast[antecedent_role]
+            # If slot is a bare vorto, wrap it in a vortgrupo so we can attach priskriboj
+            if slot.get("tipo") != "vortgrupo":
+                sentence_ast[antecedent_role] = {
+                    "tipo": "vortgrupo",
+                    "kerno": slot,
+                    "priskriboj": [rilata_node],
+                }
+            else:
+                slot.setdefault("priskriboj", []).append(rilata_node)
         else:
             sentence_ast["aliaj"].append(rilata_node)
 

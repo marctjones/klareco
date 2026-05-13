@@ -1,51 +1,192 @@
-# Klareco: Esperanto-First AST Pipeline
+# Klareco: AST-Native Orchestration
 
-Klareco leans on Esperanto’s regular grammar to minimize what must be learned. The AST is the contract between components: parsing, retrieval, routing, and generation all operate on structured, role-annotated trees.
+Klareco answers Esperanto questions by passing immutable, role-annotated ASTs
+through a pipeline of small stages. The current effort is to **prove how far
+deterministic processing alone can take us** before re-introducing learned
+models. Once the deterministic floor is stable and measurable, we'll add
+learned components where the data demands them.
 
-## Why Esperanto shrinks the model
-- **Deterministic roles**: Endings encode case/tense/mood; subject/object/verb detection is programmatic, so attention layers do not need to infer roles.
-- **Small lexicon, compositional roots**: Morpheme-level embeddings are shared widely; embedding tables and feedforward projections can be smaller.
-- **Grammar-driven tokenization**: Tokens are prefix + root + suffix + ending. This removes tokenizer drift, improves semantic locality, and reduces sequence length.
-- **Structured signatures**: Slot-based canonical forms (SUBJ/VERB/OBJ + modifiers) allow lexical/structural filtering before any neural step, shrinking the search space and reducing the need for large rerankers.
-- **Tensor simplification**: With fewer unique tokens and shorter sequences, we can use smaller embedding dims, fewer transformer layers (or none for retrieval), and tiny decoders for summarization. Many tasks stay symbolic.
+This document describes the system as it actually is. For the long-term
+thesis (decomposable contributions, explainability via attribution), see
+`VISION.md`. For working conventions, see `CLAUDE.md`.
 
-## Target architecture
-- **Front door**: `front_door.py` performs language ID and optional MarianMT translation; always falls back to the original text to stay deterministic.
-- **Parser/deparser**: `parser.py` implements the 16 rules, producing morpheme-aware ASTs with roles/case/tense; `deparser.py` reconstructs text for echo/extractive answers.
-- **Canonicalizer/tokenizer**: New module to emit slot signatures and grammar-driven tokens (prefix/root/suffix/ending) for indexing and generation.
-- **Retrieval**: Two-stage search. Stage 1 filters by structural signatures (roots/roles/modifiers) backed by SQLite/JSONL metadata. Stage 2 optionally reranks a small candidate set with a lightweight encoder (Tree-LSTM or shallow transformer) and FAISS.
-- **Generation**: Default extractive/template answerer from AST contexts; optional small AST-aware seq2seq for abstraction.
-- **Routing/traces**: `gating_network.py` routes intents; `trace.py`/`logging_config.py` capture every step.
-- **Corpus tooling**: `corpus_manager.py`, `klareco/cli/corpus.py`, `scripts/build_corpus_with_sources.py`, `scripts/index_corpus.py` manage texts, cleaning, and indexing with resumable checkpoints.
+## Active architecture
 
-## LLM components we shrink or avoid
-- **Tokenizer/embedding tables**: grammar tokens (prefix/root/suffix/ending) reduce vocab size; embeddings can be small (e.g., 128d) without loss of coverage.
-- **Positional encoding + sequence length**: slot signatures shorten sequences; fewer positions → smaller positional tensors and lighter attention if used.
-- **Attention layers**: role/case are explicit; we can use shallow attention or none for retrieval, relying on structure instead of learned dependency detection.
-- **Output projection**: extractive/template responses avoid large vocab softmax; optional seq2seq can share the small morpheme vocab.
-- **Rerankers**: Stage-1 structural filtering shrinks candidate sets so rerankers can be tiny (one or two layers) or skipped entirely.
+```
+Question (Esperanto)
+  ↓
+ParseQuestionStage          (deterministic) — 16-rule parser, role-annotated AST
+  ↓
+RetrieveStage               WhooshRetriever.retrieve_with_ast_roles
+                            BM25 ∩ AST role-compatibility, top-k from Kuzu v2.1
+  ↓
+DeterministicRerankStage    AST-feature boost keyed by question type
+                            (propra_nomo for WHO/WHERE, numero for WHEN/HOW_MANY,
+                            no-op for WHAT/HOW/WHY)
+  ↓
+RerankStage                 stub today; will host a learned cross-encoder when
+                            the deterministic floor is stable enough to measure
+                            an improvement
+  ↓
+ExtractAndGenerateStage     ExtractiveAnswerGenerator over the top-20
+                            passages; fact extraction is keyed by the
+                            question's answer slot
+  ↓
+FormatOutputStage           assemble final_text with citation list
+```
 
-## TDD and resilience
-- All new modules land with unit + integration tests; coverage target >90% for tokenizer/indexer/retriever/pipeline paths.
-- Long-running scripts (cleaning, indexing, training) must be interruptible and resume from checkpoints; log progress to stdout and to rotating files for live inspection.
-- Dev environment uses Python 3.13, `python -m venv .venv`, `pip install -r requirements.txt` (no Conda).
+Stages exchange an immutable `QueryContext` and return a `ContextDelta` —
+copy-on-write via `dataclasses.replace`. Per-stage timing is captured in
+`metrics.py`; stages with non-trivial internal phases (Retrieve in
+particular) publish sub-phase timings via `PhaseTimer` so evaluation can
+see where the wall time actually goes inside one stage.
 
-## Implementation plan
-1) **Canonical signatures and tokenizer**
-   - Add slot-based canonicalization (SUBJ/VERB/OBJ + modifiers, tense, case) and deterministic morpheme tokens.
-   - Tests: token determinism, signature stability, deparse roundtrips.
-2) **Indexer + retriever rewrite**
-   - Store structural keys and ASTs; filter by signatures; small reranker optional. Ensure resume support and progress checkpoints.
-   - Tests: tiny corpus index build, structural filter correctness, semantic fallback.
-3) **Extractive responder**
-   - Fill templates from retrieved ASTs; deparse answers; optional small seq2seq hook.
-   - Tests: answer selection, formatting, routing via gating network.
-4) **Pipeline + scripts hardening**
-   - Replace placeholder orchestrator; ensure logging/tracing; add integration tests over the non-neural path.
-5) **Training/data**
-   - Dataset builders for AST→text summarization/QA; checkpoints saved periodically; resume on restart.
+Files:
+- `klareco/orchestrator/{pipeline,context,stage,factory,metrics,phase_timer}.py`
+- `klareco/orchestrator/stages/{parse_question,retrieve,deterministic_rerank,rerank,extract_generate,format_output}.py`
 
-## Status (high level)
-- Solid: parser/deparser, AST→graph converter, corpus manager/CLI, symbolic gating, tracing/logging.
-- Partial: retriever/indexer (pre-rewrite), orchestrator (placeholder), graph-based generator (untrained), docs for corpus/RAG (being updated).
-- Missing: canonicalizer/tokenizer, structural retriever, extractive responder, resumable scripts, updated tests.
+## The schema-first foundation
+
+Retrieval and extraction query a v2.1 Kuzu graph instead of pattern-matching
+on word forms. The graph carries a four-layer semantic ontology:
+
+- **Lexical** — verb classes (kreado, movo, pensado, ...), entity types
+  (persono, loko, tempo, organizaĵo, evento, profesio), thematic roles
+  (aganto, paciento, instrumento, ...)
+- **Frame** — FrameNet-style frames with participant slots
+- **Discourse** — RST relations (detalaĵo, kaŭzo, celo, kontrasto, ...)
+- **Schema** — biographical / definitional / event slot weights for
+  importance ranking
+
+This means: no hardcoded gazetteers, no manual verb-synonym lists, no
+question-type → importance-weight tables in code. The graph is the source
+of truth; the pipeline queries it.
+
+Helpers: `klareco/rag/kuzu_ast_reconstructor.py` reconstructs an AST from
+the graph in <5ms (vs. ~50ms to re-parse the sentence). The
+`klareco/knowledge/` package wraps the synonym / gazetteer / temporal /
+spatial queries used by retrieval and extraction.
+
+The graph itself is built offline by the `scripts/load_csv_to_kuzu_v2_1*`
+pipeline; runtime opens it via `klareco/utils/kuzu_open.py`, which
+honors `KLARECO_KUZU_BUFFER_MB` / `KLARECO_KUZU_MAX_THREADS` /
+`KLARECO_KUZU_DB_PATH` so parallel workers and out-of-tree runners (Modal)
+can share one knob.
+
+## How we measure progress
+
+The current measurement target is **retrieval-rank metrics on extractive
+QA**, not final-answer accuracy. We care about:
+
+- top-1 hit rate, top-5, top-20, MRR (does the right passage rank well?)
+- extraction accuracy conditional on retrieval (given the right passage,
+  do we pull out the right span?)
+- per-stage and per-phase wall time (where does the time actually go?)
+
+Eval entry points:
+- `scripts/evaluate_extractive_qa.py` — local, single-process
+- `scripts/modal_eval.py` — Modal cloud, parallel workers
+- `scripts/local_parallel_bench.sh` — local fanout with Kuzu memory caps
+
+All three go through `klareco/eval/qa_metrics.py` so the same evaluator
+runs everywhere.
+
+Test sets live in `data/test_sets/` (not in git). The hand-curated set is
+~30 questions, which is below the noise floor for the effect sizes we
+expect from individual changes (#726). `scripts/build_synthetic_who_test_set.py`
+generates a larger WHO set from Kuzu PROPRA_NOMO subject patterns to give
+us measurable headroom.
+
+## What is deferred
+
+These have working code on disk but are not in the active loop:
+
+| Component | Status | Where |
+|-----------|--------|-------|
+| Stage 1 root embeddings | trained, not consumed by orchestrator | `klareco/embeddings/` |
+| M1 selectional preference | superseded by direct AST-role checks for now | `klareco/models/` |
+| Neural cross-encoder reranker | RerankStage stub; no model loaded | `klareco/orchestrator/stages/rerank.py` |
+| Entity classifier (tier 3) | not in the active pipeline | `klareco/models/entity_classifier.py` |
+| Summarization stack | unused | `klareco/summarization/` |
+
+These will return — but only when the deterministic floor is stable and
+we can attribute a measurable improvement to a specific learned
+component. Adding learned layers before that point only makes the system
+harder to diagnose.
+
+When `klareco/embeddings/`, `klareco/models/`, and `klareco/summarization/`
+get pruned from working code, the v2.1 schema and the training data
+under `data/` (not in git) remain — those are the expensive artifacts
+worth keeping. Retraining can be replayed from there.
+
+## Decision principles
+
+1. **Deterministic before learned.** Every capability starts as a rule or
+   a graph query. Only after the rule is in place and measured do we
+   consider a learned replacement, and only if we can show the learned
+   version moves a number the rule version couldn't.
+2. **Reorder, don't expand.** Adding retrieval paths that produce extra
+   candidates almost always dilutes top-k. Prefer stages that *reorder*
+   the existing candidate set (DeterministicRerankStage is the model).
+3. **Schema, not hardcoded lists.** If a feature needs a list of place
+   names, verb synonyms, importance weights, or question-type tables —
+   query the Kuzu ontology, don't hardcode.
+4. **Immutable context.** Stages return `ContextDelta`, never mutate in
+   place. Side-channel state lives in the model registry passed at
+   pipeline-build time, not in the context.
+5. **Make the failure visible.** Phase timings, ranks, and per-stage
+   confidences are part of evaluation output, not just final accuracy.
+
+## Repository map (current)
+
+```
+klareco/
+  parser.py              16-rule deterministic parser → AST
+  deparser.py            AST → Esperanto text
+  proper_nouns.py        v3 cleaned + Wikipedia-category dictionary
+  canonicalizer.py       slot signatures for indexing
+  cli.py / cli/          CLI entry
+  __main__.py            `python -m klareco …`
+  orchestrator/          immutable QueryContext pipeline (active spine)
+  rag/                   WhooshRetriever, UnifiedASTExtractor,
+                         extractive_answering, query expanders,
+                         ast_semantic_ranker, kuzu_ast_reconstructor
+  knowledge/             synonyms, gazetteers, temporal/spatial,
+                         morphology, semantic_bridge — all backed by
+                         Kuzu queries, no hardcoded lists
+  eval/                  qa_metrics, used by local + Modal evaluators
+  utils/kuzu_open.py     single Kuzu opener honoring env-var memory caps
+
+scripts/
+  evaluate_extractive_qa.py / modal_eval.py / compare_eval_results.py
+  build_synthetic_who_test_set.py
+  pipeline.sh + the per-stage corpus/index scripts it wraps
+  *_propra_nomo* / *_propranoma_kategorio*  — proper-noun pipeline
+  modal_upload_indexes.sh / local_parallel_bench.sh
+
+data/   (not in git)
+  indexes/v2.1_kuzu_index_full/         — production Kuzu graph
+  indexes/whoosh_*                       — Whoosh BM25 index
+  test_sets/                             — eval question sets
+  proper_nouns_dynamic_v{1,2,3}.json     — proper-noun dictionary versions
+
+models/ (not in git)
+  reserved for when training resumes
+```
+
+## Roadmap (short horizon)
+
+Tracked in GitHub issues, not in this document. The current EPIC is
+[#713 — Improve QA accuracy through iterative AST-first improvements](https://github.com/marctjones/klareco/issues/713).
+Live priorities are visible via `gh issue list --label "epic:713"` or the
+GitHub project board.
+
+## See also
+
+- `VISION.md` — the long-term thesis (decomposable contributions, AST as
+  the universal contract)
+- `CLAUDE.md` — schema-first development conventions, the rules that
+  prevent hardcoded gazetteers/lists from creeping back in
+- `README.md` — setup and quickstart commands
+- `docs/VERSION_COMPATIBILITY.md` — the deferred v3.0 model-retraining
+  plan (kept for when training resumes; not driving current work)

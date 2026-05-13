@@ -1,142 +1,49 @@
 # Klareco - Pure Esperanto AI
 
-**A general-purpose conversational AI that maximizes deterministic processing and minimizes learned parameters.**
+**Answer Esperanto questions with maximally deterministic processing.**
 
-Klareco leverages Esperanto's regular grammar to replace most traditional LLM components with programmatic structure:
-- **100% deterministic**: Parser, deparser, morphology, grammar checker, symbolic reasoner
-- **Minimal learned**: Root embeddings (320K params) + Reasoning Core (20-100M params)
-- **The thesis**: By making grammar explicit through ASTs, a small reasoning core can match larger models while being fully explainable and grammatically perfect.
+Klareco uses Esperanto's regular grammar to replace much of what a traditional
+LLM has to learn:
 
-## Vision & Purpose
+- **Deterministic**: 16-rule parser → role-annotated AST, deparser, morphology,
+  proper-noun classification, schema-first ontology over a Kuzu graph
+- **Pipeline**: immutable AST flows through orchestrator stages; retrieval and
+  extraction match on AST structure, not surface text
+- **Learned models are deferred** until the deterministic floor is stable and
+  we can measure where a small learned component actually moves a number
 
-**Core Thesis**: Traditional LLMs waste capacity learning grammar. By factoring out linguistic structure programmatically, we can focus all learned parameters on *reasoning*.
+For the long-term thesis see `VISION.md`. For the active architecture see
+`DESIGN.md`. For development conventions see `CLAUDE.md`.
 
-**Architectural Approach**: Multi-model semantic system (M0/Stage1/M1/M2/M3)
-- Each model solves ONE semantic problem (selectional preference, taxonomy, discourse)
-- Models compose together on top of deterministic AST foundation
-- Explainable through decomposable contributions (what came from rules vs learned models)
+## Current state
 
-**Why Esperanto Enables This**:
-- Fully regular morphology → 100% programmatic parsing (no learned POS/NER needed)
-- Fixed endings for case/tense → deterministic role detection (no attention needed)
-- Compositional lexicon → root embeddings only (prefix/suffix as transformation vectors)
-- 16 explicit grammar rules → symbolic reasoning over AST structures
-
-**Key Architectural Lessons** (learned through development):
-- **Function words must be excluded**: Including grammatical words in embeddings causes collapse
-- **Compositional embeddings generalize**: Root + affix composition handles unseen words perfectly
-- **Small, specialized models work**: 10M param M1 model achieves 80%+ accuracy on its specific task
-- **Don't learn what you know**: Grammar is deterministic - focus learned parameters on semantics only
-
-## Current State (January 2026)
-
-**✅ Working RAG System**: Full retrieval pipeline with AST-aware search + neural reranking operational on 5.3M sentence corpus
-
-**Architecture**: Multi-model semantic system (M0/Stage1/M1/M2/M3)
-- 📋 **[GitHub Project Board](https://github.com/users/marctjones/projects/16)** - Track current work
-- 📚 **[Wiki: Current-Architecture](https://github.com/marctjones/klareco/wiki/Current-Architecture)** - Architecture details
-- 🎯 **[Epic #453](https://github.com/marctjones/klareco/issues/453)** - Overall progress tracking
-
-### ✅ RAG System: Question Answering (WORKING)
-- **Corpus**: 5.3M Esperanto sentences from Wikipedia + books
-- **Pipeline**: AST-aware retrieval → Neural reranking → Answer extraction
-- **Reranker**: 180K param model with frozen compositional embeddings
-- **Entity-aware**: Question type detection, entity recognition, relevance boosting
-- **Demo**: `./scripts/demo_full_rag.sh` - Try "Kiu fondis Esperanton?" and see it work!
-- **Files**: `klareco/rag/ast_aware_retriever.py`, `klareco/rag/kuzu_inverted_index.py`
-
-### ✅ M0: Deterministic Parser (ENHANCED - March 2026)
-- **Parser/Deparser**: 16 Esperanto grammar rules, 91.8% parse rate on 4.2M sentences
-- **AST generation**: Explicit roles (subjekto, verbo, objekto, aliaj)
-- **Subordinate clauses**: Nested frazo nodes for ke-clauses, temporal, conditional clauses (Issue #691)
-- **Morpheme decomposition**: 100% deterministic
-- **SVO extraction**: Advanced triple extraction with coordinated verbs + passive voice support
-- **Files**: `klareco/parser.py`, `klareco/deparser.py`, `scripts/extract_svo_triples.py`
-
-### ✅ Stage 1: Hybrid Root Embeddings (DEPLOYED - March 2026)
-- **Architecture**: Hybrid approach combining Production (128D, 6,719 roots) + AST-Only (64D, 2,369 roots)
-- **Performance**: 90/100 score (antonyms: 100/100, clustering: 80/100)
-- **Coverage**: 7,843 unique roots (AST for Fundamento, Production for rare roots)
-- **Strategy**: AST model for antonyms/structure, Production model for distributional semantics
-- **Zero training cost**: Intelligently combines existing models
-- **Function words**: Excluded (handled deterministically by M0)
-- **Files**: `klareco/embeddings/hybrid.py`, `klareco/embeddings/compositional.py`
-- **Demo**: `python scripts/demo_hybrid_embeddings.py` - See hybrid selection in action!
-
-### 🔄 M1: Selectional Preference (BEING REPLACED)
-- **Old Architecture**: Subject-verb-object compatibility scoring (~10M params) - Issue #687
-- **Status**: Being replaced by Semantic Fact Validator (500K params, 20x smaller) - See #699
-- **Old Accuracy**: 80.2% overall, 83% plausible detection
-- **New Approach**: Automated semantic type hierarchy from corpus patterns (zero human annotation)
-- **Files**: `scripts/train_m1_selectional.py` (old), `scripts/build_semantic_type_hierarchy.sh` (new)
-
-### 🔬 Semantic Type Hierarchy (NEW - March 2026) - Issue #699
-- **Goal**: Automated semantic type classification from corpus patterns (zero human annotation)
-- **Approach**: Distributional clustering of 4-5.5M SVO triples from 5.4M sentence corpus
-- **Method**: Verb co-occurrence patterns reveal semantic types (words with similar verbs = similar types)
-- **Output**: SEMANTIC_TYPES dictionary + VERB_CONSTRAINTS for Semantic Fact Validator
-- **Architecture**: Two-layer hybrid (0 params deterministic + 500K params statistical, 20x smaller than M1)
-- **Status**: ✅ Scripts ready, ready to run pipeline on full corpus (~5-9 hours)
-- **Expected**: 18 semantic type clusters (PERSONO, ANIMALO, OBJEKTO, LOKO, TEMPO, AGO, etc.)
-- **Files**: `scripts/extract_svo_triples.py`, `scripts/cluster_semantic_types.py`, `scripts/generate_verb_constraints.py`
-- **Pipeline**: `./scripts/build_semantic_type_hierarchy.sh` - One-command automation
-
-### ✅ Semantic Enrichment: Three-Tier Entity Taxonomy
-- **Architecture**: Deterministic + learned semantic annotation (~5M params)
-- **Three-tier hierarchy**: Aristotelian (6) → NER-compatible (18) → Fine-grained (286)
-- **Tier 1 (100% deterministic)**: From vortspeco alone (entity, attribute, quantity, relation, spacetime, action)
-- **Tier 2 (70% deterministic)**: From correlatives + affixes (person, organization, location, etc.)
-- **Tier 3 (30% deterministic)**: GNN-based classifier for fine-grained types (besto:mamulo, ŝtato:eŭropa)
-- **Function word exclusion**: Only content words get learned embeddings (prevents embedding collapse)
-- **Files**: `klareco/semantic_enrichment/`, `klareco/models/entity_classifier.py`
-
-### ❌ M2: Taxonomic + Discourse (TODO)
-- **M2.1 Taxonomic**: IS-A relationships (~10M params) - Issue #443
-- **M2.2 Discourse**: Passage coherence (~30-50M params) - Issue #444
-- **Status**: Not started
-
-### ❌ M3: Orchestration (TODO)
-- **Components**: Multi-model coordination, Kuzu graph database (5.2GB active)
-- **Status**: Research phase - Issue #449
-- **Files**: `klareco/rag/kuzu_inverted_index.py`
-
-### Development Stage
-
-**Milestone Achieved**: Working RAG system answering Esperanto questions with 500K learned parameters!
-
-After 2 years of exploration (documented in [Development History](https://github.com/marctjones/klareco/wiki/Klareco-Development-History)), we've validated the core thesis:
-- ✅ **Parser works**: 91.8% parse rate on 4.2M sentences proves deterministic grammar is viable
-- ✅ **Compositional embeddings work**: 320K params covers 18,928 roots with perfect generalization
-- ✅ **RAG system works**: 500K total params answering real questions on 5.3M sentence corpus
-- ✅ **AST-aware retrieval works**: Entity detection, question classification, relevance ranking operational
-- 🎯 **Now**: Improving answer extraction and multi-document reasoning
-- 🔮 **Next**: Expanding to conversational Q&A with context management
-
-### Current Priorities
-1. **WORKING**: RAG system operational - try `./scripts/demo_full_rag.sh`!
-2. **NEXT**: Improve answer extraction quality and multi-document reasoning
-3. **FUTURE**: Add conversational context and multi-turn Q&A
-4. **RESEARCH**: Expand semantic models (M1/M2) for enhanced understanding
-
-## Architecture
+**Working today**: end-to-end extractive QA over a 5.4M-sentence Esperanto
+corpus via the orchestrator pipeline.
 
 ```
-Text → M0 (Parser) → AST → Compositional Embeddings → Retrieval → Reranker → Answer
-       └─ 0 params            └─ 320K params            └─ deterministic  └─ 180K params
-       └─ deterministic       └─ learned                                  └─ learned
-
-RAG Pipeline (WORKING):
-  Query → AST Parse → Entity Detection → Kuzu Graph Search (5.3M docs)
-       → Entity Boost → Quality Filter → Neural Reranking → Top Results
+Question → ParseQuestion → Retrieve (Whoosh + Kuzu AST roles)
+        → DeterministicRerank (question-type AST boost)
+        → Rerank (stub) → ExtractAndGenerate → FormatOutput
 ```
 
-**Current learned parameters**:
-- Compositional embeddings: 320K params (root + affix embeddings)
-- Reranker: 180K params (relevance scoring)
-- Entity classifier: ~5M params (Tier 3 fine-grained semantic types)
-- **Total: ~5.5M params** serving real Q&A queries on 5.3M sentence corpus with semantic enrichment
+Active work is tracked under
+[EPIC #713 — Improve QA accuracy through iterative AST-first improvements](https://github.com/marctjones/klareco/issues/713).
+Measurement target is retrieval-rank metrics (top-1 / top-5 / top-20 / MRR)
+plus extraction accuracy conditional on retrieval — not final-answer accuracy
+alone.
 
-See the [Wiki](https://github.com/marctjones/klareco/wiki/Current-Architecture) for detailed architecture, `VISION.md` for the thesis, and `DESIGN.md` for technical details.
+| Component | Status |
+|-----------|--------|
+| 16-rule parser + deparser | ✅ 91.8% parse rate on 4.2M sentences |
+| Proper-noun dictionary v3 | ✅ cleaned + Wikipedia-category enriched (~628K entries) |
+| Kuzu v2.1 graph + 4-layer ontology | ✅ production index |
+| Orchestrator pipeline | ✅ active spine; immutable context, phase-level timing |
+| WhooshRetriever + AST-role matching | ✅ deterministic two-stage retrieval |
+| DeterministicRerankStage | ✅ question-type AST boost (WHO/WHERE/WHEN/HOW_MANY) |
+| ExtractiveAnswerGenerator | ✅ slot-keyed extraction; top-20 cap |
+| Eval (local + Modal cloud) | ✅ `klareco.eval` shared by both runners |
+| Neural reranker | 🔲 deferred — stage is a stub |
+| Learned root embeddings / M1 / M2 / M3 | 🔲 deferred until deterministic floor measured |
 
 ## Setup
 
@@ -144,108 +51,57 @@ See the [Wiki](https://github.com/marctjones/klareco/wiki/Current-Architecture) 
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
-# Optional for neural components:
-pip install torch-geometric faiss-cpu
 ```
+
+A pre-built Kuzu v2.1 graph and Whoosh index in `data/indexes/` is required
+for retrieval. These are not in git (each is multi-GB). Build locally with
+the pipeline scripts (see `scripts/pipeline.sh`) or sync from a known good
+snapshot.
 
 ## Usage
 
-### Parse Esperanto
 ```bash
+# Parse a sentence
 python -m klareco parse "Mi amas la hundon."
-python -m klareco translate "The dog sees the cat." --to eo
+
+# Answer a question end-to-end
+python -m klareco run "Kiu fondis Esperanton?"
+
+# Run extractive-QA evaluation on a test set
+python scripts/evaluate_extractive_qa.py \
+    --test-set data/test_sets/qa_test_diverse_30.jsonl
+
+# Compare two eval result files (regression check)
+python scripts/compare_eval_results.py before.json after.json
 ```
 
-### Demos
-
-**⭐ Try the RAG System:**
-```bash
-# Full pipeline: Retrieval → Reranking (recommended)
-./scripts/demo_full_rag.sh
-
-# Single question
-./scripts/demo_full_rag.sh "Kiu fondis Esperanton?"
-
-# With M1 filtering (optional, slower)
-./scripts/demo_full_rag.sh --use-m1
-```
-
-**Other demos:**
-```bash
-# Root embeddings demo
-python scripts/demo_root_embeddings.py
-
-# M1 selectional preference demo
-python scripts/demo_m1_selectional.py
-
-# Basic AST retrieval (no reranking)
-python scripts/demo_ast_retriever.py -i
-
-# Semantic enrichment demo
-python -c "from klareco.semantic_enrichment import ASTSemanticEnricher; \
-from klareco.parser import parse; \
-enricher = ASTSemanticEnricher(); \
-ast = parse('La hundo kurtas.'); \
-print(enricher.enrich(ast))"
-```
-
-### Train Models
-```bash
-# Train Stage 1 root embeddings (in separate terminal)
-./scripts/train_roots.sh
-
-# Train M1 selectional model
-./scripts/m1_train_selectional.sh
-
-# Validate M1 model
-./scripts/m1_validate_selectional.sh
-
-# Train entity classifier (Tier 3 semantic enrichment)
-./scripts/train_entity_classifier.sh
-
-# Generate training data for entity classifier
-./scripts/generate_entity_training_data.sh
-```
-
-See the [GitHub Project Board](https://github.com/users/marctjones/projects/16) for current work and the [Wiki](https://github.com/marctjones/klareco/wiki) for architecture details.
-
-## Documentation
-
-| Document | Purpose |
-|----------|---------|
-| **[GitHub Project #16](https://github.com/users/marctjones/projects/16)** | Current work tracking (visual kanban board) |
-| **[Epic #453](https://github.com/marctjones/klareco/issues/453)** | Multi-model architecture progress tracking |
-| **[Wiki: Current-Architecture](https://github.com/marctjones/klareco/wiki/Current-Architecture)** | Active architecture (M0/Stage1/M1/M2/M3) |
-| **[Wiki: Development-History](https://github.com/marctjones/klareco/wiki/Klareco-Development-History)** | Complete history: 5 phases, lessons learned, architectural evolution |
-| `VISION.md` | Core thesis: decomposable contributions, explainability |
-| `DESIGN.md` | Technical architecture details |
-| `CLAUDE.md` | Development guide for Claude Code |
-| `AGENTS.md` | IdlerGear agent instructions |
-| `16RULES.MD` | Esperanto grammar specification |
+Modal cloud evaluation (parallel workers) lives in `scripts/modal_eval.py`;
+push the index volume with `scripts/modal_upload_indexes.sh` first.
 
 ## Tests
 
 ```bash
-python -m pytest                           # All tests
-python -m pytest tests/test_parser.py -v   # Parser tests
-python -m pytest --cov=klareco             # With coverage
+python -m pytest
+python -m pytest tests/test_parser.py -v        # parser only
+python -m pytest tests/test_orchestrator.py -v  # pipeline contract
+python -m pytest --cov=klareco                  # with coverage
 ```
 
-## Project Status
+## Documentation
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| **RAG System** | ✅ **WORKING** | Q&A on 5.3M sentences, AST-aware + neural reranking |
-| **M0: Parser** | ✅ Complete | 91.8% parse rate on 4.2M sentences |
-| **Compositional Embeddings** | ✅ Complete | 320K params, frozen for reranking |
-| **Reranker** | ✅ Complete | 180K params, learned relevance scoring |
-| **Kuzu Graph Database** | ✅ Active | 5.2GB AST-first retrieval infrastructure |
-| **Entity Detection** | ✅ Working | Question classification, entity recognition, boosting |
-| **Answer Extraction** | 🚧 In progress | AST-based extraction with multi-document support |
-| **M1: Selectional Preference** | 🔲 Future | Optional enhancement for query expansion |
-| **Test Suite** | 🚧 In progress | Integration tests for RAG pipeline |
+| File | Purpose |
+|------|---------|
+| `VISION.md` | The long-term thesis: decomposable contributions, attribution |
+| `DESIGN.md` | The active architecture — orchestrator stages, schema-first foundation |
+| `CLAUDE.md` | Development conventions; schema-first rules that prevent hardcoded lists |
+| `AGENTS.md` | Repository guidelines, IdlerGear usage |
+| `16RULES.MD` | Esperanto grammar specification (reference) |
+| `docs/VERSION_COMPATIBILITY.md` | Deferred v3.0 model-retraining plan (for when training resumes) |
+
+GitHub issues are the source of truth for in-flight work — see EPIC #713 and
+the project board.
 
 ## License
 
-Data and logs stay local and untracked. Add your own texts under `data/raw/` and build indexes locally.
+Source code only. Corpora, indexes, and trained checkpoints live under `data/`
+and `models/` and are not tracked.

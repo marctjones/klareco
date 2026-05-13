@@ -1,5 +1,13 @@
 # Klareco Version Compatibility Matrix
 
+> **Status (2026-05): This document describes the deferred v3.0 model-retraining
+> plan.** Current work is the AST-native orchestrator + deterministic-first
+> evaluation effort — see `DESIGN.md` for the active architecture. The v2.1
+> database schema described below is in production; the v3.0 model and CLI
+> retraining are paused until the deterministic floor is stable and we can
+> attribute measurable improvements to specific learned components. This
+> document is kept so the retraining plan is ready to resume.
+
 This document tracks compatibility across major versions of Klareco's components.
 
 ## Current Versions

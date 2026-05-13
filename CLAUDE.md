@@ -626,21 +626,26 @@ Monitor with: `tail -f logs/training/root_training_*.log`
 
 ## Current Development Status
 
+**Active spine**: AST-native orchestrator pipeline (`klareco/orchestrator/`)
+with deterministic-first evaluation. See `DESIGN.md` for the full picture.
+
 **Production-Ready**:
-- Parser (16 rules, 91.8% parse rate on corpus)
-- Two-stage retrieval (structural + neural)
-- Compositional embeddings (implemented, 320K params)
-- RAG demo with extractive answering
+- 16-rule parser + deparser (91.8% parse rate on 4.2M sentences)
+- v2.1 Kuzu graph with 4-layer semantic ontology
+- WhooshRetriever with AST-role matching
+- DeterministicRerankStage (question-type AST boost)
+- UnifiedASTExtractor + ExtractiveAnswerGenerator
+- `klareco.eval` shared by local + Modal cloud evaluators
+- Proper-noun dictionary v3 (cleaned + Wikipedia-category enriched)
 
-**In Progress** (see `IMPLEMENTATION_ROADMAP_V2.md`):
-- Semantic similarity training (data ready, model training)
-- Integration into retrieval pipeline
+**In Progress**: Iterative QA-accuracy improvements driven by retrieval-rank
+metrics — see [EPIC #713](https://github.com/marctjones/klareco/issues/713).
 
-**Next Steps**:
-1. Complete semantic similarity model training (running)
-2. Integrate semantic model into retriever
-3. AST Trail system for explainability
-4. AST-based reasoning patterns
+**Deferred** (working code on disk but not in the active loop): Stage 1
+root embeddings, M1 selectional preference, neural cross-encoder reranker,
+entity classifier, summarization stack. These return once the deterministic
+floor is stable enough to attribute a measurable improvement to a specific
+learned component.
 
 ## Testing Philosophy
 
@@ -906,11 +911,12 @@ Migrate when discussion crystallizes into:
 
 ## See Also
 
-- `VISION.md` - Long-term architecture goals
-- `DESIGN.md` - Technical design decisions
-- `IMPLEMENTATION_ROADMAP_V2.md` - Detailed development plan
-- `README.md` - Usage examples and current status
-- `16RULES.MD` - Specification of Esperanto grammar rules
+- `VISION.md` - Long-term thesis: decomposable contributions, attribution
+- `DESIGN.md` - Active architecture: orchestrator stages, schema-first foundation, deferred work
+- `README.md` - Setup and quickstart commands
+- `AGENTS.md` - Repository guidelines and IdlerGear usage
+- `16RULES.MD` - Esperanto grammar specification (reference)
+- `docs/VERSION_COMPATIBILITY.md` - Deferred v3.0 model-retraining plan
 
 ## IdlerGear Usage
 

@@ -144,7 +144,7 @@ klareco/
   parser.py              16-rule deterministic parser → AST
   deparser.py            AST → Esperanto text
   proper_nouns.py        v3 cleaned + Wikipedia-category dictionary
-  cli.py / cli/          CLI entry
+  cli.py                 CLI entry
   __main__.py            `python -m klareco …`
   orchestrator/          immutable QueryContext pipeline (active spine)
   rag/                   WhooshRetriever, UnifiedASTExtractor,

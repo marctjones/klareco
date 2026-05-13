@@ -7,7 +7,7 @@ Active code lives in `klareco/`:
 - `parser.py` / `deparser.py` — 16-rule deterministic parser and the
   Esperanto-text reconstructor
 - `proper_nouns.py` — v3 cleaned + Wikipedia-category proper-noun dictionary
-- `cli.py`, `cli/`, `__main__.py` — CLI entry points (`python -m klareco …`)
+- `cli.py`, `__main__.py` — CLI entry points (`python -m klareco …`)
 - `orchestrator/` — immutable `QueryContext` pipeline. Stages live in
   `orchestrator/stages/` (parse_question, retrieve, deterministic_rerank,
   rerank, extract_generate, format_output)

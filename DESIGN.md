@@ -144,7 +144,6 @@ klareco/
   parser.py              16-rule deterministic parser → AST
   deparser.py            AST → Esperanto text
   proper_nouns.py        v3 cleaned + Wikipedia-category dictionary
-  canonicalizer.py       slot signatures for indexing
   cli.py / cli/          CLI entry
   __main__.py            `python -m klareco …`
   orchestrator/          immutable QueryContext pipeline (active spine)

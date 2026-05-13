@@ -10,7 +10,7 @@ the extractive QA system:
 - person_indicators: Patterns for person detection
 - temporal_vocab: Time-related vocabulary and patterns
 - spatial_vocab: Location-related vocabulary and prepositions
-- morphology: Reflexive ↔ transitive verb normalization
+- reflexive: Reflexive ↔ transitive verb normalization
 
 Version: v2.1
 Created: 2026-03-25
@@ -20,7 +20,7 @@ from .synonyms import verb_synonyms, noun_synonyms, are_synonyms, get_synonyms
 from .gazetteers import place_names, person_indicators, is_likely_person, is_likely_place
 from .temporal import temporal_vocab, time_prepositions, time_adverbs, month_names, looks_like_time, extract_year
 from .spatial import spatial_vocab, location_prepositions, looks_like_location, extract_location_context
-from .morphology import (
+from .reflexive import (
     REFLEXIVE_TRANSITIVE_PAIRS,
     normalize_reflexive_root,
     expand_with_morphology,

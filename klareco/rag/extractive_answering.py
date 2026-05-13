@@ -39,6 +39,92 @@ from klareco.rag.discourse_planner import DiscoursePlanner, DiscoursePlan
 logger = logging.getLogger(__name__)
 
 
+# Required vortspeco set for the answer-bearing token in a fact's source
+# AST, by question type. A non-empty intersection between the candidate
+# tokens' vortspeco values and this set means the AST shape is at least
+# consistent with the question. Empty / missing entries mean no check.
+# (HOW_MANY isn't a QuestionType enum member — kiom maps to OTHER here;
+# the deterministic-rerank stage handles HOW_MANY upstream.)
+_ANSWER_VORTSPECO = {
+    QuestionType.WHO:      {'propra_nomo', 'substantivo'},
+    QuestionType.WHERE:    {'propra_nomo', 'substantivo'},
+    QuestionType.WHEN:     {'numero', 'substantivo'},   # year or month-name
+}
+
+_LOCATION_PREPOSITIONS = frozenset({'en', 'al', 'ĉe', 'sur', 'ĝis', 'sub', 'super', 'inter'})
+
+
+def _kerno_of(node):
+    if not isinstance(node, dict):
+        return None
+    if node.get('tipo') == 'vortgrupo':
+        return node.get('kerno')
+    return node
+
+
+def _aliaj_vortoj(ast):
+    """Yield each Vorto in `aliaj` of a frazo, including kerno of any Vortgrupo."""
+    if not isinstance(ast, dict):
+        return
+    for item in ast.get('aliaj') or ():
+        if not isinstance(item, dict):
+            continue
+        if item.get('tipo') == 'vorto':
+            yield item
+        elif item.get('tipo') == 'vortgrupo':
+            kerno = item.get('kerno')
+            if isinstance(kerno, dict):
+                yield kerno
+            for d in item.get('priskriboj') or ():
+                if isinstance(d, dict) and d.get('tipo') == 'vorto':
+                    yield d
+
+
+def _fact_has_answer_vortspeco(fact, question_type) -> bool:
+    """Validate that the fact's source AST has an answer-shaped token.
+
+    For WHO: subject's kerno must be propra_nomo/substantivo, OR a
+    de-phrase agent of the right vortspeco exists.
+    For WHERE: a location preposition in aliaj must be near a
+    propra_nomo/substantivo.
+    For WHEN: any aliaj token must be numero or substantivo.
+    For HOW_MANY: any aliaj token must be numero.
+    Other question types: pass through (no check).
+
+    Permissive failure: if source_ast is missing, the fact passes.
+    """
+    required = _ANSWER_VORTSPECO.get(question_type)
+    if not required:
+        return True
+    ast = getattr(fact, 'source_ast', None)
+    if not isinstance(ast, dict):
+        return True
+
+    if question_type == QuestionType.WHO:
+        subj = _kerno_of(ast.get('subjekto'))
+        if isinstance(subj, dict) and subj.get('vortspeco') in required:
+            return True
+        aliaj = list(_aliaj_vortoj(ast))
+        has_de = any(v.get('radiko') == 'de' for v in aliaj)
+        if has_de and any(v.get('vortspeco') in required for v in aliaj):
+            return True
+        return False
+
+    if question_type == QuestionType.WHERE:
+        aliaj = list(_aliaj_vortoj(ast))
+        for i, v in enumerate(aliaj):
+            if v.get('radiko') in _LOCATION_PREPOSITIONS:
+                for j in range(i + 1, min(i + 4, len(aliaj))):
+                    if aliaj[j].get('vortspeco') in required:
+                        return True
+        return False
+
+    if question_type == QuestionType.WHEN:
+        return any(v.get('vortspeco') in required for v in _aliaj_vortoj(ast))
+
+    return True
+
+
 @dataclass
 class Citation:
     """Citation to source document (Issue #674)."""
@@ -249,6 +335,14 @@ class ExtractiveAnswerGenerator:
                             keep = False
 
             # For WHAT, HOW, WHY, OTHER: Don't filter (too broad)
+
+            # Vortspeco gate: even when role names line up, validate that
+            # the source AST actually contains a Vorto of the right
+            # vortspeco in the answer slot. Catches misextractions where
+            # an aganto/loko/tempo is named but the source token's POS
+            # contradicts the question type.
+            if keep and not _fact_has_answer_vortspeco(fact, question_type):
+                keep = False
 
             if keep:
                 filtered.append((fact, metadata))

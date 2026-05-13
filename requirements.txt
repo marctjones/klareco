@@ -18,6 +18,9 @@ faiss-cpu  # Use faiss-gpu if you have CUDA
 # Graph database for structured retrieval
 kuzu
 
+# Full-text search index (BM25) used by RAG retriever
+Whoosh
+
 # Progress bars
 tqdm
 

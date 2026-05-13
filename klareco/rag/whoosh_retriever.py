@@ -16,6 +16,7 @@ from whoosh.qparser import OrGroup, QueryParser
 
 from klareco.parser import parse
 from klareco.rag.kuzu_ast_reconstructor import KuzuASTReconstructor
+from klareco.utils.kuzu_open import open_kuzu
 
 logger = logging.getLogger(__name__)
 
@@ -140,14 +141,19 @@ class WhooshRetriever:
         logger.info(f"Loading Whoosh index from {whoosh_index_dir}")
         self.ix = open_dir(str(whoosh_index_dir))
 
-        # Connect to Kuzu for AST retrieval
         logger.info(f"Connecting to Kuzu database at {kuzu_db_path}")
-        self.kuzu_db = kuzu.Database(str(kuzu_db_path))
+        self.kuzu_db = open_kuzu(kuzu_db_path)
         self.kuzu_conn = kuzu.Connection(self.kuzu_db)
 
         # Initialize AST reconstructor for fast precomputed AST fetching
         logger.info("Initializing KuzuASTReconstructor for 10x faster AST retrieval")
         self.ast_reconstructor = KuzuASTReconstructor(self.kuzu_conn)
+
+        # Per-call sub-phase timings (kuzu_query, ast_parse, semantic_rank, ...)
+        # Reset at the top of each retrieve_with_ast_roles call. Read by
+        # RetrieveStage and surfaced through StageMetrics.stage_specific.
+        from klareco.orchestrator.phase_timer import PhaseTimer
+        self._phase_timer = PhaseTimer()
 
     def retrieve_with_ast_roles(
         self,
@@ -175,28 +181,47 @@ class WhooshRetriever:
         Returns:
             List of sentence dicts with 'text', 'ast', 'id', 'score'
         """
-        # Detect question type from query AST
-        question_type = self._detect_question_type(query_ast)
+        # Reset per-call phase timer; RetrieveStage reads the snapshot after
+        # this method returns and surfaces it via StageMetrics.stage_specific.
+        self._phase_timer.reset()
+
+        with self._phase_timer.phase('question_type_detection'):
+            question_type = self._detect_question_type(query_ast)
         logger.info(f"Detected question type: {question_type}")
 
         # Dispatch to appropriate retrieval pattern
         if question_type == 'KIU':  # WHO
-            return self._retrieve_who_pattern(query_ast, top_k)
+            base = self._retrieve_who_pattern(query_ast, top_k)
         elif question_type == 'KIE':  # WHERE
-            return self._retrieve_where_pattern(query_ast, top_k)
+            base = self._retrieve_where_pattern(query_ast, top_k)
         elif question_type == 'KIAM':  # WHEN
-            return self._retrieve_when_pattern(query_ast, top_k)
+            base = self._retrieve_when_pattern(query_ast, top_k)
         elif question_type == 'KIO':  # WHAT
-            return self._retrieve_what_pattern(query_ast, top_k)
+            base = self._retrieve_what_pattern(query_ast, top_k)
         elif question_type == 'KIAL':  # WHY
-            return self._retrieve_why_pattern(query_ast, top_k)
+            base = self._retrieve_why_pattern(query_ast, top_k)
         elif question_type == 'KIEL':  # HOW
-            return self._retrieve_how_pattern(query_ast, top_k)
+            base = self._retrieve_how_pattern(query_ast, top_k)
         elif question_type == 'KIOM':  # HOW_MANY
-            return self._retrieve_how_many_pattern(query_ast, top_k)
+            base = self._retrieve_how_many_pattern(query_ast, top_k)
         else:
             logger.warning(f"Unknown question type: {question_type}, using generic pattern")
-            return self._retrieve_generic_pattern(query_ast, top_k)
+            base = self._retrieve_generic_pattern(query_ast, top_k)
+
+        # Cross-type augmentation: when the question contains 2+ proper-noun
+        # tokens that the parser scattered into `aliaj` (multi-token foreign
+        # entities like 'Evening Class', 'Super Bowl XX'), add a conjunctive
+        # propra retrieval path. Cheap when there are <2 propras (returns []).
+        propras = self._query_propra_words(query_ast)
+        if len(propras) >= 2:
+            logger.info(f"Adding propra-conjunction path for: {propras}")
+            conj = self._retrieve_propra_conjunction(
+                propras, top_k, query_ast, question_type,
+            )
+            merged = self._merge_dedup(base, conj, len(base) + len(conj))
+            merged.sort(key=lambda x: x.get('score', 0), reverse=True)
+            return merged[:top_k]
+        return base
 
     def _detect_question_type(self, query_ast: Dict) -> str:
         """Detect question type from query AST correlative."""
@@ -212,6 +237,224 @@ class WhooshRetriever:
                 return radiko
 
         return 'UNKNOWN'
+
+    # === Experimental retrieval helpers (Exps 1, 2, 3, 5) ===
+
+    def _merge_dedup(self, base: List[Dict], extra: List[Dict], cap: int) -> List[Dict]:
+        """Merge two result lists, deduplicating by id, preserving order."""
+        seen = {doc.get('id') for doc in base}
+        out = list(base)
+        for doc in extra:
+            doc_id = doc.get('id')
+            if doc_id not in seen:
+                out.append(doc)
+                seen.add(doc_id)
+        return out[:cap]
+
+    def _retrieve_who_propra_path(self, verb_constraint: List[str],
+                                   obj_root: str, top_k: int,
+                                   query_ast: Dict) -> List[Dict]:
+        """Active voice WHO with proper-noun subject (Exp 1).
+
+        Subject = propra_nomo + verb-synonym + entity-in-aliaj. Catches
+        sentences where the answer is a proper name whose root doesn't
+        decompose like an Esperanto root.
+        """
+        verb_list_str = ','.join(f"'{v}'" for v in verb_constraint)
+        q_kerno = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko IN [{verb_list_str}]
+            MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTGRUPO]->(svg:Vortgrupo)-[:HAVAS_KERNON]->(subj:Vorto)
+            WHERE subj.vortspeco = 'propra_nomo'
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+            WHERE alia.radiko = '{obj_root}'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+        q_simple = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko IN [{verb_list_str}]
+            MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTO]->(subj:Vorto)
+            WHERE subj.vortspeco = 'propra_nomo'
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+            WHERE alia.radiko = '{obj_root}'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+        kerno = self._execute_kuzu_query(
+            q_kerno, top_k, verb_constraint + [obj_root],
+            query_ast=query_ast, question_type='KIU', query_entity=obj_root,
+        )
+        simple = self._execute_kuzu_query(
+            q_simple, top_k, verb_constraint + [obj_root],
+            query_ast=query_ast, question_type='KIU', query_entity=obj_root,
+        )
+        return self._merge_dedup(kerno, simple, top_k * 2)
+
+    def _retrieve_who_propra_passive_path(self, verb_constraint: List[str],
+                                           obj_root: str, top_k: int,
+                                           query_ast: Dict) -> List[Dict]:
+        """Passive voice WHO with proper-noun agent (Exp 5).
+
+        Pattern: "[obj_root] estis VERBized de [propra_nomo]" — patient
+        as subject + 'est' verb + 'de' preposition + propra_nomo agent in
+        aliaj. Catches passive constructions where the answer is the
+        agent introduced by 'de'.
+        """
+        q_vg = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTGRUPO]->(svg:Vortgrupo)-[:HAVAS_KERNON]->(subj:Vorto)
+            WHERE subj.radiko = '{obj_root}'
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko = 'est'
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(de:Vorto)
+            WHERE de.radiko = 'de'
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(agent:Vorto)
+            WHERE agent.vortspeco = 'propra_nomo'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+        q_simple = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTO]->(subj:Vorto)
+            WHERE subj.radiko = '{obj_root}'
+            MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
+            WHERE verb.radiko = 'est'
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(de:Vorto)
+            WHERE de.radiko = 'de'
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(agent:Vorto)
+            WHERE agent.vortspeco = 'propra_nomo'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+        vg = self._execute_kuzu_query(
+            q_vg, top_k, [obj_root, 'de'],
+            query_ast=query_ast, question_type='KIU', query_entity=obj_root,
+        )
+        simple = self._execute_kuzu_query(
+            q_simple, top_k, [obj_root, 'de'],
+            query_ast=query_ast, question_type='KIU', query_entity=obj_root,
+        )
+        return self._merge_dedup(vg, simple, top_k * 2)
+
+    def _retrieve_propra_with_entity(self, entity_root: str, top_k: int,
+                                      query_ast: Dict, question_type: str) -> List[Dict]:
+        """Sentences mentioning entity_root + containing a propra_nomo.
+
+        Used for identity WHO ("Kiu estas X?") and WHERE patterns where
+        the answer is typically a proper noun co-occurring with the
+        queried entity.
+        """
+        kuzu_query = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+            WHERE alia.radiko = '{entity_root}'
+            MATCH (frazo)-[:HAVAS_ALIAJN]->(propra:Vorto)
+            WHERE propra.vortspeco = 'propra_nomo'
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+        return self._execute_kuzu_query(
+            kuzu_query, top_k, [entity_root],
+            query_ast=query_ast, question_type=question_type, query_entity=entity_root,
+        )
+
+    def _query_propra_words(self, query_ast: Dict) -> List[str]:
+        """Collect plena_vorto strings of all propra_nomo tokens in the query.
+
+        Filters out tokens shorter than 3 characters (articles/preps that
+        the parser tagged as propra_nomo only because they appeared
+        capitalized inside a foreign title, e.g., 'To', 'Of', 'The'),
+        deduplicates while preserving order, and caps at 4 to bound the
+        cost of the resulting multi-MATCH query.
+        """
+        seen: set = set()
+        out: List[str] = []
+
+        def walk(node):
+            if isinstance(node, dict):
+                if node.get('vortspeco') == 'propra_nomo':
+                    pv = node.get('plena_vorto') or ''
+                    if len(pv) >= 3 and pv not in seen:
+                        seen.add(pv)
+                        out.append(pv)
+                for v in node.values():
+                    walk(v)
+            elif isinstance(node, list):
+                for x in node:
+                    walk(x)
+
+        walk(query_ast)
+        return out[:4]
+
+    def _retrieve_propra_conjunction(self, propra_words: List[str],
+                                      top_k: int, query_ast: Dict,
+                                      question_type: str) -> List[Dict]:
+        """Sentences whose `aliaj` mentions ALL given propra_nomo tokens.
+
+        Targets the pattern where a question contains a multi-token
+        foreign entity (e.g., 'Super Bowl XX', 'License To Kill')
+        whose tokens the parser scattered into `aliaj` instead of
+        identifying as a single object. The conjunctive query is highly
+        selective when 2+ propras match.
+        """
+        if len(propra_words) < 2:
+            return []
+        # Escape single quotes for safe Cypher string literals.
+        safe = [w.replace("'", "\\'") for w in propra_words]
+        match_clauses = '\n            '.join(
+            f"MATCH (frazo)-[:HAVAS_ALIAJN]->(p{i}:Vorto) "
+            f"WHERE p{i}.plena_vorto = '{w}'"
+            for i, w in enumerate(safe)
+        )
+        kuzu_query = f"""
+            MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+            {match_clauses}
+            RETURN ft.id AS id, ft.teksto AS text
+            LIMIT {top_k * 3}
+        """
+        return self._execute_kuzu_query(
+            kuzu_query, top_k, propra_words,
+            query_ast=query_ast, question_type=question_type,
+            query_entity=propra_words[0],
+        )
+
+    def _retrieve_numero_with_entity(self, entity_root: Optional[str],
+                                      top_k: int, query_ast: Dict,
+                                      question_type: str) -> List[Dict]:
+        """Sentences containing a numero co-occurring with entity_root.
+
+        WHEN answers are typically year-numerals; HOW_MANY answers are
+        count-numerals. The default radiko-only match misses the
+        year/count axis; this filters by vortspeco='numero'.
+        """
+        if entity_root:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(alia:Vorto)
+                WHERE alia.radiko = '{entity_root}'
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(num:Vorto)
+                WHERE num.vortspeco = 'numero'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 3}
+            """
+            roots = [entity_root]
+        else:
+            kuzu_query = f"""
+                MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
+                MATCH (frazo)-[:HAVAS_ALIAJN]->(num:Vorto)
+                WHERE num.vortspeco = 'numero'
+                RETURN ft.id AS id, ft.teksto AS text
+                LIMIT {top_k * 3}
+            """
+            roots = []
+        return self._execute_kuzu_query(
+            kuzu_query, top_k, roots,
+            query_ast=query_ast, question_type=question_type,
+            query_entity=entity_root,
+        )
 
     def _retrieve_who_passive_pattern(self, verb_root: str, verb_synonyms: List[str],
                                        obj_root: str, top_k: int, query_ast: Dict) -> List[Dict]:
@@ -330,11 +573,16 @@ class WhooshRetriever:
                 LIMIT {top_k * 5}
             """
 
-            # Phase 3 FIX: Pass question_type and query_entity for importance scoring
-            return self._execute_kuzu_query(
+            base_results = self._execute_kuzu_query(
                 kuzu_query, top_k, [obj_root],
                 query_ast=query_ast, question_type='KIU', query_entity=obj_root
             )
+            # Exp 1: prefer entity-mentioning sentences that also contain a propra_nomo.
+            propra_results = self._retrieve_propra_with_entity(
+                entity_root=obj_root, top_k=top_k, query_ast=query_ast,
+                question_type='KIU',
+            )
+            return self._merge_dedup(base_results, propra_results, top_k)
 
         # Action question pattern: "Kiu VERB-is OBJECT-n?"
         # Use verb synonym expansion for recall
@@ -403,6 +651,22 @@ class WhooshRetriever:
                 seen_ids.add(doc.get('id'))
 
         logger.info(f"WHO pattern with variants: {len(merged_results)} total results")
+
+        # Exp 1: active-voice WHO with propra_nomo subject.
+        propra_results = self._retrieve_who_propra_path(
+            verb_constraint=verb_constraint, obj_root=obj_root,
+            top_k=top_k, query_ast=query_ast,
+        )
+        merged_results = self._merge_dedup(merged_results, propra_results,
+                                            len(merged_results) + len(propra_results))
+
+        # Exp 5: passive-voice WHO with propra_nomo agent ("X estis VERBized de Y").
+        passive_propra = self._retrieve_who_propra_passive_path(
+            verb_constraint=verb_constraint, obj_root=obj_root,
+            top_k=top_k, query_ast=query_ast,
+        )
+        merged_results = self._merge_dedup(merged_results, passive_propra,
+                                            len(merged_results) + len(passive_propra))
 
         # Re-sort by score and return top_k
         merged_results.sort(key=lambda x: x.get('score', 0), reverse=True)
@@ -484,6 +748,15 @@ class WhooshRetriever:
 
             logger.info(f"WHERE pattern with variants: {len(merged_results)} total results")
 
+            # Exp 1: place-name answers are typically proper nouns co-occurring
+            # with the queried entity in aliaj.
+            propra_results = self._retrieve_propra_with_entity(
+                entity_root=entity_root, top_k=top_k, query_ast=query_ast,
+                question_type='KIE',
+            )
+            merged_results = self._merge_dedup(merged_results, propra_results,
+                                                len(merged_results) + len(propra_results))
+
             # Re-sort by score and return top_k
             merged_results.sort(key=lambda x: x.get('score', 0), reverse=True)
             return merged_results[:top_k]
@@ -564,6 +837,14 @@ class WhooshRetriever:
 
             logger.info(f"WHEN pattern with variants: {len(merged_results)} total results")
 
+            # Exp 2: WHEN answers are typically year-numerals in aliaj.
+            num_results = self._retrieve_numero_with_entity(
+                entity_root=entity_root, top_k=top_k, query_ast=query_ast,
+                question_type='KIAM',
+            )
+            merged_results = self._merge_dedup(merged_results, num_results,
+                                                len(merged_results) + len(num_results))
+
             # Re-sort by score and return top_k
             merged_results.sort(key=lambda x: x.get('score', 0), reverse=True)
             return merged_results[:top_k]
@@ -597,7 +878,7 @@ class WhooshRetriever:
         kuzu_query_direct = f"""
             MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
             MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTGRUPO]->(subj_vg:Vortgrupo)-[:HAVAS_KERNON]->(subj:Vorto)
-            WHERE subj.plena_vorto STARTS WITH '{entity_root}'
+            WHERE subj.radiko = '{entity_root}' OR subj.plena_vorto STARTS WITH '{entity_root}'
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko = 'est'
             RETURN ft.id AS id, ft.teksto AS text
@@ -608,7 +889,7 @@ class WhooshRetriever:
         kuzu_query_direct_simple = f"""
             MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
             MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTO]->(subj:Vorto)
-            WHERE subj.plena_vorto STARTS WITH '{entity_root}'
+            WHERE subj.radiko = '{entity_root}' OR subj.plena_vorto STARTS WITH '{entity_root}'
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko = 'est'
             RETURN ft.id AS id, ft.teksto AS text
@@ -622,7 +903,7 @@ class WhooshRetriever:
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko = 'est'
             MATCH (frazo)-[:HAVAS_OBJEKTON_VORTGRUPO]->(obj_vg:Vortgrupo)-[:HAVAS_KERNON]->(obj:Vorto)
-            WHERE obj.plena_vorto STARTS WITH '{entity_root}'
+            WHERE obj.radiko = '{entity_root}' OR obj.plena_vorto STARTS WITH '{entity_root}'
             RETURN ft.id AS id, ft.teksto AS text
             LIMIT {top_k * 3}
         """
@@ -633,7 +914,7 @@ class WhooshRetriever:
             MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
             WHERE verb.radiko = 'est'
             MATCH (frazo)-[:HAVAS_OBJEKTON_VORTO]->(obj:Vorto)
-            WHERE obj.plena_vorto STARTS WITH '{entity_root}'
+            WHERE obj.radiko = '{entity_root}' OR obj.plena_vorto STARTS WITH '{entity_root}'
             RETURN ft.id AS id, ft.teksto AS text
             LIMIT {top_k * 3}
         """
@@ -853,11 +1134,19 @@ class WhooshRetriever:
             LIMIT {top_k * 5}
         """
 
-        # Phase 3 FIX: Pass question_type and query_entity for importance scoring
-        return self._execute_kuzu_query(
+        base_results = self._execute_kuzu_query(
             kuzu_query, top_k, [entity_root],
             query_ast=query_ast, question_type='KIOM', query_entity=entity_root
         )
+        # Exp 3: HOW_MANY answers are numerals co-occurring with the entity.
+        num_results = self._retrieve_numero_with_entity(
+            entity_root=entity_root, top_k=top_k, query_ast=query_ast,
+            question_type='KIOM',
+        )
+        merged = self._merge_dedup(base_results, num_results,
+                                    len(base_results) + len(num_results))
+        merged.sort(key=lambda x: x.get('score', 0), reverse=True)
+        return merged[:top_k]
 
     def _retrieve_generic_pattern(self, query_ast: Dict, top_k: int) -> List[Dict]:
         """Generic fallback: match verb + entity."""
@@ -999,12 +1288,13 @@ class WhooshRetriever:
         # Insert OPTIONAL MATCH before RETURN statement
         enhanced_query = self._add_context_to_query(kuzu_query)
 
-        try:
-            result = self.kuzu_conn.execute(enhanced_query)
-        except Exception as e:
-            logger.error(f"Kuzu query failed: {e}")
-            logger.error(f"Query was: {enhanced_query}")
-            return []
+        with self._phase_timer.phase('kuzu_query'):
+            try:
+                result = self.kuzu_conn.execute(enhanced_query)
+            except Exception as e:
+                logger.error(f"Kuzu query failed: {e}")
+                logger.error(f"Query was: {enhanced_query}")
+                return []
 
         # Build documents (now with context!)
         documents = []
@@ -1044,29 +1334,31 @@ class WhooshRetriever:
         max_parse = min(len(documents), top_k * 5)  # Parse at most 5x top_k
         from klareco.parser import parse
 
-        for doc in documents[:max_parse]:
-            try:
-                doc['ast'] = parse(doc['text'])
-            except Exception as e:
-                logger.warning(f"Failed to parse sentence {doc['id']}: {e}")
-                doc['ast'] = None
+        with self._phase_timer.phase('ast_parse_candidates'):
+            for doc in documents[:max_parse]:
+                try:
+                    doc['ast'] = parse(doc['text'])
+                except Exception as e:
+                    logger.warning(f"Failed to parse sentence {doc['id']}: {e}")
+                    doc['ast'] = None
 
         # === NEW: Semantic AST Ranking (Issue #713) ===
         if query_ast:
             logger.info("Applying semantic AST ranking...")
             from klareco.rag.ast_semantic_ranker import rank_ast_matches
 
-            # Rank candidates by semantic similarity
-            # Phase 3: Enable importance-aware ranking
-            ranked_documents = rank_ast_matches(
-                query_ast=query_ast,
-                candidates=documents[:max_parse],
-                use_embeddings=True,  # Now enabled - uses 64D root embeddings
-                use_importance_scoring=True,  # Phase 3: Integrate importance scoring
-                question_type=question_type,   # Phase 3: Pass question type for importance
-                query_entity=query_entity,     # Phase 3: Pass query entity
-                query_roots=matching_roots     # Phase 3: Pass query roots
-            )
+            with self._phase_timer.phase('semantic_rank'):
+                # Rank candidates by semantic similarity
+                # Phase 3: Enable importance-aware ranking
+                ranked_documents = rank_ast_matches(
+                    query_ast=query_ast,
+                    candidates=documents[:max_parse],
+                    use_embeddings=True,  # Now enabled - uses 64D root embeddings
+                    use_importance_scoring=True,  # Phase 3: Integrate importance scoring
+                    question_type=question_type,   # Phase 3: Pass question type for importance
+                    query_entity=query_entity,     # Phase 3: Pass query entity
+                    query_roots=matching_roots     # Phase 3: Pass query roots
+                )
 
             logger.info(f"Semantic ranking complete. Top score: {ranked_documents[0]['score']:.2f}")
             return ranked_documents[:top_k]

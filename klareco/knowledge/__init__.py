@@ -28,12 +28,6 @@ from .morphology import (
     get_transitive_base,
     get_reflexive_form,
 )
-from .question_expansion import (
-    expand_when_question,
-    expand_what_question,
-    expand_who_question,
-    expand_by_question_type,
-)
 
 __all__ = [
     # Vocabularies and dictionaries
@@ -62,8 +56,4 @@ __all__ = [
     'is_reflexive_verb',
     'get_transitive_base',
     'get_reflexive_form',
-    'expand_when_question',
-    'expand_what_question',
-    'expand_who_question',
-    'expand_by_question_type',
 ]

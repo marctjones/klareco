@@ -7,10 +7,13 @@ COMPATIBLE WITH: v2.1 Kuzu DB, orchestrator pipeline (klareco.orchestrator)
 DEPENDENCIES: Whoosh index, Kuzu DB
 STAGE: Evaluation
 
-Reports two metrics:
+Reports three metric families:
   1. Answer keyword match — does the generated answer contain expected keywords?
   2. Retrieval ranking — at what rank does a passage containing expected
      keywords first appear in the top-k?
+  3. Per-stage latency (avg / p50 / p95 / max / share%) — surfaces which
+     orchestrator stage is the bottleneck. Same data is captured per-question
+     under `stage_timings_ms` for downstream analysis.
 
 Usage:
     python scripts/evaluate_extractive_qa.py
@@ -33,7 +36,6 @@ import argparse
 import json
 import logging
 import sys
-import time
 from pathlib import Path
 
 # Quiet retriever logging
@@ -43,122 +45,28 @@ logging.getLogger('klareco').setLevel(logging.WARNING)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from klareco.orchestrator import build_default_pipeline
+from klareco.eval import evaluate_question, summarize, print_summary
 
 
-def keywords_in_text(keywords: list[str], text: str) -> list[str]:
-    """Return keywords that appear (case-insensitive substring) in text."""
-    if not text:
-        return []
-    text_lc = text.lower()
-    return [kw for kw in keywords if kw.lower() in text_lc]
+# Per-worker pipeline holder for multiprocessing mode. Each worker process
+# builds its own pipeline once on init; subsequent tasks reuse it. The
+# pipeline isn't picklable (Whoosh/Kuzu file handles), hence the initializer.
+_WORKER_PIPELINE = None
 
 
-def first_relevant_rank(keywords: list[str], passages) -> int | None:
-    """1-based rank of the first passage containing any expected keyword."""
-    for i, p in enumerate(passages, start=1):
-        if keywords_in_text(keywords, p.text):
-            return i
-    return None
+def _init_worker(whoosh_dir: str, kuzu_path: str, top_k: int) -> None:
+    global _WORKER_PIPELINE
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
+    logging.getLogger('klareco').setLevel(logging.ERROR)
+    _WORKER_PIPELINE = build_default_pipeline(
+        whoosh_index_dir=whoosh_dir,
+        kuzu_db_path=kuzu_path,
+        top_k=top_k,
+    )
 
 
-def evaluate_question(pipeline, entry: dict) -> dict:
-    """Run one test question and return per-question metrics."""
-    question = entry['question']
-    expected_kw = entry.get('expected_keywords', [])
-
-    t0 = time.time()
-    result = pipeline.answer(question)
-    elapsed = time.time() - t0
-
-    # Find the retrieve stage trace to inspect ranked passages
-    passages = ()
-    for tr in result.trace:
-        if tr.stage_name == 'retrieve' and tr.delta is not None:
-            passages = tr.ctx_after.symbolic.passage_asts
-            break
-
-    rank = first_relevant_rank(expected_kw, passages)
-    matched = keywords_in_text(expected_kw, result.text or '')
-
-    return {
-        'id':                  entry.get('id'),
-        'question':            question,
-        'question_type':       entry.get('question_type'),
-        'expected_keywords':   expected_kw,
-        'answer':              (result.text or '').strip(),
-        'matched_keywords':    matched,
-        'answer_correct':      bool(matched),
-        'retrieved_count':     len(passages),
-        'first_relevant_rank': rank,
-        'retrieval_recall@k':  rank is not None,
-        'mrr':                 (1.0 / rank) if rank else 0.0,
-        'latency_sec':         round(elapsed, 2),
-    }
-
-
-def summarize(results: list[dict]) -> dict:
-    n = len(results)
-    if n == 0:
-        return {}
-    n_correct = sum(1 for r in results if r['answer_correct'])
-    n_recall = sum(1 for r in results if r['retrieval_recall@k'])
-    mrr = sum(r['mrr'] for r in results) / n
-    avg_latency = sum(r['latency_sec'] for r in results) / n
-
-    rank_buckets = {'1': 0, '2-3': 0, '4-10': 0, '11+': 0, 'none': 0}
-    for r in results:
-        rk = r['first_relevant_rank']
-        if rk is None:
-            rank_buckets['none'] += 1
-        elif rk == 1:
-            rank_buckets['1'] += 1
-        elif rk <= 3:
-            rank_buckets['2-3'] += 1
-        elif rk <= 10:
-            rank_buckets['4-10'] += 1
-        else:
-            rank_buckets['11+'] += 1
-
-    return {
-        'n':                  n,
-        'answer_accuracy':    n_correct / n,
-        'retrieval_recall':   n_recall / n,
-        'mrr':                mrr,
-        'avg_latency_sec':    round(avg_latency, 2),
-        'rank_distribution':  rank_buckets,
-    }
-
-
-def print_summary(summary: dict, breakdown_by_type: dict):
-    print('\n' + '=' * 70)
-    print('AGGREGATE RESULTS')
-    print('=' * 70)
-    print(f"  Questions evaluated:   {summary['n']}")
-    print(f"  Answer accuracy:       {summary['answer_accuracy']:.1%}  "
-          f"(answer text contains >=1 expected keyword)")
-    print(f"  Retrieval recall@k:    {summary['retrieval_recall']:.1%}  "
-          f"(>=1 retrieved passage contains expected keyword)")
-    print(f"  Mean Reciprocal Rank:  {summary['mrr']:.3f}")
-    print(f"  Avg latency / query:   {summary['avg_latency_sec']:.1f}s")
-    print()
-    print('  First-relevant-rank distribution:')
-    rd = summary['rank_distribution']
-    print(f"    rank 1     {rd['1']:>4d}   (best -- top result is relevant)")
-    print(f"    rank 2-3   {rd['2-3']:>4d}")
-    print(f"    rank 4-10  {rd['4-10']:>4d}")
-    print(f"    rank 11+   {rd['11+']:>4d}")
-    print(f"    none       {rd['none']:>4d}   (no retrieved passage contains any expected keyword)")
-
-    if breakdown_by_type:
-        print()
-        print('  By question type:')
-        for qt, sub in sorted(breakdown_by_type.items()):
-            if not sub:
-                continue
-            print(f"    {qt:8s}  n={sub['n']:>3d}  "
-                  f"answer={sub['answer_accuracy']:.0%}  "
-                  f"recall={sub['retrieval_recall']:.0%}  "
-                  f"mrr={sub['mrr']:.2f}")
+def _eval_in_worker(entry: dict) -> dict:
+    return evaluate_question(_WORKER_PIPELINE, entry)
 
 
 def main():
@@ -176,6 +84,10 @@ def main():
                         help='Evaluate only the first N questions')
     parser.add_argument('--output', default=None,
                         help='Optional JSON file to write per-question results')
+    parser.add_argument('--workers', type=int, default=1,
+                        help='Run questions in parallel across N worker processes '
+                             '(default 1 = serial). Each worker opens its own '
+                             'Whoosh + Kuzu connection.')
     args = parser.parse_args()
 
     # Load test set
@@ -194,41 +106,68 @@ def main():
         entries = entries[:args.limit]
 
     print(f"Loaded {len(entries)} questions from {test_path}")
-    print(f"Building pipeline (Whoosh={args.whoosh_dir}, Kuzu={args.kuzu_path}, top_k={args.top_k})...")
+    n_workers = max(1, args.workers)
 
-    pipeline = build_default_pipeline(
-        whoosh_index_dir=args.whoosh_dir,
-        kuzu_db_path=args.kuzu_path,
-        top_k=args.top_k,
-    )
+    import time as _time
+    wall_start = _time.perf_counter()
 
-    print(f"\nEvaluating {len(entries)} questions...")
-    print('-' * 70)
+    if n_workers == 1:
+        print(f"Building pipeline (Whoosh={args.whoosh_dir}, "
+              f"Kuzu={args.kuzu_path}, top_k={args.top_k})...")
+        pipeline = build_default_pipeline(
+            whoosh_index_dir=args.whoosh_dir,
+            kuzu_db_path=args.kuzu_path,
+            top_k=args.top_k,
+        )
+        print(f"\nEvaluating {len(entries)} questions (serial)...")
+        print('-' * 70)
+        results = []
+        for i, entry in enumerate(entries, 1):
+            try:
+                r = evaluate_question(pipeline, entry)
+                results.append(r)
+                mark = 'OK' if r['answer_correct'] else '--'
+                rk = r['first_relevant_rank']
+                rk_str = f"rk={rk:>2d}" if rk else 'rk= -'
+                print(f"  [{i:>2}/{len(entries)}] {mark} {rk_str}  "
+                      f"{entry['question'][:55]:55s}  ({r['latency_sec']:.1f}s)")
+            except Exception as e:
+                print(f"  [{i:>2}/{len(entries)}] ERROR: {e}")
+                results.append({
+                    'id':                  entry.get('id'),
+                    'question':            entry['question'],
+                    'error':               str(e),
+                    'answer_correct':      False,
+                    'retrieval_recall@k':  False,
+                    'mrr':                 0.0,
+                    'first_relevant_rank': None,
+                    'latency_sec':         0,
+                    'expected_keywords':   entry.get('expected_keywords', []),
+                    'question_type':       entry.get('question_type'),
+                })
+    else:
+        from concurrent.futures import ProcessPoolExecutor
+        print(f"\nEvaluating {len(entries)} questions across {n_workers} workers "
+              f"(each opens its own Whoosh+Kuzu connection)...")
+        print('-' * 70)
+        results = []
+        with ProcessPoolExecutor(
+            max_workers=n_workers,
+            initializer=_init_worker,
+            initargs=(args.whoosh_dir, args.kuzu_path, args.top_k),
+        ) as pool:
+            for i, r in enumerate(pool.map(_eval_in_worker, entries), 1):
+                results.append(r)
+                mark = 'OK' if r.get('answer_correct') else '--'
+                rk = r.get('first_relevant_rank')
+                rk_str = f"rk={rk:>2d}" if rk else 'rk= -'
+                print(f"  [{i:>3}/{len(entries)}] {mark} {rk_str}  "
+                      f"{r.get('question','')[:55]:55s}  "
+                      f"({r.get('latency_sec', 0):.1f}s)")
 
-    results = []
-    for i, entry in enumerate(entries, 1):
-        try:
-            r = evaluate_question(pipeline, entry)
-            results.append(r)
-            mark = 'OK' if r['answer_correct'] else '--'
-            rk = r['first_relevant_rank']
-            rk_str = f"rk={rk:>2d}" if rk else 'rk= -'
-            print(f"  [{i:>2}/{len(entries)}] {mark} {rk_str}  "
-                  f"{entry['question'][:55]:55s}  ({r['latency_sec']:.1f}s)")
-        except Exception as e:
-            print(f"  [{i:>2}/{len(entries)}] ERROR: {e}")
-            results.append({
-                'id':                  entry.get('id'),
-                'question':            entry['question'],
-                'error':               str(e),
-                'answer_correct':      False,
-                'retrieval_recall@k':  False,
-                'mrr':                 0.0,
-                'first_relevant_rank': None,
-                'latency_sec':         0,
-                'expected_keywords':   entry.get('expected_keywords', []),
-                'question_type':       entry.get('question_type'),
-            })
+    wall = _time.perf_counter() - wall_start
+    print(f"\nWall-clock total: {wall:.1f}s for {len(entries)} questions "
+          f"({n_workers} worker{'s' if n_workers != 1 else ''})")
 
     summary = summarize(results)
 

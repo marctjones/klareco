@@ -15,6 +15,7 @@ from klareco.orchestrator.pipeline import Orchestrator
 from klareco.orchestrator.stage import ModelRegistry
 from klareco.orchestrator.stages.parse_question import ParseQuestionStage
 from klareco.orchestrator.stages.retrieve import RetrieveStage
+from klareco.orchestrator.stages.deterministic_rerank import DeterministicRerankStage
 from klareco.orchestrator.stages.rerank import RerankStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
@@ -33,11 +34,15 @@ def build_default_pipeline(
     Build the standard Klareco RAG pipeline.
 
     Stages in order:
-      1. ParseQuestion      — deterministic; always runs
-      2. Retrieve           — BM25 + AST-role matching via WhooshRetriever
-      3. Rerank             — stub today; activates when models.reranker is set
-      4. ExtractAndGenerate — fact extraction + discourse-planned answer
-      5. FormatOutput       — assemble final_text with citation list
+      1. ParseQuestion         — deterministic; always runs
+      2. Retrieve              — BM25 + AST-role matching via WhooshRetriever
+      3. DeterministicRerank   — boosts passages whose AST matches the
+                                 question type's expected answer shape
+                                 (propra_nomo for WHO/WHERE, numero for
+                                 WHEN/HOW_MANY). No-op for other types.
+      4. Rerank                — stub today; activates when models.reranker is set
+      5. ExtractAndGenerate    — fact extraction + discourse-planned answer
+      6. FormatOutput          — assemble final_text with citation list
 
     Parameters
     ----------
@@ -62,6 +67,7 @@ def build_default_pipeline(
     stages = [
         ParseQuestionStage(),
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
+        DeterministicRerankStage(),
         RerankStage(models=models),
         ExtractAndGenerateStage(generator=generator),
         FormatOutputStage(),

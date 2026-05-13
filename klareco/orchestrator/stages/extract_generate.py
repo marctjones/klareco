@@ -42,6 +42,12 @@ _TYPE_MAP: dict[str, QuestionType] = {
 class ExtractAndGenerateStage(PipelineStage):
     name = 'extract_generate'
 
+    # Cap on passages handed to the answer generator. Wider retrieval
+    # (top_k=100/1000) is useful for evaluating retrieval ranking, but the
+    # answer generator was tuned for top-20-ish input — beyond that, fact
+    # extraction time scales linearly without improving answer quality.
+    EXTRACT_TOP_N = 20
+
     def __init__(self, generator: Optional[ExtractiveAnswerGenerator] = None):
         self.generator = generator or ExtractiveAnswerGenerator()
 
@@ -49,7 +55,7 @@ class ExtractAndGenerateStage(PipelineStage):
         return bool(ctx.flag('retrieval_empty')) or not ctx.symbolic.passage_asts
 
     def run(self, ctx: QueryContext) -> ContextDelta:
-        passages = ctx.symbolic.passage_asts
+        passages = ctx.symbolic.passage_asts[: self.EXTRACT_TOP_N]
         question_type = _TYPE_MAP.get(ctx.symbolic.question_type, QuestionType.OTHER)
         query_entity = _extract_query_entity(ctx.symbolic.question_ast)
 

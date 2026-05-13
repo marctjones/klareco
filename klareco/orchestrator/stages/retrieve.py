@@ -43,6 +43,12 @@ class RetrieveStage(PipelineStage):
         raw = self.retriever.retrieve_with_ast_roles(
             ctx.symbolic.question_ast, self.top_k
         )
+        # Pull per-call sub-phase timings the retriever accumulated
+        # (kuzu_query, ast_parse_candidates, semantic_rank, ...).
+        phase_timings_ms: dict = {}
+        timer = getattr(self.retriever, '_phase_timer', None)
+        if timer is not None:
+            phase_timings_ms = timer.snapshot()
 
         passages = tuple(
             ParsedPassage(
@@ -91,6 +97,7 @@ class RetrieveStage(PipelineStage):
                     'passages_retrieved': len(passages),
                     'ast_hit_rate': round(symbolic_coverage, 3),
                     'top_score': round(top_score, 4),
+                    'phase_timings_ms': phase_timings_ms,
                 },
             ),
         )

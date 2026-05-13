@@ -8,11 +8,17 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-try:
-    from data.merged_vocabulary import MERGED_ROOTS as DICTIONARY_ROOTS
-except ImportError:
-    # Fallback to Gutenberg dictionary if merged vocabulary not available
-    from data.extracted_vocabulary import DICTIONARY_ROOTS
+# Dictionary roots — the "every root we've ever seen in the corpus" set.
+# Loaded from JSON so the data lives under data/vocabularies/ alongside the
+# other vocab files, not as a 16 MB auto-generated Python module.
+_dict_roots_path = (
+    Path(__file__).parent.parent / "data" / "vocabularies" / "merged_roots.json"
+)
+if _dict_roots_path.exists():
+    with open(_dict_roots_path, "r", encoding="utf-8") as _f:
+        DICTIONARY_ROOTS = set(json.load(_f))
+else:
+    DICTIONARY_ROOTS = set()
 
 # Load Fundamento roots (authoritative, tier 1 vocabulary)
 # These are used to disambiguate prefix/suffix conflicts
@@ -723,6 +729,120 @@ def _is_valid_eo_stem(s: str) -> bool:
 # Build comprehensive function word set (now that all constants are defined)
 _ALL_FUNCTION_WORDS = _build_function_word_set()
 
+
+# Foreign orthography signals: characters and digraphs that aren't Esperanto.
+# Esperanto uses ŝ/ĉ/ĝ/ĵ/ŭ for sounds spelled "sh"/"ch"/"j"/etc. in foreign
+# alphabets. Words containing these patterns are very likely foreign / propra_nomo.
+_FOREIGN_LETTERS = frozenset('qwxy')
+_FOREIGN_DIGRAPHS = ('sh', 'ch', 'th', 'ph')
+
+
+# Compounding-prefix whitelist for science / international vocabulary not in
+# Fundamento as bare roots. These are unambiguous: when a compound starts with
+# one, it's an Esperanto/Greek-Latin coinage, not a foreign name. Used by
+# _is_genuine_esperanto_compound to accept e.g. "mikronaci" = mikro + naci.
+EXTENDED_PREFIXES = frozenset({
+    'mikro', 'makro', 'meta', 'pseŭdo', 'arki', 'tele', 'multi',
+    'omni', 'nano', 'mez', 'kvazaŭ', 'ekster',
+})
+
+
+def _has_foreign_orthography(word: str) -> bool:
+    """True if `word` contains characters or digraphs not in Esperanto orthography."""
+    if not word:
+        return False
+    lower = word.lower()
+    if any(c in _FOREIGN_LETTERS for c in lower):
+        return True
+    if any(d in lower for d in _FOREIGN_DIGRAPHS):
+        return True
+    return False
+
+
+# Surface-form ending constants (used by validation and post-processing).
+# These are inflectional endings, not radikos. Adjective endings are
+# unambiguously plural / accusative for the marked forms (-aj/-an/-ajn);
+# bare -a is more ambiguous (real adjectives + names like Maria/Mona/Lisa).
+_ADJ_SURFACE_ENDINGS = ('ajn', 'aj', 'an', 'a')
+_NOUN_SURFACE_ENDINGS = ('ojn', 'oj', 'on', 'o')
+
+
+def _surface_looks_adj(pv: str) -> bool:
+    return bool(pv) and any(pv.endswith(e) for e in _ADJ_SURFACE_ENDINGS)
+
+
+def _surface_looks_noun(pv: str) -> bool:
+    return bool(pv) and any(pv.endswith(e) for e in _NOUN_SURFACE_ENDINGS)
+
+
+def _is_genuine_esperanto_compound(stem: str) -> bool:
+    """Decompose `stem` (lowercase, no inflectional ending) and verify both
+    halves are recognized Esperanto morphemes. Used to discriminate genuine
+    compounds (sonfilm = son + film) from foreign names whose tail syllables
+    coincidentally match Fundamento roots (Madrid → mad + rid is rejected
+    because 'mad' / 'rid' aren't recognized; sonfilm passes because 'son' and
+    'film' are both in Fundamento).
+
+    Three acceptance paths:
+
+      Path A (binary-split, conservative):
+        - second-half in _FUNDAMENTO_ROOTS, AND
+        - first-half is in KNOWN_PREFIXES, EXTENDED_PREFIXES, or _FUNDAMENTO_ROOTS
+          (with optional trailing linking-o stripped from first-half).
+
+      Path B (suffix-base, productive):
+        - stem ends with a known Esperanto suffix (-ist, -ej, -ec, -ad, ...), AND
+        - the base before that suffix is in DICTIONARY_ROOTS.
+        Catches productive derivations like "atomist" (atom + ist) where atom
+        isn't in the small Fundamento but IS in the broad dictionary.
+
+      Path C (extended-prefix, productive):
+        - first-half is in EXTENDED_PREFIXES, AND
+        - second-half is in DICTIONARY_ROOTS (and ≥3 chars, no foreign orthography).
+        Catches scientific compounds like "mikronaci" / "tele(skop)" where the
+        first-half is unambiguously an Esperanto/Greek-Latin combining form.
+
+    DICTIONARY_ROOTS is used in Paths B and C only when there's a strong
+    Esperanto-morphology signal (known suffix or extended prefix) — that
+    signal compensates for the dictionary's foreign-name pollution. Path A
+    stays Fundamento-only for the cases without that signal.
+    """
+    if not stem or len(stem) < 4:
+        return False
+    s = stem.lower()
+
+    # Path B: suffix-base. Try longest suffixes first so we don't mistakenly
+    # match a shorter suffix when a longer one applies (e.g. 'estr' before 'er').
+    for suffix in sorted(KNOWN_SUFFIXES, key=len, reverse=True):
+        if not s.endswith(suffix):
+            continue
+        base = s[: -len(suffix)]
+        if len(base) < 3:
+            continue
+        if base in DICTIONARY_ROOTS and not _has_foreign_orthography(base):
+            return True
+
+    # Paths A and C: binary split.
+    for i in range(2, len(s) - 1):
+        first = s[:i]
+        second = s[i:]
+        # Path A: second-half is Fundamento.
+        if second in _FUNDAMENTO_ROOTS:
+            if (first in KNOWN_PREFIXES
+                    or first in EXTENDED_PREFIXES
+                    or first in _FUNDAMENTO_ROOTS):
+                return True
+            # Linking-o between two roots: first ends in 'o', stripping it
+            # yields a Fundamento root. (membr+o+ŝtat → membroŝtato)
+            if (first.endswith('o') and len(first) > 2
+                    and first[:-1] in _FUNDAMENTO_ROOTS):
+                return True
+        # Path C: extended-prefix + DICTIONARY_ROOTS second-half.
+        if first in EXTENDED_PREFIXES and len(second) >= 3:
+            if second in DICTIONARY_ROOTS and not _has_foreign_orthography(second):
+                return True
+    return False
+
 def parse_word(word: str) -> dict:
     """
     Parse a single Esperanto word using Fundamento-first design.
@@ -874,20 +994,35 @@ def parse_word(word: str) -> dict:
         # Otherwise continue with regular parsing for inflected numbers
 
     # ==========================================================================
-    # STEP 2: Correlative Check (45 entries)
+    # STEP 2: Correlative Check (45 entries × inflectional forms)
     # ==========================================================================
+    # Strip plural -j and accusative -n in either order (-jn is plural+acc)
+    # before checking against the closed list of 45 correlative bases.
+    # Without this, "tiuj"/"ĉiuj"/"iujn" etc. fall through to morphology
+    # and end up misclassified (often as verbs, since the parser treats
+    # the leftover stem as a verb root candidate).
 
     correl_check = lower_word
     correl_accusative = False
-    if correl_check.endswith("n"):
+    correl_plural = False
+    if correl_check.endswith("jn"):
+        correl_check = correl_check[:-2]
+        correl_accusative = True
+        correl_plural = True
+    elif correl_check.endswith("n") and len(correl_check) > 1:
         correl_check = correl_check[:-1]
         correl_accusative = True
+    elif correl_check.endswith("j") and len(correl_check) > 1:
+        correl_check = correl_check[:-1]
+        correl_plural = True
 
     if correl_check in KNOWN_CORRELATIVES:
         ast["vortspeco"] = "korelativo"
         ast["radiko"] = correl_check
         if correl_accusative:
             ast["kazo"] = "akuzativo"
+        if correl_plural:
+            ast["nombro"] = "pluralo"
 
         # Decompose correlative into prefix + suffix
         for prefix in sorted(CORRELATIVE_PREFIXES.keys(), key=len, reverse=True):
@@ -1265,13 +1400,62 @@ def parse_word(word: str) -> dict:
     # STEP 7: Identify Root (with compound word fallback)
     # ==========================================================================
 
-    # Capitalization guard: if the original word was capitalized and the stem is
-    # not a Fundamento/protected root, it's a proper noun (or foreign word) that
-    # had an Esperanto-like ending stripped (e.g. "Shakespeare" → -e → "shakespear").
-    # Route directly to categorize_unknown_word instead of accepting a corpus root
-    # with the wrong word class.
-    if original_word[0].isupper() and stem not in _FUNDAMENTO_ROOTS and stem not in PROTECTED_ROOTS:
+    # FOREIGN-ORTHOGRAPHY FAST-PATH: a capitalized word containing
+    # characters or digraphs that aren't Esperanto orthography (Q/W/X/Y or
+    # sh/ch/th/ph) is foreign with very high confidence. Don't bother trying
+    # morphology — these stems coincidentally matching DICTIONARY_ROOTS
+    # would otherwise produce misclassifications like "Christian" → adjektivo.
+    if original_word[0].isupper() and _has_foreign_orthography(original_word):
         return categorize_unknown_word(original_word)
+
+    # Capitalization guard: if the original word was capitalized and its
+    # stem is not a recognized Esperanto root, it's a proper noun (or foreign
+    # word). Route to categorize_unknown_word.
+    #
+    # EXCEPTIONS that fall through to morphology:
+    #   1. Adjectival ending (-a/-aj/-an/-ajn) AND stem in DICTIONARY_ROOTS
+    #      — catches "Genetika" (stem "genetik"), "Hungaraj" (stem "hungar").
+    #      Adjectival endings are reliable because adjectives MUST agree with
+    #      a noun, so genuine modifier-position usage self-evidences.
+    #   2. Substantivo ending (-o/-oj/-on/-ojn) AND stem is a *verified*
+    #      Esperanto compound (both halves recognized via
+    #      _is_genuine_esperanto_compound). This catches "Membroŝtatoj"
+    #      (membr+ŝtat) and similar without misclassifying foreign names
+    #      like "Kongon" (kong → no Esperanto decomposition possible).
+    #
+    # We deliberately do NOT extend to -e (adverb) endings — many foreign
+    # names end in -e ("Shakespeare", "Goethe", "Marie") and DICTIONARY_ROOTS
+    # contains their stems too. The -e adverb case is handled by the
+    # sentence-level reanalysis using alt-subject case-marking.
+    if (original_word[0].isupper()
+            and stem not in _FUNDAMENTO_ROOTS
+            and stem not in PROTECTED_ROOTS):
+        lower_word = original_word.lower()
+        had_adjectival_ending = (
+            lower_word != stem
+            and (lower_word.endswith(('aj', 'an', 'ajn'))
+                 or lower_word.endswith('a'))
+        )
+        had_substantivo_compound = (
+            lower_word != stem
+            and (lower_word.endswith(('oj', 'on', 'ojn'))
+                 or lower_word.endswith('o'))
+            and _is_genuine_esperanto_compound(stem)
+        )
+        # Adjectival compounds (e.g., "Multiklasa" = multi + klas + a) — same
+        # idea as substantivo compounds but for -a-ending words. Stem must
+        # decompose into recognized Esperanto morphemes.
+        had_adjectival_compound = (
+            had_adjectival_ending
+            and _is_genuine_esperanto_compound(stem)
+        )
+        if not (
+            (had_adjectival_ending and stem in DICTIONARY_ROOTS)
+            or had_substantivo_compound
+            or had_adjectival_compound
+        ):
+            return categorize_unknown_word(original_word)
+        # Fall through: word is capitalized + valid Esperanto morphology.
 
     if stem in KNOWN_ROOTS or stem in _FUNDAMENTO_ROOTS or stem in PROTECTED_ROOTS:
         ast["radiko"] = stem
@@ -1982,57 +2166,79 @@ def parse(text: str):
                 # "La Fundamento" → proper noun
                 # "Fundamento estas..." → ambiguous, might be sentence-initial
                 if i == 0:
-                    # Sentence-initial capitalization - use NEGATIVE DETECTION
-                    # Strategy: If word parsed BUT root is not a known common word,
-                    # it's likely a proper noun (Zamenhof, Esperanto, etc.)
+                    # Sentence-initial capitalization disambiguation.
+                    #
+                    # The proper-noun dict is corpus-extracted and ~78%
+                    # polluted with misclassified common nouns (Hejmpaĝ,
+                    # Sonfilm, Membroŝtat, ...). Let it override classification
+                    # ONLY when parse_word returned 'nekonata' (couldn't
+                    # classify) or already 'propra_nomo' (just refining
+                    # kategorio). For content classifications (substantivo,
+                    # adjektivo, adverbo, verbo, korelativo) parse_word's
+                    # answer is more reliable than the dict.
                     from klareco.proper_nouns import get_proper_noun_dictionary
                     pn_dict = get_proper_noun_dictionary()
+                    current_vortspeco = ast.get("vortspeco", "")
 
-                    # Check if in proper noun dictionary first (fastest)
-                    if pn_dict.is_proper_noun(w):
+                    # Function-word vortspecos: never override these
+                    function_word_types = {
+                        'konjunkcio', 'pronomo', 'prepozicio',
+                        'partiklo', 'korelativo', 'artikolo'
+                    }
+
+                    if (current_vortspeco in ('nekonata', 'propra_nomo')
+                            and pn_dict.is_proper_noun(w)):
                         ast["vortspeco"] = "propra_nomo"
                         ast["kategorio"] = "propranomo_konata"
-                    else:
-                        # Negative detection: Check if root is a common word
-                        # BUT: Only apply if parse_word didn't already identify it
-                        # as a function word (konjunkcio, pronomo, etc.)
-                        current_vortspeco = ast.get("vortspeco", "")
-
-                        # Don't override function words that were correctly parsed
-                        function_word_types = {
-                            'konjunkcio', 'pronomo', 'prepozicio',
-                            'partiklo', 'korelativo', 'artikolo'
-                        }
-
-                        if current_vortspeco not in function_word_types:
-                            # This is a content word (substantivo, verbo, adjektivo, adverbo)
-                            # Apply negative detection
-                            root = ast.get("radiko", "").lower()
-
-                            # Check if root is in Fundamento or function words
-                            # If NOT, likely a proper noun
-                            is_common_root = (
-                                root in _FUNDAMENTO_ROOTS or  # Official content roots
-                                root in _ALL_FUNCTION_WORDS or  # Grammatical morphemes
-                                len(root) <= 2  # Very short roots (unlikely proper nouns)
-                            )
-
-                            if not is_common_root:
-                                # Root not recognized as common word → likely proper noun
-                                ast["vortspeco"] = "propra_nomo"
-                                ast["kategorio"] = "propranomo"
-                # For non-initial words: capitalization is strong signal
+                    elif current_vortspeco == 'nekonata':
+                        # parse_word couldn't classify, dict didn't help —
+                        # fall back to negative detection: if the radiko isn't
+                        # a known Esperanto root, treat as propra_nomo.
+                        root = ast.get("radiko", "").lower()
+                        is_common_root = (
+                            root in _FUNDAMENTO_ROOTS or
+                            root in DICTIONARY_ROOTS or
+                            root in _ALL_FUNCTION_WORDS or
+                            len(root) <= 2
+                        )
+                        if not is_common_root:
+                            ast["vortspeco"] = "propra_nomo"
+                            ast["kategorio"] = "propranomo"
+                    # else: parse_word returned a content classification
+                    # (substantivo, adjektivo, adverbo, verbo, korelativo, ...)
+                    # which we trust over the polluted dict.
+                # For non-initial words: capitalization is a strong signal
+                # for proper nouns, BUT we must preserve unambiguous Esperanto
+                # adjectives (like "Polaj" / "Hungaraj") so the agreement
+                # validation pass can decide whether to keep them based on
+                # whether a head noun follows.
+                #
+                # Rule: don't flip when parse_word returned 'adjektivo' AND
+                # the surface form ends in a marked adjectival ending. The
+                # agreement validation will revert names like "Maria" /
+                # "Mona" with coincidental -a endings.
                 elif w not in skip_words:
-                    ast["vortspeco"] = "propra_nomo"
-                    from klareco.proper_nouns import get_proper_noun_dictionary
-                    pn_dict = get_proper_noun_dictionary()
-                    if pn_dict.is_proper_noun(w):
-                        ast["kategorio"] = "propranomo_konata"
-                    else:
-                        ast["kategorio"] = "propranomo"
+                    current_vortspeco = ast.get("vortspeco", "")
+                    pv_lower = w.lower()
+                    is_real_adjective = (
+                        current_vortspeco == 'adjektivo'
+                        and any(pv_lower.endswith(e)
+                                for e in _ADJ_SURFACE_ENDINGS)
+                    )
+                    if not is_real_adjective:
+                        ast["vortspeco"] = "propra_nomo"
+                        from klareco.proper_nouns import get_proper_noun_dictionary
+                        pn_dict = get_proper_noun_dictionary()
+                        if pn_dict.is_proper_noun(w):
+                            ast["kategorio"] = "propranomo_konata"
+                        else:
+                            ast["kategorio"] = "propranomo"
 
                 # Special case: "la X" pattern → X is definitely a proper noun
-                if i > 0 and words[i-1].lower() == 'la' and w not in skip_words:
+                # (still applies; "la" before X marks it as a referenced entity).
+                # Skip when parse_word returned a content classification we trust.
+                if (i > 0 and words[i-1].lower() == 'la' and w not in skip_words
+                        and ast.get("vortspeco") not in ('adjektivo',)):
                     ast["vortspeco"] = "propra_nomo"
                     if ast.get("kategorio") != "propranomo_konata":
                         ast["kategorio"] = "propranomo"
@@ -2046,6 +2252,16 @@ def parse(text: str):
             # Unexpected error - still create a node
             unknown_ast = categorize_unknown_word(w, f"Unexpected error: {str(e)}")
             word_asts.append(unknown_ast)
+
+    # Validate adjective agreement: an adjective must agree with a head
+    # noun. The capitalization-guard exception lets sentence-initial -a
+    # words fall through to morphology (e.g., "Hungaraj princoj" works
+    # because Hungaraj agrees with princoj). But a sentence-initial -a
+    # word with no following agreeing noun (e.g., "Maria parolas" — verb
+    # follows) is more likely a real proper noun whose -a ending is
+    # coincidental. Revert those to propra_nomo so role assignment can
+    # pick them as subject.
+    _validate_sentence_initial_adjective_agreement(word_asts)
 
     # Step 2: Syntactic analysis to find sentence structure
     sentence_ast = {
@@ -2248,7 +2464,422 @@ def parse(text: str):
     )
     sentence_ast["negita"] = has_ne or has_negative_correlative
 
+    # AST-context reanalysis: catches sentence-initial misclassifications
+    # the word-level guard can't (e.g. "Aktuale en 2008 Minesoto estis...").
+    _reanalyze_sentence_initial_misclassifications(sentence_ast)
+
+    # Annotate multi-token entity groups (consecutive propra_nomo runs).
+    _annotate_multi_token_entities(sentence_ast, word_asts)
+
     return sentence_ast
+
+
+def _validate_sentence_initial_adjective_agreement(word_asts: list) -> None:
+    """Revert capitalized words classified as adjektivo via the
+    capitalization-guard exception when no agreeing head noun follows.
+
+    Esperanto adjectives MUST agree with a noun in case + number. The -a
+    capitalization exception (for "Hungaraj princoj") relies on this
+    invariant: a real adjective will have an agreeing noun nearby. A
+    word like "Maria" (singular nominative -a) might LOOK like an
+    adjective but if the next non-article word is a verb (no nominal
+    agreement target), Maria is a proper name with a coincidental -a.
+
+    Run at every position (not just sentence-initial). The same logic
+    applies to "Mona Lisa" where Lisa is at index 1.
+
+    Fundamento-skip override: a word whose radiko is in Fundamento is
+    normally a rock-solid adjective ("Granda" → grand). But when followed
+    by another capitalized propra-noun-like token, the multi-token-name
+    reading can dominate ("Mona Lisa" — both halves are names even though
+    'mon' is in Fundamento). In that case, run the validation: if no
+    real (lowercase) head noun follows, revert.
+
+    Lookahead rules (search up to 5 tokens ahead):
+      - Articles (la, l')                     TRANSPARENT
+      - Adjektivos / adverbs / correlatives   TRANSPARENT
+      - Conjunctions                          TRANSPARENT iff followed by
+                                              [adj-surface ... noun-surface];
+                                              otherwise BREAK
+      - Verbs / prepositions                  BREAK
+      - SUBSTANTIVO (lowercase common noun)   real agreement target —
+                                              kazo+nombro match → keep adj
+      - propra_nomo (capitalized) with adj-   skip; not a reliable target
+        like surface or default morphology    (its kazo/nombro defaults
+                                              are unreliable)
+      - propra_nomo with noun-like surface    treat as agreement target
+        (-o/-oj/-on/-ojn)
+    """
+    if not word_asts:
+        return
+
+    def _is_konj_with_coordinated_adj_noun(j: int) -> bool:
+        """True if word[j] is a conjunction followed by an adj-surface
+        token, then any number of adj-surface / function-word tokens,
+        then a real (lowercase substantivo) head noun. Catches
+        "kaj Polaj princoj" but rejects "kaj Pieter Bruegel pentris" and
+        "kaj Maria pentris"."""
+        if j + 2 >= len(word_asts):
+            return False
+        adj_candidate = word_asts[j + 1]
+        if not isinstance(adj_candidate, dict):
+            return False
+        adj_pv = (adj_candidate.get('plena_vorto') or '').lower()
+        if not _surface_looks_adj(adj_pv):
+            return False
+        for k in range(j + 2, min(j + 6, len(word_asts))):
+            nxt = word_asts[k]
+            if not isinstance(nxt, dict):
+                return False
+            nxt_vs = nxt.get('vortspeco')
+            if nxt_vs in ('verbo', 'prepozicio'):
+                return False
+            if nxt_vs == 'substantivo':
+                return True
+            # adjective / article / function-word / propra_nomo with
+            # adj-surface — keep scanning for a real head noun
+        return False
+
+    def _next_is_capitalized_propra_like(i: int) -> bool:
+        """True if word[i+1] starts uppercase and is propra-noun-like
+        (vortspeco propra_nomo / nekonata, or content classification —
+        we treat any capitalized non-function word as propra-like)."""
+        if i + 1 >= len(word_asts):
+            return False
+        nxt = word_asts[i + 1]
+        if not isinstance(nxt, dict):
+            return False
+        nxt_pv = nxt.get('plena_vorto') or ''
+        if not nxt_pv or not nxt_pv[0].isupper():
+            return False
+        nxt_vs = nxt.get('vortspeco')
+        return nxt_vs in (
+            'propra_nomo', 'nekonata', 'adjektivo', 'substantivo', 'adverbo'
+        )
+
+    for i, ast in enumerate(word_asts):
+        if not isinstance(ast, dict):
+            continue
+        if ast.get('vortspeco') != 'adjektivo':
+            continue
+        pv = ast.get('plena_vorto') or ''
+        if not pv or not pv[0].isupper():
+            continue
+
+        rad = (ast.get('radiko') or '').lower()
+        radiko_in_fund = rad in _FUNDAMENTO_ROOTS or rad in PROTECTED_ROOTS
+        # Skip Fundamento-rooted adjectives only when the next token is
+        # NOT a capitalized propra-noun-like word. With a capitalized
+        # neighbor the multi-token-name reading is plausible — validate.
+        if radiko_in_fund and not _next_is_capitalized_propra_like(i):
+            continue
+
+        target_kazo = ast.get('kazo', 'nominativo')
+        target_nombro = ast.get('nombro', 'singularo')
+        has_agreement = False
+        for j in range(i + 1, min(i + 6, len(word_asts))):
+            nxt = word_asts[j]
+            if not isinstance(nxt, dict):
+                continue
+            nxt_vs = nxt.get('vortspeco')
+            nxt_pv = (nxt.get('plena_vorto') or '')
+            nxt_pv_lower = nxt_pv.lower()
+
+            if nxt_vs == 'artikolo':
+                continue
+            if nxt_vs in ('verbo', 'prepozicio'):
+                break
+            if nxt_vs == 'konjunkcio':
+                if _is_konj_with_coordinated_adj_noun(j):
+                    continue
+                break
+            if nxt_vs == 'substantivo':
+                if (nxt.get('kazo') == target_kazo
+                        and nxt.get('nombro') == target_nombro):
+                    has_agreement = True
+                break
+            if nxt_vs == 'propra_nomo':
+                # Capitalized propra_nomo with adj-like surface: not a
+                # reliable head — its default kazo/nombro just happens to
+                # match singular nominative -a. Keep looking past it.
+                if (nxt_pv and nxt_pv[0].isupper()
+                        and _surface_looks_adj(nxt_pv_lower)):
+                    continue
+                # Noun-surface propra_nomo (-o/-oj/-on/-ojn) is a real
+                # head — check kazo+nombro.
+                if _surface_looks_noun(nxt_pv_lower):
+                    if (nxt.get('kazo') == target_kazo
+                            and nxt.get('nombro') == target_nombro):
+                        has_agreement = True
+                    break
+                # Other propra_nomo surface (foreign name like 'Bach'):
+                # treat as a real head; trust kazo+nombro.
+                if (nxt.get('kazo') == target_kazo
+                        and nxt.get('nombro') == target_nombro):
+                    has_agreement = True
+                break
+            # adjektivo / adverbo / pronomo / korelativo: transparent.
+
+        if not has_agreement:
+            ast['vortspeco'] = 'propra_nomo'
+            ast['kategorio'] = 'propranomo'
+            ast['radiko'] = pv
+            ast['_reverted_from_adjektivo'] = True
+
+
+# Connector tokens permitted INSIDE a multi-token entity run (e.g.
+# "Lost in Space", "Mona de la Casa", "Tower of London"). A connector
+# does not start or end a run — it's only kept if a propra_nomo follows
+# within the lookahead window. Coordinating words (kaj/aŭ/sed/and/or/but)
+# are deliberately excluded — they separate distinct entities.
+_MULTI_TOKEN_CONNECTORS = frozenset({
+    # Esperanto prepositions / articles / common joiners (lowercase form)
+    'de', 'da', 'en', 'al', 'kun', 'sen', 'por', 'pri', 'pro',
+    'ĉe', 'sur', 'sub', 'super', 'inter', 'tra', 'trans', 'apud',
+    'kontraŭ', 'la', "l'",
+    # English / Romance / Germanic connectors that survive in titles
+    # carried into Esperanto text (e.g. "Lost in Space", "Tower of London",
+    # "Friends of the Earth", "von Neumann", "del Monte").
+    'in', 'of', 'the', 'on', 'at', 'to', 'for', 'a', 'an',
+    'le', 'les', 'des', 'du', 'di', 'del', 'dei', 'della',
+    'der', 'die', 'das', 'von', 'van', 'el',
+})
+
+
+def _annotate_multi_token_entities(sentence_ast: dict, word_asts: list) -> None:
+    """Mark runs of 2+ propra_nomo tokens (with optional connector words
+    between them) as multi-token entities.
+
+    Real-world examples:
+      - "Bill Gates"             → 2 contiguous propra_nomo tokens
+      - "Mona Lisa"              → 2 contiguous propra_nomo tokens
+      - "Lost in Space"          → 2 propra + 1 connector ('in')
+      - "Tower of London"        → 2 propra + 1 connector ('of')
+      - "Joan of Arc"            → 2 propra + 1 connector ('of')
+      - "Ludwig van Beethoven"   → 2 propra + 1 connector ('van')
+
+    A run accumulates tokens if either:
+      - vortspeco is 'propra_nomo', OR
+      - vortspeco is 'nekonata' AND plena_vorto starts with uppercase
+
+    Lowercase connector words from `_MULTI_TOKEN_CONNECTORS` are allowed
+    BETWEEN propra tokens. A connector never starts or ends a run; if
+    after a connector no propra token appears within 2 positions, the
+    run terminates without including the connector.
+
+    Coordinating conjunctions (kaj, aŭ, and, or, but, sed, …), verbs,
+    and any other non-connector function word BREAK the run.
+
+    Output (when at least one run has ≥2 propra tokens):
+      sentence_ast['multi_token_entities'] = [
+        {
+          'positions':  [i, j, ...],   # indices of CAPITALIZED propra tokens
+          'tokens':     [pv_i, pv_j],  # surface forms of those propra tokens
+          'span':       [i, k, j, ...],# indices of ALL tokens in the span
+                                       # (propra + connectors)
+          'span_tokens':[pv_i, in, pv_j, ...],  # surface forms of the span
+        },
+        ...
+      ]
+    The legacy `positions` / `tokens` fields preserve the prior contract
+    (propra-only). The new `span` / `span_tokens` carry the full surface.
+    """
+
+    def is_propra_token(w_ast: dict) -> bool:
+        if not isinstance(w_ast, dict):
+            return False
+        vs = w_ast.get('vortspeco')
+        pv = w_ast.get('plena_vorto') or ''
+        if vs == 'propra_nomo':
+            return True
+        if vs == 'nekonata' and pv and pv[0].isupper():
+            return True
+        return False
+
+    def is_connector_token(w_ast: dict) -> bool:
+        if not isinstance(w_ast, dict):
+            return False
+        pv = (w_ast.get('plena_vorto') or '').lower().strip("'")
+        if not pv:
+            return False
+        # Use surface form, not radiko/vortspeco. Connectors are matched
+        # by their surface text: lowercase Esperanto prepositions or
+        # foreign function words like 'in', 'of', 'the'.
+        return pv in _MULTI_TOKEN_CONNECTORS or (pv + "'") in _MULTI_TOKEN_CONNECTORS
+
+    groups = []
+    n = len(word_asts)
+    i = 0
+    while i < n:
+        if not is_propra_token(word_asts[i]):
+            i += 1
+            continue
+        # Start of a run.
+        propra_positions = [i]
+        span_positions = [i]
+        j = i + 1
+        while j < n:
+            if is_propra_token(word_asts[j]):
+                propra_positions.append(j)
+                span_positions.append(j)
+                j += 1
+                continue
+            if is_connector_token(word_asts[j]):
+                # Lookahead: is there a propra_token within next 2 positions
+                # (allowing one more connector in between)?
+                lookahead = False
+                k = j + 1
+                steps = 0
+                while k < n and steps < 2:
+                    if is_propra_token(word_asts[k]):
+                        lookahead = True
+                        break
+                    if is_connector_token(word_asts[k]):
+                        k += 1
+                        steps += 1
+                        continue
+                    break
+                if lookahead:
+                    span_positions.append(j)
+                    j += 1
+                    continue
+                # No propra ahead — terminate run here, don't include connector.
+                break
+            # Non-propra, non-connector — terminate run.
+            break
+
+        if len(propra_positions) >= 2:
+            groups.append({
+                'positions':   list(propra_positions),
+                'tokens':      [word_asts[k].get('plena_vorto')
+                                for k in propra_positions],
+                'span':        list(span_positions),
+                'span_tokens': [word_asts[k].get('plena_vorto')
+                                for k in span_positions],
+            })
+        i = j
+    if groups:
+        sentence_ast['multi_token_entities'] = groups
+
+
+# Vortspecos we'll reclassify into via piece 2 (sentence-initial adverb
+# misclassification). We DELIBERATELY restrict to 'adverbo' only:
+#
+# - 'substantivo' / 'adjektivo' are handled at the word level by piece 1
+#   (extended capitalization guard accepts -o/-oj/-on/-ojn and -a/-aj/-an/-ajn).
+# - 'verbo' would catch Einstein/Lincoln-style misclassifications by
+#   parse_word (which sometimes treats foreign names as neologism verbs)
+#   — but THOSE are real propra_nomos we want to keep, so excluded.
+# - Function-word vortspecos (korelativo, pronomo, …) are now handled at
+#   the word level by the extended correlative-suffix logic; piece 2 doesn't
+#   need to repeat them.
+#
+# Adverbs are uniquely the case where the parser's word-level heuristic
+# can't disambiguate (Esperanto adverb vs foreign name with incidental -e
+# ending), so the case-marking-of-alt-subject test is the right discriminator.
+_RECLASSIFIABLE_VORTSPECOS = frozenset({'adverbo'})
+
+
+def _vortgrupo_kerno_or_self(node):
+    if not isinstance(node, dict):
+        return None
+    if node.get('tipo') == 'vortgrupo':
+        return node.get('kerno')
+    return node
+
+
+def _reanalyze_sentence_initial_misclassifications(frazo: dict) -> None:
+    """Second-pass disambiguation using full Frazo AST context.
+
+    Targets the failure mode where a sentence-initial word is tagged
+    propra_nomo only because of capitalization, not because it's actually
+    a name. The discriminator uses two AST signals together:
+
+      1. The kerno's lowercase form parses cleanly as a non-propra
+         Esperanto vortspeco (adverbo / substantivo / adjektivo / etc.).
+         This excludes Bach/Shakespeare/Goethe whose lowercase forms
+         either fail morphology (nekonata) or aren't found in DICTIONARY.
+
+      2. There is an alternative nominative-case subject candidate
+         elsewhere in the Frazo's `aliaj` (a substantivo or propra_nomo
+         in nominative case). This is the case-marking discriminator:
+         "Aktuale en 2008 Minesoto estis…" has Minesoto in nominative,
+         so the adverb interpretation is plausible. "Shakespeare verkis
+         dramojn" has only Shakespeare in nominative, so it stays
+         propra_nomo.
+
+    When both conditions hold, we relabel the kerno's vortspeco/radiko
+    to match the lowercase parse. We do NOT restructure the AST (move
+    the alt subject into subjekto position) because that would require
+    invasive surgery on Vortgrupo / aliaj edges that downstream consumers
+    rely on. The relabel alone is enough to stop the rerank from
+    treating these as candidate answers.
+    """
+    if not isinstance(frazo, dict):
+        return
+    if frazo.get('tipo') != 'frazo':
+        return
+
+    subjekto = frazo.get('subjekto')
+    kerno = _vortgrupo_kerno_or_self(subjekto)
+    if not isinstance(kerno, dict):
+        return
+    if kerno.get('vortspeco') != 'propra_nomo':
+        return
+
+    pv = kerno.get('plena_vorto') or ''
+    if not pv:
+        return
+
+    # Step 1: does the lowercase form parse cleanly as a non-propra word?
+    lower_ast = parse_word(pv.lower())
+    new_vs = lower_ast.get('vortspeco')
+    if new_vs not in _RECLASSIFIABLE_VORTSPECOS:
+        return
+    # Reanalysis-eligibility gate. The original code restricted to
+    # kategorio='propranomo' to be Shakespeare-safe — but Shakespeare-style
+    # cases are already excluded by Step 1 (its lowercase parses to
+    # propra_nomo via foreign-letter fast-path, not adverbo). The
+    # propranomo_konata-only filter was over-cautious: it blocked
+    # legitimate adverbs like "Aktuale" / "Krome" when the v3 Wikipedia-
+    # extended dict happened to know an Esperanto magazine of the same
+    # name. We now allow propranomo_konata too, IFF Step 1 already passed
+    # — Step 2 (alt-subject case-marking) is the real discriminator.
+    cur_kat = kerno.get('kategorio')
+    if cur_kat not in ('propranomo', 'propranomo_konata'):
+        # 'propranomo_esperantigita' or other categories — don't touch.
+        return
+
+    # Step 2: is there an alternative subject candidate in `aliaj`?
+    # Subject candidates are substantivo / propra_nomo / pronomo in
+    # nominative case. Pronouns count because "Krome li parolis" or
+    # "Anstataŭ ili venis" are pronoun-subject sentences where the
+    # sentence-initial adverb is the misclassification.
+    aliaj = frazo.get('aliaj') or []
+    has_alt_subject = False
+    for item in aliaj:
+        target = _vortgrupo_kerno_or_self(item)
+        if not isinstance(target, dict):
+            continue
+        vs = target.get('vortspeco')
+        if vs in ('substantivo', 'propra_nomo', 'pronomo'):
+            # Subject candidates are nominative; pronouns by themselves
+            # imply subject role when they appear bare.
+            if target.get('kazo') == 'nominativo':
+                has_alt_subject = True
+                break
+
+    if not has_alt_subject:
+        return  # no alternative, keep propra_nomo (Shakespeare-safe)
+
+    # Both conditions met — relabel the kerno.
+    new_radiko = lower_ast.get('radiko') or kerno.get('radiko')
+    kerno['vortspeco'] = new_vs
+    if new_radiko:
+        kerno['radiko'] = new_radiko
+    kerno['kategorio'] = lower_ast.get('kategorio')
+    # Mark for downstream debugging / metrics.
+    kerno['_reanalyzed_from'] = 'propra_nomo'
 
 if __name__ == '__main__':
     # Example Usage

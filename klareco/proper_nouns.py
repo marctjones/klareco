@@ -11,9 +11,22 @@ import json
 from pathlib import Path
 from typing import Optional, Dict
 
-# Default paths
-DEFAULT_DYNAMIC_PATH = Path(__file__).parent.parent / "data" / "proper_nouns_dynamic.json"
-DEFAULT_STATIC_PATH = Path(__file__).parent.parent / "data" / "proper_nouns_static.json"
+# Default paths.
+#
+# Version chain (newest first):
+#   v3: cleaned (R1+R2 strip) + Esperanto-Wikipedia-derived categories
+#       (person/place/organization/work, ~628K entries)
+#   v2: cleaned only (R1+R2 strip — 467 high-confidence Esperanto-adjective
+#       and plural-noun entries removed)
+#   v1: original corpus-extracted (~190K entries, ~78% pollution)
+#
+# Loader walks the chain newest-first, using the first that exists. The
+# older files are preserved on disk for reference / re-cleaning.
+_PROJECT_ROOT = Path(__file__).parent.parent
+DEFAULT_DYNAMIC_PATH = _PROJECT_ROOT / "data" / "proper_nouns_dynamic_v3.json"
+DEFAULT_DYNAMIC_FALLBACK = _PROJECT_ROOT / "data" / "proper_nouns_dynamic_v2.json"
+DEFAULT_DYNAMIC_LEGACY = _PROJECT_ROOT / "data" / "proper_nouns_dynamic.json"
+DEFAULT_STATIC_PATH = _PROJECT_ROOT / "data" / "proper_nouns_static.json"
 
 # Singleton instance
 _dictionary_instance: Optional["ProperNounDictionary"] = None
@@ -47,11 +60,17 @@ class ProperNounDictionary:
         self.static: Dict[str, dict] = {}
         self.session_cache: Dict[str, dict] = {}  # Temporary additions
 
-        # Load dynamic dictionary (primary)
+        # Load dynamic dictionary (primary). Prefer v3 (cleaned + Wikipedia
+        # categories), fall back to v2 (cleaned), then v1 (legacy).
         if dynamic_path is None:
-            dynamic_path = DEFAULT_DYNAMIC_PATH
+            for candidate in (DEFAULT_DYNAMIC_PATH,
+                              DEFAULT_DYNAMIC_FALLBACK,
+                              DEFAULT_DYNAMIC_LEGACY):
+                if candidate.exists():
+                    dynamic_path = candidate
+                    break
 
-        if dynamic_path.exists():
+        if dynamic_path is not None and dynamic_path.exists():
             with open(dynamic_path, 'r', encoding='utf-8') as f:
                 self.dynamic = json.load(f)
 

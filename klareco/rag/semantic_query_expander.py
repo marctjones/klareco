@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import List, Set
 import kuzu
 
+from klareco.utils.kuzu_open import open_kuzu
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +26,7 @@ class SemanticQueryExpander:
 
     def __init__(self, kuzu_db_path: Path):
         """Initialize with Kuzu database connection."""
-        self.db = kuzu.Database(str(kuzu_db_path))
+        self.db = open_kuzu(kuzu_db_path)
         self.conn = kuzu.Connection(self.db)
 
     def expand_verb_root(self, root: str, include_subclasses: bool = True, max_members: int = 10) -> Set[str]:

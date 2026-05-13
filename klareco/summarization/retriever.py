@@ -43,6 +43,8 @@ except ImportError:
     print("ERROR: kuzu not installed. Run: pip install kuzu")
     sys.exit(1)
 
+from klareco.utils.kuzu_open import open_kuzu
+
 
 @dataclass
 class RetrievedSentence:
@@ -73,7 +75,7 @@ class Retriever:
             db_path: Path to Kuzu database directory
         """
         self.db_path = db_path
-        self.db = kuzu.Database(db_path)
+        self.db = open_kuzu(db_path)
         self.conn = kuzu.Connection(self.db)
 
     def retrieve(

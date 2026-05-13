@@ -11,6 +11,7 @@ Created: 2026-03-28
 from typing import Dict, List, Set, Optional
 from pathlib import Path
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +27,20 @@ def get_semantic_query():
         try:
             import kuzu
             from klareco.ontology import SemanticQuery
+            from klareco.utils.kuzu_open import open_kuzu
 
-            # Connect to default database
-            db_path = Path('data/indexes/v2.1_kuzu_index_full')
+            # Connect to default database. Honor KLARECO_KUZU_DB_PATH so
+            # callers running outside the project root (e.g. Modal containers
+            # with a volume-mounted index) can point at the real location.
+            db_path = Path(os.environ.get(
+                'KLARECO_KUZU_DB_PATH',
+                'data/indexes/v2.1_kuzu_index_full',
+            ))
             if not db_path.exists():
                 logger.warning(f"Database not found at {db_path}, semantic features disabled")
                 return None
 
-            db = kuzu.Database(str(db_path))
+            db = open_kuzu(db_path)
             conn = kuzu.Connection(db)
             _semantic_query = SemanticQuery(conn)
 

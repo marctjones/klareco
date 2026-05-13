@@ -14,6 +14,8 @@ import kuzu
 from pathlib import Path
 from typing import Set, Dict
 
+from klareco.utils.kuzu_open import open_kuzu
+
 
 class HybridQueryExpander:
     """
@@ -54,7 +56,7 @@ class HybridQueryExpander:
         # Connect to Kuzu for ReVo relations
         if use_revo:
             print(f"Connecting to Kuzu database: {db_path}...")
-            db = kuzu.Database(str(db_path))
+            db = open_kuzu(db_path)
             self.conn = kuzu.Connection(db)
     
     def get_revo_synonyms(self, root: str) -> Set[str]:

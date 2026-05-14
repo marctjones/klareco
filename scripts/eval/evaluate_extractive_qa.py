@@ -42,7 +42,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 logging.getLogger('klareco').setLevel(logging.WARNING)
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from klareco.orchestrator import build_default_pipeline
 from klareco.eval import evaluate_question, summarize, print_summary

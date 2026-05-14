@@ -155,7 +155,7 @@ def main(
     import time
     from pathlib import Path
 
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from klareco.eval import summarize, print_summary
 
     test_path = Path(test_set)

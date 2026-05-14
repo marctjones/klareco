@@ -46,7 +46,7 @@ from typing import Dict, List, Set, Optional, Tuple
 from collections import Counter, defaultdict
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from klareco.parser import parse
 

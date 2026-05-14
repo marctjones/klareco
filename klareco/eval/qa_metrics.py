@@ -12,8 +12,8 @@ Two responsibilities:
    tell *which* stage is slow, not just "the pipeline is slow".
 
 Used by:
-  - scripts/evaluate_extractive_qa.py (local)
-  - scripts/modal_eval.py (Modal-parallel)
+  - scripts/eval/evaluate_extractive_qa.py (local)
+  - scripts/eval/modal_eval.py (Modal-parallel)
 """
 import time
 from statistics import mean

@@ -2,7 +2,7 @@
 Klareco evaluation utilities.
 
 Shared helpers for QA-style evaluation that can be reused by local scripts
-(scripts/evaluate_extractive_qa.py) and remote runners (scripts/modal_eval.py).
+(scripts/eval/evaluate_extractive_qa.py) and remote runners (scripts/eval/modal_eval.py).
 """
 from klareco.eval.qa_metrics import (
     evaluate_question,

@@ -46,10 +46,10 @@ changes.
 
 - **Parse**: `python -m klareco parse "mi amas la hundon"`
 - **Answer a question end-to-end**: `python -m klareco run "Kiu fondis Esperanton?"`
-- **Eval (local)**: `python scripts/evaluate_extractive_qa.py --test-set data/test_sets/qa_test_diverse_30.jsonl`
-- **Eval (Modal)**: `python scripts/modal_eval.py …` (after `scripts/modal_upload_indexes.sh` syncs the volume)
-- **Parallel local bench**: `scripts/local_parallel_bench.sh` (sizes Kuzu memory per worker)
-- **Compare runs**: `python scripts/compare_eval_results.py before.json after.json`
+- **Eval (local)**: `python scripts/eval/evaluate_extractive_qa.py --test-set data/test_sets/qa_test_diverse_30.jsonl`
+- **Eval (Modal)**: `python scripts/eval/modal_eval.py …` (after `scripts/eval/modal_upload_indexes.sh` syncs the volume)
+- **Parallel local bench**: `scripts/eval/local_parallel_bench.sh` (sizes Kuzu memory per worker)
+- **Compare runs**: `python scripts/eval/compare_eval_results.py before.json after.json`
 - **Tests**: `python -m pytest` or scope with `-k`. Most tests are
   deterministic; tests that need the production Kuzu/Whoosh indexes will
   skip when those aren't present.

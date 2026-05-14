@@ -13,7 +13,7 @@ single knob bounds every Kuzu instance the process opens:
     KLARECO_KUZU_BUFFER_MB    cap on buffer pool size (megabytes)
     KLARECO_KUZU_MAX_THREADS  cap on Kuzu's worker thread count
 
-See ``scripts/local_parallel_bench.sh`` for the canonical
+See ``scripts/eval/local_parallel_bench.sh`` for the canonical
 ``RAM/2/N_workers`` formula.
 
 Read-only is the default — query workloads share the DB file across

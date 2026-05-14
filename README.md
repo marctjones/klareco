@@ -68,15 +68,15 @@ python -m klareco parse "Mi amas la hundon."
 python -m klareco run "Kiu fondis Esperanton?"
 
 # Run extractive-QA evaluation on a test set
-python scripts/evaluate_extractive_qa.py \
+python scripts/eval/evaluate_extractive_qa.py \
     --test-set data/test_sets/qa_test_diverse_30.jsonl
 
 # Compare two eval result files (regression check)
-python scripts/compare_eval_results.py before.json after.json
+python scripts/eval/compare_eval_results.py before.json after.json
 ```
 
-Modal cloud evaluation (parallel workers) lives in `scripts/modal_eval.py`;
-push the index volume with `scripts/modal_upload_indexes.sh` first.
+Modal cloud evaluation (parallel workers) lives in `scripts/eval/modal_eval.py`;
+push the index volume with `scripts/eval/modal_upload_indexes.sh` first.
 
 ## Tests
 

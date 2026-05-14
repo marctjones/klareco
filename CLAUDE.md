@@ -212,7 +212,7 @@ python -m klareco translate "The dog sees the cat." --to eo
 ### Corpus Management
 ```bash
 # Build corpus from cleaned texts
-python scripts/parse_corpus.py \
+python scripts/parse/parse_corpus.py \
   --cleaned-dir data/cleaned/eo \
   --output data/corpus/unified_corpus.jsonl \
   --min-parse-rate 0.5
@@ -434,7 +434,7 @@ Long-running scripts include:
 
 2. **Tell the user to run it** in a separate terminal:
    ```bash
-   ./scripts/parse_corpus.sh --fresh   # Example
+   ./scripts/parse/parse_corpus.sh --fresh   # Example
    ```
 
 3. **Monitor progress** only if asked, by reading log files
@@ -488,13 +488,13 @@ python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
 | Task | Shell Script | Description |
 |------|--------------|-------------|
 | Full pipeline | `./scripts/pipeline.sh` | Run complete data pipeline |
-| Clean all texts | `./scripts/clean_all.sh` | Clean Gutenberg + ReVo |
-| Extract all | `./scripts/extract_all.sh` | Extract Wikipedia + Books |
-| Parse corpus | `./scripts/parse_corpus.sh` | Build unified corpus with ASTs |
+| Clean all texts | `./scripts/clean/clean_all.sh` | Clean Gutenberg + ReVo |
+| Extract all | `./scripts/extract/extract_all.sh` | Extract Wikipedia + Books |
+| Parse corpus | `./scripts/parse/parse_corpus.sh` | Build unified corpus with ASTs |
 | Build index | `./scripts/index_kuzu.sh` | Build Kùzu graph index |
 | Train roots | `./scripts/train_roots.sh` | Train root embeddings |
 | Train affixes | `./scripts/train_affixes.sh` | Train affix transforms |
-| Validate all | `./scripts/validate_all.sh` | Run all validation checks |
+| Validate all | `./scripts/validate/validate_all.sh` | Run all validation checks |
 
 ### Pipeline Workflow
 
@@ -905,7 +905,7 @@ Migrate when discussion crystallizes into:
 - **Move to Discussion**: "What did we learn?" (results/notes)
 
 **Example**:
-- ✅ KEEP: `CORPUS_BUILDING.md` - Step-by-step guide to run `./scripts/extract_wikipedia.sh`
+- ✅ KEEP: `CORPUS_BUILDING.md` - Step-by-step guide to run `./scripts/extract/extract_wikipedia.sh`
 - ❌ MOVE: `RAG_SYSTEM.md` - Explains RAG architecture concepts (→ Wiki)
 - ❌ MOVE: `SESSION_SUMMARY.md` - Notes from development session (→ Discussion)
 

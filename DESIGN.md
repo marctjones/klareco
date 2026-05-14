@@ -84,16 +84,16 @@ QA**, not final-answer accuracy. We care about:
 - per-stage and per-phase wall time (where does the time actually go?)
 
 Eval entry points:
-- `scripts/evaluate_extractive_qa.py` — local, single-process
-- `scripts/modal_eval.py` — Modal cloud, parallel workers
-- `scripts/local_parallel_bench.sh` — local fanout with Kuzu memory caps
+- `scripts/eval/evaluate_extractive_qa.py` — local, single-process
+- `scripts/eval/modal_eval.py` — Modal cloud, parallel workers
+- `scripts/eval/local_parallel_bench.sh` — local fanout with Kuzu memory caps
 
 All three go through `klareco/eval/qa_metrics.py` so the same evaluator
 runs everywhere.
 
 Test sets live in `data/test_sets/` (not in git). The hand-curated set is
 ~30 questions, which is below the noise floor for the effect sizes we
-expect from individual changes (#726). `scripts/build_synthetic_who_test_set.py`
+expect from individual changes (#726). `scripts/eval/build_synthetic_who_test_set.py`
 generates a larger WHO set from Kuzu PROPRA_NOMO subject patterns to give
 us measurable headroom.
 

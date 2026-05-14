@@ -98,7 +98,7 @@ class RevoKuzuLoader:
 
         if not self.kuzu_db_path.exists():
             logger.error(f"Kuzu database not found: {self.kuzu_db_path}")
-            logger.error("Please run scripts/index_kuzu.py first to create the database")
+            logger.error("Please run scripts/index/load_csv_to_kuzu_v2.1.sh first to create the database")
             sys.exit(1)
 
         self.db = kuzu.Database(str(self.kuzu_db_path))
@@ -389,7 +389,7 @@ def main():
 
     if not args.relations.exists():
         logger.error(f"ReVo relations file not found: {args.relations}")
-        logger.error("Please run scripts/extract_revo_semantic_relations.py first")
+        logger.error("Please supply --relations pointing at the ReVo semantic-relations JSON")
         sys.exit(1)
 
     loader = RevoKuzuLoader(

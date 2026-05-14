@@ -578,10 +578,9 @@ def build_corpus(
     logger.info(f"Size: {output_file.stat().st_size / (1024**3):.2f} GB")
     logger.info("")
     logger.info("Next steps:")
-    logger.info("  1. Rebuild Kuzu index:")
-    logger.info("     ./scripts/index_kuzu.sh --fresh")
-    logger.info("  2. Train M1 with quality priority:")
-    logger.info("     ./scripts/train_m1_semantic_tier_priority.sh")
+    logger.info("  1. Export to CSV: ./scripts/index/corpus_to_csv_v2.1.sh")
+    logger.info("  2. Load into Kuzu: ./scripts/index/load_csv_to_kuzu_v2.1.sh")
+    logger.info("  (or ./scripts/index/reindex_kuzu_v2.1.sh which chains both)")
     logger.info("")
 
     # Clean up checkpoint on success

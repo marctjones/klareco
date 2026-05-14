@@ -553,9 +553,9 @@ class SemanticOntologySchemaExtension:
             logger.info("✓ Schema extension complete!")
             logger.info("=" * 60)
             logger.info("\nNext steps:")
-            logger.info("1. Annotate 200 core roots (scripts/annotate_core_vocabulary.py)")
-            logger.info("2. Update retrieval to use semantic classes")
-            logger.info("3. Update QA to use schema slots")
+            logger.info("1. Load ReVo synonym relations: python scripts/index/load_revo_to_kuzu.py")
+            logger.info("2. Rebuild Whoosh index: python scripts/index/build_whoosh_index.py")
+            logger.info("3. (or run scripts/pipeline/post_reparse_pipeline.sh which chains both)")
 
         except Exception as e:
             logger.error(f"\n✗ Schema extension failed: {e}")

@@ -41,7 +41,8 @@ echo ""
 
 if [[ ! -f "$RELATIONS_JSON" ]]; then
     echo "ERROR: ReVo relations file not found: $RELATIONS_JSON"
-    echo "Please run: python scripts/extract_revo_semantic_relations.py"
+    echo "Supply --relations pointing at the ReVo semantic-relations JSON,"
+    echo "or place it at data/revo/revo_semantic_relations.json"
     exit 1
 fi
 

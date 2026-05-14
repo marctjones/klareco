@@ -54,9 +54,10 @@ pip install -r requirements.txt
 ```
 
 A pre-built Kuzu v2.1 graph and Whoosh index in `data/indexes/` is required
-for retrieval. These are not in git (each is multi-GB). Build locally with
-the pipeline scripts (see `scripts/pipeline.sh`) or sync from a known good
-snapshot.
+for retrieval. These are not in git (each is multi-GB). Build locally by
+running the per-stage scripts under `scripts/acquire/`, `scripts/clean/`,
+`scripts/extract/`, `scripts/parse/`, `scripts/index/` in order, or sync
+from a known good snapshot.
 
 ## Usage
 

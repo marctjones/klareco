@@ -2,10 +2,10 @@
 #
 # Run all validation checks
 #
-# This script runs all validation steps:
-# 1. Validate vocabulary coverage
-# 2. Validate corpus quality
-# 3. Validate Stage 1 embeddings (if trained)
+# Currently runs:
+#   1. Corpus quality (validate_corpus.py)
+#   2. Kuzu graph integrity (validate_kuzu_v2.1.py) — only if a v2.1
+#      Kuzu graph is present at data/indexes/v2.1_kuzu_index_full
 #
 # Usage:
 #   ./scripts/validate/validate_all.sh
@@ -38,17 +38,8 @@ fi
 PASSED=0
 FAILED=0
 
-# Validate vocabulary
-echo -e "${GREEN}Step 1: Validating vocabulary...${NC}"
-if python scripts/validate_vocabulary.py; then
-    ((PASSED++))
-else
-    ((FAILED++))
-fi
-echo ""
-
 # Validate corpus
-echo -e "${GREEN}Step 2: Validating corpus...${NC}"
+echo -e "${GREEN}Step 1: Validating corpus...${NC}"
 if python scripts/validate/validate_corpus.py; then
     ((PASSED++))
 else
@@ -56,16 +47,17 @@ else
 fi
 echo ""
 
-# Validate Stage 1 (if models exist)
-if [[ -f "models/root_embeddings/best_model.pt" ]]; then
-    echo -e "${GREEN}Step 3: Validating Stage 1 embeddings...${NC}"
-    if python scripts/validate_stage1.py; then
+# Validate Kuzu graph if it exists
+KUZU_DB="data/indexes/v2.1_kuzu_index_full"
+if [[ -e "$KUZU_DB" ]]; then
+    echo -e "${GREEN}Step 2: Validating Kuzu v2.1 graph...${NC}"
+    if python scripts/validate/validate_kuzu_v2.1.py; then
         ((PASSED++))
     else
         ((FAILED++))
     fi
 else
-    echo -e "${YELLOW}Step 3: Skipping Stage 1 validation (no trained model)${NC}"
+    echo -e "${YELLOW}Step 2: Skipping Kuzu validation (no graph at $KUZU_DB)${NC}"
 fi
 echo ""
 

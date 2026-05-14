@@ -209,70 +209,37 @@ python -m klareco parse "Mi amas la hundon."
 python -m klareco translate "The dog sees the cat." --to eo
 ```
 
-### Corpus Management
+### Build the corpus + indexes
 ```bash
-# Build corpus from cleaned texts
-python scripts/parse/parse_corpus.py \
-  --cleaned-dir data/cleaned/eo \
-  --output data/corpus/unified_corpus.jsonl \
-  --min-parse-rate 0.5
+# Parse cleaned texts into a unified corpus with ASTs
+./scripts/parse/parse_corpus.sh
 
-# Build Kùzu graph index
-python scripts/index_kuzu.py \
-  --corpus data/enhanced_corpus/corpus_with_metadata.jsonl \
-  --output-dir data/indexes/kuzu_index
+# Build Kuzu v2.1 graph (export CSV → load → load ReVo → extend ontology)
+./scripts/index/reindex_kuzu_v2.1.sh
+
+# Build Whoosh BM25 index on top of the corpus
+python scripts/index/build_whoosh_index.py
 ```
 
-### Training Models
+### End-to-end question answering
 ```bash
-# Train root embeddings (Stage 1)
-./scripts/train_roots.sh
+# Run the orchestrator pipeline on one question
+python -m klareco run "Kiu fondis Esperanton?"
 
-# Train affix transforms
-./scripts/train_affixes.sh
+# Evaluate against a test set (local, single-process)
+python scripts/eval/evaluate_extractive_qa.py \
+    --test-set data/test_sets/qa_test_diverse_30.jsonl
 
-# Full training pipeline
-./scripts/train_full.sh
-```
+# Same evaluator on Modal (parallel workers)
+# Push index volume first, then run
+./scripts/eval/modal_upload_indexes.sh
+modal run scripts/eval/modal_eval.py --test-set data/test_sets/qa_test_diverse_30.jsonl
 
-### RAG Demo
-```bash
-# Full pipeline: Retrieval → M1 Filtering → Reranking
-./scripts/demo_full_rag.sh                              # Example queries
-./scripts/demo_full_rag.sh "Kiu fondis Esperanton?"    # Single query
-./scripts/demo_full_rag.sh --no-m1                      # Skip M1 filtering
-./scripts/demo_full_rag.sh --no-rerank                  # Skip reranking
+# Diff two eval result files (regression check)
+python scripts/eval/compare_eval_results.py before.json after.json
 
-# M1 filtering only (no reranker)
-./scripts/test_m1_rag_now.sh                            # Test current M1 checkpoint
-./scripts/test_m1_rag_now.sh -i                         # Interactive mode
-./scripts/test_m1_rag.sh                                # Test final M1 model
-
-# Basic AST-aware retrieval (no M1, no reranker)
-python scripts/demo_ast_retriever.py -i                 # Interactive mode
-python scripts/demo_ast_retriever.py "Kiu fondis Esperanton?"
-```
-
-### Citation & Source Verification (Future - #674, #675)
-```bash
-# Query with citations (after implementation)
-klareco query "Rakontu pri Zamenhof" --with-citations
-
-# Look up citation by number
-klareco cite 3                                          # View citation [3]
-klareco cite 1,2,3                                      # View multiple citations
-
-# Query source sentences
-klareco source Zamenhof:12                              # View sentence with context
-klareco source Zamenhof --list                          # List all sentences in document
-klareco source Zamenhof --search "Esperanto"           # Search within document
-
-# Verify citations
-klareco verify --last                                   # Verify last summary
-klareco verify --summary-id <uuid>                      # Verify specific summary
-
-# Interactive exploration
-klareco query "Rakontu pri Zamenhof" --interactive     # Explore citations interactively
+# Interactive retrieval debugger
+python scripts/eval/debug_retrieval.py "Kiu fondis Esperanton?"
 ```
 
 ## Critical Implementation Details
@@ -487,36 +454,31 @@ python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
 
 | Task | Shell Script | Description |
 |------|--------------|-------------|
-| Full pipeline | `./scripts/pipeline.sh` | Run complete data pipeline |
+| Acquire tier-0 sources | `./scripts/acquire/acquire_all_tier0.sh` | Download authoritative Esperanto sources |
 | Clean all texts | `./scripts/clean/clean_all.sh` | Clean Gutenberg + ReVo |
 | Extract all | `./scripts/extract/extract_all.sh` | Extract Wikipedia + Books |
 | Parse corpus | `./scripts/parse/parse_corpus.sh` | Build unified corpus with ASTs |
-| Build index | `./scripts/index_kuzu.sh` | Build Kùzu graph index |
-| Train roots | `./scripts/train_roots.sh` | Train root embeddings |
-| Train affixes | `./scripts/train_affixes.sh` | Train affix transforms |
-| Validate all | `./scripts/validate/validate_all.sh` | Run all validation checks |
+| Re-index Kuzu | `./scripts/index/reindex_kuzu_v2.1.sh` | CSV export → Kuzu load → ReVo + ontology |
+| Build Whoosh index | `python scripts/index/build_whoosh_index.py` | Build BM25 index over the corpus |
+| Post-reparse pipeline | `./scripts/pipeline/post_reparse_pipeline.sh` | Schema + ReVo + Whoosh + eval (after a reparse) |
+| Validate all | `./scripts/validate/validate_all.sh` | Run corpus + Kuzu integrity checks |
 
-### Pipeline Workflow
-
-The Klareco data pipeline has 7 logical stages. Use `pipeline.sh` to run the full workflow:
-
-```bash
-./scripts/pipeline.sh              # Run full pipeline
-./scripts/pipeline.sh --from clean # Start from clean stage
-./scripts/pipeline.sh --only index # Run only index stage
-```
+### Pipeline Stages
 
 ```
-ACQUIRE  → Download raw data (Gutenberg, Wikipedia)
-CLEAN    → Clean/normalize text (remove headers, markup)
-EXTRACT  → Extract sentences + metadata (JSONL)
-PARSE    → Parse to ASTs (enhanced corpus)
-INDEX    → Build Kùzu graph indexes
-TRAIN    → Train embedding models
-VALIDATE → Validate quality
+ACQUIRE  → Download raw data           (scripts/acquire/)
+CLEAN    → Normalize text              (scripts/clean/)
+EXTRACT  → Extract sentence JSONL      (scripts/extract/)
+OCR      → PDF → text (PAG only)       (scripts/ocr/)
+PARSE    → Parse to ASTs                (scripts/parse/)
+INDEX    → Kuzu graph + Whoosh         (scripts/index/)
+EVAL     → Run evaluators               (scripts/eval/)
+VALIDATE → Data-integrity checks       (scripts/validate/)
+PIPELINE → Post-parse orchestrator     (scripts/pipeline/)
 ```
 
-Scripts follow naming convention: `<stage>_<target>.py` and `<stage>_<target>.sh`
+Scripts follow naming convention: `<stage>_<target>.py` and `<stage>_<target>.sh`,
+where `<stage>` matches the subdirectory.
 
 ## Code Organization
 
@@ -524,38 +486,43 @@ Scripts follow naming convention: `<stage>_<target>.py` and `<stage>_<target>.sh
 klareco/
 ├── parser.py               # 16 Esperanto rules → AST
 ├── deparser.py             # AST → text reconstruction
-├── ast_to_graph.py         # AST → PyG graph for neural models
-├── embeddings/
-│   └── compositional.py    # Morpheme-level embeddings (500K params)
-├── models/
-│   └── tree_lstm.py        # TreeLSTMEncoder for sentence embeddings
-├── rag/
-│   └── retriever.py        # Two-stage retrieval (structural + neural)
-├── experts/
-│   ├── extractive.py       # Template-based answering
-│   └── summarizer.py       # AST-based summarization
-└── orchestrator.py         # Intent routing and pipeline coordination
+├── proper_nouns.py         # v3 cleaned + Wikipedia-category dictionary
+├── cli.py / __main__.py    # CLI entry points
+├── orchestrator/           # Immutable QueryContext pipeline (active spine)
+│   ├── pipeline.py         #   Orchestrator runner
+│   ├── factory.py          #   build_default_pipeline()
+│   ├── context.py          #   QueryContext / ContextDelta dataclasses
+│   ├── phase_timer.py      #   Sub-stage timing
+│   └── stages/             #   Parse → Retrieve → DetRerank → Rerank
+│                           #   → ExtractGenerate → FormatOutput
+├── rag/                    # Retrieval + extraction
+│   ├── whoosh_retriever.py #   Main retriever (BM25 ∩ AST roles)
+│   ├── unified_extractor.py#   Fact extraction
+│   ├── extractive_answering.py
+│   ├── ast_semantic_ranker.py
+│   ├── kuzu_ast_reconstructor.py
+│   ├── importance_scorer.py
+│   ├── grammatical_variants.py
+│   ├── discourse_planner.py
+│   ├── question_classifier.py
+│   └── entity_recognizer.py
+├── knowledge/              # Kuzu-backed vocabularies (no hardcoded lists)
+├── ontology/               # Kuzu query API for the 4-layer ontology
+├── schema/                 # Kuzu v2.1 DDL
+├── eval/qa_metrics.py      # Shared evaluator (local + Modal)
+└── utils/kuzu_open.py      # Single Kuzu opener with env-var memory caps
 
 scripts/
-├── acquire_*.py            # Download raw data
-├── acquire_*.sh            # Download scripts (shell wrappers)
-├── clean_*.py              # Clean/normalize text
-├── extract_*.py            # Extract sentences with metadata
-├── extract_*.sh            # Extraction scripts (shell wrappers)
-├── parse_*.py              # Parse to ASTs
-├── parse_*.sh              # Parsing scripts (shell wrappers)
-├── index_*.py              # Build graph indexes
-├── index_*.sh              # Indexing scripts (shell wrappers)
-├── train_*.py              # Train models
-├── train_*.sh              # Training scripts (shell wrappers)
-├── evaluate_*.py           # Evaluation scripts
-├── validate_*.py           # Validation scripts
-├── demo_*.py               # Interactive demos
-├── analyze_*.py            # Analysis scripts (read-only)
-├── util_*.py               # Utility scripts
-├── debug_*.py              # Debugging tools
-├── pipeline.sh             # Master workflow script
-└── archive/                # Obsolete/superseded scripts
+├── acquire/      # Raw downloads from upstream sources
+├── clean/        # Raw → cleaned text
+├── extract/      # Cleaned → sentence JSONL
+├── ocr/          # PDF → text (PAG)
+├── parse/        # Build unified corpus from extracted sentences
+├── index/        # Corpus → Kuzu graph + Whoosh BM25 index
+├── eval/         # Evaluators, comparators, debug tools
+├── validate/     # Data-integrity checks
+├── pipeline/     # Post-parse orchestrator
+└── util/         # Dev tooling (script-version linter wired to pre-commit)
 ```
 
 ## Data Files (Not in Git)
@@ -617,12 +584,13 @@ All ASTs follow this pattern:
 ```
 
 ### Running Long Processes
-For training or corpus building, use shell scripts to run in separate terminal to save Claude context:
+For corpus building or large evaluations, run shell scripts in a
+separate terminal to keep Claude's context clear:
 ```bash
-./scripts/train_roots.sh  # Logs to logs/training/root_training_*.log
+./scripts/parse/parse_corpus.sh  # logs under logs/
 ```
 
-Monitor with: `tail -f logs/training/root_training_*.log`
+Monitor with: `tail -f logs/<script-name>_*.log`
 
 ## Current Development Status
 

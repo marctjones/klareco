@@ -92,39 +92,17 @@ run_acquisition "scripts/acquire/acquire_lingvaj_respondoj.sh" "Lingvaj Respondo
 # 2. Project Gutenberg (EXCELLENT QUALITY - born-digital, PGDP proofread)
 run_acquisition "scripts/acquire/acquire_gutenberg.sh" "Project Gutenberg literary works"
 
-# 3. Ekzercaro & Krestomatio (QUICK - just extraction from existing file)
-run_acquisition "scripts/extract_ekzercaro_krestomatio.sh" "Extract Ekzercaro & Krestomatio"
-
-# 4. PMEG (MODERN GRAMMAR - large PDF, may take time)
+# 3. PMEG (MODERN GRAMMAR - large PDF, may take time)
 run_acquisition "scripts/acquire/acquire_pmeg.sh" "PMEG (modern authoritative grammar)"
 
-# 5. PAG (OLDER GRAMMAR - PDF conversion)
+# 4. PAG (OLDER GRAMMAR - PDF conversion)
 run_acquisition "scripts/acquire/acquire_pag.sh" "PAG (classic analytic grammar)"
 
-# 6. Proverbaro (NEEDS TESTING FIRST - scanned PDF)
-echo "========================================================================"
-echo "[Proverbaro] Testing quality before acquisition"
-echo "========================================================================"
-echo ""
-echo "Proverbaro is a 1910 scanned PDF - quality must be tested first."
-echo ""
+# 5. Proverbaro (1910 scanned PDF - acquisition includes quality check)
+run_acquisition "scripts/acquire/acquire_proverbaro.sh" "Proverbaro (Zamenhof proverb collection)"
 
-if ./scripts/test_proverbaro_quality.sh; then
-    echo ""
-    echo "Quality test complete. Review the results above."
-    echo ""
-    read -p "Proceed with Proverbaro acquisition? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # Note: Would need to create acquire_proverbaro.sh if quality is acceptable
-        echo "NOTE: If quality is acceptable, create acquire_proverbaro.sh (similar to PAG)"
-        echo "For now, skipping full acquisition - manual review required."
-    else
-        echo "Skipping Proverbaro acquisition." | tee -a "$MASTER_LOG"
-    fi
-else
-    echo "✗ Proverbaro quality test failed - skipping acquisition" | tee -a "$MASTER_LOG"
-fi
+# 6. Krestomatio (Zamenhof's Fundamenta Krestomatio)
+run_acquisition "scripts/acquire/acquire_krestomatio.sh" "Fundamenta Krestomatio"
 
 # Calculate elapsed time
 END_TIME=$(date +%s)

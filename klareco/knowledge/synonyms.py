@@ -6,9 +6,10 @@ This module provides unified synonym dictionaries used for:
 - Query expansion (retrieval in Whoosh)
 
 Sources:
-- MANUAL_VERB_SYNONYMS from klareco/rag/answer_extractor.py
-- MANUAL_SYNONYMS from scripts/demo_extractive_qa.py
-- Semantic ontology verb classes (v2.2+)
+- Hand-curated MANUAL_VERB_SYNONYMS (historical: drawn from the old
+  rag/answer_extractor.py during the v2.2 schema-first migration)
+- Semantic ontology verb classes (v2.2+) — queried via
+  klareco.knowledge.semantic_bridge.get_verb_synonyms_from_ontology
 - Merged and deduplicated for consistency
 
 Format: Dict[str, Set[str]]

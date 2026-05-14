@@ -107,12 +107,13 @@ if python scripts/parse/build_unified_corpus.py \
     echo "Log: $LOG_FILE"
     echo ""
     echo "Next steps:"
-    echo "  1. Rebuild Kuzu index:"
-    echo "     ./scripts/index_kuzu.sh --fresh"
+    echo "  1. Export corpus to CSV:"
+    echo "     ./scripts/index/corpus_to_csv_v2.1.sh"
     echo ""
-    echo "  2. Train M1 with tier priority:"
-    echo "  2. Rebuild Kuzu DB:"
-    echo "     ./scripts/index/reindex_kuzu_v2.1.sh"
+    echo "  2. Load into Kuzu v2.1:"
+    echo "     ./scripts/index/load_csv_to_kuzu_v2.1.sh"
+    echo ""
+    echo "  (Or run ./scripts/index/reindex_kuzu_v2.1.sh which chains both.)"
     echo ""
 
 else

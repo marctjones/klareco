@@ -56,6 +56,100 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import kuzu
 
 from klareco.utils.kuzu_open import open_kuzu
+from klareco.parser import parse
+
+# A proper noun governed by one of these prepositions is NOT the agent
+# of the clause (companion / topic / location): "kun Manuel", "pri
+# Johano", "en Leipzig". Largest incoherence class in the old generator.
+_PREP_GOVERNED = {
+    'kun', 'pri', 'de', 'per', 'en', 'sub', 'al', 'ĉe', 'post',
+    'antaŭ', 'el', 'tra', 'inter', 'kontraŭ', 'apud', 'laŭ', 'pro',
+}
+_DEMONSTRATIVE = {
+    'tia', 'tiu', 'ĉi', 'ĝi', 'ili', 'jen', 'tio', 'ĉio', 'io',
+    'la', 'lia', 'ŝia', 'sia', 'nia', 'via', 'mia',
+}
+_JUNK_MARKERS = ('[', ']', 'REDIRECT', 'ALIDIREKTI', 'ALIDIREKTU',
+                 ' ekzemple:', 'Skribu ', '#')
+
+
+def verify_with_parser(c: dict) -> dict | None:
+    """Re-parse the source sentence; accept only when the candidate
+    proper noun is genuinely the AST subject (agent) of the templated
+    verb. Returns a corrected candidate (full-name answer) or None.
+    Kills every defect class from the manual 200-question audit.
+    """
+    text = c.get('sentence_text') or ''
+    if any(m in text for m in _JUNK_MARKERS):
+        return None
+    try:
+        ast = parse(text)
+    except Exception:
+        return None
+    if not isinstance(ast, dict):
+        return None
+    subj, verb, obj = ast.get('subjekto'), ast.get('verbo'), ast.get('objekto')
+    if not (subj and verb and obj):
+        return None
+
+    def kerno(n):
+        if not isinstance(n, dict):
+            return None
+        return n.get('kerno', n) if n.get('tipo') == 'vortgrupo' else n
+
+    sk, vk, ok = kerno(subj), kerno(verb), kerno(obj)
+    if not (sk and vk and ok):
+        return None
+    # 1. fresh parse must agree the propra is the subject
+    if sk.get('vortspeco') != 'propra_nomo':
+        return None
+    subj_pv = sk.get('plena_vorto') or ''
+    cand = (c.get('subject_pv') or '')
+    if not subj_pv or not cand or cand.split()[0] not in subj_pv:
+        return None
+    # 2. templated verb must be THIS clause's main verb
+    if (vk.get('radiko') or '') != c.get('verb_root'):
+        return None
+    # 3. polarity: reject mal-/ne negated predicates
+    if (vk.get('plena_vorto') or '').lower().startswith('mal') \
+            or 'mal' in (vk.get('prefiksoj') or []):
+        return None
+    toks = text.split()
+    low = [t.strip('.,;:"()').lower() for t in toks]
+    first = subj_pv.split()[0]
+    if 'ne' in low and first.lower() in low \
+            and low.index('ne') < low.index(first.lower()):
+        return None
+    # 4. object must be a common noun
+    if ok.get('vortspeco') in ('korelativo', 'pronomo', 'propra_nomo'):
+        return None
+    if (ok.get('radiko') or '').lower() in _DEMONSTRATIVE:
+        return None
+    obj_pv = ok.get('plena_vorto') or ''
+    if len(obj_pv) < 3 or obj_pv[:1].isupper():
+        return None
+    # 5. preposition-governed subject -> not the agent
+    if first in toks:
+        i = toks.index(first)
+        if i > 0 and toks[i - 1].strip('.,;:"()').lower() in _PREP_GOVERNED:
+            return None
+        # 6. full-name answer (kills name-splitting)
+        span = [toks[i]]
+        j = i + 1
+        while j < len(toks) and toks[j][:1].isupper() and toks[j].isalpha():
+            span.append(toks[j])
+            j += 1
+        full_name = ' '.join(span).strip('.,;:"()')
+    else:
+        full_name = subj_pv
+    if len(full_name) < 3 or not full_name[0].isupper():
+        return None
+
+    out = dict(c)
+    out['subject_pv'] = full_name
+    out['object_pv'] = obj_pv
+    out['object_radiko'] = ok.get('radiko') or c.get('object_radiko')
+    return out
 
 # Verb roots known to take a propra_nomo agent in WHO questions.
 # Drawn from semantic-ontology verb classes for "creation", "authorship",
@@ -187,8 +281,18 @@ def main():
                                               limit=args.query_limit)
     print(f"  Raw candidates: {len(candidates)}")
 
-    filtered = [c for c in candidates if is_quality_candidate(c)]
-    print(f"  After quality filter: {len(filtered)}")
+    surface_ok = [c for c in candidates if is_quality_candidate(c)]
+    print(f"  After surface quality filter: {len(surface_ok)}")
+    # Parser-AST verification: re-parse each source sentence and keep
+    # only those where the propra is the true agent of the templated
+    # verb (corrects subject to the full-name span).
+    filtered = []
+    for c in surface_ok:
+        v = verify_with_parser(c)
+        if v is not None:
+            filtered.append(v)
+    print(f"  After parser-AST verification: {len(filtered)} "
+          f"({len(filtered)/max(len(surface_ok),1)*100:.0f}% kept)")
 
     if not filtered:
         raise SystemExit("ERROR: no candidates passed filter — check verb list / corpus")

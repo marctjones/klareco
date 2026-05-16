@@ -1577,42 +1577,29 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
         ast["vortspeco"] = "numero"
         return ast
 
-    # 2. Proper name (starts with capital letter)
+    # 2. Proper name (starts with capital letter).
+    #
+    # No gazetteer. A capitalized word only reaches categorize_unknown_word
+    # when the morphology layer found NO valid Esperanto decomposition
+    # against the root lexicon (the capitalization guard already let every
+    # decomposable word fall through to morphology). Non-decomposable +
+    # capitalized IS a proper noun by deterministic negative detection —
+    # this needs no world-knowledge lookup. Entity *type*
+    # (persono/loko/organizaĵo) is deliberately NOT decided here; that is
+    # the sense axis and belongs to the ontology/learned layer downstream,
+    # not to a Wikipedia-title gazetteer in the parser.
     if word[0].isupper() and len(word) > 1:
-        # Check proper noun dictionary first
-        from klareco.proper_nouns import get_proper_noun_dictionary
-        pn_dict = get_proper_noun_dictionary()
-
-        if pn_dict.is_proper_noun(word):
-            # Known proper noun - mark as SUCCESS, not failed!
-            ast["analizstato"] = "sukceso"
-            ast["kategorio"] = "propranomo_konata"
-            ast["vortspeco"] = "propra_nomo"
-            ast["analizeraro"] = ""
-
-            # Add metadata from dictionary
-            metadata = pn_dict.get_metadata(word)
-            if metadata:
-                ast["propranoma_kategorio"] = metadata.get("category", "other")
-                ast["propranoma_ofteco"] = metadata.get("frequency", 0)
-
-            # Extract case/number from Esperanto endings
-            if word.endswith(('o', 'on', 'oj', 'ojn', 'a', 'an', 'aj', 'ajn')):
-                if word.endswith('n'):
-                    ast["kazo"] = "akuzativo"
-                if word.endswith(('j', 'jn')):
-                    ast["nombro"] = "pluralo"
-
-            return ast
-
-        # Unknown proper name (not in dictionary)
-        ast["kategorio"] = "propranomo"
+        # Successfully classified — deterministically, as a proper noun.
+        ast["analizstato"] = "sukceso"
+        ast["analizeraro"] = ""
         ast["vortspeco"] = "propra_nomo"
+        ast["kategorio"] = "propranomo"
 
-        # Try to detect if it has Esperanto-like endings (might be Esperantized name)
+        # Esperantized proper nouns carry Esperanto case/number endings
+        # (Parizon, Berlinoj). Extract them deterministically; bare-foreign
+        # names (Washington) have none and stay nominative singular.
         if word.endswith(('o', 'on', 'oj', 'ojn')):
             ast["kategorio"] = "propranomo_esperantigita"
-            # Extract the case/number from ending
             if word.endswith('n'):
                 ast["kazo"] = "akuzativo"
                 word = word[:-1]
@@ -2182,34 +2169,23 @@ def parse(text: str):
                 # "La Fundamento" → proper noun
                 # "Fundamento estas..." → ambiguous, might be sentence-initial
                 if i == 0:
-                    # Sentence-initial capitalization disambiguation.
+                    # Sentence-initial capitalization disambiguation —
+                    # purely deterministic, no gazetteer.
                     #
-                    # The proper-noun dict is corpus-extracted and ~78%
-                    # polluted with misclassified common nouns (Hejmpaĝ,
-                    # Sonfilm, Membroŝtat, ...). Let it override classification
-                    # ONLY when parse_word returned 'nekonata' (couldn't
-                    # classify) or already 'propra_nomo' (just refining
-                    # kategorio). For content classifications (substantivo,
-                    # adjektivo, adverbo, verbo, korelativo) parse_word's
-                    # answer is more reliable than the dict.
-                    from klareco.proper_nouns import get_proper_noun_dictionary
-                    pn_dict = get_proper_noun_dictionary()
+                    # Capitalization at position 0 is NOT evidence (every
+                    # sentence starts capitalized). So the decision rests on
+                    # what the morphology layer found:
+                    #   - content classification (substantivo, adjektivo,
+                    #     verbo, ...): trust it — the word decomposed validly
+                    #     against the root lexicon, so it has a common
+                    #     reading and position explains the capital.
+                    #   - 'propra_nomo' already: parse_word/categorize made a
+                    #     deterministic negative-detection call; keep it.
+                    #   - 'nekonata': fall back to negative detection — a
+                    #     root that is not a known Esperanto morpheme is a
+                    #     proper noun.
                     current_vortspeco = ast.get("vortspeco", "")
-
-                    # Function-word vortspecos: never override these
-                    function_word_types = {
-                        'konjunkcio', 'pronomo', 'prepozicio',
-                        'partiklo', 'korelativo', 'artikolo'
-                    }
-
-                    if (current_vortspeco in ('nekonata', 'propra_nomo')
-                            and pn_dict.is_proper_noun(w)):
-                        ast["vortspeco"] = "propra_nomo"
-                        ast["kategorio"] = "propranomo_konata"
-                    elif current_vortspeco == 'nekonata':
-                        # parse_word couldn't classify, dict didn't help —
-                        # fall back to negative detection: if the radiko isn't
-                        # a known Esperanto root, treat as propra_nomo.
+                    if current_vortspeco == 'nekonata':
                         root = ast.get("radiko", "").lower()
                         is_common_root = (
                             root in _FUNDAMENTO_ROOTS or
@@ -2220,9 +2196,8 @@ def parse(text: str):
                         if not is_common_root:
                             ast["vortspeco"] = "propra_nomo"
                             ast["kategorio"] = "propranomo"
-                    # else: parse_word returned a content classification
-                    # (substantivo, adjektivo, adverbo, verbo, korelativo, ...)
-                    # which we trust over the polluted dict.
+                    # else: trust parse_word (content classification or an
+                    # already-deterministic propra_nomo).
                 # For non-initial words: capitalization is a strong signal
                 # for proper nouns, BUT we must preserve unambiguous Esperanto
                 # adjectives (like "Polaj" / "Hungaraj") so the agreement
@@ -2242,13 +2217,11 @@ def parse(text: str):
                                 for e in _ADJ_SURFACE_ENDINGS)
                     )
                     if not is_real_adjective:
+                        # Mid-sentence capitalization is a strong, purely
+                        # structural proper-noun signal. Entity type is not
+                        # decided here (ontology/learned layer's job).
                         ast["vortspeco"] = "propra_nomo"
-                        from klareco.proper_nouns import get_proper_noun_dictionary
-                        pn_dict = get_proper_noun_dictionary()
-                        if pn_dict.is_proper_noun(w):
-                            ast["kategorio"] = "propranomo_konata"
-                        else:
-                            ast["kategorio"] = "propranomo"
+                        ast["kategorio"] = "propranomo"
 
                 # Special case: "la X" pattern → X is definitely a proper noun
                 # (still applies; "la" before X marks it as a referenced entity).
@@ -2256,8 +2229,7 @@ def parse(text: str):
                 if (i > 0 and words[i-1].lower() == 'la' and w not in skip_words
                         and ast.get("vortspeco") not in ('adjektivo',)):
                     ast["vortspeco"] = "propra_nomo"
-                    if ast.get("kategorio") != "propranomo_konata":
-                        ast["kategorio"] = "propranomo"
+                    ast["kategorio"] = "propranomo"
 
             word_asts.append(ast)
         except ValueError as e:

@@ -1417,11 +1417,23 @@ def parse_word(word: str) -> dict:
     #      — catches "Genetika" (stem "genetik"), "Hungaraj" (stem "hungar").
     #      Adjectival endings are reliable because adjectives MUST agree with
     #      a noun, so genuine modifier-position usage self-evidences.
-    #   2. Substantivo ending (-o/-oj/-on/-ojn) AND stem is a *verified*
-    #      Esperanto compound (both halves recognized via
-    #      _is_genuine_esperanto_compound). This catches "Membroŝtatoj"
-    #      (membr+ŝtat) and similar without misclassifying foreign names
-    #      like "Kongon" (kong → no Esperanto decomposition possible).
+    #   2. Substantivo ending (-o/-oj/-on/-ojn) AND stem in DICTIONARY_ROOTS
+    #      — catches "Manifesto" (stem "manifest"), "Espero" (stem "esper"),
+    #      "Hundo" (stem "hund"). A capitalized -o-ending word whose stem is
+    #      a recognized Esperanto root (full inventory, not just the ~2K
+    #      Fundamento set) HAS a valid common-noun reading. Whether it is
+    #      actually proper here is then decided structurally by the
+    #      sentence-level reanalysis (sentence-initial → trust morphology;
+    #      mid-sentence capitalization → proper). This widens the
+    #      morphological-validity gate from _FUNDAMENTO_ROOTS to the full
+    #      root inventory, mirroring exception 1 for nouns. Foreign names
+    #      that merely look -o-final are already filtered upstream by the
+    #      foreign-orthography fast-path; the irreducibly-ambiguous residual
+    #      (esperantized names like "Leono"/"Marko" sharing a root) is what
+    #      the position logic and a future learned tie-breaker resolve.
+    #   3. Substantivo ending AND stem is a *verified* Esperanto compound
+    #      (both halves recognized via _is_genuine_esperanto_compound).
+    #      Catches "Membroŝtatoj" (membr+ŝtat) where no single root matches.
     #
     # We deliberately do NOT extend to -e (adverb) endings — many foreign
     # names end in -e ("Shakespeare", "Goethe", "Marie") and DICTIONARY_ROOTS
@@ -1436,10 +1448,13 @@ def parse_word(word: str) -> dict:
             and (lower_word.endswith(('aj', 'an', 'ajn'))
                  or lower_word.endswith('a'))
         )
-        had_substantivo_compound = (
+        had_substantivo_ending = (
             lower_word != stem
             and (lower_word.endswith(('oj', 'on', 'ojn'))
                  or lower_word.endswith('o'))
+        )
+        had_substantivo_compound = (
+            had_substantivo_ending
             and _is_genuine_esperanto_compound(stem)
         )
         # Adjectival compounds (e.g., "Multiklasa" = multi + klas + a) — same
@@ -1451,6 +1466,7 @@ def parse_word(word: str) -> dict:
         )
         if not (
             (had_adjectival_ending and stem in DICTIONARY_ROOTS)
+            or (had_substantivo_ending and stem in DICTIONARY_ROOTS)
             or had_substantivo_compound
             or had_adjectival_compound
         ):

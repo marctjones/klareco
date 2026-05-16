@@ -36,3 +36,4 @@ env/
 docs/api/
 =*
 annotations.json
+.idlergear.retired/

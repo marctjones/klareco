@@ -20,15 +20,16 @@ from klareco.orchestrator.stages.rerank import RerankStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
 from klareco.rag.extractive_answering import ExtractiveAnswerGenerator
-from klareco.rag.whoosh_retriever import WhooshRetriever
+from klareco.rag.duckdb_retriever import DuckDBRetriever
 
 
 def build_default_pipeline(
     whoosh_index_dir: Path | str,
-    kuzu_db_path: Path | str,
+    duckdb_path: Path | str = 'data/indexes/duckdb_store.db',
     top_k: int = 20,
     models: Optional[ModelRegistry] = None,
     debug: bool = False,
+    kuzu_db_path: Path | str | None = None,  # deprecated alias, ignored
 ) -> Orchestrator:
     """
     Build the standard Klareco RAG pipeline.
@@ -53,14 +54,17 @@ def build_default_pipeline(
     debug            : enable delta field validation on every stage call
     """
     whoosh_index_dir = Path(whoosh_index_dir)
-    kuzu_db_path = Path(kuzu_db_path)
+    duckdb_path = Path(duckdb_path)
 
     if models is None:
         models = ModelRegistry()
 
-    retriever = WhooshRetriever(
+    # Kuzu retired 2026-05; DuckDB store (shredded cols + ast_json blob)
+    # is the backend. kuzu_db_path kept only as an ignored alias so
+    # older callers don't break during the migration.
+    retriever = DuckDBRetriever(
         whoosh_index_dir=whoosh_index_dir,
-        kuzu_db_path=kuzu_db_path,
+        duckdb_path=duckdb_path,
     )
     generator = ExtractiveAnswerGenerator()
 

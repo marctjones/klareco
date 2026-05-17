@@ -20,37 +20,16 @@ _semantic_query = None
 
 
 def get_semantic_query():
-    """Lazy-load SemanticQuery connection."""
-    global _semantic_query
+    """Ontology bridge — disabled pending the DuckDB migration.
 
-    if _semantic_query is None:
-        try:
-            import kuzu
-            from klareco.ontology import SemanticQuery
-            from klareco.utils.kuzu_open import open_kuzu
-
-            # Connect to default database. Honor KLARECO_KUZU_DB_PATH so
-            # callers running outside the project root (e.g. Modal containers
-            # with a volume-mounted index) can point at the real location.
-            db_path = Path(os.environ.get(
-                'KLARECO_KUZU_DB_PATH',
-                'data/indexes/v2.1_kuzu_index_full',
-            ))
-            if not db_path.exists():
-                logger.warning(f"Database not found at {db_path}, semantic features disabled")
-                return None
-
-            db = open_kuzu(db_path)
-            conn = kuzu.Connection(db)
-            _semantic_query = SemanticQuery(conn)
-
-            logger.info("✓ SemanticQuery bridge initialized")
-
-        except Exception as e:
-            logger.warning(f"Failed to initialize SemanticQuery: {e}")
-            return None
-
-    return _semantic_query
+    The ontology (VerbaKlaso/EntecaTipo/… + Tier-0 edges) lived only in
+    Kuzu, which was retired 2026-05. A snapshot is preserved at
+    data/ontology_export/kuzu_ontology_snapshot.json and will be loaded
+    into a DuckDB ontology table during the migration. Until then this
+    returns None; every consumer (synonyms, gazetteers) already has a
+    hardcoded-fallback path for the ontology-unavailable case.
+    """
+    return None
 
 
 def get_place_names_from_ontology() -> Set[str]:

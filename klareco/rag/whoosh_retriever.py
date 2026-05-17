@@ -9,14 +9,23 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Optional
 
-import kuzu
 from whoosh import scoring
 from whoosh.index import open_dir
 from whoosh.qparser import OrGroup, QueryParser
 
 from klareco.parser import parse
-from klareco.rag.kuzu_ast_reconstructor import KuzuASTReconstructor
-from klareco.utils.kuzu_open import open_kuzu
+
+# Kuzu retired 2026-05. The graph-traversal query layer + the
+# ~17 s/AST KuzuASTReconstructor are being replaced by a flat DuckDB
+# store (shredded query columns + ast_json blob). This module still
+# imports cleanly; the Kuzu-backed retrieval path raises until the
+# DuckDB store + SQL query layer land (migration Phases 1-4).
+_KUZU_RETIRED_MSG = (
+    "WhooshRetriever's Kuzu retrieval backend was retired 2026-05 "
+    "(KuzuASTReconstructor measured at ~17 s/AST; graph traversal "
+    "~338x slower than a flat indexed store). The DuckDB store + SQL "
+    "query layer are pending — retrieval is disabled until that lands."
+)
 
 logger = logging.getLogger(__name__)
 
@@ -137,17 +146,16 @@ class WhooshRetriever:
         self.whoosh_index_dir = Path(whoosh_index_dir)
         self.kuzu_db_path = Path(kuzu_db_path)
 
-        # Open Whoosh index
+        # Open Whoosh index (still valid — BM25 layer is unchanged).
         logger.info(f"Loading Whoosh index from {whoosh_index_dir}")
         self.ix = open_dir(str(whoosh_index_dir))
 
-        logger.info(f"Connecting to Kuzu database at {kuzu_db_path}")
-        self.kuzu_db = open_kuzu(kuzu_db_path)
-        self.kuzu_conn = kuzu.Connection(self.kuzu_db)
-
-        # Initialize AST reconstructor for fast precomputed AST fetching
-        logger.info("Initializing KuzuASTReconstructor for 10x faster AST retrieval")
-        self.ast_reconstructor = KuzuASTReconstructor(self.kuzu_conn)
+        # Kuzu retired: the graph connection + KuzuASTReconstructor are
+        # gone. Fail loudly and specifically rather than limp on a dead
+        # backend — the orchestrator factory builds this, so callers get
+        # a clear migration message instead of an obscure AttributeError
+        # deep in a query method.
+        raise NotImplementedError(_KUZU_RETIRED_MSG)
 
         # Per-call sub-phase timings (kuzu_query, ast_parse, semantic_rank, ...)
         # Reset at the top of each retrieve_with_ast_roles call. Read by

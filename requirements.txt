@@ -15,8 +15,10 @@ numpy
 # Vector search for RAG retrieval
 faiss-cpu  # Use faiss-gpu if you have CUDA
 
-# Graph database for structured retrieval
-kuzu
+# AST + retrieval store (replaces Kuzu, retired 2026-05): shredded
+# query columns + ast_json blob; ~338x faster retrieval, ~20000x
+# faster AST access than the Kuzu graph + reconstructor it replaces.
+duckdb
 
 # Full-text search index (BM25) used by RAG retriever
 Whoosh

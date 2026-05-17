@@ -65,15 +65,23 @@ Text → Parser (rules) → AST → Compositional Embeddings → Retrieval/Reaso
 
 ### Mandatory Rules
 
-**1. ALWAYS use precomputed ASTs from the graph**
+**1. AST access — do NOT use KuzuASTReconstructor**
 ```python
-# ❌ NEVER DO THIS:
-ast = parse(text)  # Re-parsing is wasted computation!
+# ⚠️ MEASURED 2026-05: KuzuASTReconstructor.reconstruct_ast() is
+# ~17,000 ms PER AST (not "<5ms" as previously claimed here — that
+# figure was wrong by ~3400x). It issues many unindexed Kuzu
+# traversals per sentence. NEVER use it.
+#
+# Until the store migration lands, re-parse on demand — parse(text)
+# is ~milliseconds and is what the active retriever already does
+# (commit 3dd0b73 switched off the reconstructor for this reason):
+from klareco.parser import parse
+ast = parse(text)
 
-# ✅ ALWAYS DO THIS:
-from klareco.rag.kuzu_ast_reconstructor import KuzuASTReconstructor
-reconstructor = KuzuASTReconstructor(kuzu_conn)
-ast = reconstructor.reconstruct_ast(sentence_id)  # <5ms, 10x faster
+# Target architecture (see DuckDB de-risk, 2026-05): a flat store
+# carries the parsed AST as a JSON blob; AST access becomes
+# json.loads(ast_json) at ~0.9 ms — ~20,000x faster than the
+# reconstructor and ~50x faster than re-parsing.
 ```
 
 **2. ALWAYS query semantic ontology instead of hardcoded lists**
@@ -149,7 +157,7 @@ Before implementing ANY feature, ask:
 | Verb synonym lists | Query `VerbaKlaso` members |
 | Hardcoded importance weights | Query `SkemaSloto.graveco_pezo` |
 | Pattern matching for WHO | Query thematic role `aganto` |
-| Re-parsing ASTs (50ms) | Use `KuzuASTReconstructor` (<5ms) |
+| Slow `KuzuASTReconstructor` (~17,000ms/AST, measured) | Re-parse on demand `parse(text)` (~ms); target store: `json.loads(ast_json)` blob (~0.9ms) |
 
 ### Files That Should NOT Exist
 

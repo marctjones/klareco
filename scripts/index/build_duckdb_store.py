@@ -62,7 +62,9 @@ CORPUS = 'data/corpus/unified_corpus.jsonl'
 DUCK = 'data/indexes/duckdb_store.db'
 WHOOSH_DIR = 'data/indexes/whoosh_v2'
 ONTOLOGY_SNAPSHOT = 'data/ontology_export/kuzu_ontology_snapshot.json'
-BATCH = 20_000
+BATCH = 20_000          # DuckDB durability cadence (fast bulk insert)
+WHOOSH_COMMIT = 500_000  # Whoosh commit cadence: ~11 bounded merges
+                         # over 5.4M instead of ~270 growing ones
 
 logging.basicConfig(
     level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s',
@@ -165,49 +167,37 @@ def open_whoosh(fresh: bool):
     return whoosh_index.open_dir(str(d))
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--resume', action='store_true')
-    ap.add_argument('--limit', type=int, default=None,
-                    help='process only first N sentences (smoke test)')
-    args = ap.parse_args()
+_NULL_SHRED = {k: None for k in (
+    'subj_radiko', 'subj_vortspeco', 'subj_propranoma_kat', 'subj_kazo',
+    'verb_radiko', 'verb_tempo', 'obj_radiko', 'obj_kazo')}
 
-    Path('logs').mkdir(exist_ok=True)
-    Path(DUCK).parent.mkdir(parents=True, exist_ok=True)
-    con = duckdb.connect(DUCK)
-    ensure_schema(con)
-    load_ontology(con)
 
-    start_after = 0
-    if args.resume:
-        row = con.execute("SELECT max(sid) FROM sentences").fetchone()
-        start_after = row[0] or 0
-        log.info("resume: skipping sid <= %d", start_after)
+def _worker(payload):
+    """CPU-heavy per-sentence work, run in a Pool worker: parse + shred
+    + serialize. Returns a fully-formed row dict (picklable)."""
+    sid, text = payload
+    try:
+        ast = parse(text)
+    except Exception:
+        ast = None
+    if isinstance(ast, dict):
+        shredded = shred(ast)
+        ast_json = json.dumps(ast, ensure_ascii=False)
     else:
-        con.execute("DELETE FROM sentences")
+        shredded = dict(_NULL_SHRED)
+        shredded['aliaj_json'] = '[]'
+        shredded['success_rate'] = 0.0
+        ast_json = None
+    return {'sid': sid, 'text': text, 'ast_json': ast_json, **shredded}
 
-    ix = open_whoosh(fresh=not args.resume)
-    writer = ix.writer(limitmb=512, procs=1)
 
-    t0 = time.time()
-    n = 0
-    parse_fail = 0
-    batch: list[dict] = []
-
-    def flush(rows):
-        if not rows:
-            return
-        df = pd.DataFrame(rows)
-        con.execute(
-            "INSERT INTO sentences SELECT sid, text, subj_radiko, "
-            "subj_vortspeco, subj_propranoma_kat, subj_kazo, verb_radiko, "
-            "verb_tempo, obj_radiko, obj_kazo, aliaj_json, success_rate, "
-            "ast_json FROM df")
-
+def _corpus_payloads(start_after: int, limit):
+    """Yield (sid, text) for corpus lines past the resume point. sid is
+    the absolute 1-based line index — deterministic, so resume is exact."""
     with open(CORPUS, encoding='utf-8') as f:
         for i, line in enumerate(f, 1):
-            if args.limit and i > args.limit:
-                break
+            if limit and i > limit:
+                return
             if i <= start_after:
                 continue
             line = line.strip()
@@ -217,45 +207,109 @@ def main() -> int:
                 text = json.loads(line).get('text') or ''
             except Exception:
                 continue
-            if not text:
-                continue
-            sid = i
-            try:
-                ast = parse(text)
-            except Exception:
-                ast = None
-                parse_fail += 1
-            shredded = shred(ast) if isinstance(ast, dict) else {
-                k: None for k in (
-                    'subj_radiko', 'subj_vortspeco', 'subj_propranoma_kat',
-                    'subj_kazo', 'verb_radiko', 'verb_tempo', 'obj_radiko',
-                    'obj_kazo')}
-            if 'aliaj_json' not in shredded:
-                shredded['aliaj_json'] = '[]'
-                shredded['success_rate'] = 0.0
-            row = {'sid': sid, 'text': text,
-                   'ast_json': json.dumps(ast, ensure_ascii=False)
-                   if ast else None,
-                   **shredded}
+            if text:
+                yield (i, text)
+
+
+def main() -> int:
+    import multiprocessing as mp
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--resume', action='store_true')
+    ap.add_argument('--limit', type=int, default=None,
+                    help='process only first N sentences (smoke test)')
+    ap.add_argument('--workers', type=int, default=10,
+                    help='parse-pool workers (box has 16 cores; leave '
+                         'headroom for the writer + competing load)')
+    args = ap.parse_args()
+
+    Path('logs').mkdir(exist_ok=True)
+    Path(DUCK).parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect(DUCK)
+    # Defensive: cap DuckDB memory so a competing process can't OOM us
+    # (the exact footgun we hit with Kuzu's 80%-of-RAM default).
+    con.execute("PRAGMA memory_limit='4GB'")
+    con.execute("PRAGMA threads=4")
+    ensure_schema(con)
+    load_ontology(con)
+
+    start_after = 0
+    if args.resume:
+        duck_max = con.execute(
+            "SELECT max(sid) FROM sentences").fetchone()[0] or 0
+        wh_cnt = 0
+        if whoosh_index.exists_in(WHOOSH_DIR):
+            wh_cnt = whoosh_index.open_dir(WHOOSH_DIR).doc_count()
+        # Clean common prefix only — Whoosh and DuckDB may disagree if a
+        # crash hit mid-batch. Reconcile to min, drop the inconsistent
+        # DuckDB tail; Whoosh's unique=True id makes any re-add idempotent.
+        start_after = min(duck_max, wh_cnt)
+        if duck_max > start_after:
+            con.execute("DELETE FROM sentences WHERE sid > ?",
+                        [start_after])
+        log.info("resume: duck_max=%d whoosh=%d -> clean prefix sid<=%d",
+                 duck_max, wh_cnt, start_after)
+    else:
+        con.execute("DELETE FROM sentences")
+
+    ix = open_whoosh(fresh=not args.resume)
+
+    def flush(rows):
+        if not rows:
+            return
+        df = pd.DataFrame(rows)          # noqa: F841 (used by DuckDB)
+        con.execute(
+            "INSERT INTO sentences SELECT sid, text, subj_radiko, "
+            "subj_vortspeco, subj_propranoma_kat, subj_kazo, verb_radiko, "
+            "verb_tempo, obj_radiko, obj_kazo, aliaj_json, success_rate, "
+            "ast_json FROM df")
+
+    t0 = time.time()
+    n = 0
+    batch: list[dict] = []
+    since_whoosh = 0
+    # One long-lived writer, large in-memory pool. DuckDB stays durable
+    # per-BATCH (cheap, bulk); Whoosh commits only every WHOOSH_COMMIT.
+    # Measured: committing every BATCH (~270 commits over 5.4M) makes
+    # Whoosh segment-merge cost grow super-linearly with index size (the
+    # live build visibly decelerated 708->655/s). ~11 bounded merges
+    # instead removes that. Resume stays correct: start_after =
+    # min(duck_max, whoosh_count) + DuckDB tail-delete + Whoosh unique-id
+    # re-add is idempotent regardless of which store leads on a crash.
+    writer = ix.writer(limitmb=2048, procs=1)
+
+    # Parse in a process pool (pure-Python CPU). The main process keeps
+    # the serial, non-picklable work (Whoosh writer, DuckDB). imap
+    # preserves order and streams (memory-bounded).
+    with mp.Pool(args.workers) as pool:
+        for row in pool.imap(_worker,
+                             _corpus_payloads(start_after, args.limit),
+                             chunksize=200):
+            writer.add_document(id=str(row['sid']), text=row['text'])
             batch.append(row)
-            writer.add_document(id=str(sid), text=text)
             n += 1
+            since_whoosh += 1
             if len(batch) >= BATCH:
-                flush(batch)
-                writer.commit()
-                writer = ix.writer(limitmb=512, procs=1)
+                flush(batch)                       # DuckDB durable / 20k
+                last_sid = batch[-1]['sid']
                 batch = []
                 rate = n / (time.time() - t0)
-                log.info("sid=%d  done=%d  %.0f/s  ETA=%.0f min",
-                         sid, n, rate,
-                         (5_400_000 - n) / rate / 60 if rate else -1)
+                log.info("sid=%d done=%d %.0f/s ETA=%.0f min",
+                         last_sid, n, rate,
+                         (5_400_000 - start_after - n) / rate / 60
+                         if rate else -1)
+            if since_whoosh >= WHOOSH_COMMIT:
+                writer.commit()                    # Whoosh durable / 500k
+                writer = ix.writer(limitmb=2048, procs=1)
+                since_whoosh = 0
+                log.info("whoosh committed @ sid~%d", n + start_after)
 
-    flush(batch)
     writer.commit()
+    flush(batch)
     build_indexes(con)
     cnt = con.execute("SELECT count(*) FROM sentences").fetchone()[0]
-    log.info("DONE: %d sentences (%d parse-fail) in %.0f s -> %s + %s",
-             cnt, parse_fail, time.time() - t0, DUCK, WHOOSH_DIR)
+    log.info("DONE: %d sentences in %.0f s -> %s + %s",
+             cnt, time.time() - t0, DUCK, WHOOSH_DIR)
     con.close()
     return 0
 

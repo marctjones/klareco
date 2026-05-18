@@ -58,12 +58,15 @@ from whoosh.fields import ID, TEXT, Schema
 
 from klareco.parser import parse
 
+import os as _os
 CORPUS = 'data/corpus/unified_corpus.jsonl'
-DUCK = 'data/indexes/duckdb_store.db'
-WHOOSH_DIR = 'data/indexes/whoosh_v2'
+# Env overrides let an isolated smoke test write to throwaway paths
+# instead of the production store. Defaults are the real targets.
+DUCK = _os.environ.get('KLARECO_DUCK', 'data/indexes/duckdb_store.db')
+WHOOSH_DIR = _os.environ.get('KLARECO_WHOOSH', 'data/indexes/whoosh_v2')
 ONTOLOGY_SNAPSHOT = 'data/ontology_export/kuzu_ontology_snapshot.json'
 BATCH = 20_000          # DuckDB durability cadence (fast bulk insert)
-WHOOSH_COMMIT = 500_000  # Whoosh commit cadence: ~11 bounded merges
+WHOOSH_COMMIT = 100_000  # Whoosh flush cadence (merge=False, bounded RAM)
                          # over 5.4M instead of ~270 growing ones
 
 logging.basicConfig(
@@ -268,15 +271,18 @@ def main() -> int:
     n = 0
     batch: list[dict] = []
     since_whoosh = 0
-    # One long-lived writer, large in-memory pool. DuckDB stays durable
-    # per-BATCH (cheap, bulk); Whoosh commits only every WHOOSH_COMMIT.
-    # Measured: committing every BATCH (~270 commits over 5.4M) makes
-    # Whoosh segment-merge cost grow super-linearly with index size (the
-    # live build visibly decelerated 708->655/s). ~11 bounded merges
-    # instead removes that. Resume stays correct: start_after =
+    # Whoosh bulk-load idiom. The pathology measured earlier: committing
+    # WITH a merge every BATCH makes segment-merge cost grow super-linearly
+    # (708->655/s live). The previous "fix" (one 2GB writer, 500k-doc
+    # commit) cured the growth but OOM-killed the build at the first 500k
+    # commit (no traceback, tmux gone, doc_count=0 mid-commit).
+    # Correct idiom: bounded writer + commit(merge=False) per window
+    # (flush only, NO O(index) merge -> cheap, RAM-bounded, no growth),
+    # then ONE final full merge AFTER the parse pool is closed (lowest
+    # memory pressure). Resume stays correct: start_after =
     # min(duck_max, whoosh_count) + DuckDB tail-delete + Whoosh unique-id
     # re-add is idempotent regardless of which store leads on a crash.
-    writer = ix.writer(limitmb=2048, procs=1)
+    writer = ix.writer(limitmb=512, procs=1)
 
     # Parse in a process pool (pure-Python CPU). The main process keeps
     # the serial, non-picklable work (Whoosh writer, DuckDB). imap
@@ -299,13 +305,19 @@ def main() -> int:
                          (5_400_000 - start_after - n) / rate / 60
                          if rate else -1)
             if since_whoosh >= WHOOSH_COMMIT:
-                writer.commit()                    # Whoosh durable / 500k
-                writer = ix.writer(limitmb=2048, procs=1)
+                writer.commit(merge=False)         # flush only, no merge
+                writer = ix.writer(limitmb=512, procs=1)
                 since_whoosh = 0
-                log.info("whoosh committed @ sid~%d", n + start_after)
+                log.info("whoosh flushed @ sid~%d", n + start_after)
 
-    writer.commit()
+    writer.commit(merge=False)                     # final partial flush
     flush(batch)
+    # Pool is closed here -> lowest memory pressure -> safe to do the
+    # ONE expensive full segment merge that makes queries fast.
+    log.info("whoosh: optimizing (single full merge of all segments)...")
+    t_opt = time.time()
+    ix.optimize()
+    log.info("whoosh: optimized in %.0f s", time.time() - t_opt)
     build_indexes(con)
     cnt = con.execute("SELECT count(*) FROM sentences").fetchone()[0]
     log.info("DONE: %d sentences in %.0f s -> %s + %s",

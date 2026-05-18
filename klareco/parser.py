@@ -863,6 +863,30 @@ def parse_word(word: str) -> dict:
     original_word = word
     lower_word = word.lower()
 
+    # ALL-CAPS normalization. In running Esperanto text an all-uppercase
+    # token is typographic emphasis / a header (DEMOKRATIO, EDUKADO,
+    # RAJTOJ, DE) — NOT a proper-noun signal; real proper nouns are
+    # Title-Case (Zamenhof, Parizo). The capitalization-based
+    # proper-noun routing keys on word[0].isupper(), which fires on
+    # ALL-CAPS and (via mid-sentence reanalysis) flips these common
+    # words to propra_nomo — the dominant proper-noun false-positive
+    # class on UD-Prago (16/49). If an all-caps token's stem is a known
+    # Esperanto root, classify it as the common word it is. Genuine
+    # all-caps acronyms / foreign names have no Esperanto root and fall
+    # through unchanged, so existing proper-noun logic still applies.
+    if len(word) > 1 and word.isupper() and word.isalpha():
+        _lw = word.lower()
+        # Use the real morphology engine, not a stem guess: recursively
+        # parse the lowercased form (terminates — _lw is lowercase so
+        # this branch can't re-trigger). If it analyses as a genuine
+        # Esperanto content word, that IS the correct reading; emphasis
+        # capitalization is irrelevant. Only genuine acronyms / foreign
+        # names fail to analyse and keep proper-noun treatment.
+        _lc = parse_word(_lw)
+        if _lc.get('vortspeco') not in (
+                'propra_nomo', 'nekonata', 'fremda_vorto', None):
+            return _lc
+
     # --- Initialize AST ---
     ast = {
         "tipo": "vorto",
@@ -2216,18 +2240,37 @@ def parse(text: str):
                         and any(pv_lower.endswith(e)
                                 for e in _ADJ_SURFACE_ENDINGS)
                     )
-                    if not is_real_adjective:
+                    # ALL-CAPS is typographic emphasis (DEMOKRATIO,
+                    # RAJTOJ), not a name — real proper nouns are
+                    # Title-Case. If parse_word morphologically resolved
+                    # an all-caps token to a content word, that is
+                    # stronger evidence than the capital; do not flip.
+                    # Narrowed to ALL-CAPS so the Title-Case proper-noun
+                    # recall tradeoff is untouched (that ambiguity is the
+                    # learned tie-breaker's job).
+                    is_allcaps_content = (
+                        len(w) > 1 and w.isupper()
+                        and current_vortspeco in (
+                            'substantivo', 'adjektivo', 'adverbo',
+                            'verbo', 'korelativo')
+                    )
+                    if not is_real_adjective and not is_allcaps_content:
                         # Mid-sentence capitalization is a strong, purely
                         # structural proper-noun signal. Entity type is not
                         # decided here (ontology/learned layer's job).
                         ast["vortspeco"] = "propra_nomo"
                         ast["kategorio"] = "propranomo"
 
-                # Special case: "la X" pattern → X is definitely a proper noun
-                # (still applies; "la" before X marks it as a referenced entity).
-                # Skip when parse_word returned a content classification we trust.
+                # Special case: "la X" pattern → X is a referenced entity.
+                # Same ALL-CAPS exception ("la DEMOKRATIO" = the democracy).
+                _allcaps_content = (
+                    len(w) > 1 and w.isupper()
+                    and ast.get("vortspeco") in (
+                        'substantivo', 'adjektivo', 'adverbo', 'verbo',
+                        'korelativo'))
                 if (i > 0 and words[i-1].lower() == 'la' and w not in skip_words
-                        and ast.get("vortspeco") not in ('adjektivo',)):
+                        and ast.get("vortspeco") not in ('adjektivo',)
+                        and not _allcaps_content):
                     ast["vortspeco"] = "propra_nomo"
                     ast["kategorio"] = "propranomo"
 

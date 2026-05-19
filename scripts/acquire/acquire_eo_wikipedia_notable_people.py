@@ -57,7 +57,13 @@ from xml.etree.ElementTree import iterparse
 
 DEFAULT_SRC = 'data/raw/eo/wikipedia/eo_wikipedia.xml.bz2'
 DEFAULT_OUT = 'data/eo_wikipedia_notable_people.json'
-NS = '{http://www.mediawiki.org/xml/export-0.10/}'
+
+
+def _localname(tag: str) -> str:
+    """Strip whatever MediaWiki export-X.YY namespace is present so the
+    parser works against any dump version (this dump is 0.11; the previous
+    bug was a hardcoded 0.10 prefix that silently matched zero tags)."""
+    return tag.rsplit('}', 1)[-1]
 
 # Esperanto-Wikipedia biographical category families. Confirmed against
 # a sample of the dump (Naskiĝintoj/Mortintoj come in -en YYYY / -la D-an
@@ -94,8 +100,7 @@ def main() -> int:
     print(f"Streaming {src} ...")
     with bz2.open(src, 'rb') as f:
         for ev, el in iterparse(f, events=('end',)):
-            raw = el.tag
-            tag = raw[len(NS):] if raw.startswith(NS) else raw
+            tag = _localname(el.tag)
             if tag == 'title':
                 title = (el.text or '').strip()
             elif tag == 'ns':

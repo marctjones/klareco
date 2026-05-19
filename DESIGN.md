@@ -86,7 +86,7 @@ QA**, not final-answer accuracy. We care about:
 Eval entry points:
 - `scripts/eval/evaluate_extractive_qa.py` — local, single-process
 - `scripts/eval/modal_eval.py` — Modal cloud, parallel workers
-- `scripts/eval/local_parallel_bench.sh` — local fanout with Kuzu memory caps
+- `scripts/eval/local_parallel_bench.sh` — local fanout (DuckDB store)
 
 All three go through `klareco/eval/qa_metrics.py` so the same evaluator
 runs everywhere.
@@ -94,8 +94,64 @@ runs everywhere.
 Test sets live in `data/test_sets/` (not in git). The hand-curated set is
 ~30 questions, which is below the noise floor for the effect sizes we
 expect from individual changes (#726). `scripts/eval/build_synthetic_who_test_set.py`
-generates a larger WHO set from Kuzu PROPRA_NOMO subject patterns to give
+generates a larger WHO set from `propra_nomo` subject patterns to give
 us measurable headroom.
+
+### Measurement integrity: Q&A pairs must be discriminating
+
+Autopsy (2026-05-19, full 5.4M DuckDB store) of the `gold_anchor_50`
+recall ceiling: of the 16/50 misses, **0/16** were retrievable from the
+question terms, and **0/16** even with the labeled answer entity added.
+Cause: templated questions ("Kiu kreis verkojn?" = "Who created works?")
++ truncated answers ("Samuel" not "Samuel Twardowski") contain only
+high-frequency generic terms — no term narrows 5.4M sentences to the
+gold one. The ~68% recall ceiling is the **test set's** pathology, not
+the pipeline's. **A valid retrieval pair must retain ≥1 discriminating
+term** (full proper-name answer + a discriminating object/entity from
+the source). Commit `4e9c373` added agent-coherence verification but not
+discriminability — that is the missing constraint, now enforced by an
+empirical gate in the generator (a pair is kept only if a raw BM25
+query on its question terms surfaces the source sentence within a
+generous top-K, so impossible pairs are excluded while hard-but-possible
+ones remain).
+
+## Parser quality: deterministic ceiling vs model territory
+
+UD_Esperanto-Prago (131 gold sentences, `scripts/eval/eval_ud_prago.py`)
+is the only trustworthy parser ruler — independent of the Q&A stack.
+Current: POS strict **80.3%**, scheme-adjusted **93.3%** (the +173
+delta is UD-vs-Esperanto scheme choices, not errors). Mismatch taxonomy:
+
+**Not errors — UD-vs-Esperanto scheme differences (do NOT "fix"; already
+credited by the scheme-adjusted score):**
+- `PRON→adjektivo` (66): Esperanto possessives/determiners (nia, ĝiaj,
+  siajn) take adjectival agreement — Klareco is linguistically correct.
+- `DET/PRON/ADV→korelativo` (52): the Esperanto correlative table-word
+  system; UD splits it across DET/PRON/ADV.
+- `ADV→partiklo` (29): Esperanto particles (eĉ, ankaŭ, nur).
+- `VERB→adjektivo/adverbo` (27): participles are verbal adjectives /
+  adverbs in Esperanto.
+
+**Deterministically fixable (concrete, real wins):**
+1. Closed-class primitives missing from the inventory: `-aŭ` adverbs/
+   preps (almenaŭ, anstataŭ, …) and `ol` → `*→nekonata` (~16 tokens).
+2. Roman-numeral recognition (II., III., IV.) → currently `NUM→verbo`
+   (~6 tokens).
+3. Single-letter initials ("L." in "D-ro L. L. Zamenhof") → kill the
+   bogus `ekzemplo` fallback (~11 tokens).
+4. Title-Case common nouns governed by "la" or inside «» quotation
+   ("la Lingvo «Esperanto»") wrongly promoted to `propra_nomo` — gate
+   the promotion on those positions (subset of `NOUN→propra_nomo`).
+
+**Cannot be done deterministically — needs a learned model:**
+The irreducible residue of `NOUN↔propra_nomo`: a capitalized token
+where morphology, position, and function-word context give *no* signal
+(novel surnames that are also common words; foreign text; names whose
+only cue is capitalization, neutralized at sentence-initial / all-caps
+title / quotation position). Esperanto has no morphological proper-noun
+marker, so disambiguation here requires distributional/world knowledge
+— this is the learned proper-noun tie-breaker, and it is the principled
+boundary where deterministic processing stops.
 
 ## What is deferred
 

@@ -182,6 +182,19 @@ def verify_with_parser(c: dict) -> dict | None:
     obj_pv = ok.get('plena_vorto') or ''
     if len(obj_pv) < 3 or obj_pv[:1].isupper():
         return None
+    # 4b. object must be the verb's TRUE accusative patient. In Esperanto
+    # the direct object is unambiguously -n (akuzativo); a non-accusative
+    # "object" slot is a mis-attachment / nominative complement / oblique
+    # — this is the 'Kiu kantis diplomon?' (sang a diploma) nonsense
+    # class. Also reject a preposition-governed object (oblique, not the
+    # patient), mirroring the subject check.
+    if ok.get('kazo') != 'akuzativo':
+        return None
+    op = obj_pv.split()[0] if obj_pv else ''
+    if op and op in toks:
+        oi = toks.index(op)
+        if oi > 0 and toks[oi - 1].strip('.,;:"()').lower() in _PREP_GOVERNED:
+            return None
     # 5. preposition-governed subject -> not the agent
     if first in toks:
         i = toks.index(first)
@@ -365,6 +378,78 @@ def make_question(c) -> str:
     return f"Kiu {verb_root}is {obj_text}?"
 
 
+def salvage_existing(paths, s, qp, gate_top_k):
+    """Run existing WHO pairs through the SAME gates as fresh generation.
+
+    Honors the salvage-don't-replace principle: re-verify coherence
+    (parser-AST agent + name filter, correcting the answer to the full
+    name) and run the empirical discriminability gate on the ORIGINAL
+    question. Keep survivors; report exactly what was dropped and why.
+    """
+    kept, used_ids = [], set()
+    seen = drop_coh = drop_disc = drop_fields = 0
+    for p in paths:
+        fp = Path(p)
+        if not fp.exists():
+            print(f"  salvage: {p} not found, skipping")
+            continue
+        for line in open(fp):
+            line = line.strip()
+            if not line:
+                continue
+            e = json.loads(line)
+            if (e.get('question_type') or 'WHO') != 'WHO':
+                continue
+            seen += 1
+            q = e.get('question') or ''
+            sid = e.get('source_sentence_id')
+            ans = e.get('expected_answer') or ''
+            src = e.get('source_sentence_text')
+            vr = e.get('verb_root')
+            if sid is None or not q:
+                drop_fields += 1
+                continue
+            corrected = ans
+            if src and vr:
+                v = verify_with_parser({
+                    'sentence_id': sid, 'sentence_text': src,
+                    'subject_pv': ans, 'subject_radiko': '',
+                    'verb_root': vr, 'object_pv': '',
+                    'object_radiko': e.get('object_radiko') or '',
+                    'object_vortspeco': '',
+                })
+                if v is None:
+                    drop_coh += 1
+                    continue
+                corrected = v['subject_pv']
+            elif not _looks_namelike(ans):
+                drop_coh += 1
+                continue
+            if corrected.lower() in q.lower():
+                drop_coh += 1
+                continue
+            if not is_discriminating(s, qp, q, sid, gate_top_k):
+                drop_disc += 1
+                continue
+            kept.append({
+                'id':                   f'who_salv_{len(kept)+1:03d}',
+                'question':             q,
+                'expected_answer':      corrected,
+                'expected_keywords':    [corrected],
+                'source_sentence_id':   sid,
+                'source_sentence_text': src or '',
+                'question_type':        'WHO',
+                'pattern':              'active',
+                'verb_root':            vr or '',
+                'object_radiko':        e.get('object_radiko') or '',
+            })
+            used_ids.add(sid)
+    print(f"  Salvage: {seen} existing WHO seen -> {len(kept)} kept "
+          f"(dropped {drop_coh} incoherent, {drop_disc} non-discriminating, "
+          f"{drop_fields} missing-fields)")
+    return kept, used_ids
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -378,6 +463,11 @@ def main():
     parser.add_argument('--gate-top-k',  type=int, default=200,
                         help='Raw-BM25 rank a pair must hit to be kept '
                              '(discriminability gate; generous on purpose)')
+    parser.add_argument('--salvage', nargs='*',
+                        default=['data/test_sets/gold_anchor_50.jsonl'],
+                        help='Existing WHO sets to salvage through the '
+                             'same gates before topping up (hybrid). '
+                             'Pass with no value to disable.')
     args = parser.parse_args()
 
     print(f"Opening DuckDB store: {args.duckdb_path}")
@@ -413,15 +503,25 @@ def main():
     # have enough for diversity sampling, and cap total gate evaluations.
     random.seed(args.seed)
     random.shuffle(filtered)
-    need = args.target_size * 4
-    max_evals = max(args.target_size * 40, 4000)
     discriminating = []
     evals = 0
     with ix.searcher(weighting=scoring.BM25F()) as s:
         qp = QueryParser('text', ix.schema, group=OrGroup)
+        # 1. Salvage existing WHO pairs through the same gates first.
+        salvaged, used_ids = ([], set())
+        if args.salvage:
+            print(f"Salvaging existing WHO sets: {args.salvage}")
+            salvaged, used_ids = salvage_existing(
+                args.salvage, s, qp, args.gate_top_k)
+        # 2. Top up only the remainder with fresh generation.
+        gen_target = max(0, args.target_size - len(salvaged))
+        need = gen_target * 4
+        max_evals = max(gen_target * 40, 4000) if gen_target else 0
         for c in filtered:
             if len(discriminating) >= need or evals >= max_evals:
                 break
+            if c['sentence_id'] in used_ids:
+                continue  # already salvaged — don't duplicate the source
             q = make_question(c)
             if c['subject_pv'].lower() in q.lower():
                 continue  # answer leaked into question
@@ -431,19 +531,21 @@ def main():
                 c['question'] = q
                 discriminating.append(c)
     filtered = discriminating
-    print(f"  After discriminability gate (raw-BM25 top-{args.gate_top_k}, "
-          f"{evals} evals): {len(filtered)} kept")
+    print(f"  Generation gate (raw-BM25 top-{args.gate_top_k}, "
+          f"{evals} evals): {len(filtered)} fresh kept")
 
-    if not filtered:
+    if not filtered and not salvaged:
         raise SystemExit("ERROR: no candidates passed filter — check verb list / corpus")
 
-    # Diversity: cap per-verb so common verbs don't dominate.
+    # Diversity: cap per-verb so common verbs don't dominate the
+    # generated top-up (salvaged pairs are kept as-is, not capped).
+    gen_target = max(0, args.target_size - len(salvaged))
     random.seed(args.seed)
     by_verb = defaultdict(list)
     for c in filtered:
         by_verb[c['verb_root']].append(c)
-    n_verbs = len(by_verb)
-    per_verb = max(1, args.target_size // n_verbs)
+    n_verbs = max(1, len(by_verb))
+    per_verb = max(1, gen_target // n_verbs)
 
     pool = []
     for verb_root, items in by_verb.items():
@@ -451,20 +553,20 @@ def main():
         pool.extend(items[:per_verb])
 
     # If under target, top up from leftovers.
-    if len(pool) < args.target_size:
+    if len(pool) < gen_target:
         leftovers = [c for c in filtered if c not in pool]
         random.shuffle(leftovers)
-        pool.extend(leftovers[: args.target_size - len(pool)])
+        pool.extend(leftovers[: gen_target - len(pool)])
 
     random.shuffle(pool)
-    pool = pool[: args.target_size]
+    pool = pool[: gen_target]
 
-    # Generate entries; skip any where the answer leaked into the question.
-    output = []
+    # Combined output: salvaged pairs first, then fresh generation.
+    output = list(salvaged)
     for i, c in enumerate(pool, 1):
         q = c['question']  # set by the discriminability gate
         output.append({
-            'id':                   f'who_active_{i:03d}',
+            'id':                   f'who_gen_{i:03d}',
             'question':             q,
             'expected_answer':      c['subject_pv'],
             'expected_keywords':    [c['subject_pv']],

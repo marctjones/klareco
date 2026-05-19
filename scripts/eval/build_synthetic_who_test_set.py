@@ -2,29 +2,41 @@
 """
 Build synthetic WHO test set from corpus.
 
-VERSION: v2.1
-COMPATIBLE WITH: v2.1 Kuzu DB schema (Frazo / Vorto / Vortgrupo nodes)
-DEPENDENCIES: klareco.utils.kuzu_open
+VERSION: v2.x (DuckDB)
+COMPATIBLE WITH: DuckDB store (sentences: shredded cols + ast_json blob)
+DEPENDENCIES: duckdb, Whoosh index, klareco.parser
 STAGE: Evaluation
 
 Description:
     Generates a regression-test-style retrieval benchmark by extracting WHO
     questions FROM the corpus. For each candidate sentence with the active-voice
     WHO shape (propra_nomo subject + action verb + object), we generate
-    "Kiu {verb}is {object}?" with the subject as the expected answer. By
-    construction the answer is in the corpus and the keyword is non-trivially
-    related to the question, eliminating both false-positive substring matches
-    and corpus-coverage failures from the eval signal.
+    "Kiu {verb}is {object}?" with the subject as the expected answer.
+
+    Two correctness gates make every pair measurable:
+      1. parser-AST agent verification (the propra is the true subject of
+         the templated verb; full proper-name answer) — kills incoherent
+         and name-split pairs.
+      2. EMPIRICAL DISCRIMINABILITY (added 2026-05-19): a pair is kept
+         only if a raw BM25 query on its question terms surfaces the
+         source sentence within a generous top-K of the full 5.4M index.
+         The gold_anchor_50 autopsy proved templated questions over
+         high-frequency verbs/objects ("Kiu kreis verkojn?") are
+         information-theoretically unretrievable — no pipeline change can
+         fix an under-specified question. This gate excludes the
+         impossible class while keeping hard-but-possible pairs, so the
+         resulting set measures the pipeline, not test-set pathology.
 
 Pipeline Position:
-    Kuzu corpus → [THIS SCRIPT] → JSONL test set → modal_eval.py
+    DuckDB store + Whoosh → [THIS SCRIPT] → JSONL test set → evaluate_extractive_qa.py
 
 Usage:
     python scripts/eval/build_synthetic_who_test_set.py
     python scripts/eval/build_synthetic_who_test_set.py --target-size 200 --seed 42
 
 Inputs:
-    Kuzu DB at data/indexes/v2.1_kuzu_index_full
+    DuckDB store at data/indexes/duckdb_store.db
+    Whoosh index at data/indexes/whoosh_v2
 
 Outputs:
     JSONL test set at data/test_sets/synthetic_who_active.jsonl, one per line:
@@ -39,23 +51,30 @@ Quality Checks:
     - Diversity: balanced sample across verb roots
     - Answer text never appears in the generated question
 
-Last Updated: 2026-05-05
+Last Updated: 2026-05-19
 Author: Claude Code (with Marc Jones)
+
+CHANGELOG:
+# 2026-05-19: Ported Kuzu Cypher -> DuckDB SQL (Kuzu retired); added the
+#             empirical discriminability gate (gold_anchor_50 autopsy).
 """
 from __future__ import annotations
 
 import argparse
 import json
 import random
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import kuzu
+import duckdb
+from whoosh import scoring
+from whoosh.index import open_dir
+from whoosh.qparser import OrGroup, QueryParser
 
-from klareco.utils.kuzu_open import open_kuzu
 from klareco.parser import parse
 
 # A proper noun governed by one of these prepositions is NOT the agent
@@ -71,6 +90,41 @@ _DEMONSTRATIVE = {
 }
 _JUNK_MARKERS = ('[', ']', 'REDIRECT', 'ALIDIREKTI', 'ALIDIREKTU',
                  ' ekzemple:', 'Skribu ', '#')
+
+
+_PARTICIPLE_RE = re.compile(r'(it|at|ot|int|ant|ont|unt)a$', re.I)
+
+
+def _looks_namelike(name: str) -> bool:
+    """Deterministic, gazetteer-free name check. The proper-noun FP class
+    (Track B's documented NOUN->propra_nomo) is words the parser only
+    flips to propra_nomo in sentence-initial reanalysis: parsed in
+    ISOLATION, a genuine name stays propra_nomo while 'Estis'->verbo,
+    'Klubo'->substantivo, 'von'->substantivo. Also reject participle/
+    adjective morphology ('Diplomita' = -ita). The remaining incoherence
+    (nonsensical verb-object, e.g. 'kantis diplomon') is selectional
+    preference = the documented learned-model boundary, not deterministic.
+    """
+    tok = name.split()[0] if name else ''
+    if len(tok) < 3 or not tok[:1].isupper():
+        return False
+    if _PARTICIPLE_RE.search(tok.lower()):
+        return False
+    ast = parse(tok)
+    for key in ('subjekto', 'verbo', 'objekto'):
+        n = ast.get(key)
+        if not n:
+            continue
+        v = (n.get('kerno') if isinstance(n, dict)
+             and n.get('tipo') == 'vortgrupo' else n)
+        if isinstance(v, dict) and v.get('tipo') == 'vorto':
+            return v.get('vortspeco') == 'propra_nomo'
+    for x in ast.get('aliaj') or []:
+        v = (x.get('kerno') if isinstance(x, dict)
+             and x.get('tipo') == 'vortgrupo' else x)
+        if isinstance(v, dict):
+            return v.get('vortspeco') == 'propra_nomo'
+    return False
 
 
 def verify_with_parser(c: dict) -> dict | None:
@@ -144,6 +198,10 @@ def verify_with_parser(c: dict) -> dict | None:
         full_name = subj_pv
     if len(full_name) < 3 or not full_name[0].isupper():
         return None
+    # Reject content words the parser only mis-flips to propra_nomo
+    # sentence-initially (Estis, Klubo, Diplomita, von, ...).
+    if not _looks_namelike(full_name):
+        return None
 
     out = dict(c)
     out['subject_pv'] = full_name
@@ -180,49 +238,96 @@ GENERIC_SUBJECT_RADIKOS = {
 }
 
 
-def query_active_who_candidates(conn, verbs, limit=10000):
-    """Query WHO candidates with strict person-name filter.
+def _kerno_vorto(node) -> dict:
+    """Return the head Vorto dict of a subjekto/objekto AST node."""
+    if not isinstance(node, dict):
+        return {}
+    if node.get('tipo') == 'vortgrupo':
+        return node.get('kerno') or {}
+    return node
 
-    The propranoma_kategorio='person' filter ensures we only get sentences
-    whose subject is a dictionary-confirmed person name. This is independent
-    of any parser fix to the stored data — it filters at query time on the
-    metadata field that's set ONLY when the proper-noun dictionary matched.
+
+def query_active_who_candidates(conn, verbs, limit=10000):
+    """Query WHO candidates from the DuckDB store with a strict
+    person-name filter.
+
+    The retired Kuzu field propranoma_kategorio='person' was derived
+    from a 600K-entry proper-noun dictionary that is ~78%-polluted by
+    its own header (common nouns, phrase fragments, wrong categories).
+    The project deliberately keeps that gazetteer OFF the parser path;
+    re-introducing it here only as a noisy precision oracle is the wrong
+    trade. We drop it entirely and let two DETERMINISTIC gates do the
+    quality work instead: verify_with_parser (the propra must be the
+    re-parsed sentence's true agent of the templated verb) and the
+    empirical discriminability gate. plena_vorto / object_vortspeco are
+    read from the stored ast_json blob (shredded cols keep only radikoj).
     """
-    verb_list = ','.join(f"'{v}'" for v in verbs)
-    cypher = f"""
-        MATCH (ft:Frazoteksto)-[:FRAZOTEKSTO_HAVAS_AST]->(a:AST)-[:AST_HAVAS_FRAZON]->(frazo:Frazo)
-        MATCH (frazo)-[:HAVAS_SUBJEKTON_VORTGRUPO]->(svg:Vortgrupo)-[:HAVAS_KERNON]->(subj:Vorto)
-        WHERE subj.vortspeco = 'propra_nomo'
-          AND subj.propranoma_kategorio = 'person'
-        MATCH (frazo)-[:HAVAS_VERBON]->(verb:Vorto)
-        WHERE verb.radiko IN [{verb_list}]
-        MATCH (frazo)-[:HAVAS_OBJEKTON_VORTGRUPO]->(ovg:Vortgrupo)-[:HAVAS_KERNON]->(obj:Vorto)
-        RETURN
-            ft.id            AS sentence_id,
-            ft.teksto        AS sentence_text,
-            subj.plena_vorto AS subject_pv,
-            subj.radiko      AS subject_radiko,
-            verb.radiko      AS verb_root,
-            obj.plena_vorto  AS object_pv,
-            obj.radiko       AS object_radiko,
-            obj.vortspeco    AS object_vortspeco
-        LIMIT {limit}
+    placeholders = ','.join('?' * len(verbs))
+    sql = f"""
+        SELECT sid, text, subj_radiko, verb_radiko, obj_radiko, ast_json
+        FROM sentences
+        WHERE subj_vortspeco = 'propra_nomo'
+          AND verb_radiko IN ({placeholders})
+          AND ast_json IS NOT NULL
+        LIMIT {int(limit)}
     """
-    res = conn.execute(cypher)
     rows = []
-    while res.has_next():
-        r = res.get_next()
+    for sid, text, subj_r, verb_r, obj_r, ast_json in conn.execute(
+            sql, list(verbs)).fetchall():
+        try:
+            ast = json.loads(ast_json)
+        except Exception:
+            continue
+        subj = _kerno_vorto(ast.get('subjekto'))
+        subj_pv = subj.get('plena_vorto') or ''
+        obj = _kerno_vorto(ast.get('objekto'))
         rows.append({
-            'sentence_id':       r[0],
-            'sentence_text':     r[1],
-            'subject_pv':        r[2],
-            'subject_radiko':    r[3],
-            'verb_root':         r[4],
-            'object_pv':         r[5],
-            'object_radiko':     r[6],
-            'object_vortspeco':  r[7],
+            'sentence_id':       sid,
+            'sentence_text':     text,
+            'subject_pv':        subj_pv,
+            'subject_radiko':    subj_r,
+            'verb_root':         verb_r,
+            'object_pv':         obj.get('plena_vorto') or '',
+            'object_radiko':     obj_r,
+            'object_vortspeco':  obj.get('vortspeco') or '',
         })
     return rows
+
+
+# --- empirical discriminability gate ----------------------------------
+_GATE_STOP = set('kiu kio kie kiam kiom kial kiel kiuj kion estas estis '
+                  'estos la de en al el ĉu por kaj aŭ ke ne je da'.split())
+
+
+def _q_terms(q: str) -> list[str]:
+    toks = re.findall(r"[\wĉĝĥĵŝŭĈĜĤĴŜŬ-]+", q.lower())
+    return [t for t in toks if t not in _GATE_STOP and len(t) > 2]
+
+
+def is_discriminating(searcher, qp, question: str,
+                       source_sid: int, top_k: int) -> bool:
+    """A pair is discriminating iff a RAW BM25 query (no AST filter) on
+    the question terms surfaces the source sentence within top_k of the
+    full corpus. Generous top_k tests 'findable in principle' (the query
+    carries enough signal), leaving headroom for pipeline ranking to be
+    what improvement work moves — while excluding the
+    information-theoretically-impossible class entirely.
+
+    searcher/qp are created ONCE by the caller and reused across the
+    whole gate pass (reopening a searcher on the 5.4M single-segment
+    index per candidate is what made this intractable).
+    """
+    terms = _q_terms(question)
+    if not terms:
+        return False
+    q = qp.parse(' OR '.join(terms))
+    for h in searcher.search(q, limit=top_k):
+        try:
+            if int(h['id']) == int(source_sid):
+                return True
+        except (KeyError, ValueError):
+            continue
+    return False
 
 
 def is_quality_candidate(c) -> bool:
@@ -263,17 +368,22 @@ def make_question(c) -> str:
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--kuzu-path',   default='data/indexes/v2.1_kuzu_index_full')
+    parser.add_argument('--duckdb-path', default='data/indexes/duckdb_store.db')
+    parser.add_argument('--whoosh-dir',  default='data/indexes/whoosh_v2')
     parser.add_argument('--output',      default='data/test_sets/synthetic_who_active.jsonl')
     parser.add_argument('--target-size', type=int, default=200)
     parser.add_argument('--seed',        type=int, default=42)
-    parser.add_argument('--query-limit', type=int, default=10000,
-                        help='Cap on raw candidates fetched from Kuzu')
+    parser.add_argument('--query-limit', type=int, default=20000,
+                        help='Cap on raw candidates fetched from DuckDB')
+    parser.add_argument('--gate-top-k',  type=int, default=200,
+                        help='Raw-BM25 rank a pair must hit to be kept '
+                             '(discriminability gate; generous on purpose)')
     args = parser.parse_args()
 
-    print(f"Opening Kuzu DB: {args.kuzu_path}")
-    db = open_kuzu(args.kuzu_path)
-    conn = kuzu.Connection(db)
+    print(f"Opening DuckDB store: {args.duckdb_path}")
+    conn = duckdb.connect(args.duckdb_path, read_only=True)
+    print(f"Opening Whoosh index: {args.whoosh_dir}")
+    ix = open_dir(args.whoosh_dir)
 
     print(f"Querying corpus for active-voice WHO candidates "
           f"(verbs={ACTIVE_VERBS}, limit={args.query_limit})...")
@@ -293,6 +403,36 @@ def main():
             filtered.append(v)
     print(f"  After parser-AST verification: {len(filtered)} "
           f"({len(filtered)/max(len(surface_ok),1)*100:.0f}% kept)")
+
+    # Empirical discriminability gate: keep only pairs whose question
+    # actually carries enough signal to retrieve the source sentence
+    # from the full corpus. Generate the question here once and carry it
+    # on the candidate so the output stage reuses the exact string.
+    # The gate runs one 5.4M-doc Whoosh search per candidate, so bound
+    # it: shuffle (seeded) to avoid corpus-order bias, early-stop once we
+    # have enough for diversity sampling, and cap total gate evaluations.
+    random.seed(args.seed)
+    random.shuffle(filtered)
+    need = args.target_size * 4
+    max_evals = max(args.target_size * 40, 4000)
+    discriminating = []
+    evals = 0
+    with ix.searcher(weighting=scoring.BM25F()) as s:
+        qp = QueryParser('text', ix.schema, group=OrGroup)
+        for c in filtered:
+            if len(discriminating) >= need or evals >= max_evals:
+                break
+            q = make_question(c)
+            if c['subject_pv'].lower() in q.lower():
+                continue  # answer leaked into question
+            evals += 1
+            if is_discriminating(s, qp, q, c['sentence_id'],
+                                 args.gate_top_k):
+                c['question'] = q
+                discriminating.append(c)
+    filtered = discriminating
+    print(f"  After discriminability gate (raw-BM25 top-{args.gate_top_k}, "
+          f"{evals} evals): {len(filtered)} kept")
 
     if not filtered:
         raise SystemExit("ERROR: no candidates passed filter — check verb list / corpus")
@@ -322,9 +462,7 @@ def main():
     # Generate entries; skip any where the answer leaked into the question.
     output = []
     for i, c in enumerate(pool, 1):
-        q = make_question(c)
-        if c['subject_pv'].lower() in q.lower():
-            continue
+        q = c['question']  # set by the discriminability gate
         output.append({
             'id':                   f'who_active_{i:03d}',
             'question':             q,

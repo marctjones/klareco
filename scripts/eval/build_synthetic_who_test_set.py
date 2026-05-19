@@ -484,6 +484,32 @@ def salvage_existing(paths, s, qp, gate_top_k):
     return kept, used_ids
 
 
+def _load_notable(path: str) -> set:
+    """Load the Wikidata notable-people cache (lowercased full name +
+    last token). Missing/invalid -> empty set (generator stays valid)."""
+    p = Path(path)
+    if not p.exists():
+        return set()
+    try:
+        names = json.load(open(p)).get('names', [])
+    except Exception:
+        return set()
+    s = set()
+    for n in names:
+        n = (n or '').strip().lower()
+        if len(n) >= 2:
+            s.add(n)
+            s.add(n.split()[-1])      # surname-only match
+    return s
+
+
+def _is_notable(answer: str, notable: set) -> bool:
+    if not notable or not answer:
+        return False
+    a = answer.strip().lower()
+    return a in notable or a.split()[-1] in notable
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -502,6 +528,12 @@ def main():
                         help='Existing WHO sets to salvage through the '
                              'same gates before topping up (hybrid). '
                              'Pass with no value to disable.')
+    parser.add_argument('--notable',
+                        default='data/wikidata_notable_people.json',
+                        help='Optional Wikidata notable-people cache; if '
+                             'present, candidates whose answer is a '
+                             'notable person are PRIORITISED (not '
+                             'required). Absent -> unbiased, still valid.')
     args = parser.parse_args()
 
     print(f"Opening DuckDB store: {args.duckdb_path}")
@@ -537,6 +569,20 @@ def main():
     # have enough for diversity sampling, and cap total gate evaluations.
     random.seed(args.seed)
     random.shuffle(filtered)
+    # Wikidata priority: stable-partition so candidates whose answer is a
+    # notable person bubble to the front (shuffled order preserved within
+    # each group). Pure bias — non-notable still used to hit target.
+    notable = _load_notable(args.notable)
+    if notable:
+        filtered.sort(key=lambda c: not _is_notable(
+            c.get('subject_pv', ''), notable))
+        n_top = sum(_is_notable(c.get('subject_pv', ''), notable)
+                    for c in filtered)
+        print(f"  Wikidata priority: {len(notable)} notable keys -> "
+              f"{n_top}/{len(filtered)} candidates prioritised")
+    else:
+        print(f"  Wikidata priority: cache '{args.notable}' absent "
+              f"-> unbiased (still valid)")
     discriminating = []
     evals = 0
     with ix.searcher(weighting=scoring.BM25F()) as s:

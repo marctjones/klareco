@@ -8,10 +8,12 @@ DEPENDENCIES: duckdb, Whoosh index, klareco.parser
 STAGE: Evaluation
 
 Description:
-    Generates a regression-test-style retrieval benchmark by extracting WHO
-    questions FROM the corpus. For each candidate sentence with the active-voice
-    WHO shape (propra_nomo subject + action verb + object), we generate
-    "Kiu {verb}is {object}?" with the subject as the expected answer.
+    Generates trivia-style WHO pairs FROM the corpus. Each question targets
+    a RIGID DESIGNATOR — a «quoted named work» — so it has a UNIQUE answer:
+    "Kiu verkis «La Faraono»?" -> Prus. (Generic common-noun objects like
+    "Kiu fondis firmaon?" were dropped: thousands founded firms, no unique
+    answer — not real trivia.) The subject (verified true agent of the
+    verb) is the expected answer.
 
     Two correctness gates make every pair measurable:
       1. parser-AST agent verification (the propra is the true subject of
@@ -56,7 +58,9 @@ Author: Claude Code (with Marc Jones)
 
 CHANGELOG:
 # 2026-05-19: Ported Kuzu Cypher -> DuckDB SQL (Kuzu retired); added the
-#             empirical discriminability gate (gold_anchor_50 autopsy).
+#             empirical discriminability gate (gold_anchor_50 autopsy);
+#             pivoted to named-target («quoted work») trivia so every
+#             question has a unique answer; hybrid salvage + top-up.
 """
 from __future__ import annotations
 
@@ -127,6 +131,38 @@ def _looks_namelike(name: str) -> bool:
     return False
 
 
+_QUOTED_RE = re.compile(r'[«„"]\s*([^«»„"]{2,80}?)\s*[»"]')
+
+
+def _named_target(text: str, ok: dict, toks: list, verb_pv: str):
+    """Extract a RIGID DESIGNATOR so the question has a UNIQUE answer
+    (the user's point: 'Kiu fondis firmaon?' has no unique answer;
+    'Kiu verkis «La Faraono»?' does).
+
+    Only ONE pattern, deliberately high-precision: a «quoted title»
+    appearing AFTER the verb — the most reliable named-work signal.
+    (A proper-noun-object branch was tried and dropped: it re-introduced
+    the common-noun-as-propra_nomo noise — "Kiu fondis Konsilion?" — and
+    self-referential person objects — "Kiu inventis Johan Kolff?" —
+    i.e. exactly the proper-noun-disambiguation model boundary. Precision
+    over recall for a ruler.)  Returns (title, 'titolo') or None.
+    """
+    vpos = text.find(verb_pv) if verb_pv else -1
+    for m in _QUOTED_RE.finditer(text):
+        if vpos != -1 and m.start() < vpos:
+            continue  # title before the verb is usually not its object
+        cand = m.group(1).strip(' .,;:')
+        wc = len(cand.split())
+        if not (1 <= wc <= 6):
+            continue
+        if not re.search(r'[A-Za-zĉĝĥĵŝŭĈĜĤĴŜŬ]', cand):
+            continue
+        if cand[0].islower():           # titles are normally capitalised
+            continue
+        return cand, 'titolo'
+    return None
+
+
 def verify_with_parser(c: dict) -> dict | None:
     """Re-parse the source sentence; accept only when the candidate
     proper noun is genuinely the AST subject (agent) of the templated
@@ -174,36 +210,30 @@ def verify_with_parser(c: dict) -> dict | None:
     if 'ne' in low and first.lower() in low \
             and low.index('ne') < low.index(first.lower()):
         return None
-    # 4. object must be a common noun
-    if ok.get('vortspeco') in ('korelativo', 'pronomo', 'propra_nomo'):
+    # 4. RIGID DESIGNATOR: the question must target a UNIQUE named
+    # entity (a «titled» work, or a proper-noun object), otherwise it
+    # has no unique answer — the user's point that 'Kiu fondis firmaon?'
+    # (thousands founded firms) is not real trivia, while
+    # 'Kiu verkis «La Faraono»?' is. This replaces the old
+    # common-noun-object path entirely.
+    designator = _named_target(text, ok, toks, vk.get('plena_vorto') or '')
+    if designator is None:
         return None
-    if (ok.get('radiko') or '').lower() in _DEMONSTRATIVE:
+    target_text, target_kind = designator
+    if target_text.lower() == subj_pv.lower():
         return None
-    obj_pv = ok.get('plena_vorto') or ''
-    if len(obj_pv) < 3 or obj_pv[:1].isupper():
-        return None
-    # 4b. object must be the verb's TRUE accusative patient. In Esperanto
-    # the direct object is unambiguously -n (akuzativo); a non-accusative
-    # "object" slot is a mis-attachment / nominative complement / oblique
-    # — this is the 'Kiu kantis diplomon?' (sang a diploma) nonsense
-    # class. Also reject a preposition-governed object (oblique, not the
-    # patient), mirroring the subject check.
-    if ok.get('kazo') != 'akuzativo':
-        return None
-    op = obj_pv.split()[0] if obj_pv else ''
-    if op and op in toks:
-        oi = toks.index(op)
-        if oi > 0 and toks[oi - 1].strip('.,;:"()').lower() in _PREP_GOVERNED:
-            return None
     # 5. preposition-governed subject -> not the agent
     if first in toks:
         i = toks.index(first)
         if i > 0 and toks[i - 1].strip('.,;:"()').lower() in _PREP_GOVERNED:
             return None
-        # 6. full-name answer (kills name-splitting)
+        # 6. full-name answer (kills name-splitting). Cap at 3 tokens
+        # (First [Middle] Last) so capitalised trailing words like an
+        # adverb ("Frans Swagers Esperante") don't bleed into the name.
         span = [toks[i]]
         j = i + 1
-        while j < len(toks) and toks[j][:1].isupper() and toks[j].isalpha():
+        while (j < len(toks) and len(span) < 3
+               and toks[j][:1].isupper() and toks[j].isalpha()):
             span.append(toks[j])
             j += 1
         full_name = ' '.join(span).strip('.,;:"()')
@@ -218,7 +248,9 @@ def verify_with_parser(c: dict) -> dict | None:
 
     out = dict(c)
     out['subject_pv'] = full_name
-    out['object_pv'] = obj_pv
+    out['named_target'] = target_text
+    out['target_kind'] = target_kind
+    out['object_pv'] = target_text
     out['object_radiko'] = ok.get('radiko') or c.get('object_radiko')
     return out
 
@@ -370,11 +402,13 @@ def is_quality_candidate(c) -> bool:
 
 def make_question(c) -> str:
     verb_root = c['verb_root']
-    obj_pv = c['object_pv']
-    if not obj_pv.endswith('n'):
-        obj_text = obj_pv + 'n'
-    else:
-        obj_text = obj_pv
+    tgt = (c.get('named_target') or c.get('object_pv') or '').strip()
+    if c.get('target_kind') == 'titolo':
+        # Named work title — keep guillemets (natural Esperanto, and a
+        # strong retrieval anchor). No accusative on a quoted title.
+        return f"Kiu {verb_root}is «{tgt}»?"
+    # Proper-noun object — accusative -n.
+    obj_text = tgt if tgt.endswith('n') else tgt + 'n'
     return f"Kiu {verb_root}is {obj_text}?"
 
 

@@ -285,6 +285,11 @@ KNOWN_PREPOSITIONS = {
     "antaŭ",   # before, in front of
     "apud",    # beside, next to
     "ĉirkaŭ",  # around
+    "anstataŭ", # instead of
+    "malgraŭ",  # despite
+    "ekde",     # since (compound preposition)
+    "depost",   # since (compound preposition, formal)
+    "spite",    # despite
 }
 
 # Correlatives (korelativoj) - the famous Esperanto correlative table
@@ -1784,11 +1789,34 @@ def find_relative_clause_spans(word_asts: list) -> list:
     sentence position 0 (position-0 ki-correlatives are question words).
     Multi-level nesting is handled transparently: scanning jumps past each
     already-found span.
+
+    Fronted-PP question exception: when a ki-correlative is preceded by a
+    preposition (`En kiu lando…?`, `Al kiu…?`, `Per kio…?`, `Pri kio…?`),
+    it's a fronted-PP interrogative pattern, NOT a relative clause. The
+    relative-clause analysis would null out the main-clause subjekto /
+    verbo / objekto for these very common natural Esperanto questions.
     """
     spans = []
     i = 0
     while i < len(word_asts):
         if i > 0 and _is_ki_correlative(word_asts[i]):
+            # Fronted-PP question check: any preposition appears in the
+            # prefix [0:i] without an intervening noun/pronoun antecedent.
+            # The antecedent of a relative clause is the noun immediately
+            # before the ki-correlative; a preceding preposition without
+            # an intervening noun means we're inside (or just past) a
+            # sentence-initial PP — a question pattern, not a relative.
+            is_fronted_pp_question = False
+            for j in range(i - 1, -1, -1):
+                vs = word_asts[j].get('vortspeco')
+                if vs in ('substantivo', 'propra_nomo', 'pronomo'):
+                    break  # found antecedent → real relative clause
+                if vs == 'prepozicio':
+                    is_fronted_pp_question = True
+                    break
+            if is_fronted_pp_question:
+                i += 1
+                continue
             end = _find_relative_clause_end(word_asts, i)
             spans.append((i, end))
             i = end         # jump past the whole clause
@@ -2086,14 +2114,22 @@ def parse_clause(word_asts: list) -> dict:
 
     # Find subject, verb, object using same rules as main parser
     for i, ast in enumerate(word_asts):
+        # PP-governance check: if the preceding token is a prepozicio,
+        # this noun belongs to a prepositional phrase, NOT to a clause
+        # role. Skip it as a subject/object candidate. This kills the
+        # fronted-PP misattribution bug (`En Volterra, li skribis…` had
+        # been treating Volterra as the subject).
+        is_pp_governed = (
+            i > 0 and word_asts[i-1].get("vortspeco") == "prepozicio"
+        )
         if ast["vortspeco"] == "verbo" and not frazo["verbo"]:
             frazo["verbo"] = ast
             # Check for negation
             if i > 0 and word_asts[i-1].get("radiko") == "ne":
                 ast["negita"] = True
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not frazo["objekto"]:
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not frazo["objekto"] and not is_pp_governed:
             frazo["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not frazo["subjekto"]:
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not frazo["subjekto"] and not is_pp_governed:
             frazo["subjekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
 
     # Associate adjectives with their nouns
@@ -2254,7 +2290,22 @@ def parse(text: str):
                             'substantivo', 'adjektivo', 'adverbo',
                             'verbo', 'korelativo')
                     )
-                    if not is_real_adjective and not is_allcaps_content:
+                    # Don't promote a substantivo whose root is in the
+                    # FUNDAMENTO / DICTIONARY lexicon. These are real
+                    # Esperanto common nouns that just happen to be
+                    # mid-sentence capitalised (headings, emphasis,
+                    # `La unua Universitato…`). Promoting them to
+                    # propra_nomo creates false-positive entity tags
+                    # that downstream consumers treat as named entities.
+                    root = (ast.get("radiko") or "").lower()
+                    is_known_common_substantivo = (
+                        current_vortspeco == 'substantivo'
+                        and (root in _FUNDAMENTO_ROOTS
+                             or root in DICTIONARY_ROOTS)
+                    )
+                    if (not is_real_adjective
+                            and not is_allcaps_content
+                            and not is_known_common_substantivo):
                         # Mid-sentence capitalization is a strong, purely
                         # structural proper-noun signal. Entity type is not
                         # decided here (ontology/learned layer's job).
@@ -2316,6 +2367,21 @@ def parse(text: str):
             # Position-0 ki-correlatives are question words, not relative pronouns
             if i == 0 and _is_ki_correlative(ast):
                 continue
+            # Fronted-PP question: `En kiu N V O?`, `Al kiu...?`, `Per kio…?`.
+            # The ki-correlative is preceded by a preposition (possibly with
+            # intervening articles), with no noun antecedent in between —
+            # this is an interrogative pattern, not a subordinate clause.
+            if _is_ki_correlative(ast):
+                fronted_pp = False
+                for j in range(i - 1, -1, -1):
+                    vs = word_asts[j].get('vortspeco')
+                    if vs in ('substantivo', 'propra_nomo', 'pronomo'):
+                        break  # antecedent → real subordinate clause
+                    if vs == 'prepozicio':
+                        fronted_pp = True
+                        break
+                if fronted_pp:
+                    continue
             # Relative clauses are handled by relative_spans — skip here
             if i in relative_span_set:
                 continue
@@ -2329,6 +2395,14 @@ def parse(text: str):
         in_subordinate = (i in relative_span_set or
                           any(i > start for start in other_subordinate_starts))
 
+        # PP-governance check: if the preceding token is a prepozicio,
+        # this noun is the complement of that PP, NOT a clause role.
+        # Fixes the fronted-PP misattribution class (`En Volterra, li…`
+        # would otherwise pick Volterra as subjekto).
+        is_pp_governed = (
+            i > 0 and word_asts[i-1].get("vortspeco") == "prepozicio"
+        )
+
         if ast["vortspeco"] == "verbo" and not sentence_ast["verbo"] and not in_subordinate:
             sentence_ast["verbo"] = ast
             # Check for negation: 'ne' immediately preceding the verb (Issue #78)
@@ -2336,10 +2410,10 @@ def parse(text: str):
             if i > 0 and word_asts[i-1].get("radiko") == "ne":
                 ast["negita"] = True
         # Object: any noun, pronoun, proper noun, correlative, or unknown word in accusative case (-n)
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"] and not in_subordinate:
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"] and not in_subordinate and not is_pp_governed:
             sentence_ast["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
         # Subject: any noun, pronoun, proper noun, correlative, or unknown word in nominative case (no -n)
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"] and not in_subordinate:
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"] and not in_subordinate and not is_pp_governed:
             sentence_ast["subjekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
 
     # Associate articles and adjectives with their noun groups

@@ -219,6 +219,9 @@ def main() -> None:
                     help='Process at most this many candidates total (for testing).')
     ap.add_argument('--per-pattern-limit', type=int, default=None,
                     help='Cap each LIKE pattern scan (default: no cap).')
+    ap.add_argument('--batch-size', type=int, default=1000,
+                    help='Commit batch size (default 1000). Larger = faster '
+                         'but holds more rolled-back work on a crash.')
     args = ap.parse_args()
 
     print(f'Opening DuckDB at {args.duckdb_path} (read-write)…')
@@ -241,11 +244,17 @@ def main() -> None:
         print(f'\nDRY RUN — would refresh {len(to_refresh):,} sentences. Exit.')
         return
 
-    print(f'\nRefreshing {len(to_refresh):,} sentences…')
+    print(f'\nRefreshing {len(to_refresh):,} sentences '
+          f'(batched commits, batch_size={args.batch_size})…')
     t0 = time.time()
     n_changed = 0
     progress_every = 5000
 
+    # Batched commits: BEGIN, do N UPDATEs, COMMIT, repeat. This amortises
+    # the per-row WAL-flush cost across the batch — typically 5-10x faster
+    # than per-row auto-commit on a 5.4M-row table with column updates.
+    conn.execute('BEGIN TRANSACTION')
+    in_tx_count = 0
     for i, sid in enumerate(to_refresh, 1):
         changed, old_sr, new_sr = refresh_one(conn, sid)
         if changed:
@@ -254,6 +263,12 @@ def main() -> None:
             "INSERT INTO refresh_log VALUES (?, current_timestamp, ?, ?, ?)",
             [sid, changed, old_sr, new_sr]
         )
+        in_tx_count += 1
+
+        if in_tx_count >= args.batch_size:
+            conn.execute('COMMIT')
+            conn.execute('BEGIN TRANSACTION')
+            in_tx_count = 0
 
         if i % progress_every == 0:
             elapsed = time.time() - t0
@@ -263,8 +278,13 @@ def main() -> None:
                 f'  {i:>8,} / {len(to_refresh):,}  '
                 f'({100*i/len(to_refresh):5.1f}%)  '
                 f'changed={n_changed:>6,}  '
-                f'{rate:5.0f}/s  ETA {eta/60:5.1f}m'
+                f'{rate:5.0f}/s  ETA {eta/60:5.1f}m',
+                flush=True,
             )
+
+    # Final commit
+    if in_tx_count > 0:
+        conn.execute('COMMIT')
 
     elapsed = time.time() - t0
     print(f'\n=== Done ===')

@@ -81,18 +81,41 @@ import duckdb
 from klareco.parser import parse
 
 
-# Same patterns used by refresh_affected_asts.py for narrowing the scan
+# Surface-pattern prefilters: each LIKE pattern targets sentences whose
+# AST might have been affected by a specific parser fix. The intent is to
+# narrow the scan from 5.4M to a tractable subset, not to be exhaustive —
+# a sentence that doesn't match still has its old (correct) AST.
 _PREFILTER_LIKE = """(
-    text LIKE 'En %' OR text LIKE 'Al %' OR text LIKE 'El %'
+    -- Bug #1 / fronted-PP misattribution: sentences starting with a
+    -- preposition were assigning the next noun as subject.
+       text LIKE 'En %' OR text LIKE 'Al %' OR text LIKE 'El %'
     OR text LIKE 'Sur %' OR text LIKE 'Sub %' OR text LIKE 'Apud %'
     OR text LIKE 'Antaŭ %' OR text LIKE 'Post %' OR text LIKE 'Tra %'
     OR text LIKE 'Kun %' OR text LIKE 'Per %' OR text LIKE 'Pri %'
     OR text LIKE 'Pro %' OR text LIKE 'Laŭ %' OR text LIKE 'Malgraŭ %'
     OR text LIKE 'Anstataŭ %' OR text LIKE 'Ekde %'
+    -- Bug #2 / function-word + capitalised common-noun openers
     OR text LIKE 'Kaj %' OR text LIKE 'Sed %' OR text LIKE 'Tamen %'
     OR text LIKE 'Universitato %' OR text LIKE 'Konsilio %'
     OR text LIKE 'Tie %' OR text LIKE 'Tiam %'
+    -- Bug #4 / fronted-PP-question (En kiu N V O?)
     OR text LIKE '%En kiu %' OR text LIKE '%Al kiu %' OR text LIKE '%Per kio %'
+    -- Bug #6 / neniam-negation: previously only `ne` triggered verb_negated;
+    -- now neni-prefix correlatives do too.
+    OR text LIKE '%neniam %' OR text LIKE '% neniam %'
+    OR text LIKE '%nenie %'  OR text LIKE '% nenie %'
+    OR text LIKE '%nenial %' OR text LIKE '% nenial %'
+    OR text LIKE '%neniel %' OR text LIKE '% neniel %'
+    -- Bug #11 / sentence-initial Kiam-clause (`Kiam X V Y, Z W`).
+    -- Conservative: only catches the start-of-sentence form (commas
+    -- mid-sentence in temporal subordinates are less likely to flip
+    -- the main-clause subject).
+    OR text LIKE 'Kiam %, %'
+    OR text LIKE 'Kvankam %, %' OR text LIKE 'Ĉar %, %' OR text LIKE 'Se %, %'
+    -- Bug #5 / coord-subj with -e foreign name (Goethe kaj Schiller...).
+    -- Hard to prefilter narrowly; this is a coarse net that also catches
+    -- many false positives. Phase A re-parse + diff filters them.
+    OR text LIKE '% kaj %'  -- broad — many sentences match, only AST diff stages corrections
 )"""
 
 
@@ -114,6 +137,40 @@ def shredded_radikos(ast: dict) -> tuple[str | None, str | None, str | None]:
         (verb or {}).get('radiko') if isinstance(verb, dict) else None,
         (obj_k or {}).get('radiko') if isinstance(obj_k, dict) else None,
     )
+
+
+def full_shred(ast: dict) -> dict:
+    """Extract ALL shredded columns the build script populates. Mirrors
+    build_duckdb_store.shred() so post-bug-fix corrections update every
+    column, not just the radiko triple. The build script's original
+    field-name bug (`propranoma_kategorio` → should be `kategorio`) is
+    fixed here too."""
+    s = kerno(ast.get('subjekto') or {}) or {}
+    v = ast.get('verbo') or {}
+    if not isinstance(v, dict):
+        v = {}
+    o = kerno(ast.get('objekto') or {}) or {}
+    aliaj = []
+    for a in ast.get('aliaj') or []:
+        w = kerno(a) or {}
+        if isinstance(w, dict):
+            aliaj.append({'radiko': w.get('radiko'),
+                          'vortspeco': w.get('vortspeco'),
+                          'kazo': w.get('kazo'),
+                          'plena_vorto': w.get('plena_vorto')})
+    stats = ast.get('parse_statistics') or {}
+    return {
+        'subj_radiko':           s.get('radiko') if isinstance(s, dict) else None,
+        'subj_vortspeco':        s.get('vortspeco') if isinstance(s, dict) else None,
+        'subj_propranoma_kat':   s.get('kategorio') if isinstance(s, dict) else None,
+        'subj_kazo':             s.get('kazo') if isinstance(s, dict) else None,
+        'verb_radiko':           v.get('radiko'),
+        'verb_tempo':            v.get('tempo'),
+        'obj_radiko':            o.get('radiko') if isinstance(o, dict) else None,
+        'obj_kazo':              o.get('kazo') if isinstance(o, dict) else None,
+        'aliaj_json':            json.dumps(aliaj, ensure_ascii=False),
+        'success_rate':          float(stats.get('success_rate') or 0.0),
+    }
 
 
 def ast_summary(ast: dict) -> dict:
@@ -219,16 +276,17 @@ def phase_a_scan(args) -> None:
                     old_ast = json.loads(old_ast_json) if old_ast_json else {}
                 except Exception:
                     old_ast = {}
-                new_subj_r, new_verb_r, new_obj_r = shredded_radikos(new_ast)
-                out_f.write(json.dumps({
-                    'sid':              int(sid),
-                    'old_summary':      ast_summary(old_ast),
-                    'new_summary':      ast_summary(new_ast),
-                    'new_ast_json':     new_ast_json,
-                    'new_subj_radiko':  new_subj_r,
-                    'new_verb_radiko':  new_verb_r,
-                    'new_obj_radiko':   new_obj_r,
-                }, ensure_ascii=False) + '\n')
+                # Full shred — every column the build script populates,
+                # so Phase B updates ALL of them (not just 3 radikos).
+                shredded = full_shred(new_ast)
+                rec = {
+                    'sid':         int(sid),
+                    'old_summary': ast_summary(old_ast),
+                    'new_summary': ast_summary(new_ast),
+                    'new_ast_json': new_ast_json,
+                    **shredded,
+                }
+                out_f.write(json.dumps(rec, ensure_ascii=False) + '\n')
                 n_corrections += 1
             elapsed = time.time() - t0
             rate = n_scanned / elapsed if elapsed > 0 else 0
@@ -279,18 +337,48 @@ def phase_b_apply(args) -> None:
                 r = json.loads(line)
             except Exception:
                 continue
-            conn.execute(
-                "UPDATE sentences "
-                "SET ast_json = ?, subj_radiko = ?, verb_radiko = ?, obj_radiko = ? "
-                "WHERE sid = ?",
-                [
-                    r['new_ast_json'],
-                    r.get('new_subj_radiko'),
-                    r.get('new_verb_radiko'),
-                    r.get('new_obj_radiko'),
-                    r['sid'],
-                ]
-            )
+            # Tolerate "new-format" rows (full_shred) AND "old-format" rows
+            # (only the 3 radikos) for backward compatibility with any
+            # pre-existing staging files.
+            new_subj = r.get('subj_radiko', r.get('new_subj_radiko'))
+            new_verb = r.get('verb_radiko', r.get('new_verb_radiko'))
+            new_obj  = r.get('obj_radiko',  r.get('new_obj_radiko'))
+            try:
+                conn.execute(
+                    "UPDATE sentences SET "
+                    "  ast_json = ?, "
+                    "  subj_radiko = ?, "
+                    "  subj_vortspeco = ?, "
+                    "  subj_propranoma_kat = ?, "
+                    "  subj_kazo = ?, "
+                    "  verb_radiko = ?, "
+                    "  verb_tempo = ?, "
+                    "  obj_radiko = ?, "
+                    "  obj_kazo = ?, "
+                    "  aliaj_json = ?, "
+                    "  success_rate = ? "
+                    "WHERE sid = ?",
+                    [
+                        r['new_ast_json'],
+                        new_subj,
+                        r.get('subj_vortspeco'),
+                        r.get('subj_propranoma_kat'),
+                        r.get('subj_kazo'),
+                        new_verb,
+                        r.get('verb_tempo'),
+                        new_obj,
+                        r.get('obj_kazo'),
+                        r.get('aliaj_json'),
+                        r.get('success_rate'),
+                        r['sid'],
+                    ]
+                )
+            except Exception as e:
+                # Likely a corrupt-block sid — fix_corrupt_block.py is
+                # the recovery path; don't crash the whole batch.
+                print(f'  UPDATE failed for sid={r["sid"]}: {str(e)[:80]}',
+                      flush=True)
+                continue
             n_applied += 1
             in_tx += 1
             if in_tx >= BATCH:

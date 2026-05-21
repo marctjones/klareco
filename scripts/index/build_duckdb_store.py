@@ -103,7 +103,12 @@ def shred(ast: dict) -> dict:
     return {
         'subj_radiko': s.get('radiko'),
         'subj_vortspeco': s.get('vortspeco'),
-        'subj_propranoma_kat': s.get('propranoma_kategorio'),
+        # FIXED 2026-05-21: was `propranoma_kategorio` — but the parser
+        # stores it as `kategorio` (e.g. 'propranomo', 'propranomo_konata',
+        # 'propranomo_esperantigita'). The wrong field name left
+        # subj_propranoma_kat = NULL for every sentence in the first
+        # build. Backfill via scripts/index/backfill_subj_propranoma_kat.py.
+        'subj_propranoma_kat': s.get('kategorio'),
         'subj_kazo': s.get('kazo'),
         'verb_radiko': v.get('radiko'),
         'verb_tempo': v.get('tempo'),

@@ -90,27 +90,78 @@ def kerno(node):
     return node
 
 
+# Surface markers for wiki redirect stubs and other low-value entities to skip.
+_ENTITY_DENYLIST = {'REDIRECT', 'ALIDIREKTI', 'ALIDIREKTU'}
+
+
+def _yield_propra_nomos(node, role_hint: str | None) -> list[tuple[str, str | None]]:
+    """Yield (plena_vorto, role_hint) for every single-token propra_nomo
+    reachable through a node (which may be a Vorto, Vortgrupo, or list).
+    Recurses one level into vortgrupo.priskriboj — that's where adjective-
+    descriptor and additional propra_nomo tokens often sit."""
+    out: list[tuple[str, str | None]] = []
+    if not isinstance(node, dict):
+        return out
+    if node.get('tipo') == 'vortgrupo':
+        # The kerno itself
+        kerno_node = node.get('kerno') or {}
+        if isinstance(kerno_node, dict) and kerno_node.get('vortspeco') == 'propra_nomo':
+            pv = kerno_node.get('plena_vorto') or ''
+            if pv and ' ' not in pv:
+                out.append((pv, role_hint))
+        # Descriptors (priskriboj) — sometimes contain propra_nomo modifiers
+        for desc in node.get('priskriboj') or []:
+            if isinstance(desc, dict) and desc.get('vortspeco') == 'propra_nomo':
+                pv = desc.get('plena_vorto') or ''
+                if pv and ' ' not in pv:
+                    out.append((pv, role_hint))
+    elif node.get('vortspeco') == 'propra_nomo':
+        pv = node.get('plena_vorto') or ''
+        if pv and ' ' not in pv:
+            out.append((pv, role_hint))
+    return out
+
+
 def extract_entities(ast: dict) -> list[tuple[str, int, str | None]]:
-    """Return (entity_text, span_token_count, role_hint) tuples for the AST."""
+    """Return (entity_text, span_token_count, role_hint) tuples for the AST.
+
+    Sources, in order:
+      1. multi_token_entities groups (≥2 propra_nomo run)
+      2. propra_nomo in subjekto / objekto (single-token only — multi-token
+         forms come from #1)
+      3. propra_nomo in `aliaj` items (PP-governed, modifier role — this is
+         where many named entities live in encyclopedic Esperanto prose,
+         e.g. `…la programisto de la ludo Fortnite` has Fortnite in aliaj)
+      4. propra_nomo in priskriboj (descriptor of subjekto/objekto vortgrupos)
+
+    Denylist: skip 'REDIRECT', 'ALIDIREKTI', 'ALIDIREKTU' which are wiki
+    redirect-stub markers polluting the corpus (the top-10 entity report
+    in the v1 build was dominated by 41K REDIRECT entries — these can't
+    be real named entities).
+    """
     entities: list[tuple[str, int, str | None]] = []
 
+    # 1. multi-token spans
     for g in (ast.get('multi_token_entities') or []):
         span = g.get('span_tokens') or []
         if not span:
             continue
+        if any(t in _ENTITY_DENYLIST for t in span):
+            continue
         joined = ' '.join(span)
         entities.append((joined, len(span), None))
 
+    # 2. + 4. subjekto / objekto kernos + priskriboj
     for role in ('subjekto', 'objekto'):
-        k = kerno(ast.get(role))
-        if not isinstance(k, dict):
-            continue
-        if k.get('vortspeco') != 'propra_nomo':
-            continue
-        pv = k.get('plena_vorto') or ''
-        if not pv or ' ' in pv:
-            continue
-        entities.append((pv, 1, role))
+        for pv, hint in _yield_propra_nomos(ast.get(role), role):
+            if pv not in _ENTITY_DENYLIST:
+                entities.append((pv, 1, hint))
+
+    # 3. aliaj items — flat scan
+    for item in ast.get('aliaj') or []:
+        for pv, _ in _yield_propra_nomos(item, 'aliaj'):
+            if pv not in _ENTITY_DENYLIST:
+                entities.append((pv, 1, 'aliaj'))
 
     return entities
 

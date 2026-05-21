@@ -122,13 +122,13 @@ def main() -> None:
                     help='INSERT batch size (default 5000).')
     args = ap.parse_args()
 
-    print(f'Opening DuckDB at {args.duckdb_path} (read-write)…')
-    conn = duckdb.connect(args.duckdb_path)
+    print(f'Opening DuckDB at {args.duckdb_path} (write connection)…')
+    write_conn = duckdb.connect(args.duckdb_path)
 
     # Drop + recreate (idempotent fresh build)
     print('Recreating entity_postings table…')
-    conn.execute('DROP TABLE IF EXISTS entity_postings')
-    conn.execute("""
+    write_conn.execute('DROP TABLE IF EXISTS entity_postings')
+    write_conn.execute("""
         CREATE TABLE entity_postings (
             entity_text       VARCHAR,
             entity_normalized VARCHAR,
@@ -138,55 +138,69 @@ def main() -> None:
         )
     """)
 
-    n_total = conn.execute('SELECT COUNT(*) FROM sentences').fetchone()[0]
+    # The write connection's cursor would get clobbered if we re-used it for
+    # SELECT iteration. We pre-collect (sid, ast_json) tuples by chunked
+    # SELECTs ordered by sid — chunked to keep memory bounded.
+    n_total = write_conn.execute('SELECT COUNT(*) FROM sentences').fetchone()[0]
     if args.limit:
         n_total = min(n_total, args.limit)
-    print(f'Scanning {n_total:,} sentences…\n')
-
-    limit_clause = f'LIMIT {args.limit}' if args.limit else ''
-    cursor = conn.execute(f'SELECT sid, ast_json FROM sentences {limit_clause}')
+    print(f'Scanning {n_total:,} sentences in chunks of 100K…\n')
 
     batch: list[tuple[str, str, int, int, str | None]] = []
     n_scanned = 0
     n_postings = 0
     t0 = time.time()
-    progress_every = 50_000
 
-    while True:
-        row = cursor.fetchone()
-        if row is None:
+    CHUNK = 100_000
+    last_sid: int | None = None
+    while n_scanned < n_total:
+        # Fetch one chunk by sid range
+        if last_sid is None:
+            sql = (f'SELECT sid, ast_json FROM sentences '
+                   f'ORDER BY sid LIMIT {CHUNK}')
+            params: list = []
+        else:
+            sql = (f'SELECT sid, ast_json FROM sentences '
+                   f'WHERE sid > ? ORDER BY sid LIMIT {CHUNK}')
+            params = [last_sid]
+        rows = write_conn.execute(sql, params).fetchall()
+        if not rows:
             break
-        sid, ast_json = row
-        n_scanned += 1
-        if not ast_json:
-            continue
-        try:
-            ast = json.loads(ast_json)
-        except Exception:
-            continue
-        for entity_text, span_count, role in extract_entities(ast):
-            batch.append((entity_text, fold(entity_text), span_count, sid, role))
-            n_postings += 1
-        if len(batch) >= args.batch_size:
-            conn.executemany(
-                'INSERT INTO entity_postings VALUES (?, ?, ?, ?, ?)',
-                batch
-            )
-            batch.clear()
-        if n_scanned % progress_every == 0:
-            elapsed = time.time() - t0
-            rate = n_scanned / elapsed if elapsed > 0 else 0
-            eta = (n_total - n_scanned) / rate if rate > 0 else float('inf')
-            print(f'  {n_scanned:>8,} / {n_total:,}  '
-                  f'({100*n_scanned/n_total:5.1f}%)  '
-                  f'postings={n_postings:>8,}  '
-                  f'{rate:5.0f}/s  ETA {eta/60:5.1f}m')
+        for sid, ast_json in rows:
+            n_scanned += 1
+            last_sid = sid
+            if not ast_json:
+                continue
+            try:
+                ast = json.loads(ast_json)
+            except Exception:
+                continue
+            for entity_text, span_count, role in extract_entities(ast):
+                batch.append((entity_text, fold(entity_text), span_count, sid, role))
+                n_postings += 1
+            if len(batch) >= args.batch_size:
+                write_conn.executemany(
+                    'INSERT INTO entity_postings VALUES (?, ?, ?, ?, ?)',
+                    batch
+                )
+                batch.clear()
+        elapsed = time.time() - t0
+        rate = n_scanned / elapsed if elapsed > 0 else 0
+        eta = (n_total - n_scanned) / rate if rate > 0 else float('inf')
+        print(f'  {n_scanned:>8,} / {n_total:,}  '
+              f'({100*n_scanned/n_total:5.1f}%)  '
+              f'postings={n_postings:>8,}  '
+              f'{rate:5.0f}/s  ETA {eta/60:5.1f}m',
+              flush=True)
+        if args.limit and n_scanned >= args.limit:
+            break
 
     if batch:
-        conn.executemany(
+        write_conn.executemany(
             'INSERT INTO entity_postings VALUES (?, ?, ?, ?, ?)',
             batch
         )
+    conn = write_conn  # used by the rest of the function
 
     elapsed = time.time() - t0
     print(f'\nScanned {n_scanned:,} sentences in {elapsed:.1f}s')

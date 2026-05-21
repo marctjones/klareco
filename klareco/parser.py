@@ -2265,6 +2265,23 @@ def parse(text: str):
                         if not is_common_root:
                             ast["vortspeco"] = "propra_nomo"
                             ast["kategorio"] = "propranomo"
+                    elif current_vortspeco == 'adverbo':
+                        # Bug #5: foreign names ending in -e (Goethe, Crusoe,
+                        # Brontë, etc.) get parse_word'd as 'adverbo' because
+                        # the -e ending matches adverbial morphology. At
+                        # sentence-initial position, if the root is NOT in
+                        # the Esperanto lexicon, this is a foreign-name
+                        # misclassification — promote to propra_nomo.
+                        root = ast.get("radiko", "").lower()
+                        is_known_adverb_root = (
+                            root in _FUNDAMENTO_ROOTS or
+                            root in DICTIONARY_ROOTS or
+                            root in _ALL_FUNCTION_WORDS or
+                            len(root) <= 2
+                        )
+                        if not is_known_adverb_root:
+                            ast["vortspeco"] = "propra_nomo"
+                            ast["kategorio"] = "propranomo"
                     # else: trust parse_word (content classification or an
                     # already-deterministic propra_nomo).
                 # For non-initial words: capitalization is a strong signal
@@ -2957,6 +2974,26 @@ def _reanalyze_sentence_initial_misclassifications(frazo: dict) -> None:
     new_vs = lower_ast.get('vortspeco')
     if new_vs not in _RECLASSIFIABLE_VORTSPECOS:
         return
+
+    # Bug #5 extra guards: skip demotion when the lowercase form is
+    # already flagged as foreign-origin by the morphology layer.
+    #
+    # Signal 1 — surface orthography: `goethe` has the `th` digraph,
+    # `brontë` has `ë`. Pure Esperanto adverbs never have these.
+    #
+    # Signal 2 — neologism / fremda_vorto kategorio: parser already
+    # flagged the lowercase form as foreign-origin (Crusoe → kategorio
+    # 'neologismo'). Real adverbs (`aktuale`, `krome`) have kategorio
+    # None.
+    #
+    # If EITHER fires, this is a real propra_nomo with incidental -e
+    # ending — don't demote. (`aktuale` / `krome` pass both checks
+    # and remain eligible for legitimate adverb-misclassification
+    # demotion when the alt-subject signal fires.)
+    if _has_foreign_orthography(pv):
+        return
+    if lower_ast.get('kategorio') in ('neologismo', 'fremda_vorto'):
+        return
     # Reanalysis-eligibility gate. The original code restricted to
     # kategorio='propranomo' to be Shakespeare-safe — but Shakespeare-style
     # cases are already excluded by Step 1 (its lowercase parses to
@@ -2976,7 +3013,23 @@ def _reanalyze_sentence_initial_misclassifications(frazo: dict) -> None:
     # nominative case. Pronouns count because "Krome li parolis" or
     # "Anstataŭ ili venis" are pronoun-subject sentences where the
     # sentence-initial adverb is the misclassification.
+    #
+    # Bug #5 exception: if aliaj contains a coordinator (kaj / aŭ / sed),
+    # the "alt subject" candidate is most likely a COORDINATED subject,
+    # not an alternative. `Goethe kaj Schiller verkis multajn dramojn`
+    # → Schiller looks like an alt subject by case-marking, but `kaj`
+    # before it signals coordination. Both Goethe and Schiller should
+    # remain propra_nomo subjects; don't demote Goethe to adverbo.
     aliaj = frazo.get('aliaj') or []
+    has_coordinator = any(
+        isinstance(item, dict)
+        and item.get('vortspeco') == 'konjunkcio'
+        and (item.get('radiko') or '').lower() in ('kaj', 'aŭ', 'sed', 'kvankam')
+        for item in aliaj
+    )
+    if has_coordinator:
+        return  # coordination, not alternation — keep propra_nomo
+
     has_alt_subject = False
     for item in aliaj:
         target = _vortgrupo_kerno_or_self(item)

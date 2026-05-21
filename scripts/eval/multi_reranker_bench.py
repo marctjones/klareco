@@ -66,6 +66,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # for perf_history import
 
 import duckdb
 
@@ -170,33 +171,90 @@ class PhraseQueryReranker(Reranker):
 
 
 class RadikoAwareReranker(Reranker):
-    """Boost passages whose subj/verb/obj radiko matches the question's.
-    Depends on #728 indices being built (for speed) but works without
-    them on small candidate pools too."""
+    """REDESIGNED (v2): focuses on the question's *propra_nomo* entities
+    rather than the (often-generic) subjekto.kerno. Most trivia
+    questions have the question's named entity in `aliaj` (PP-governed
+    in the question's surface form, e.g. `disvolvis la senpagan ludon
+    Fortnite?` — Fortnite is in aliaj, not subjekto). The previous v1
+    matched on `subjekto.kerno.radiko` which was usually 'kiu' or a
+    generic noun, boosting irrelevant passages.
+
+    v2: reward candidates whose subj/obj/aliaj contain a propra_nomo
+    from the question's aliaj/objekto. Verb radiko is a tie-breaker."""
     name = 'C_radiko_aware'
-    requires = []  # no hard requirement (uses sentences.* which exists)
+    requires = []
+
+    def _question_propra_nomos(self, question_ast: dict) -> set[str]:
+        """All propra_nomo plena_vortos from the question AST (any role)."""
+        names: set[str] = set()
+        for role in ('subjekto', 'objekto'):
+            n = question_ast.get(role)
+            if isinstance(n, dict):
+                k = n.get('kerno') if n.get('tipo') == 'vortgrupo' else n
+                if isinstance(k, dict) and k.get('vortspeco') == 'propra_nomo':
+                    pv = k.get('plena_vorto')
+                    if pv:
+                        names.add(pv)
+        for item in question_ast.get('aliaj') or []:
+            if isinstance(item, dict):
+                k = item.get('kerno') if item.get('tipo') == 'vortgrupo' else item
+                if isinstance(k, dict) and k.get('vortspeco') == 'propra_nomo':
+                    pv = k.get('plena_vorto')
+                    if pv:
+                        names.add(pv)
+        # Also include any multi_token_entity spans
+        for g in question_ast.get('multi_token_entities') or []:
+            span = g.get('span_tokens') or []
+            for tok in span:
+                names.add(tok)
+            if span:
+                names.add(' '.join(span))
+        return names
+
+    def _candidate_propra_nomos_anywhere(self, ast: dict) -> set[str]:
+        """All propra_nomo strings anywhere in the candidate AST."""
+        if not isinstance(ast, dict):
+            return set()
+        names: set[str] = set()
+        for role in ('subjekto', 'objekto'):
+            n = ast.get(role)
+            if isinstance(n, dict):
+                k = n.get('kerno') if n.get('tipo') == 'vortgrupo' else n
+                if isinstance(k, dict) and k.get('vortspeco') == 'propra_nomo':
+                    pv = k.get('plena_vorto')
+                    if pv:
+                        names.add(pv)
+        for item in ast.get('aliaj') or []:
+            if isinstance(item, dict):
+                k = item.get('kerno') if item.get('tipo') == 'vortgrupo' else item
+                if isinstance(k, dict) and k.get('vortspeco') == 'propra_nomo':
+                    pv = k.get('plena_vorto')
+                    if pv:
+                        names.add(pv)
+        for g in ast.get('multi_token_entities') or []:
+            span = g.get('span_tokens') or []
+            for tok in span:
+                names.add(tok)
+            if span:
+                names.add(' '.join(span))
+        return names
 
     def rerank(self, question, question_ast, candidates, conn, top_k=10):
-        q_subj = ((question_ast.get('subjekto') or {}).get('kerno') or {}).get('radiko')
+        q_names = self._question_propra_nomos(question_ast)
         q_verb = (question_ast.get('verbo') or {}).get('radiko')
-        q_obj = ((question_ast.get('objekto') or {}).get('kerno') or {}).get('radiko')
         scored = []
         for p in candidates:
             boost = 0.0
-            if p.ast:
-                p_subj = ((p.ast.get('subjekto') or {}).get('kerno') or {}).get('radiko')
+            if p.ast and q_names:
+                p_names = self._candidate_propra_nomos_anywhere(p.ast)
+                shared = q_names & p_names
+                if shared:
+                    # Strong reward — exact entity match anywhere in candidate
+                    boost += 5.0 * len(shared)
+            if p.ast and q_verb:
                 p_verb = (p.ast.get('verbo') or {}).get('radiko')
-                p_obj = ((p.ast.get('objekto') or {}).get('kerno') or {}).get('radiko')
-                # Reward role-aligned radiko matches
-                if q_verb and p_verb == q_verb:
-                    boost += 3.0
-                if q_subj and p_subj == q_subj:
-                    boost += 2.0
-                if q_obj and p_obj == q_obj:
-                    boost += 2.0
-                # Modest cross-role boosts
-                if q_obj and (p_subj == q_obj or p_obj == q_obj):
-                    boost += 1.0
+                if p_verb == q_verb:
+                    boost += 1.0  # tie-breaker
             scored.append((p.score + boost, p))
         scored.sort(key=lambda kv: -kv[0])
         ranked = [
@@ -205,7 +263,8 @@ class RadikoAwareReranker(Reranker):
             for ns, p in scored[:top_k]
         ]
         return RerankerResult(name=self.name, ranked=ranked,
-                              metadata={'q_subj': q_subj, 'q_verb': q_verb, 'q_obj': q_obj})
+                              metadata={'q_names': list(q_names),
+                                        'q_verb': q_verb})
 
 
 class NegationAwareReranker(Reranker):
@@ -418,6 +477,13 @@ def main() -> None:
     ap.add_argument('--candidate-pool', type=int, default=100)
     ap.add_argument('--output-jsonl', default=None)
     ap.add_argument('--output-csv', default=None)
+    ap.add_argument('--output-summary', default=None,
+                    help='Optional path to write a per-run summary JSON '
+                         '(consumable by perf_history.py append --run-summary)')
+    ap.add_argument('--append-history',
+                    default=None,
+                    help='Optional path to perf history JSONL — appends the '
+                         'run summary directly (default: data/perf/bench_history.jsonl)')
     args = ap.parse_args()
 
     test = []
@@ -510,6 +576,41 @@ def main() -> None:
             for row in rows:
                 f.write(json.dumps(row, ensure_ascii=False) + '\n')
         print(f'\nPer-question JSONL: {args.output_jsonl}')
+
+    # Emit a per-run summary that perf_history.py can ingest with `append`.
+    # Captures: which assets were active, per-reranker metrics, test set, sample size.
+    per_reranker_metrics = {}
+    for r in enabled:
+        ranks = [row.get(f'{r.name}_rank') for row in rows]
+        n_r1 = sum(1 for x in ranks if x == 1)
+        n_r5 = sum(1 for x in ranks if x is not None and x <= 5)
+        n_r10 = sum(1 for x in ranks if x is not None and x <= 10)
+        mrr = (sum(1.0 / x for x in ranks if x is not None) / len(ranks)
+               if ranks else 0)
+        n_correct = sum(1 for row in rows if row.get(f'{r.name}_correct'))
+        per_reranker_metrics[r.name] = {
+            'recall_at_1':       n_r1,
+            'recall_at_5':       n_r5,
+            'recall_at_10':      n_r10,
+            'mrr':               round(mrr, 4),
+            'answer_accuracy':   round(100 * n_correct / max(1, len(rows)), 2),
+        }
+    run_summary = {
+        'test_set':         args.test_set,
+        'n_questions':      len(rows),
+        'top_k':            args.top_k,
+        'candidate_pool':   args.candidate_pool,
+        'rerankers':        per_reranker_metrics,
+        'skipped':          skipped,
+    }
+    if args.output_summary:
+        Path(args.output_summary).parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output_summary, 'w') as f:
+            json.dump(run_summary, f, ensure_ascii=False, indent=2)
+        print(f'Per-run summary:    {args.output_summary}')
+    if args.append_history:
+        from perf_history import append_run as _append_history
+        _append_history(Path(args.append_history), run_summary)
 
 
 if __name__ == '__main__':

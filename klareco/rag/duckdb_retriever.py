@@ -138,15 +138,39 @@ class DuckDBRetriever:
         if not cand_ids:
             return []
 
-        # 2. ONE indexed DuckDB fetch for the candidates.
+        # 2. ONE indexed DuckDB fetch for the candidates. Wrapped in a
+        # try/except + chunked fallback to survive a corrupt block: if a
+        # single batch SELECT hits the bad block we fall back to per-sid
+        # fetches and skip the ones that throw. The DB has a known-bad
+        # block at file offset ~30GB (2026-05-21 incident); rebuild is
+        # pending. This wrap prevents one bad block from blocking ALL
+        # retrieval.
         t0 = time.time()
         placeholders = ','.join('?' * len(cand_ids))
-        rows = self.con.execute(
-            f"SELECT sid, text, verb_radiko, subj_vortspeco, "
-            f"subj_propranoma_kat, obj_radiko, ast_json "
-            f"FROM sentences WHERE sid IN ({placeholders})",
-            cand_ids,
-        ).fetchall()
+        try:
+            rows = self.con.execute(
+                f"SELECT sid, text, verb_radiko, subj_vortspeco, "
+                f"subj_propranoma_kat, obj_radiko, ast_json "
+                f"FROM sentences WHERE sid IN ({placeholders})",
+                cand_ids,
+            ).fetchall()
+        except Exception as e:
+            # Likely corrupt-block IO. Fall back to per-sid fetch, dropping
+            # the ones that throw.
+            logger.warning(f"Bulk fetch failed ({e}); falling back to per-sid")
+            rows = []
+            for sid in cand_ids:
+                try:
+                    r = self.con.execute(
+                        "SELECT sid, text, verb_radiko, subj_vortspeco, "
+                        "subj_propranoma_kat, obj_radiko, ast_json "
+                        "FROM sentences WHERE sid = ?",
+                        [sid],
+                    ).fetchone()
+                    if r:
+                        rows.append(r)
+                except Exception:
+                    continue
         self._phase_timer.add('duckdb_fetch', (time.time() - t0) * 1000)
 
         # rank-position from Whoosh = base relevance signal

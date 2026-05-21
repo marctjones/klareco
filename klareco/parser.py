@@ -2124,9 +2124,18 @@ def parse_clause(word_asts: list) -> dict:
         )
         if ast["vortspeco"] == "verbo" and not frazo["verbo"]:
             frazo["verbo"] = ast
-            # Check for negation
-            if i > 0 and word_asts[i-1].get("radiko") == "ne":
-                ast["negita"] = True
+            # Check for negation: `ne` immediately before the verb, OR
+            # any neni-prefixed correlative (`neniam`, `nenie`, `nenial`,
+            # `neniu`, …) immediately before. The previous check only
+            # handled `ne` and silently missed `Bach neniam aŭdis…`
+            # (true negation in the source). neni-correlatives carry the
+            # absolute-negation meaning equivalent to `ne` + verb here.
+            if i > 0:
+                prev = word_asts[i-1]
+                if (prev.get("radiko") == "ne"
+                        or (prev.get("vortspeco") == "korelativo"
+                            and prev.get("korelativo_prefikso") == "neni")):
+                    ast["negita"] = True
         elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not frazo["objekto"] and not is_pp_governed:
             frazo["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
         elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not frazo["subjekto"] and not is_pp_governed:
@@ -2405,10 +2414,17 @@ def parse(text: str):
 
         if ast["vortspeco"] == "verbo" and not sentence_ast["verbo"] and not in_subordinate:
             sentence_ast["verbo"] = ast
-            # Check for negation: 'ne' immediately preceding the verb (Issue #78)
-            # In Esperanto, 'ne' typically directly precedes the word it negates
-            if i > 0 and word_asts[i-1].get("radiko") == "ne":
-                ast["negita"] = True
+            # Check for negation: `ne` immediately before the verb, OR
+            # any neni-prefixed correlative (`neniam`, `nenie`, `nenial`,
+            # `neniu`, …) immediately before. Issue #78 + Bug #6.
+            # neni-correlatives carry absolute-negation semantics
+            # equivalent to `ne` + verb (`Bach neniam aŭdis` = `Bach never heard`).
+            if i > 0:
+                prev = word_asts[i-1]
+                if (prev.get("radiko") == "ne"
+                        or (prev.get("vortspeco") == "korelativo"
+                            and prev.get("korelativo_prefikso") == "neni")):
+                    ast["negita"] = True
         # Object: any noun, pronoun, proper noun, correlative, or unknown word in accusative case (-n)
         elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"] and not in_subordinate and not is_pp_governed:
             sentence_ast["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}

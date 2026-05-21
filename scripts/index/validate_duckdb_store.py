@@ -275,6 +275,8 @@ def main() -> None:
     args = ap.parse_args()
 
     conn = duckdb.connect(args.duckdb_path, read_only=True)
+    conn.execute("SET memory_limit = '2GB'")
+    conn.execute("SET threads = 4")
 
     print('=== Aggregate counts ===')
     n_total = conn.execute('SELECT COUNT(*) FROM sentences').fetchone()[0]

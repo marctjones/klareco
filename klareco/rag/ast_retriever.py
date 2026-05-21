@@ -80,6 +80,9 @@ class ASTRetriever:
                          augment with BM25 fallback.
         """
         self.conn = duckdb.connect(str(duckdb_path), read_only=True)
+        # OOM safety: cap each ASTRetriever's working memory
+        self.conn.execute("SET memory_limit = '2GB'")
+        self.conn.execute("SET threads = 4")
         self.bm25_fallback = bm25_fallback
         self.min_candidates = min_candidates
 

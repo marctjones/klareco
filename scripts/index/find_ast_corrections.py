@@ -152,6 +152,8 @@ def phase_a_scan(args) -> None:
     If different, append a correction record to staging JSONL."""
     print(f'Opening DuckDB at {args.duckdb_path} (READ-ONLY, no lock)…')
     conn = duckdb.connect(args.duckdb_path, read_only=True)
+    conn.execute("SET memory_limit = '2GB'")
+    conn.execute("SET threads = 4")
 
     where_clause = ''
     if args.prefilter:

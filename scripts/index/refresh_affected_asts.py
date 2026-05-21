@@ -226,6 +226,9 @@ def main() -> None:
 
     print(f'Opening DuckDB at {args.duckdb_path} (read-write)…')
     conn = duckdb.connect(args.duckdb_path)
+    # OOM safety
+    conn.execute("SET memory_limit = '2GB'")
+    conn.execute("SET threads = 4")
 
     setup_refresh_log(conn)
 

@@ -262,6 +262,8 @@ def phase_a(args) -> None:
     """Scan all patterns; write per-pattern staging files."""
     print(f'Opening DuckDB at {args.duckdb_path} (READ-ONLY)…')
     conn = duckdb.connect(args.duckdb_path, read_only=True)
+    conn.execute("SET memory_limit = '2GB'")
+    conn.execute("SET threads = 4")
 
     staging_dir = Path(args.staging_dir)
     total = 0
@@ -309,6 +311,8 @@ def phase_b_one_pattern(conn, pat: Pattern, staging_dir: Path) -> int:
 def phase_b(args) -> None:
     print(f'Opening DuckDB at {args.duckdb_path} (WRITE)…')
     conn = duckdb.connect(args.duckdb_path)
+    conn.execute("SET memory_limit = '2GB'")
+    conn.execute("SET threads = 4")
     staging_dir = Path(args.staging_dir)
     total = 0
     for pat in PATTERNS:

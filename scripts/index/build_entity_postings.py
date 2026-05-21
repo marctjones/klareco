@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build the entity_postings inverted index from AST multi_token_entities (gh#729).
+Build the entity_postings inverted index in two phases (gh#729).
 
 VERSION: v2.x (DuckDB)
 COMPATIBLE WITH: DuckDB store with `sentences.ast_json` carrying
@@ -10,44 +10,52 @@ STAGE: Index
 
 Description:
     GitHub issue: #729
-    Build an inverted index mapping entity_text → list of sentence ids.
-    The diagnostic on 2026-05-20 showed BM25 outranks specific entities
-    with generic-term-match noise (e.g. `Fortnite` lost to `senpagan ludon`).
-    This index gives the retriever a direct-lookup path:
-        "Find sentences mentioning Fortnite" → instant sid list
-    bypassing the BM25 score-ranking step.
+    The naïve single-phase build (one process holding write lock for
+    the entire ~2-hour scan) blocks every other DB operation. This
+    script splits the work:
 
-    Schema:
-        CREATE TABLE entity_postings (
-            entity_text       VARCHAR,       -- 'Béla Buzogány'
-            entity_normalized VARCHAR,       -- diacritic-folded, lowercased
-            span_token_count  INTEGER,       -- 1, 2, 3, …
-            sid               BIGINT,
-            role_hint         VARCHAR        -- subjekto/objekto/aliaj if known
-        );
+      Phase A (SCAN-ONLY, read-only DB connection):
+        - Open DuckDB in read-only mode (no write lock held)
+        - Stream sentences in sid-range chunks
+        - Extract entities (multi_token_entities + propra_nomo
+          subjekto/objekto) for each
+        - Write postings to a JSONL staging file
+        - Other processes (bench, validator, etc.) can read DuckDB
+          concurrently throughout
 
-    Population strategy:
-      - Streams sentences.ast_json one at a time (avoids OOM on 5.4M)
-      - For each, extracts multi_token_entities + single-token propra_nomos
-        that appear in subjekto/objekto kernos
-      - INSERTs into entity_postings as a batch every N rows
-      - Builds indices on entity_text and entity_normalized at the end
+      Phase B (APPLY, brief write lock):
+        - Open DuckDB read-write
+        - DROP old entity_postings if present
+        - CREATE TABLE entity_postings AS SELECT * FROM read_json(staging)
+        - Build indices
+        - ~30 seconds total
+
+    The staging file (default: data/staging/entity_postings.jsonl) can
+    be inspected/edited/diffed/version-controlled if needed before
+    apply. Re-running scan-only resumes from the last sid in the file
+    (checkpointable).
 
 Pipeline Position:
-    sentences.ast_json → [THIS SCRIPT] → entity_postings + indices
-    → EntityPostingsReranker (multi_reranker_bench.py)
-    → routing in orchestrator for entity-anchored questions
+    sentences.ast_json --scan-only-->  staging JSONL  --apply-->  entity_postings table
+    (concurrent OK)         (read-only)                 (brief write)
 
 Usage:
-    python scripts/index/build_entity_postings.py
-    python scripts/index/build_entity_postings.py --limit 100000  # test mode
+    # Phase A — run anytime, no DB lock contention:
+    python scripts/index/build_entity_postings.py --scan-only
+
+    # Phase B — quick write, run when DB is free:
+    python scripts/index/build_entity_postings.py --apply
+
+    # Combined (acquires write lock for whole run, like old behavior):
+    python scripts/index/build_entity_postings.py --scan-only --apply
 
 Inputs:
-    --duckdb-path  data/indexes/duckdb_store.db (read-write)
+    --duckdb-path  data/indexes/duckdb_store.db
+    --staging      data/staging/entity_postings.jsonl
 
 Outputs:
-    Creates `entity_postings` table + 2 indices.
-    Stats: distinct entities, per-entity sid count histogram.
+    Phase A: JSONL file at --staging path
+    Phase B: entity_postings table + indices in DuckDB
 
 Last Updated: 2026-05-20
 Author: Claude Code (with Marc Jones)
@@ -67,7 +75,7 @@ import duckdb
 
 
 def fold(s: str) -> str:
-    """Lowercase + strip diacritics, for diacritic-insensitive matching."""
+    """Lowercase + strip diacritics for diacritic-insensitive matching."""
     if not s:
         return s
     decomposed = unicodedata.normalize('NFKD', s)
@@ -83,13 +91,7 @@ def kerno(node):
 
 
 def extract_entities(ast: dict) -> list[tuple[str, int, str | None]]:
-    """Return (entity_text, span_token_count, role_hint) tuples for the AST.
-
-    Sources:
-      - ast['multi_token_entities'] → each group's span_tokens joined
-      - ast['subjekto'/'objekto'] kernos with vortspeco=='propra_nomo'
-        and a single-token plena_vorto (multi-token cases already in mte)
-    """
+    """Return (entity_text, span_token_count, role_hint) tuples for the AST."""
     entities: list[tuple[str, int, str | None]] = []
 
     for g in (ast.get('multi_token_entities') or []):
@@ -107,104 +109,150 @@ def extract_entities(ast: dict) -> list[tuple[str, int, str | None]]:
             continue
         pv = k.get('plena_vorto') or ''
         if not pv or ' ' in pv:
-            continue  # multi-token forms come from multi_token_entities
+            continue
         entities.append((pv, 1, role))
 
     return entities
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--duckdb-path', default='data/indexes/duckdb_store.db')
-    ap.add_argument('--limit', type=int, default=None,
-                    help='Process at most this many sentences (test mode).')
-    ap.add_argument('--batch-size', type=int, default=5000,
-                    help='INSERT batch size (default 5000).')
-    args = ap.parse_args()
+def last_sid_in_staging(staging_path: Path) -> int | None:
+    """Return the max sid in the staging file (for resume), or None if absent."""
+    if not staging_path.exists():
+        return None
+    last = None
+    with open(staging_path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+                if last is None or obj['sid'] > last:
+                    last = obj['sid']
+            except Exception:
+                continue
+    return last
 
-    print(f'Opening DuckDB at {args.duckdb_path} (write connection)…')
-    write_conn = duckdb.connect(args.duckdb_path)
 
-    # Drop + recreate (idempotent fresh build)
-    print('Recreating entity_postings table…')
-    write_conn.execute('DROP TABLE IF EXISTS entity_postings')
-    write_conn.execute("""
-        CREATE TABLE entity_postings (
-            entity_text       VARCHAR,
-            entity_normalized VARCHAR,
-            span_token_count  INTEGER,
-            sid               BIGINT,
-            role_hint         VARCHAR
-        )
-    """)
+def phase_a_scan(args) -> None:
+    """SCAN: stream sentences, extract entities, append to staging JSONL.
+    Uses a READ-ONLY DuckDB connection — no write lock acquired."""
+    print(f'Opening DuckDB at {args.duckdb_path} (READ-ONLY, no lock)…')
+    conn = duckdb.connect(args.duckdb_path, read_only=True)
+    # OOM safety: cap DuckDB's working memory. The 35GB store mmap-loaded
+    # without bound can chew through all available RAM, especially when
+    # multiple readers run concurrently. 2GB is plenty for chunked queries.
+    conn.execute("SET memory_limit = '2GB'")
+    conn.execute("SET threads = 4")  # don't grab all 16 cores
 
-    # The write connection's cursor would get clobbered if we re-used it for
-    # SELECT iteration. We pre-collect (sid, ast_json) tuples by chunked
-    # SELECTs ordered by sid — chunked to keep memory bounded.
-    n_total = write_conn.execute('SELECT COUNT(*) FROM sentences').fetchone()[0]
-    if args.limit:
-        n_total = min(n_total, args.limit)
-    print(f'Scanning {n_total:,} sentences in chunks of 100K…\n')
+    n_total = conn.execute('SELECT COUNT(*) FROM sentences').fetchone()[0]
+    print(f'Sentences in store: {n_total:,}')
 
-    batch: list[tuple[str, str, int, int, str | None]] = []
+    staging_path = Path(args.staging)
+    staging_path.parent.mkdir(parents=True, exist_ok=True)
+
+    resume_from = last_sid_in_staging(staging_path) if not args.fresh else None
+    if resume_from is not None:
+        print(f'Resuming from sid > {resume_from:,} (existing staging file '
+              f'will be appended)')
+    else:
+        print(f'Fresh scan; writing to {staging_path}')
+
+    # Pre-filter: only sentences with content of interest. Reduces ~40% of work.
+    # The LIKE checks are cheap on DuckDB (zone-map skipping).
+    pre_filter = (
+        "(ast_json LIKE '%multi_token_entities%' "
+        "OR ast_json LIKE '%\"vortspeco\":\"propra_nomo\"%' "
+        "OR ast_json LIKE '%\"vortspeco\": \"propra_nomo\"%')"
+    )
+
+    CHUNK = 100_000
     n_scanned = 0
     n_postings = 0
     t0 = time.time()
+    last_sid: int | None = resume_from
 
-    CHUNK = 100_000
-    last_sid: int | None = None
-    while n_scanned < n_total:
-        # Fetch one chunk by sid range
-        if last_sid is None:
-            sql = (f'SELECT sid, ast_json FROM sentences '
-                   f'ORDER BY sid LIMIT {CHUNK}')
-            params: list = []
-        else:
-            sql = (f'SELECT sid, ast_json FROM sentences '
-                   f'WHERE sid > ? ORDER BY sid LIMIT {CHUNK}')
-            params = [last_sid]
-        rows = write_conn.execute(sql, params).fetchall()
-        if not rows:
-            break
-        for sid, ast_json in rows:
-            n_scanned += 1
-            last_sid = sid
-            if not ast_json:
-                continue
-            try:
-                ast = json.loads(ast_json)
-            except Exception:
-                continue
-            for entity_text, span_count, role in extract_entities(ast):
-                batch.append((entity_text, fold(entity_text), span_count, sid, role))
-                n_postings += 1
-            if len(batch) >= args.batch_size:
-                write_conn.executemany(
-                    'INSERT INTO entity_postings VALUES (?, ?, ?, ?, ?)',
-                    batch
-                )
-                batch.clear()
-        elapsed = time.time() - t0
-        rate = n_scanned / elapsed if elapsed > 0 else 0
-        eta = (n_total - n_scanned) / rate if rate > 0 else float('inf')
-        print(f'  {n_scanned:>8,} / {n_total:,}  '
-              f'({100*n_scanned/n_total:5.1f}%)  '
-              f'postings={n_postings:>8,}  '
-              f'{rate:5.0f}/s  ETA {eta/60:5.1f}m',
-              flush=True)
-        if args.limit and n_scanned >= args.limit:
-            break
-
-    if batch:
-        write_conn.executemany(
-            'INSERT INTO entity_postings VALUES (?, ?, ?, ?, ?)',
-            batch
-        )
-    conn = write_conn  # used by the rest of the function
+    # Append mode if resuming, else fresh write
+    mode = 'a' if resume_from is not None else 'w'
+    with open(staging_path, mode) as out_f:
+        while True:
+            if last_sid is None:
+                sql = (f"SELECT sid, ast_json FROM sentences "
+                       f"WHERE {pre_filter} "
+                       f"ORDER BY sid LIMIT {CHUNK}")
+                params: list = []
+            else:
+                sql = (f"SELECT sid, ast_json FROM sentences "
+                       f"WHERE sid > ? AND {pre_filter} "
+                       f"ORDER BY sid LIMIT {CHUNK}")
+                params = [last_sid]
+            rows = conn.execute(sql, params).fetchall()
+            if not rows:
+                break
+            for sid, ast_json in rows:
+                n_scanned += 1
+                last_sid = sid
+                if not ast_json:
+                    continue
+                try:
+                    ast = json.loads(ast_json)
+                except Exception:
+                    continue
+                for entity_text, span_count, role in extract_entities(ast):
+                    out_f.write(json.dumps({
+                        'entity_text':       entity_text,
+                        'entity_normalized': fold(entity_text),
+                        'span_token_count':  span_count,
+                        'sid':               int(sid),
+                        'role_hint':         role,
+                    }, ensure_ascii=False) + '\n')
+                    n_postings += 1
+            elapsed = time.time() - t0
+            rate = n_scanned / elapsed if elapsed > 0 else 0
+            print(f'  scanned={n_scanned:>8,}  '
+                  f'postings={n_postings:>8,}  '
+                  f'last_sid={last_sid:>8,}  '
+                  f'{rate:5.0f}/s',
+                  flush=True)
 
     elapsed = time.time() - t0
-    print(f'\nScanned {n_scanned:,} sentences in {elapsed:.1f}s')
-    print(f'Generated {n_postings:,} postings')
+    print(f'\n=== Phase A done ===')
+    print(f'Scanned {n_scanned:,} entity-bearing sentences in {elapsed/60:.1f} min')
+    print(f'Wrote {n_postings:,} postings to {staging_path}')
+    print(f'Throughput: {n_scanned/elapsed:.0f} sentences/sec')
+
+
+def phase_b_apply(args) -> None:
+    """APPLY: bulk-load staging JSONL into entity_postings + build indices.
+    Brief write lock."""
+    staging_path = Path(args.staging)
+    if not staging_path.exists():
+        print(f'ERROR: staging file {staging_path} does not exist. '
+              'Run --scan-only first.', file=sys.stderr)
+        sys.exit(1)
+    n_postings_in_file = sum(1 for _ in open(staging_path))
+    print(f'Staging file: {staging_path} ({n_postings_in_file:,} lines)\n')
+
+    print(f'Opening DuckDB at {args.duckdb_path} (WRITE)…')
+    conn = duckdb.connect(args.duckdb_path)
+    conn.execute("SET memory_limit = '2GB'")
+    conn.execute("SET threads = 4")
+
+    print('DROP TABLE IF EXISTS entity_postings')
+    conn.execute('DROP TABLE IF EXISTS entity_postings')
+
+    print(f'Bulk-loading from {staging_path} via read_json_auto…')
+    t0 = time.time()
+    conn.execute(f"""
+        CREATE TABLE entity_postings AS
+        SELECT
+            entity_text,
+            entity_normalized,
+            CAST(span_token_count AS INTEGER) AS span_token_count,
+            CAST(sid AS BIGINT)               AS sid,
+            role_hint
+        FROM read_json_auto('{staging_path.absolute()}',
+                            format='nd', records=true)
+    """)
+    n_loaded = conn.execute('SELECT COUNT(*) FROM entity_postings').fetchone()[0]
+    print(f'  loaded {n_loaded:,} rows in {time.time()-t0:.1f}s')
 
     print('\nBuilding indices…')
     t0 = time.time()
@@ -216,12 +264,11 @@ def main() -> None:
     n_distinct = conn.execute(
         'SELECT COUNT(DISTINCT entity_text) FROM entity_postings'
     ).fetchone()[0]
-    print(f'\n=== Stats ===')
-    print(f'  distinct entity_text:   {n_distinct:,}')
-    print(f'  total postings:         {n_postings:,}')
-    print(f'  average sids per entity: {n_postings/max(1,n_distinct):.1f}')
+    print(f'\n=== Phase B done ===')
+    print(f'  distinct entity_text:    {n_distinct:,}')
+    print(f'  total postings:          {n_loaded:,}')
+    print(f'  average sids per entity:  {n_loaded/max(1,n_distinct):.1f}')
 
-    # Top-10 most-mentioned entities (sanity)
     print(f'\n=== Top-10 most-mentioned entities ===')
     rows = conn.execute("""
         SELECT entity_text, COUNT(*) AS n FROM entity_postings
@@ -229,6 +276,29 @@ def main() -> None:
     """).fetchall()
     for entity_text, n in rows:
         print(f'  {entity_text:<40s}  {n:>8,}')
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--duckdb-path', default='data/indexes/duckdb_store.db')
+    ap.add_argument('--staging', default='data/staging/entity_postings.jsonl',
+                    help='Staging JSONL path for the scan phase')
+    ap.add_argument('--scan-only', action='store_true',
+                    help='Phase A only: scan + write staging (no DB writes).')
+    ap.add_argument('--apply', action='store_true',
+                    help='Phase B: bulk-load staging into entity_postings.')
+    ap.add_argument('--fresh', action='store_true',
+                    help='Phase A: overwrite staging file instead of resuming.')
+    args = ap.parse_args()
+
+    if not args.scan_only and not args.apply:
+        print('ERROR: must specify --scan-only and/or --apply', file=sys.stderr)
+        sys.exit(1)
+
+    if args.scan_only:
+        phase_a_scan(args)
+    if args.apply:
+        phase_b_apply(args)
 
 
 if __name__ == '__main__':

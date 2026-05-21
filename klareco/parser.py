@@ -2205,6 +2205,16 @@ def parse(text: str):
     # Match: letter(s) + hyphen + letter(s) (captures compound words)
     # Use ZZZCOMPOUNDZZ (no underscores) because underscore is in string.punctuation
     text = re.sub(r"(\w)-(\w)", r"\1ZZZCOMPOUNDZZ\2", text)
+    # Bug #11 prep: track token indices that have a trailing comma in the
+    # original text, BEFORE punctuation stripping. Used downstream to
+    # detect `Kiam X Y, Z W`-style temporal subordinate clauses where the
+    # sentence-initial ki-correlative is a subordinator, not a question
+    # word. The split() here aligns 1:1 with the post-strip `words` list
+    # (commas don't change token count, they just sit at token edges).
+    _pre_strip_tokens = text.split()
+    comma_after_indices = [
+        i for i, tok in enumerate(_pre_strip_tokens) if tok.endswith(',')
+    ]
     # Remove all punctuation (now hyphens in compounds are protected)
     for punct in string.punctuation:
         text = text.replace(punct, ' ')
@@ -2385,6 +2395,36 @@ def parse(text: str):
     # Other subordinates (ke/se/ĉar/…): tracked by start position only (old behaviour).
     relative_spans = find_relative_clause_spans(word_asts)
     relative_span_set = {i for start, end in relative_spans for i in range(start, end)}
+
+    # Bug #11: a sentence-initial ki-correlative followed later by a
+    # comma opens a comma-delimited subordinate clause, not a question.
+    # Example: `Kiam Zamenhof estis junulo, li lernis multajn lingvojn`
+    # → Kiam-clause = positions 0..3, main clause = positions 4..7.
+    #
+    # Discriminator: the pre-comma segment must contain BOTH an
+    # independent nominative subject candidate (a substantivo /
+    # propra_nomo / pronomo — NOT the leading ki-correlative itself)
+    # AND a finite verb. This catches real subordinate clauses
+    # (`Kiam X V Y, ...`) and rejects:
+    #   - `Kiu, kiun mi vidis hieraŭ, kreis Esperanton` (parenthetical
+    #     relative — pre-comma is just `Kiu`, no independent subj+verb)
+    #   - `Kio okazis, kiu surprizis ŝin?` (pre-comma `Kio okazis` has
+    #     verb but no independent subj — Kio is the subject)
+    if (word_asts and _is_ki_correlative(word_asts[0])
+            and comma_after_indices
+            and comma_after_indices[0] < len(word_asts) - 1):
+        sub_end = comma_after_indices[0]  # 0-indexed token before comma
+        pre_segment = word_asts[0:sub_end + 1]
+        has_independent_subj = any(
+            (w.get('vortspeco') in ('substantivo', 'propra_nomo', 'pronomo'))
+            and w.get('kazo') == 'nominativo'
+            for w in pre_segment[1:]  # skip position 0 (the ki-correlative)
+        )
+        has_verb = any(w.get('vortspeco') == 'verbo' for w in pre_segment)
+        post_segment_size = len(word_asts) - sub_end - 1
+        if has_independent_subj and has_verb and post_segment_size >= 2:
+            for j in range(0, sub_end + 1):
+                relative_span_set.add(j)
 
     other_subordinate_starts = []
     for i, ast in enumerate(word_asts):

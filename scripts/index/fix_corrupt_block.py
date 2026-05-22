@@ -124,10 +124,14 @@ COLS = ('sid', 'text', 'subj_radiko', 'subj_vortspeco', 'subj_propranoma_kat',
 # ---------- Phase A: map corrupt sids -------------------------------------
 
 def _try_select_chunk(conn, lo: int, hi: int) -> tuple[bool, str | None]:
-    """True if SELECT for sids in [lo, hi] succeeds (touches the bytes)."""
+    """True if SELECT for sids in [lo, hi] succeeds. Includes ast_json
+    in the projection because that's the column whose storage actually
+    holds the 2026-05-20 corrupt blocks — the sid index and text column
+    are intact, so a narrow SELECT would miss the corruption."""
     try:
         conn.execute(
-            "SELECT sid, text FROM sentences WHERE sid BETWEEN ? AND ?",
+            "SELECT sid, text, ast_json FROM sentences "
+            "WHERE sid BETWEEN ? AND ?",
             [lo, hi],
         ).fetchall()
         return True, None

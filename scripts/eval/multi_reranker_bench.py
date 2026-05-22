@@ -390,6 +390,73 @@ class EntityPostingsReranker(Reranker):
                                         'promoted_count': len(promoted)})
 
 
+class ASTAwareRanker(Reranker):
+    """Per-question-type structured score over shredded AST columns.
+    Implements the framework from #741. Stage 1: uses only existing
+    `sentences` columns + on-the-fly aliaj_json parsing for type flags."""
+    name = 'G_ast_aware'
+    requires = ['sentences.verb_klaso', 'sentences.verb_negated']
+
+    _COLS = ('sid', 'text', 'subj_radiko', 'subj_vortspeco',
+             'subj_propranoma_kat', 'subj_kazo',
+             'verb_radiko', 'verb_tempo', 'verb_klaso', 'verb_negated',
+             'obj_radiko', 'obj_kazo', 'aliaj_json')
+
+    def __init__(self):
+        from klareco.rag.ast_aware_reranker import ASTAwareScorer
+        self._scorer_cls = ASTAwareScorer
+        self._scorer = None
+
+    def rerank(self, question, question_ast, candidates, conn, top_k=10):
+        if not candidates:
+            return RerankerResult(name=self.name, ranked=[], metadata={})
+        if self._scorer is None:
+            self._scorer = self._scorer_cls(conn)
+        # Batch-fetch the shredded columns for all candidate sids.
+        sids = [int(p.sentence_id) for p in candidates]
+        placeholders = ','.join('?' for _ in sids)
+        col_list = ', '.join(self._COLS)
+        try:
+            rows = conn.execute(
+                f"SELECT {col_list} FROM sentences "
+                f"WHERE sid IN ({placeholders})",
+                sids,
+            ).fetchall()
+        except Exception as e:
+            return RerankerResult(name=self.name,
+                                  ranked=list(candidates[:top_k]),
+                                  metadata={'error': str(e)[:80]})
+        row_by_sid = {int(r[0]): dict(zip(self._COLS, r)) for r in rows}
+        # Build the candidate dicts the scorer expects.
+        bm25_scores = {int(p.sentence_id): float(p.score) for p in candidates}
+        cand_dicts = []
+        ast_by_sid = {int(p.sentence_id): p.ast for p in candidates}
+        for sid in sids:
+            r = row_by_sid.get(sid)
+            if r is None:
+                continue
+            d = dict(r)
+            d['ast'] = ast_by_sid.get(sid)
+            cand_dicts.append(d)
+        scored = self._scorer.score_batch(question_ast, cand_dicts, bm25_scores)
+        # Map back to ParsedPassage list, preserving original ParsedPassage
+        # objects so source_doc/source_type carry through.
+        pp_by_sid = {int(p.sentence_id): p for p in candidates}
+        ranked: list[ParsedPassage] = []
+        for new_score, c in scored[:top_k]:
+            pp = pp_by_sid.get(int(c['sid']))
+            if pp is None:
+                continue
+            ranked.append(ParsedPassage(
+                sentence_id=pp.sentence_id, text=pp.text, ast=pp.ast,
+                score=float(new_score),
+                source_doc=pp.source_doc, source_type=pp.source_type,
+            ))
+        from klareco.rag.ast_aware_reranker import detect_question_type
+        return RerankerResult(name=self.name, ranked=ranked,
+                              metadata={'qtype': detect_question_type(question_ast)})
+
+
 class RRFCombo(Reranker):
     """Reciprocal Rank Fusion across all sub-rerankers that ran successfully."""
     name = 'Z_rrf_combo'
@@ -506,6 +573,7 @@ def main() -> None:
         NegationAwareReranker(),
         VerbClassReranker(),
         EntityPostingsReranker(),
+        ASTAwareRanker(),
     ]
     enabled: list[Reranker] = []
     skipped: list[str] = []

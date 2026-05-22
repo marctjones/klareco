@@ -17,6 +17,7 @@ htmlcov/
 data/
 models/
 logs/
+results/
 
 # Temp files
 *.tmp

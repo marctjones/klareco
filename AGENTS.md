@@ -90,35 +90,3 @@ result diffs when touching the pipeline.
 checkpoints — they're large and may include copyrighted material. Keep
 secrets out of code and config.
 
-## IdlerGear
-
-This project uses [IdlerGear](https://github.com/marctjones/idlergear) for
-knowledge management. The rules in `/home/marc/.claude/rules/idlergear.md`
-and `.claude/rules/idlergear.md` are authoritative.
-
-### Session start (required)
-
-```bash
-idlergear context
-```
-
-### Forbidden
-
-- File-based knowledge: `TODO.md`, `NOTES.md`, `SESSION_*.md`, `SCRATCH.md`,
-  `BACKLOG.md`, or any markdown file used to track work or capture thoughts
-- Inline TODO/FIXME comments
-
-### Use these commands instead
-
-| Situation | Command |
-|-----------|---------|
-| Found a bug | `idlergear task create "..." --label bug` |
-| Had an idea | `idlergear note create "..."` |
-| Research question | `idlergear explore create "..."` |
-| Completed work | `idlergear task close <id>` |
-| Project goals | `idlergear vision show` |
-
-### Protected paths
-
-Do not modify `.idlergear/` or `.mcp.json` directly — use the CLI / MCP
-tools.

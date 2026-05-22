@@ -95,7 +95,7 @@ python -m pytest --cov=klareco                  # with coverage
 | `VISION.md` | The long-term thesis: decomposable contributions, attribution |
 | `DESIGN.md` | The active architecture — orchestrator stages, schema-first foundation |
 | `CLAUDE.md` | Development conventions; schema-first rules that prevent hardcoded lists |
-| `AGENTS.md` | Repository guidelines, IdlerGear usage |
+| `AGENTS.md` | Repository guidelines |
 | `16RULES.MD` | Esperanto grammar specification (reference) |
 | `docs/VERSION_COMPATIBILITY.md` | Deferred v3.0 model-retraining plan (for when training resumes) |
 

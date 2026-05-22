@@ -432,6 +432,16 @@ class ASTAwareScorer:
         `candidates` is a list of dicts with keys: sid, text, ast,
         and the shredded columns (subj_*, verb_*, obj_*, aliaj_json).
         `bm25_scores` maps sid → original BM25 score.
+
+        Filter policy (Stage 1.5):
+        - Negation mismatch is the ONLY hard filter (zero score).
+        - All other structural filters are SOFT penalties that
+          distinguish 'known mismatch' (heavier penalty) from
+          'unknown — column is NULL' (lighter penalty).
+        - Soft penalties multiply the base score, so a candidate
+          with strong lexical match can still survive a single
+          structural miss but a candidate weak on every front gets
+          demoted into the long tail.
         """
         qtype = detect_question_type(question_ast)
         cfg = _QTYPE_CONFIG.get(qtype, _QTYPE_CONFIG['UNKNOWN'])
@@ -451,17 +461,7 @@ class ASTAwareScorer:
             sid = int(c['sid'])
             bm25 = bm25_scores.get(sid, 0.0)
 
-            # ---- Hard filters ----
-            if cfg.require_answer_slot and not self._answer_slot_present(c, cfg):
-                scored.append((0.0, c))
-                continue
-            if cfg.expected_kats and not self._answer_slot_type_ok(c, cfg):
-                # type mismatch is a hard failure for tightly-typed slots
-                scored.append((0.0, c))
-                continue
-            if cfg.has_aliaj_check and not self._aliaj_check_passes(c, cfg):
-                scored.append((0.0, c))
-                continue
+            # ---- Hard filter: negation mismatch (genuinely fatal) ----
             if c.get('verb_negated') is not None and \
                bool(c.get('verb_negated')) != q_verb_negita:
                 scored.append((0.0, c))
@@ -478,6 +478,41 @@ class ASTAwareScorer:
                 'answer_type':   self._answer_type_score(c, cfg),
             }
             base = sum(cfg.weights.get(k, 0.0) * comp[k] for k in comp)
+
+            # ---- Structural filters (FINAL POLICY after Stage 1.5/1.6) ----
+            # Hard-filter on EITHER 'missing' or 'unknown' for slot/aliaj
+            # checks, and on 'mismatch' or 'unknown' for the type check.
+            #
+            # Counterintuitive but empirically validated on
+            # capability_candidates_v1 (n=120):
+            #
+            #                       R@1  R@5  R@10  MRR   Ans%
+            #   Stage 1   hard all   48   87   97  .531   53.3
+            #   Stage 1.5 soft all   36   61   76  .399   48.3   (regression)
+            #   Stage 1.6 keep NULL  37   55   66  .376   40.0   (regression)
+            #
+            # NULL kat does NOT mean 'unknown — give the benefit of the
+            # doubt'. In practice it strongly correlates with 'subject is
+            # a common noun or unclassified pronoun' — i.e., the sentence
+            # is not about a person-as-subject. So for KIU questions,
+            # filtering out NULL gives better results than letting them
+            # compete.
+            filter_failed = False
+            if cfg.require_answer_slot:
+                status = self._answer_slot_status(c, cfg)
+                if status != 'present':
+                    filter_failed = True
+            if not filter_failed and cfg.expected_kats:
+                status = self._answer_slot_type_status(c, cfg)
+                if status != 'match':
+                    filter_failed = True
+            if not filter_failed and cfg.has_aliaj_check:
+                status = self._aliaj_check_status(c, cfg)
+                if status != 'present':
+                    filter_failed = True
+            if filter_failed:
+                scored.append((0.0, c))
+                continue
 
             # ---- Boost ----
             boost = self._boost(question_ast, qtype, c)
@@ -509,40 +544,69 @@ class ASTAwareScorer:
                 tokens.append(pv)
         return ' '.join(tokens)
 
-    def _answer_slot_present(self, c: dict, cfg: QTypeConfig) -> bool:
+    def _answer_slot_status(self, c: dict, cfg: QTypeConfig) -> str:
+        """Return 'present', 'missing', or 'unknown'.
+
+        'missing' = we have positive evidence the slot is absent
+                    (e.g. parser succeeded but produced no subjekto).
+        'unknown' = the shredded column is NULL, so we can't tell;
+                    treat as soft signal rather than a hard fail.
+        """
         slot = cfg.answer_slot
         if slot == 'subjekto':
-            return bool(c.get('subj_radiko'))
+            if c.get('subj_radiko'):
+                return 'present'
+            if c.get('verb_radiko'):
+                # parse succeeded (we have a verb), so a missing subject
+                # IS a real absence rather than a parse failure
+                return 'missing'
+            return 'unknown'
         if slot == 'objekto':
-            return bool(c.get('obj_radiko'))
+            if c.get('obj_radiko'):
+                return 'present'
+            if c.get('verb_radiko'):
+                return 'missing'
+            return 'unknown'
+        # aliaj-based slots: aliaj_json is the source of truth
         if slot == 'aliaj_loko':
-            return aliaj_has_loko(c.get('aliaj_json'))
+            return ('present' if aliaj_has_loko(c.get('aliaj_json'))
+                    else 'missing' if c.get('aliaj_json') else 'unknown')
         if slot == 'aliaj_jaro':
-            return aliaj_has_jaro(c.get('aliaj_json'))
+            return ('present' if aliaj_has_jaro(c.get('aliaj_json'))
+                    else 'missing' if c.get('aliaj_json') else 'unknown')
         if slot == 'aliaj_numeral':
-            return aliaj_has_numeral(c.get('aliaj_json'))
-        return True
+            return ('present' if aliaj_has_numeral(c.get('aliaj_json'))
+                    else 'missing' if c.get('aliaj_json') else 'unknown')
+        return 'present'
 
-    def _answer_slot_type_ok(self, c: dict, cfg: QTypeConfig) -> bool:
+    def _answer_slot_type_status(self, c: dict, cfg: QTypeConfig) -> str:
+        """Return 'match', 'mismatch', or 'unknown' for the answer-slot
+        type check (e.g., is the subject a persono?)."""
         if not cfg.expected_kats:
-            return True
+            return 'match'
         if cfg.answer_slot == 'subjekto':
-            kat = (c.get('subj_propranoma_kat') or '').lower()
-            return kat in cfg.expected_kats
+            kat_raw = c.get('subj_propranoma_kat')
+            if not kat_raw:
+                return 'unknown'  # column NULL — very common
+            kat = kat_raw.lower()
+            return 'match' if kat in cfg.expected_kats else 'mismatch'
         if cfg.answer_slot == 'objekto':
-            # We don't have obj_propranoma_kat in shredded columns; accept
-            return True
-        return True
+            # No obj_propranoma_kat column — can't enforce
+            return 'unknown'
+        return 'unknown'
 
-    def _aliaj_check_passes(self, c: dict, cfg: QTypeConfig) -> bool:
+    def _aliaj_check_status(self, c: dict, cfg: QTypeConfig) -> str:
+        """Return 'present' or 'missing' for KIE/KIAM/KIOM aliaj checks."""
         kind = cfg.has_aliaj_check
+        if not kind:
+            return 'present'
         if kind == 'loko':
-            return aliaj_has_loko(c.get('aliaj_json'))
+            return 'present' if aliaj_has_loko(c.get('aliaj_json')) else 'missing'
         if kind == 'jaro':
-            return aliaj_has_jaro(c.get('aliaj_json'))
+            return 'present' if aliaj_has_jaro(c.get('aliaj_json')) else 'missing'
         if kind == 'numeral':
-            return aliaj_has_numeral(c.get('aliaj_json'))
-        return True
+            return 'present' if aliaj_has_numeral(c.get('aliaj_json')) else 'missing'
+        return 'present'
 
     def _anchor_verb_match(self, q_verb_radiko: Optional[str], c: dict) -> float:
         if not q_verb_radiko:

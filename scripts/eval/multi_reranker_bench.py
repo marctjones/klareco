@@ -397,19 +397,44 @@ class ASTAwareRanker(Reranker):
     name = 'G_ast_aware'
     requires = ['sentences.verb_klaso', 'sentences.verb_negated']
 
-    _COLS = ('sid', 'text', 'subj_radiko', 'subj_vortspeco',
-             'subj_propranoma_kat', 'subj_kazo',
-             'verb_radiko', 'verb_tempo', 'verb_klaso', 'verb_negated',
-             'obj_radiko', 'obj_kazo', 'aliaj_json')
+    _COLS_CORE = ('sid', 'text', 'subj_radiko', 'subj_vortspeco',
+                  'subj_propranoma_kat', 'subj_kazo',
+                  'verb_radiko', 'verb_tempo', 'verb_klaso', 'verb_negated',
+                  'obj_radiko', 'obj_kazo', 'aliaj_json')
+    _COLS_STAGE2 = ('aliaj_has_loko', 'aliaj_has_jaro', 'aliaj_has_kvant')
+
+    @property
+    def _COLS(self) -> tuple[str, ...]:
+        """Columns to fetch — include Stage 2 boolean flags if they exist."""
+        cols = list(self._COLS_CORE)
+        if self._stage2_available:
+            cols.extend(self._COLS_STAGE2)
+        return tuple(cols)
 
     def __init__(self):
         from klareco.rag.ast_aware_reranker import ASTAwareScorer
         self._scorer_cls = ASTAwareScorer
         self._scorer = None
+        self._stage2_available = False
+        self._stage2_probed = False
+
+    def _probe_stage2(self, conn) -> None:
+        """Check once whether the Stage-2 aliaj_has_* columns are present."""
+        if self._stage2_probed:
+            return
+        try:
+            conn.execute(
+                "SELECT aliaj_has_loko, aliaj_has_jaro, aliaj_has_kvant "
+                "FROM sentences LIMIT 1").fetchone()
+            self._stage2_available = True
+        except Exception:
+            self._stage2_available = False
+        self._stage2_probed = True
 
     def rerank(self, question, question_ast, candidates, conn, top_k=10):
         if not candidates:
             return RerankerResult(name=self.name, ranked=[], metadata={})
+        self._probe_stage2(conn)
         if self._scorer is None:
             self._scorer = self._scorer_cls(conn)
         # Batch-fetch the shredded columns for all candidate sids.
@@ -455,6 +480,77 @@ class ASTAwareRanker(Reranker):
         from klareco.rag.ast_aware_reranker import detect_question_type
         return RerankerResult(name=self.name, ranked=ranked,
                               metadata={'qtype': detect_question_type(question_ast)})
+
+
+class HybridReranker(Reranker):
+    """Hybrid: G_ast_aware structural filters + B_phrase_query lexical boost.
+
+    Composition (multiplicative):
+        candidate's AST-aware score (with hard filters) is multiplied by
+        (1 + phrase_boost / 10), where phrase_boost is the same
+        entity-in-text boost B_phrase_query computes. Filters still gate
+        (mismatched/missing → 0). Among surviving candidates, those whose
+        text literally contains the question's entities are amplified.
+
+    Rationale: structural filters remove KNOWN BAD candidates (high
+    precision), phrase boost identifies HIGH-CONFIDENCE good ones
+    (high recall on the right relevance signal). Multiplying combines
+    them without letting either dominate.
+    """
+    name = 'H_hybrid'
+    requires = ['sentences.verb_klaso', 'sentences.verb_negated']
+
+    _COLS = ASTAwareRanker._COLS_CORE
+    _COLS_STAGE2 = ASTAwareRanker._COLS_STAGE2
+
+    def __init__(self):
+        self._ast_reranker = ASTAwareRanker()
+        self._phrase_reranker = PhraseQueryReranker()
+
+    def rerank(self, question, question_ast, candidates, conn, top_k=10):
+        if not candidates:
+            return RerankerResult(name=self.name, ranked=[], metadata={})
+        # v2 composition (after v1 multiplicative-with-AST-filter regressed
+        # from R@1=54 to 30): treat AST score as an ADDITIVE BONUS on top
+        # of the B_phrase_query baseline. Every BM25 candidate stays in
+        # the pool — AST structural filters never eliminate, they only
+        # boost compatible candidates. This preserves B_phrase_query's
+        # recall while letting structural agreement break ties.
+        ast_result = self._ast_reranker.rerank(
+            question, question_ast, candidates, conn, top_k=len(candidates))
+        ast_score_by_sid = {int(p.sentence_id): float(p.score)
+                            for p in ast_result.ranked}
+        ents = self._phrase_reranker._question_entities(question, question_ast)
+
+        scored: list[tuple[float, ParsedPassage]] = []
+        for p in candidates:
+            sid = int(p.sentence_id)
+            bm25 = float(p.score)
+            text = p.text or ''
+            phrase_boost = 0.0
+            for e in ents:
+                if e and e in text:
+                    phrase_boost += 5.0 * (len(e.split()) ** 1.5)
+            # B_phrase_query baseline (BM25 + entity-in-text boost)
+            base_score = bm25 + phrase_boost
+            # AST structural bonus — non-zero only when the candidate
+            # passed G_ast_aware's filters. The 5.0 weight matches the
+            # per-entity boost magnitude so neither signal dominates.
+            ast_s = ast_score_by_sid.get(sid, 0.0)
+            ast_bonus = 5.0 * ast_s if ast_s > 0 else 0.0
+            scored.append((base_score + ast_bonus, p))
+        scored.sort(key=lambda kv: -kv[0])
+        ranked = [
+            ParsedPassage(sentence_id=p.sentence_id, text=p.text, ast=p.ast,
+                          score=ns, source_doc=p.source_doc,
+                          source_type=p.source_type)
+            for ns, p in scored[:top_k]
+        ]
+        n_ast_pass = sum(1 for s in ast_score_by_sid.values() if s > 0)
+        return RerankerResult(
+            name=self.name, ranked=ranked,
+            metadata={'entities': ents,
+                      'n_ast_filter_pass': n_ast_pass})
 
 
 class RRFCombo(Reranker):
@@ -574,6 +670,7 @@ def main() -> None:
         VerbClassReranker(),
         EntityPostingsReranker(),
         ASTAwareRanker(),
+        HybridReranker(),
     ]
     enabled: list[Reranker] = []
     skipped: list[str] = []

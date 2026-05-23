@@ -140,13 +140,33 @@ def _find_ki_in_ast(ast: dict) -> Optional[tuple[str, str]]:
 
 _YEAR_RE = re.compile(r'\b(1[0-9]{3}|20[0-9]{2}|2100)\b')
 
+# Esperanto prepositions that introduce a place. Empirically: `en` carries
+# the bulk of place mentions in the corpus; the other directional prepositions
+# (al/el/ĝis/ekde) plus locative prepositions (ĉe/sur/sub/tra/super/apud)
+# round out the set. Time-only prepositions (dum, antaŭ-ol) are excluded.
+_PLACE_PREPOSITIONS = {
+    'en', 'ĉe', 'al', 'el', 'ekde', 'ĝis', 'tra', 'super', 'sur', 'sub',
+    'apud', 'trans', 'kontraŭ', 'antaŭ', 'malantaŭ', 'inter',
+}
+
 
 def aliaj_has_loko(aliaj_json: Optional[str]) -> bool:
     """True iff the candidate's aliaj contain a place-like modifier.
 
-    Recognized: kerno with vortspeco=propra_nomo AND propranoma_kat in
-    _LOKO_KATEGORIOJ; OR a `loko`-typed entry; OR a PP whose head noun
-    is loko-typed; OR a known-place common noun.
+    Detection (in priority order):
+
+    1. **Explicit type tag**: kerno.propranoma_kat or kerno.enteca_tipo
+       in {loko, lando, urbo, regiono}. Reliable but sparse (these are
+       set by tier-2 enrichment, which hasn't been run for most rows).
+
+    2. **Place preposition + propra_nomo**: a flat-list aliaj like
+       `[{en}, {Bjalistok}]` where the first item is a place-prep and
+       the next is a propra_nomo. Propra_nomos that match a year regex
+       (e.g. `1887` showing up as a "propra_nomo") are rejected.
+
+    3. **`en` + substantivo**: weakest signal but still place-y in
+       practice (`en urbo`, `en lando`). Other place-prepositions are
+       too ambiguous with a common noun (e.g. `al homo` — to a person).
     """
     if not aliaj_json:
         return False
@@ -156,19 +176,40 @@ def aliaj_has_loko(aliaj_json: Optional[str]) -> bool:
         return False
     if not isinstance(aliaj, list):
         return False
-    for item in aliaj:
+    for i, item in enumerate(aliaj):
         if not isinstance(item, dict):
             continue
         kerno = item.get('kerno') if item.get('tipo') == 'vortgrupo' else item
         if not isinstance(kerno, dict):
             continue
+
+        # 1. Explicit type tag (rare but high-precision)
         kat = (kerno.get('propranoma_kat') or '').lower()
         if kat in _LOKO_KATEGORIOJ:
             return True
-        # Tier-2 EntecaTipo if shredded into aliaj
         type_id = (kerno.get('enteca_tipo') or '').lower()
         if type_id in _LOKO_KATEGORIOJ:
             return True
+
+        # 2. Place preposition followed by propra_nomo
+        radiko = (kerno.get('radiko') or '').lower()
+        vortspeco = (kerno.get('vortspeco') or '').lower()
+        if vortspeco == 'prepozicio' and radiko in _PLACE_PREPOSITIONS:
+            # Scan up to 2 positions ahead for a place-y object
+            for j in range(i + 1, min(i + 3, len(aliaj))):
+                nxt = aliaj[j]
+                if not isinstance(nxt, dict):
+                    continue
+                nxt_k = nxt.get('kerno') if nxt.get('tipo') == 'vortgrupo' else nxt
+                if not isinstance(nxt_k, dict):
+                    continue
+                nxt_vs = (nxt_k.get('vortspeco') or '').lower()
+                nxt_pv = str(nxt_k.get('plena_vorto') or '')
+                if nxt_vs == 'propra_nomo' and not _YEAR_RE.match(nxt_pv):
+                    return True
+                # 3. `en` + substantivo fallback
+                if nxt_vs == 'substantivo' and radiko == 'en':
+                    return True
     return False
 
 
@@ -567,17 +608,33 @@ class ASTAwareScorer:
             if c.get('verb_radiko'):
                 return 'missing'
             return 'unknown'
-        # aliaj-based slots: aliaj_json is the source of truth
+        # aliaj-based slots: prefer the materialized boolean columns
+        # (Stage 2, #741) when present; fall back to aliaj_json parsing.
         if slot == 'aliaj_loko':
-            return ('present' if aliaj_has_loko(c.get('aliaj_json'))
-                    else 'missing' if c.get('aliaj_json') else 'unknown')
+            return self._aliaj_status_for('loko', c)
         if slot == 'aliaj_jaro':
-            return ('present' if aliaj_has_jaro(c.get('aliaj_json'))
-                    else 'missing' if c.get('aliaj_json') else 'unknown')
+            return self._aliaj_status_for('jaro', c)
         if slot == 'aliaj_numeral':
-            return ('present' if aliaj_has_numeral(c.get('aliaj_json'))
-                    else 'missing' if c.get('aliaj_json') else 'unknown')
+            return self._aliaj_status_for('kvant', c)
         return 'present'
+
+    def _aliaj_status_for(self, kind: str, c: dict) -> str:
+        """Tri-state aliaj check, preferring the boolean columns when
+        the index has been augmented with them (Stage 2)."""
+        col = f'aliaj_has_{kind}'
+        col_val = c.get(col)
+        if col_val is True:
+            return 'present'
+        if col_val is False:
+            return 'missing'
+        # Boolean column NULL (index not yet augmented) — derive from JSON.
+        aliaj_json = c.get('aliaj_json')
+        check_fn = {'loko': aliaj_has_loko,
+                    'jaro': aliaj_has_jaro,
+                    'kvant': aliaj_has_numeral}[kind]
+        if check_fn(aliaj_json):
+            return 'present'
+        return 'missing' if aliaj_json else 'unknown'
 
     def _answer_slot_type_status(self, c: dict, cfg: QTypeConfig) -> str:
         """Return 'match', 'mismatch', or 'unknown' for the answer-slot
@@ -596,17 +653,14 @@ class ASTAwareScorer:
         return 'unknown'
 
     def _aliaj_check_status(self, c: dict, cfg: QTypeConfig) -> str:
-        """Return 'present' or 'missing' for KIE/KIAM/KIOM aliaj checks."""
+        """Tri-state aliaj check for KIE/KIAM/KIOM. Prefers boolean columns
+        when present; falls back to aliaj_json parsing."""
         kind = cfg.has_aliaj_check
         if not kind:
             return 'present'
-        if kind == 'loko':
-            return 'present' if aliaj_has_loko(c.get('aliaj_json')) else 'missing'
-        if kind == 'jaro':
-            return 'present' if aliaj_has_jaro(c.get('aliaj_json')) else 'missing'
-        if kind == 'numeral':
-            return 'present' if aliaj_has_numeral(c.get('aliaj_json')) else 'missing'
-        return 'present'
+        # Normalize 'numeral' (config term) to 'kvant' (column name)
+        col_kind = 'kvant' if kind == 'numeral' else kind
+        return self._aliaj_status_for(col_kind, c)
 
     def _anchor_verb_match(self, q_verb_radiko: Optional[str], c: dict) -> float:
         if not q_verb_radiko:

@@ -132,9 +132,9 @@ def main() -> None:
               f'AST {ast_mark} (rank={ast_rank}, {ast_latency_ms:.0f}ms, route={ast_route[:25]})')
 
     # Aggregate
-    print(f'\n=== Aggregate ({len(rows)} questions) ===\n')
-    print(f'{"retriever":<22s} {"R@1":>5s} {"R@5":>5s} {"R@10":>5s} {"MRR":>6s} {"avg_lat":>8s}')
-    print('-' * 60)
+    print(f'\n=== Aggregate ({len(rows)} questions, candidate pool top_k={args.top_k}) ===\n')
+    print(f'{"retriever":<22s} {"R@1":>5s} {"R@5":>5s} {"R@10":>5s} {"R@pool":>7s} {"MRR":>6s} {"avg_lat":>8s}')
+    print('-' * 70)
     for name, key_rank, key_lat in [
         ('bm25', 'bm25_rank', 'bm25_latency_ms'),
         ('ast_retriever', 'ast_rank', 'ast_latency_ms'),
@@ -143,10 +143,11 @@ def main() -> None:
         n_r1 = sum(1 for x in ranks if x == 1)
         n_r5 = sum(1 for x in ranks if x is not None and x <= 5)
         n_r10 = sum(1 for x in ranks if x is not None and x <= 10)
+        n_rpool = sum(1 for x in ranks if x is not None and x <= args.top_k)
         mrr = (sum(1.0 / x for x in ranks if x is not None) / len(ranks)
                if ranks else 0)
         avg_lat = sum(r[key_lat] for r in rows) / max(1, len(rows))
-        print(f'{name:<22s} {n_r1:>5d} {n_r5:>5d} {n_r10:>5d} '
+        print(f'{name:<22s} {n_r1:>5d} {n_r5:>5d} {n_r10:>5d} {n_rpool:>7d} '
               f'{mrr:>6.3f} {avg_lat:>7.0f}ms')
 
     # Per-route breakdown for AST retriever
@@ -174,6 +175,7 @@ def main() -> None:
                     'recall_at_1':      sum(1 for r in rows if r['bm25_rank'] == 1),
                     'recall_at_5':      sum(1 for r in rows if r['bm25_rank'] is not None and r['bm25_rank'] <= 5),
                     'recall_at_10':     sum(1 for r in rows if r['bm25_rank'] is not None and r['bm25_rank'] <= 10),
+                    'recall_at_pool':   sum(1 for r in rows if r['bm25_rank'] is not None and r['bm25_rank'] <= args.top_k),
                     'mrr':              round(sum(1.0/r['bm25_rank'] for r in rows if r['bm25_rank']) / max(1, len(rows)), 4),
                     'avg_latency_ms':   round(sum(r['bm25_latency_ms'] for r in rows) / max(1, len(rows)), 1),
                 },
@@ -181,6 +183,7 @@ def main() -> None:
                     'recall_at_1':      sum(1 for r in rows if r['ast_rank'] == 1),
                     'recall_at_5':      sum(1 for r in rows if r['ast_rank'] is not None and r['ast_rank'] <= 5),
                     'recall_at_10':     sum(1 for r in rows if r['ast_rank'] is not None and r['ast_rank'] <= 10),
+                    'recall_at_pool':   sum(1 for r in rows if r['ast_rank'] is not None and r['ast_rank'] <= args.top_k),
                     'mrr':              round(sum(1.0/r['ast_rank'] for r in rows if r['ast_rank']) / max(1, len(rows)), 4),
                     'avg_latency_ms':   round(sum(r['ast_latency_ms'] for r in rows) / max(1, len(rows)), 1),
                 },

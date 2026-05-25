@@ -16,6 +16,7 @@ from klareco.orchestrator.stage import ModelRegistry
 from klareco.orchestrator.stages.parse_question import ParseQuestionStage
 from klareco.orchestrator.stages.retrieve import RetrieveStage
 from klareco.orchestrator.stages.deterministic_rerank import DeterministicRerankStage
+from klareco.orchestrator.stages.ast_aware_rerank import ASTAwareRerankStage
 from klareco.orchestrator.stages.rerank import RerankStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
@@ -72,6 +73,11 @@ def build_default_pipeline(
         ParseQuestionStage(),
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
         DeterministicRerankStage(),
+        # AST-aware structural reranker (#741 Stage 3). Beats
+        # B_phrase_query on R@1, R@5, MRR, and answer accuracy on
+        # capability_candidates_v1. Drops in here, between
+        # DeterministicRerank and the (still-stub) neural RerankStage.
+        ASTAwareRerankStage(duckdb_path=str(duckdb_path)),
         RerankStage(models=models),
         ExtractAndGenerateStage(generator=generator),
         FormatOutputStage(),

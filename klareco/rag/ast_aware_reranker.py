@@ -466,7 +466,9 @@ class ASTAwareScorer:
     # --- public API ---
 
     def score_batch(self, question_ast: dict, candidates: list,
-                    bm25_scores: dict[int, float]) -> list[tuple[float, dict]]:
+                    bm25_scores: dict[int, float],
+                    question_text: Optional[str] = None,
+                    ) -> list[tuple[float, dict]]:
         """Score every candidate. Returns [(score, candidate_row)] sorted
         by score descending.
 
@@ -496,6 +498,14 @@ class ASTAwareScorer:
 
         # Anchor phrase: the surface text of question minus the ki-correlative
         anchor_phrase = self._build_anchor_phrase(question_ast)
+
+        # Must-have anchors: discriminative tokens that the candidate
+        # SHOULD contain. Missing them is penalized multiplicatively
+        # because BM25 underweights rare-token mismatches (see #741
+        # diagnostic on `Kiu inventis la telefonon` — top-12 BM25
+        # candidates all had the wrong object root because the common
+        # 'kiu/invent/la' tokens outweighed the rare 'telefon').
+        must_haves = self._extract_must_haves(question_text, question_ast)
 
         scored: list[tuple[float, dict]] = []
         for c in candidates:
@@ -557,7 +567,8 @@ class ASTAwareScorer:
 
             # ---- Boost ----
             boost = self._boost(question_ast, qtype, c)
-            scored.append((base * boost, c))
+            must_have_factor = self._must_have_penalty(must_haves, c)
+            scored.append((base * boost * must_have_factor, c))
 
         scored.sort(key=lambda kv: -kv[0])
         return scored
@@ -748,3 +759,98 @@ class ASTAwareScorer:
             if verb_radiko == 'est':
                 return 1.5
         return 1.0
+
+    # ----- Must-have anchors (#741 Stage 3) -----
+    #
+    # BM25 sums per-token IDF scores. When the question has 3-4 mid-IDF
+    # tokens and 1 high-IDF rare token, a candidate matching the 3 mid
+    # tokens but missing the rare one can outscore the candidate that
+    # matches only the rare one. Concrete failure mode observed:
+    #   Q: 'Kiu inventis la telefonon?'
+    #   Top-12: all 'kiu inventis la X' sentences with X != telefono
+    #   (vestarko, fototelegraf, monotipi, ...).
+    # Fix: extract discriminative tokens from the question (content verb,
+    # object root, year, proper nouns) and apply a multiplicative penalty
+    # of (fraction_present)^2. A candidate missing every must-have gets
+    # 0; matching half gets a quarter of the original score.
+
+    # Function-word vortspecoj to skip when extracting must-haves.
+    _FUNCTION_VORTSPECOJ = {
+        'prepozicio', 'konjunkcio', 'partiklo', 'artikolo',
+        'korelativo',  # interrogatives (kiu, kio, kie, ...) and answers
+    }
+    # Verb radikos too generic to be discriminative.
+    _GENERIC_VERB_RADIKOJ = {'est', 'hav', 'fari', 'farin'}
+
+    def _extract_must_haves(self, question_text: Optional[str],
+                            question_ast: dict) -> list[str]:
+        """Return a list of discriminative anchor strings the candidate
+        SHOULD contain in its text. Lower-cased; matched as case-insensitive
+        substrings in candidate.text."""
+        anchors: set[str] = set()
+
+        # 1. Year tokens from the question's surface text
+        if question_text:
+            for m in _YEAR_RE.finditer(question_text):
+                anchors.add(m.group(0))
+
+        # 2. Content verb radiko
+        v = (question_ast.get('verbo') or {}).get('radiko')
+        if v and isinstance(v, str):
+            v = v.lower()
+            if v not in self._GENERIC_VERB_RADIKOJ and len(v) >= 3:
+                anchors.add(v)
+
+        # 3. Subject / object content roots (skip interrogatives)
+        for role in ('subjekto', 'objekto'):
+            n = question_ast.get(role)
+            if not isinstance(n, dict):
+                continue
+            kerno = n.get('kerno') if n.get('tipo') == 'vortgrupo' else n
+            if not isinstance(kerno, dict):
+                continue
+            r = (kerno.get('radiko') or '').lower()
+            vs = (kerno.get('vortspeco') or '').lower()
+            if not r or len(r) < 3:
+                continue
+            if r == 'ki' or vs in self._FUNCTION_VORTSPECOJ:
+                continue
+            anchors.add(r)
+
+        # 4. Content radikos from aliaj (skip prepositions, articles, etc.)
+        for item in question_ast.get('aliaj') or []:
+            if not isinstance(item, dict):
+                continue
+            kerno = item.get('kerno') if item.get('tipo') == 'vortgrupo' else item
+            if not isinstance(kerno, dict):
+                continue
+            r = (kerno.get('radiko') or '').lower()
+            vs = (kerno.get('vortspeco') or '').lower()
+            if not r or len(r) < 3:
+                continue
+            if r == 'ki' or vs in self._FUNCTION_VORTSPECOJ:
+                continue
+            anchors.add(r)
+
+        # 5. Multi-token entity spans (proper-noun phrases). Add each
+        #    token AND the full phrase so candidates matching the phrase
+        #    get extra credit but per-token matches still count.
+        for e in question_ast.get('multi_token_entities') or []:
+            span = e.get('span_tokens') or []
+            for tok in span:
+                if isinstance(tok, str) and len(tok) >= 3:
+                    anchors.add(tok.lower())
+
+        return sorted(anchors)
+
+    def _must_have_penalty(self, anchors: list[str], c: dict) -> float:
+        """Return a multiplicative factor in [0, 1]. (fraction_present)^2
+        — punitive for missing must-haves but doesn't double-punish.
+
+        With an empty anchor list, returns 1.0 (no constraint)."""
+        if not anchors:
+            return 1.0
+        text = (c.get('text') or '').lower()
+        present = sum(1 for a in anchors if a in text)
+        fraction = present / len(anchors)
+        return fraction * fraction

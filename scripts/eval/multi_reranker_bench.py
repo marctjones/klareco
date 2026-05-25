@@ -463,7 +463,9 @@ class ASTAwareRanker(Reranker):
             d = dict(r)
             d['ast'] = ast_by_sid.get(sid)
             cand_dicts.append(d)
-        scored = self._scorer.score_batch(question_ast, cand_dicts, bm25_scores)
+        scored = self._scorer.score_batch(question_ast, cand_dicts,
+                                          bm25_scores,
+                                          question_text=question)
         # Map back to ParsedPassage list, preserving original ParsedPassage
         # objects so source_doc/source_type carry through.
         pp_by_sid = {int(p.sentence_id): p for p in candidates}

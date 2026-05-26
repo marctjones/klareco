@@ -342,6 +342,10 @@ def main() -> None:
     ap.add_argument('--apply', action='store_true')
     ap.add_argument('--fresh', action='store_true',
                     help='Phase A: overwrite per-pattern staging files')
+    ap.add_argument('--keep-staging', action='store_true',
+                    help='Keep the staging dir after --apply succeeds. '
+                         'Default: delete it (pattern_* tables are source '
+                         'of truth once applied).')
     args = ap.parse_args()
 
     if not args.scan_only and not args.apply:
@@ -351,6 +355,16 @@ def main() -> None:
         phase_a(args)
     if args.apply:
         phase_b(args)
+        if not args.keep_staging:
+            import shutil as _shutil
+            from pathlib import Path as _Path
+            stage = _Path(args.staging_dir)
+            if stage.exists():
+                size_mb = sum(p.stat().st_size for p in stage.rglob('*')
+                              if p.is_file()) // (1024 * 1024)
+                _shutil.rmtree(stage)
+                print(f'cleanup: removed {stage} ({size_mb} MB). '
+                      f'Use --keep-staging to preserve.', flush=True)
 
 
 if __name__ == '__main__':

@@ -562,6 +562,70 @@ models/
 └── root_embeddings/              # Stage 1 root embedding model
 ```
 
+## Disk-space conventions
+
+The project's data + indexes are large (typical working state ~50-90 GB)
+and DuckDB doesn't auto-vacuum. Three hard rules and a maintenance toolkit.
+
+### Never delete (source-of-truth or hard-to-rebuild)
+
+- `data/raw/` — Wikipedia dump, Gutenberg texts, ReVo. Hard to re-acquire.
+- `data/dictionaries/` — ReVo, Esperanto dictionaries.
+- `data/cleaned/` — Cleaned text feeding extraction.
+- `data/extracted/` — Extracted sentence JSONL feeding parsing.
+- `data/corpus/` and `data/enhanced_corpus/` — Parsed AST corpus. Re-parse
+  is ~5-6 hours.
+- `data/indexes/` — Live DuckDB store + Whoosh index.
+- `data/vocabularies/` — Root/affix vocabularies.
+- `data/proper_nouns_dynamic_v3.json` AND its fallbacks
+  `data/proper_nouns_dynamic_v2.json` AND `data/proper_nouns_dynamic.json` —
+  the older versions are explicit fallback paths in `klareco/proper_nouns.py`.
+  Don't delete superseded versions until the fallback chain in code is removed.
+- `models/` — Trained checkpoints. Re-training is expensive.
+
+### Always-regenerable (safe to delete to recover space)
+
+- `data/staging/*.jsonl` — staging outputs from `build_*` scripts. Once the
+  `--apply` step has run, the staging file is no longer needed.
+- `logs/**/*.log` — per-run logs older than ~30 days.
+- `results/bench_*.json{,l}` and `results/eval_*.json` — per-run bench
+  outputs. Keep what's referenced from issues; rest auto-prune.
+- `data/staging/duckdb_parquet_export/` — temporary EXPORT staging from
+  the corruption-recovery or compaction tools.
+- Any `*.tmp` file older than an hour — orphaned atomic-write scratch.
+
+### In-place schema changes leave dead pages (the Stage-2 lesson)
+
+DuckDB does **not** auto-vacuum. The pattern `ALTER TABLE ADD COLUMN` →
+`UPDATE` → `CREATE INDEX` on a 5M-row table leaves ~30 GB of dead pages
+that never get reclaimed. Two rules:
+
+1. **Prefer new-table-swap over in-place ALTER for bulk schema changes:**
+   ```sql
+   CREATE TABLE sentences_new AS
+     SELECT *, <computed_columns> FROM sentences;
+   DROP TABLE sentences;
+   ALTER TABLE sentences_new RENAME TO sentences;
+   CREATE INDEX ... ON sentences(...);
+   ```
+   This is atomic, leaves no dead pages, and is easy to verify by row count
+   before the `DROP TABLE`.
+
+2. **After any unavoidable in-place bulk change, run compaction:**
+   `python scripts/util/compact_duckdb.py --apply` does an EXPORT/IMPORT
+   round-trip that reclaims the dead pages.
+
+### The maintenance toolkit
+
+- `scripts/util/preflight_disk.sh <min_gb> [reason]` — guard at top of
+  long-running scripts. Refuses to start without enough headroom.
+- `scripts/util/cleanup_stale.sh` — single entry point for safe deletions.
+  Dry-run default; `--apply` to commit. Documents the never-delete list.
+- `scripts/util/compact_duckdb.py --dry-run | --apply` — EXPORT/IMPORT
+  round-trip to reclaim DuckDB dead pages.
+
+See `docs/MAINTENANCE.md` for the recommended schedule.
+
 ## Important Patterns
 
 ### Error Handling in Training Scripts

@@ -70,6 +70,34 @@ DB = 'data/indexes/duckdb_store.db'
 BATCH = 50_000
 
 
+#
+# ⚠️ DISK-SPACE LESSON LEARNED — see EPIC #746
+#
+# The pattern below — ALTER TABLE ADD COLUMN + UPDATE FROM + CREATE INDEX
+# in place on a 5.4M-row table — left ~30 GB of dead pages in the DuckDB
+# store when this script ran in May 2026. DuckDB does NOT auto-vacuum.
+#
+# The preferred pattern for any future column-add is "new-table-swap":
+#
+#   CREATE TABLE sentences_new AS
+#     SELECT s.*, f.has_loko, f.has_jaro, f.has_kvant
+#     FROM sentences s LEFT JOIN _aliaj_flags f ON s.sid = f.sid;
+#   -- verify count match
+#   DROP TABLE sentences;
+#   ALTER TABLE sentences_new RENAME TO sentences;
+#   -- re-create indexes
+#
+# This is atomic, leaves no dead pages, and is easy to verify by row count
+# before the DROP. The complication is that CREATE TABLE AS does NOT
+# preserve constraints (PRIMARY KEY) or existing indexes — they must be
+# explicitly re-created from a captured DDL snapshot before the swap.
+#
+# Until this script (and the other in-place-ALTER scripts in
+# scripts/index/) are rewritten to use new-table-swap, run
+# `python scripts/util/compact_duckdb.py --apply` after invoking them to
+# reclaim the dead pages.
+#
+
 def add_columns(conn) -> None:
     """Add the three boolean columns if they don't exist."""
     for col in ('aliaj_has_loko', 'aliaj_has_jaro', 'aliaj_has_kvant'):
@@ -193,6 +221,25 @@ def coverage_report(conn) -> None:
               f'NULL={n_null:,}', flush=True)
 
 
+def _preflight() -> None:
+    """Refuse to start without enough disk for the in-place UPDATE +
+    temp table + index maintenance. In-place ALTER+UPDATE+INDEX on this
+    5.4M-row table left ~30 GB of dead pages on the May 2026 run."""
+    import subprocess
+    out = subprocess.run(['df', '-k', '/'], capture_output=True, text=True)
+    avail_kb = int(out.stdout.strip().split('\n')[1].split()[3])
+    avail_gb = avail_kb // 1024 // 1024
+    MIN_GB = 35
+    if avail_gb < MIN_GB:
+        print(f'\nREFUSING: only {avail_gb} GB free, need {MIN_GB} GB '
+              f'for in-place UPDATE + temp table.', file=sys.stderr)
+        print('  See scripts/util/cleanup_stale.sh for quick space recovery.',
+              file=sys.stderr)
+        sys.exit(2)
+    print(f'preflight_disk: {avail_gb} GB free (need {MIN_GB} GB) — OK',
+          flush=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--duckdb-path', default=DB)
@@ -200,6 +247,7 @@ def main() -> None:
                     help='Re-run the UPDATE even if columns already populated.')
     args = ap.parse_args()
 
+    _preflight()
     print(f'Opening {args.duckdb_path} for write…', flush=True)
     conn = duckdb.connect(args.duckdb_path)
     conn.execute("SET memory_limit='2GB'")

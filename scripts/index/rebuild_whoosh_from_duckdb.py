@@ -52,6 +52,16 @@ def main() -> None:
                     help='Writer worker procs (multisegment=True).')
     args = ap.parse_args()
 
+    # Preflight: rebuilt index lands at ~3 GB, intermediate segments
+    # before the optional optimize can be 2-5x that.
+    import subprocess
+    out = subprocess.run(['df', '-k', '/'], capture_output=True, text=True)
+    avail_gb = int(out.stdout.strip().split('\n')[1].split()[3]) // 1024 // 1024
+    if avail_gb < 10:
+        print(f'\nREFUSING: only {avail_gb} GB free, need 10 GB for Whoosh '
+              f'rebuild. See scripts/util/cleanup_stale.sh.', file=sys.stderr)
+        sys.exit(2)
+
     d = Path(WHOOSH_DIR)
     if d.exists():
         print(f'wiping {d} …', flush=True)

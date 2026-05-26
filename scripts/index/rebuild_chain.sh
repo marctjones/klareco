@@ -21,6 +21,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
+"$PROJECT_ROOT/scripts/util/preflight_disk.sh" 70 "rebuild_chain runs Stage 1 reparse + DuckDB + Whoosh + indexes + bench" || exit 1
+
 if [ -d .venv ]; then source .venv/bin/activate
 elif [ -d venv  ]; then source venv/bin/activate
 else echo "no venv"; exit 1; fi

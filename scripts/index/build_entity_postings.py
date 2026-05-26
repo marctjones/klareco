@@ -340,6 +340,10 @@ def main() -> None:
                     help='Phase B: bulk-load staging into entity_postings.')
     ap.add_argument('--fresh', action='store_true',
                     help='Phase A: overwrite staging file instead of resuming.')
+    ap.add_argument('--keep-staging', action='store_true',
+                    help='Keep the staging file after --apply succeeds. '
+                         'Default: delete it (the entity_postings table is '
+                         'the source of truth once applied).')
     args = ap.parse_args()
 
     if not args.scan_only and not args.apply:
@@ -350,6 +354,17 @@ def main() -> None:
         phase_a_scan(args)
     if args.apply:
         phase_b_apply(args)
+        # Clean up the staging file by default — once the data is in
+        # entity_postings, the JSONL is a 1.4 GB disk-eater that's
+        # regenerable from the DB via --scan-only.
+        if not args.keep_staging:
+            from pathlib import Path as _Path
+            stage = _Path(args.staging)
+            if stage.exists():
+                size_mb = stage.stat().st_size // (1024 * 1024)
+                stage.unlink()
+                print(f'cleanup: removed {stage} ({size_mb} MB). '
+                      f'Use --keep-staging to preserve.', flush=True)
 
 
 if __name__ == '__main__':

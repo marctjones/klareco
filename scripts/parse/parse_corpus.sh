@@ -23,6 +23,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
+# Preflight: refuse to start without enough disk for the corpus output
+"$PROJECT_ROOT/scripts/util/preflight_disk.sh" 30 "parse_corpus writes ~20 GB AST corpus" || exit 1
+
 # Activate venv
 if [ -d ".venv" ]; then
     source .venv/bin/activate

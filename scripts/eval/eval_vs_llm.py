@@ -186,20 +186,36 @@ def _fold(s: str) -> str:
                    if not unicodedata.combining(c))
 
 
-def detect_hallucination(answer: str) -> bool:
+_CITATION_RE = __import__('re').compile(
+    r'\n\n\[\d+\][\s\S]*$', __import__('re').MULTILINE)
+
+
+def _strip_citation_footer(answer: str) -> str:
+    """Remove the '\\n\\n[1] Source — snippet…' citation footer that
+    Klareco appends. Leaves the actual body for length-based checks."""
+    return _CITATION_RE.sub('', answer or '').strip()
+
+
+def detect_hallucination(answer: str, correct: bool) -> bool:
     """Heuristic: does the answer assert facts without grounding?
 
-    Klareco answers either short factual phrases OR 'Mi ne trovis'.
-    LLMs sometimes return verbose paragraphs with confident-but-wrong
-    claims. We can't fully detect hallucination automatically, so this
-    is a coarse proxy:
-      - Answer length > 300 chars AND no 'Mi ne scias' / 'Mi ne trovis'
-      - Or contains 'verŝajne', 'eble', 'kredas' (hedge words)
+    Refined definition: an answer is 'hallucinating' if it is WRONG AND
+    confidently-asserted (verbose, not hedged with 'mi ne scias').
+
+      - Correct answers are never hallucinations (definitionally)
+      - 'mi ne scias' / 'mi ne trovis' answers are honest refusals
+      - For Klareco: strip the citation footer before length-check
+        (the citations make every answer look long otherwise)
+      - For both: any output ≥ 80 chars asserting facts is suspicious
+        if it's wrong
     """
-    a = answer.lower()
+    if correct:
+        return False
+    body = _strip_citation_footer(answer)
+    a = body.lower()
     if 'mi ne scias' in a or 'mi ne trovis' in a:
         return False
-    return len(answer) > 300
+    return len(body) >= 80
 
 
 # ---------------------------------------------------------------------------
@@ -292,10 +308,11 @@ def main() -> None:
         # Klareco
         if not args.no_klareco:
             text, lat = klareco_answer(q)
+            correct = is_correct(text, expected)
             record['klareco_answer'] = text
             record['klareco_latency_s'] = round(lat, 3)
-            record['klareco_correct'] = is_correct(text, expected)
-            record['klareco_hallucinated'] = detect_hallucination(text)
+            record['klareco_correct'] = correct
+            record['klareco_hallucinated'] = detect_hallucination(text, correct)
 
         # LLMs
         for model in args.model:
@@ -303,10 +320,11 @@ def main() -> None:
                 continue
             text, lat = ollama_chat(model, q)
             tag = model.replace(':', '_').replace('/', '_')
+            correct = is_correct(text, expected)
             record[f'{tag}_answer'] = text
             record[f'{tag}_latency_s'] = round(lat, 3)
-            record[f'{tag}_correct'] = is_correct(text, expected)
-            record[f'{tag}_hallucinated'] = detect_hallucination(text)
+            record[f'{tag}_correct'] = correct
+            record[f'{tag}_hallucinated'] = detect_hallucination(text, correct)
 
         rows.append(record)
 

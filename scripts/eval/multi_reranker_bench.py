@@ -63,7 +63,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # for perf_history import
@@ -649,6 +649,12 @@ def main() -> None:
                     default=None,
                     help='Optional path to perf history JSONL — appends the '
                          'run summary directly (default: data/perf/bench_history.jsonl)')
+    ap.add_argument('--llm-baseline',
+                    default=None,
+                    help='Ollama model tag (e.g. llama3.2:latest). When set, '
+                         'also queries the LLM per question and adds a '
+                         'comparable column to the report. Requires Ollama '
+                         'running at http://localhost:11434.')
     args = ap.parse_args()
 
     test = []
@@ -658,6 +664,22 @@ def main() -> None:
             if line:
                 test.append(json.loads(line))
     print(f'Loaded {len(test)} test questions from {args.test_set}\n')
+
+    # Set up the optional LLM baseline column
+    llm_tag: Optional[str] = None
+    llm_chat = None
+    if args.llm_baseline:
+        # Lazy import to avoid the dep when not used
+        from scripts.eval.eval_vs_llm import ollama_chat, check_ollama_alive
+        if not check_ollama_alive(args.llm_baseline):
+            print(f'ERROR: LLM baseline model {args.llm_baseline!r} not '
+                  f'available via Ollama. Run: ollama pull {args.llm_baseline}',
+                  file=sys.stderr)
+            sys.exit(2)
+        llm_tag = args.llm_baseline.replace(':', '_').replace('/', '_')
+        llm_chat = ollama_chat
+        print(f'LLM baseline column enabled: {args.llm_baseline} '
+              f'(tag={llm_tag})')
 
     conn = duckdb.connect(args.duckdb_path, read_only=True)
     pipeline = build_default_pipeline(whoosh_index_dir=args.whoosh_dir,
@@ -716,10 +738,19 @@ def main() -> None:
             row[f'{r.name}_rank'] = rank
             row[f'{r.name}_correct'] = correct
             row[f'{r.name}_answer'] = final[:120]
+        # Optional LLM baseline column
+        if llm_chat and llm_tag:
+            llm_text, llm_lat = llm_chat(args.llm_baseline, question)
+            llm_correct = any(kw.lower() in llm_text.lower() for kw in expected)
+            row[f'{llm_tag}_answer'] = llm_text[:120]
+            row[f'{llm_tag}_correct'] = llm_correct
+            row[f'{llm_tag}_latency_s'] = round(llm_lat, 3)
         rows.append(row)
         marks = ' '.join(
             ('✓' if row.get(f'{r.name}_correct') else '·') for r in enabled
         )
+        if llm_tag:
+            marks += f"  {llm_tag[:10]}{'✓' if row.get(f'{llm_tag}_correct') else '·'}"
         print(f'  [{q_idx:>3}/{len(test)}]  {marks}  {question[:60]}')
 
     # Aggregate
@@ -736,6 +767,18 @@ def main() -> None:
         n_correct = sum(1 for row in rows if row.get(f'{r.name}_correct'))
         print(f'{r.name:<22s} {n_r1:>5d} {n_r5:>5d} {n_r10:>5d} '
               f'{mrr:>6.3f} {100*n_correct/max(1,len(rows)):>5.1f}%')
+    # Optional LLM baseline row (no rank metrics — LLM gives a direct
+    # answer, not a candidate list). Show '-' for R@K / MRR columns and
+    # only the answer accuracy + latency.
+    if llm_tag:
+        n_correct = sum(1 for row in rows if row.get(f'{llm_tag}_correct'))
+        lats = [row.get(f'{llm_tag}_latency_s', 0) for row in rows
+                if row.get(f'{llm_tag}_latency_s') is not None]
+        avg_lat = sum(lats) / max(1, len(lats))
+        n = max(1, len(rows))
+        print('-' * 60)
+        print(f'{args.llm_baseline:<22s} {"-":>5s} {"-":>5s} {"-":>5s} '
+              f'{"-":>6s} {100*n_correct/n:>5.1f}%   (LLM avg_lat={avg_lat:.1f}s)')
 
     if args.output_jsonl:
         Path(args.output_jsonl).parent.mkdir(parents=True, exist_ok=True)
@@ -761,6 +804,16 @@ def main() -> None:
             'recall_at_10':      n_r10,
             'mrr':               round(mrr, 4),
             'answer_accuracy':   round(100 * n_correct / max(1, len(rows)), 2),
+        }
+    # LLM baseline (no rank metrics, just accuracy + latency)
+    if llm_tag:
+        n_correct = sum(1 for row in rows if row.get(f'{llm_tag}_correct'))
+        lats = [row.get(f'{llm_tag}_latency_s', 0) for row in rows
+                if row.get(f'{llm_tag}_latency_s') is not None]
+        per_reranker_metrics[args.llm_baseline] = {
+            'kind':              'llm_baseline',
+            'answer_accuracy':   round(100 * n_correct / max(1, len(rows)), 2),
+            'avg_latency_s':     round(sum(lats) / max(1, len(lats)), 2),
         }
     run_summary = {
         'test_set':         args.test_set,

@@ -29,6 +29,7 @@ class RerankStage(PipelineStage):
             not self.models.has('reranker')
             or not ctx.symbolic.passage_asts
             or ctx.flag('retrieval_empty')
+            or ctx.flag('tool_short_circuit')
         )
 
     def run(self, ctx: QueryContext) -> ContextDelta:

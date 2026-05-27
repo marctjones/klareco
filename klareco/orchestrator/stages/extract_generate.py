@@ -52,7 +52,9 @@ class ExtractAndGenerateStage(PipelineStage):
         self.generator = generator or ExtractiveAnswerGenerator()
 
     def should_skip(self, ctx: QueryContext) -> bool:
-        return bool(ctx.flag('retrieval_empty')) or not ctx.symbolic.passage_asts
+        return (bool(ctx.flag('retrieval_empty'))
+                or not ctx.symbolic.passage_asts
+                or bool(ctx.flag('tool_short_circuit')))
 
     def run(self, ctx: QueryContext) -> ContextDelta:
         passages = ctx.symbolic.passage_asts[: self.EXTRACT_TOP_N]

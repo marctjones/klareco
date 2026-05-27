@@ -21,7 +21,11 @@ class FormatOutputStage(PipelineStage):
     name = 'format_output'
 
     def should_skip(self, ctx: QueryContext) -> bool:
-        return bool(ctx.flag('abort_pipeline'))
+        # Tools (math, planner, biography) write final_text directly;
+        # don't overwrite it from empty answer_segments.
+        return (bool(ctx.flag('abort_pipeline'))
+                or bool(ctx.flag('tool_short_circuit'))
+                or bool(ctx.flag('biography_format_applied')))
 
     def run(self, ctx: QueryContext) -> ContextDelta:
         segments = ctx.symbolic.answer_segments

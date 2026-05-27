@@ -37,7 +37,8 @@ class RetrieveStage(PipelineStage):
         self.top_k = top_k
 
     def should_skip(self, ctx: QueryContext) -> bool:
-        return ctx.symbolic.question_ast is None
+        return (ctx.symbolic.question_ast is None
+                or bool(ctx.flag('tool_short_circuit')))
 
     def run(self, ctx: QueryContext) -> ContextDelta:
         raw = self.retriever.retrieve_with_ast_roles(

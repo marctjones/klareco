@@ -73,7 +73,8 @@ class ASTAwareRerankStage(PipelineStage):
     def should_skip(self, ctx: QueryContext) -> bool:
         return (not ctx.symbolic.passage_asts
                 or not ctx.symbolic.question_ast
-                or ctx.flag('retrieval_empty'))
+                or ctx.flag('retrieval_empty')
+                or ctx.flag('tool_short_circuit'))
 
     def run(self, ctx: QueryContext) -> ContextDelta:
         self._ensure()

@@ -20,6 +20,10 @@ from klareco.orchestrator.stages.ast_aware_rerank import ASTAwareRerankStage
 from klareco.orchestrator.stages.rerank import RerankStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
+from klareco.orchestrator.stages.dialog import DialogStage
+from klareco.orchestrator.stages.math_tool import MathToolStage
+from klareco.orchestrator.stages.planner import PlannerStage
+from klareco.orchestrator.stages.biography_format import BiographyFormatStage
 from klareco.rag.extractive_answering import ExtractiveAnswerGenerator
 from klareco.rag.duckdb_retriever import DuckDBRetriever
 
@@ -31,6 +35,10 @@ def build_default_pipeline(
     models: Optional[ModelRegistry] = None,
     debug: bool = False,
     kuzu_db_path: Path | str | None = None,  # deprecated alias, ignored
+    enable_dialog: bool = False,
+    enable_math_tool: bool = True,
+    enable_planner: bool = True,
+    enable_biography: bool = True,
 ) -> Orchestrator:
     """
     Build the standard Klareco RAG pipeline.
@@ -69,18 +77,40 @@ def build_default_pipeline(
     )
     generator = ExtractiveAnswerGenerator()
 
-    stages = [
-        ParseQuestionStage(),
+    # Build the stage list. Order matters:
+    #   parse → dialog (resolve pronouns) → math/planner (short-circuit)
+    #   → retrieve → reranks → extract → biography format → format_output
+    # Each new stage is opt-in via factory flags; existing callers see
+    # the same pipeline as before with no surprises (math/planner/
+    # biography default-on because they only fire on matching inputs).
+    stages: list = [ParseQuestionStage()]
+    if enable_dialog:
+        # DialogStage is OFF by default because it holds per-conversation
+        # state; callers should construct one pipeline per conversation.
+        stages.append(DialogStage())
+    if enable_math_tool:
+        # MathToolStage: short-circuits when the question is a
+        # math expression. No-op on non-math questions.
+        stages.append(MathToolStage())
+    if enable_planner:
+        # PlannerStage: decomposes nested questions. No-op on simple ones.
+        stages.append(PlannerStage(duckdb_path=str(duckdb_path)))
+    stages.extend([
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
         DeterministicRerankStage(),
         # AST-aware structural reranker (#741 Stage 3). Beats
         # B_phrase_query on R@1, R@5, MRR, and answer accuracy on
-        # capability_candidates_v1. Drops in here, between
+        # capability_candidates_v1. Drops in between
         # DeterministicRerank and the (still-stub) neural RerankStage.
         ASTAwareRerankStage(duckdb_path=str(duckdb_path)),
         RerankStage(models=models),
         ExtractAndGenerateStage(generator=generator),
-        FormatOutputStage(),
-    ]
+    ])
+    if enable_biography:
+        # BiographyFormatStage: for "diru pri X" / "kio estas X?", replace
+        # one-sentence extractor output with a multi-sentence paragraph
+        # from klareco.generation. No-op when the question doesn't match.
+        stages.append(BiographyFormatStage())
+    stages.append(FormatOutputStage())
 
     return Orchestrator(stages=stages, models=models, debug=debug)

@@ -119,6 +119,7 @@ class DeterministicRerankStage(PipelineStage):
             ctx.symbolic.question_type not in _BOOST_RULES
             or not ctx.symbolic.passage_asts
             or ctx.flag('retrieval_empty')
+            or ctx.flag('tool_short_circuit')
         )
 
     def run(self, ctx: QueryContext) -> ContextDelta:

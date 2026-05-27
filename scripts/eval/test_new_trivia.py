@@ -40,6 +40,11 @@ Usage:
     # Use a different LLM for translation + comparison
     python scripts/eval/test_new_trivia.py --n 20 --model qwen3:latest
 
+    # RECOMMENDED — small fast model for answers, larger model for
+    # translation (llama3.2:3B isn't reliable for trivia translation):
+    python scripts/eval/test_new_trivia.py --n 20 \
+        --model llama3.2:latest --translate-model qwen3:latest
+
 OpenTDB categories (subset):
     9  = General Knowledge       17 = Science & Nature
     18 = Computers                19 = Mathematics
@@ -47,6 +52,20 @@ OpenTDB categories (subset):
     24 = Politics                 25 = Art
     26 = Celebrities              27 = Animals
     28 = Vehicles                 21 = Sports
+
+Known limitations:
+    - Translation quality is bounded by the local LLM. Use the largest
+      model your hardware can run for --translate-model. qwen3:latest
+      (8B) produces accurate question translations; the same model is
+      less reliable for single-word answer translation (occasionally
+      invents words for common nouns it doesn't know).
+    - Scoring uses substring + diacritic-folded match against both the
+      EN and EO forms of the expected answer. If the answer translation
+      is wrong AND the LLM answers in correct standard Esperanto (using
+      a different word than the bad translation), the LLM may be
+      penalized. Use N >= 20 to average out this noise.
+    - OpenTDB questions are originally multiple-choice; distractors are
+      discarded and the question is scored as fill-in.
 
 Last Updated: 2026-05-27
 """
@@ -117,9 +136,17 @@ def fetch_trivia(n: int, category: Optional[int] = None,
 # Ollama client (mini-version, no shared module dependency)
 # ---------------------------------------------------------------------------
 
+_THINK_BLOCK_RE = re.compile(r'<think>[\s\S]*?</think>\s*', re.IGNORECASE)
+
+
 def ollama_chat(model: str, user_message: str, system: str = '',
                  timeout: int = 60) -> tuple[str, float]:
-    """Single-turn Ollama chat. Returns (response, latency_seconds)."""
+    """Single-turn Ollama chat. Returns (response, latency_seconds).
+
+    Strips <think>...</think> reasoning blocks that qwen3 and similar
+    reasoning models emit before their final answer. If only an
+    unclosed <think> block is in the output, we treat that as a
+    truncation and return whatever follows (or empty)."""
     msgs = []
     if system:
         msgs.append({'role': 'system', 'content': system})
@@ -139,7 +166,13 @@ def ollama_chat(model: str, user_message: str, system: str = '',
             body = json.loads(resp.read().decode('utf-8'))
     except Exception as e:
         return f'[OLLAMA_ERROR: {e}]', time.time() - t0
-    return (body.get('message', {}).get('content') or '').strip(), time.time() - t0
+    content = (body.get('message', {}).get('content') or '').strip()
+    # Strip closed think blocks (qwen3 reasoning mode)
+    content = _THINK_BLOCK_RE.sub('', content).strip()
+    # If we still see an unclosed <think> — model spent its budget reasoning
+    if content.lower().startswith('<think>') and '</think>' not in content.lower():
+        content = ''  # Treat as no useful output
+    return content, time.time() - t0
 
 
 def check_ollama_alive(model: str) -> bool:
@@ -183,24 +216,43 @@ _TRANSLATE_QUESTION_SYS = (
 
 _TRANSLATE_ANSWER_SYS = (
     "You translate a single English word, name, or short phrase into "
-    "Esperanto. Output ONLY the Esperanto form, no preamble.\n"
+    "Esperanto using STANDARD Esperanto vocabulary. Output ONLY the "
+    "Esperanto form, no preamble. If you don't know the standard "
+    "Esperanto word, keep the English original — DO NOT invent words.\n"
+    "\n"
     "Rules:\n"
-    "- Person names: keep original spelling (George R. R. Martin → George R. R. Martin).\n"
-    "- Place names: use the Esperanto form if standard (Australia → Aŭstralio, "
-    "London → Londono); otherwise keep original.\n"
-    "- Common nouns: translate to Esperanto (clown → klaŭno, cheese → fromaĝo).\n"
+    "- Person names: keep original spelling unchanged.\n"
+    "  George R. R. Martin → George R. R. Martin\n"
+    "  Michelangelo → Mikelanĝelo\n"
+    "- Place names: use the Esperanto form if standard, else keep original.\n"
+    "  Australia → Aŭstralio,  London → Londono,  Tokyo → Tokio\n"
+    "- Common-noun answers: use the standard Esperanto root.\n"
+    "  liver → hepato,  red → ruĝa,  blue → blua,  green → verda,\n"
+    "  clown → klaŭno,  cheese → fromaĝo,  iron → fero,  gold → oro,\n"
+    "  tiger → tigro,  river → rivero,  mountain → monto.\n"
+    "- Bands and movie titles: keep original (Nickelback → Nickelback,\n"
+    "  Batman → Batman).\n"
     "- Numbers and years: as digits."
 )
 
 
+def _maybe_no_think(model: str, text: str) -> str:
+    """Prepend /no_think to suppress reasoning in qwen3 family."""
+    if model.lower().startswith('qwen'):
+        return '/no_think\n' + text
+    return text
+
+
 def translate_to_esperanto(model: str, text: str,
-                            is_answer: bool = False) -> str:
+                            is_answer: bool = False,
+                            timeout: int = 120) -> str:
     """Translate text to Esperanto via the LLM. Returns cleaned text.
 
     Validates the output isn't obviously wrong (e.g. just the answer,
     or empty, or excessively long)."""
     sys_prompt = _TRANSLATE_ANSWER_SYS if is_answer else _TRANSLATE_QUESTION_SYS
-    result, _ = ollama_chat(model, text, system=sys_prompt, timeout=30)
+    user_msg = _maybe_no_think(model, text)
+    result, _ = ollama_chat(model, user_msg, system=sys_prompt, timeout=timeout)
     # Strip any 'Esperanto:' / 'EO:' / 'Translation:' prefix
     result = re.sub(r'^\s*(?:Esperanto|EO|Translation|Traduko)\s*:\s*',
                     '', result, flags=re.IGNORECASE)
@@ -208,11 +260,13 @@ def translate_to_esperanto(model: str, text: str,
     # Question translations should END with '?'; if not, the model
     # probably gave an answer or commentary.
     if not is_answer and text.rstrip().endswith('?') and '?' not in result:
-        # Retry once with a more explicit nudge
-        retry_msg = (f"Translate ONLY this English question to Esperanto. "
-                     f"Output the Esperanto question ending in '?'. "
-                     f"Do NOT answer it.\n\nEnglish: {text}")
-        result, _ = ollama_chat(model, retry_msg, system=sys_prompt, timeout=30)
+        retry_user = _maybe_no_think(
+            model,
+            f"Translate ONLY this English question to Esperanto. "
+            f"Output the Esperanto question ending in '?'. "
+            f"Do NOT answer it.\n\nEnglish: {text}")
+        result, _ = ollama_chat(model, retry_user, system=sys_prompt,
+                                 timeout=timeout)
         result = re.sub(r'^\s*(?:Esperanto|EO|Translation|Traduko)\s*:\s*',
                         '', result, flags=re.IGNORECASE)
         result = result.strip().strip('"').strip("'").strip()

@@ -157,29 +157,66 @@ def check_ollama_alive(model: str) -> bool:
 # ---------------------------------------------------------------------------
 
 _TRANSLATE_QUESTION_SYS = (
-    "You translate trivia questions from English to Esperanto. "
-    "Output ONLY the Esperanto translation, no preamble, no explanation. "
-    "Use natural Esperanto. Keep proper nouns (names of people, places, "
-    "works) in their original form. Keep years as digits."
+    "You are a translator. Translate the user's English trivia question "
+    "into Esperanto. Critical rules:\n"
+    "1. Output ONLY the Esperanto translation — nothing else.\n"
+    "2. Translate the QUESTION as-is. Do NOT answer it. Do NOT change "
+    "the topic. Do NOT add facts.\n"
+    "3. Keep proper nouns (people, places, works, song titles, etc.) in "
+    "their original spelling.\n"
+    "4. Keep years and numbers as digits.\n"
+    "5. End with '?' if the original is a question.\n"
+    "\n"
+    "Examples:\n"
+    "EN: Who painted the Mona Lisa?\n"
+    "EO: Kiu pentris la Mona Lisa?\n"
+    "\n"
+    "EN: In what year did World War II end?\n"
+    "EO: En kiu jaro finiĝis la Dua Mondmilito?\n"
+    "\n"
+    "EN: What is the capital of Australia?\n"
+    "EO: Kio estas la ĉefurbo de Aŭstralio?\n"
+    "\n"
+    "EN: Who released the song 'Photograph' in 2005?\n"
+    "EO: Kiu eldonis la kanzonon 'Photograph' en 2005?"
 )
 
 _TRANSLATE_ANSWER_SYS = (
-    "You translate single English words or short phrases to Esperanto. "
-    "Output ONLY the Esperanto translation, no preamble. "
-    "Keep proper nouns in their original spelling. Keep years and numbers as digits. "
-    "If the input is already a name, output it unchanged."
+    "You translate a single English word, name, or short phrase into "
+    "Esperanto. Output ONLY the Esperanto form, no preamble.\n"
+    "Rules:\n"
+    "- Person names: keep original spelling (George R. R. Martin → George R. R. Martin).\n"
+    "- Place names: use the Esperanto form if standard (Australia → Aŭstralio, "
+    "London → Londono); otherwise keep original.\n"
+    "- Common nouns: translate to Esperanto (clown → klaŭno, cheese → fromaĝo).\n"
+    "- Numbers and years: as digits."
 )
 
 
 def translate_to_esperanto(model: str, text: str,
                             is_answer: bool = False) -> str:
-    """Translate text to Esperanto via the LLM. Returns cleaned text."""
+    """Translate text to Esperanto via the LLM. Returns cleaned text.
+
+    Validates the output isn't obviously wrong (e.g. just the answer,
+    or empty, or excessively long)."""
     sys_prompt = _TRANSLATE_ANSWER_SYS if is_answer else _TRANSLATE_QUESTION_SYS
     result, _ = ollama_chat(model, text, system=sys_prompt, timeout=30)
-    # Strip any "Esperanto:" / "Translation:" prefix the model sometimes adds
-    result = re.sub(r'^\s*(?:Esperanto|Translation|Traduko)\s*:\s*',
+    # Strip any 'Esperanto:' / 'EO:' / 'Translation:' prefix
+    result = re.sub(r'^\s*(?:Esperanto|EO|Translation|Traduko)\s*:\s*',
                     '', result, flags=re.IGNORECASE)
-    return result.strip().strip('"').strip()
+    result = result.strip().strip('"').strip("'").strip()
+    # Question translations should END with '?'; if not, the model
+    # probably gave an answer or commentary.
+    if not is_answer and text.rstrip().endswith('?') and '?' not in result:
+        # Retry once with a more explicit nudge
+        retry_msg = (f"Translate ONLY this English question to Esperanto. "
+                     f"Output the Esperanto question ending in '?'. "
+                     f"Do NOT answer it.\n\nEnglish: {text}")
+        result, _ = ollama_chat(model, retry_msg, system=sys_prompt, timeout=30)
+        result = re.sub(r'^\s*(?:Esperanto|EO|Translation|Traduko)\s*:\s*',
+                        '', result, flags=re.IGNORECASE)
+        result = result.strip().strip('"').strip("'").strip()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +300,13 @@ def main() -> None:
     ap.add_argument('--n', type=int, required=True,
                     help='Number of fresh trivia questions to fetch and test')
     ap.add_argument('--model', default='llama3.2:latest',
-                    help='Ollama model for translation AND comparison')
+                    help='Ollama model for the answer-comparison run '
+                         '(small/fast OK, e.g. llama3.2:latest)')
+    ap.add_argument('--translate-model', default=None,
+                    help='Ollama model for EN→EO translation. Defaults '
+                         'to --model. Use a larger model here (e.g. '
+                         'qwen3:latest) if --model is too small to '
+                         'translate trivia questions accurately')
     ap.add_argument('--category', type=int, default=None,
                     help='OpenTDB category ID (see docstring)')
     ap.add_argument('--difficulty', choices=['easy', 'medium', 'hard'],
@@ -282,10 +325,16 @@ def main() -> None:
                          'for future reproducibility')
     args = ap.parse_args()
 
-    if not check_ollama_alive(args.model):
-        print(f'ERROR: model {args.model!r} not available via Ollama. '
-              f'Run: ollama pull {args.model}', file=sys.stderr)
-        sys.exit(2)
+    translate_model = args.translate_model or args.model
+    needed = {args.model, translate_model}
+    for m in needed:
+        if not check_ollama_alive(m):
+            print(f'ERROR: model {m!r} not available via Ollama. '
+                  f'Run: ollama pull {m}', file=sys.stderr)
+            sys.exit(2)
+    if translate_model != args.model:
+        print(f'Using {translate_model!r} for EN→EO translation, '
+              f'{args.model!r} for answer comparison.', flush=True)
 
     # 1. Fetch
     print(f'Fetching {args.n} trivia questions from OpenTDB…', flush=True)
@@ -306,10 +355,10 @@ def main() -> None:
         print(f'  EN-A: {a_en}')
 
         # Translate question
-        q_eo = translate_to_esperanto(args.model, q_en, is_answer=False)
+        q_eo = translate_to_esperanto(translate_model, q_en, is_answer=False)
         print(f'  EO-Q: {q_eo}')
         # Translate answer
-        a_eo = translate_to_esperanto(args.model, a_en, is_answer=True)
+        a_eo = translate_to_esperanto(translate_model, a_en, is_answer=True)
         print(f'  EO-A: {a_eo}')
 
         # Build expected keyword list: include both EN and EO forms

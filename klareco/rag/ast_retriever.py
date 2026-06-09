@@ -299,36 +299,67 @@ class ASTRetriever:
             Shape.WHERE_BORN, Shape.WHERE_LOCATED, Shape.WHERE_OCCURRED,
             Shape.WHEN_BORN, Shape.WHEN_OCCURRED, Shape.WHEN_FOUNDED,
         ) and shape_info.anchor_entity:
+            # Multi-route (#741/#744 Phase B option #3): always run BOTH
+            # the strict (verb-filtered) and loose (entity-only) variants
+            # and union them, instead of strict-then-fallback-when-narrow.
+            # Strict candidates rank first (they're more specific); loose
+            # candidates fill in. Closes the R@100 gap where strict's
+            # over-filtering was dropping correct candidates entirely.
             verb_klaso = self._verb_klaso_for_radiko(shape_info.verb_radiko)
-            candidates = self._retrieve_entity_postings(
+            strict_candidates = self._retrieve_entity_postings(
                 entity=shape_info.anchor_entity,
                 verb_klaso=verb_klaso,
                 verb_radiko=shape_info.verb_radiko if not verb_klaso else None,
                 top_k=top_k,
             )
-            route = f'entity_postings_{shape_info.shape.value}'
-            # If too narrow, retry without verb filter
-            if len(candidates) < self.min_candidates and (verb_klaso or shape_info.verb_radiko):
-                candidates = self._retrieve_entity_postings(
+            loose_candidates: list[dict] = []
+            if verb_klaso or shape_info.verb_radiko:
+                loose_candidates = self._retrieve_entity_postings(
                     entity=shape_info.anchor_entity, top_k=top_k,
                 )
-                route += '_loose'
+            # Union: strict first (preserves high-confidence ordering),
+            # loose adds new sids not already in strict.
+            seen = {c['id'] for c in strict_candidates}
+            candidates = list(strict_candidates)
+            for c in loose_candidates:
+                if c['id'] not in seen:
+                    candidates.append(c)
+                    seen.add(c['id'])
+            route = f'entity_postings_{shape_info.shape.value}'
+            if loose_candidates:
+                route += '_multi'
 
-        # Fallback / augmentation
-        if len(candidates) < self.min_candidates and self.bm25_fallback is not None:
-            bm25_results = self.bm25_fallback.retrieve_with_ast_roles(
-                question_ast, top_k
-            )
+        # Always-on BM25 supplement (#741/#744 Phase B option #1).
+        # The R@100 audit (commit e836350 bench) revealed that
+        # structural routing was dropping 15-17 of 120 answers from the
+        # top-100 candidate pool entirely. No reranker can recover what
+        # the retriever loses. To restore retrieval recall to BM25's
+        # ceiling, ALWAYS run BM25 alongside the structural route and
+        # union the candidate sets. Structural items keep their high
+        # scores (KB lookup = 100, entity_postings = 10) and rank above
+        # BM25 candidates by default; the reranker still does the final
+        # ordering.
+        if self.bm25_fallback is not None:
+            try:
+                bm25_results = self.bm25_fallback.retrieve_with_ast_roles(
+                    question_ast, top_k
+                )
+            except Exception as e:
+                logger.warning(f"BM25 supplement failed: {e}")
+                bm25_results = []
             seen = {c['id'] for c in candidates}
             for r in bm25_results:
                 if r.get('id') not in seen:
                     r = dict(r)
-                    r['source'] = r.get('source', '') + '_bm25_aug'
+                    r['source'] = (r.get('source') or 'bm25') + '_supplement'
                     candidates.append(r)
+                    seen.add(r.get('id'))
                 if len(candidates) >= top_k:
                     break
             if route == 'fallback_bm25':
                 route = 'bm25_only'
+            elif bm25_results:
+                route += '+bm25_supp'
 
         logger.debug(f"Retrieved {len(candidates)} candidates via {route}")
         # Annotate the route for downstream introspection

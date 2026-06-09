@@ -562,6 +562,20 @@ models/
 └── root_embeddings/              # Stage 1 root embedding model
 ```
 
+## HuggingFace models (if/when klareco loads them)
+
+klareco's own trained checkpoints live in `models/` (do NOT migrate to
+the shared pool — they're project-specific). But if any future klareco
+code loads a public HuggingFace model (e.g. a base encoder behind a
+fine-tuned head), follow the cross-project convention:
+
+- Use the env var `$AI_MODELS_DIR` (default `~/Projects/aishared/models/`,
+  exported in `~/.bashrc`).
+- Pre-fetch with `ai-fetch <hf-id>` (bash function in `~/.bashrc`).
+- Load by **local path** — `AutoModel.from_pretrained(f"{os.environ['AI_MODELS_DIR']}/<org>_<model>")` —
+  never by HF ID. This keeps `~/.cache/huggingface/` empty as a true cache.
+- Full loader pattern in `~/.claude/skills/aishared-resources/SKILL.md`.
+
 ## Disk-space conventions
 
 The project's data + indexes are large (typical working state ~50-90 GB)

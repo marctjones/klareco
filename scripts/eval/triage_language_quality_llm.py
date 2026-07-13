@@ -103,6 +103,10 @@ OLLAMA_URL = 'http://localhost:11434/api/chat'
 DEFAULT_CLAUDE_MODEL = 'claude-opus-4-8'
 DEFAULT_OLLAMA_MODEL = 'qwen3:latest'
 
+# Backend defaults. `claude-cli` is the default because it needs NO credentials
+# — it authenticates with the user's Claude subscription via `claude -p`.
+DEFAULT_BACKEND = 'claude-cli'
+
 
 # ---------------------------------------------------------------------------
 # The prompt.
@@ -244,6 +248,116 @@ def judge_claude(row: dict, model: str) -> dict:
     return json.loads(text)
 
 
+def _extract_json(text: str) -> dict:
+    """Pull a JSON object out of a model's stdout.
+
+    The CLI backend has no structured-output guarantee, so the model may wrap
+    its answer in a markdown fence or add a sentence of prose. Be liberal in
+    what we accept — but still parse strictly, so a malformed verdict surfaces
+    as an error rather than as a silent PASS.
+    """
+    t = text.strip()
+    if '```' in t:                       # strip a markdown fence
+        parts = t.split('```')
+        for p in parts:
+            p = p.strip()
+            if p.startswith('json'):
+                p = p[4:].strip()
+            if p.startswith('{'):
+                t = p
+                break
+    start, end = t.find('{'), t.rfind('}')
+    if start == -1 or end == -1:
+        raise ValueError(f'no JSON object in model output: {text[:160]!r}')
+    return json.loads(t[start:end + 1])
+
+
+def _parse_line_protocol(text: str) -> dict:
+    """Parse the line-based verdict format.
+
+    We do NOT ask the CLI backend for JSON. It has no structured-output
+    guarantee, and the `reason` field is free text in which the model naturally
+    quotes the offending token — `the name "Rorke's Drift" ...` — whose inner
+    double quote corrupts the JSON string. Five of eight pairs failed that way,
+    and they were the interesting ones: the model had judged them CORRECTLY and
+    the verdict was lost to a formatting accident.
+
+    A line protocol cannot break on quotes. Be liberal in what you accept.
+    """
+    out: dict[str, Any] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if ':' not in line:
+            continue
+        key, _, val = line.partition(':')
+        key = key.strip().lower().lstrip('-* ').strip()
+        val = val.strip()
+        if key == 'grammatical':
+            out['grammatical'] = val.lower().startswith(('yes', 'true'))
+        elif key == 'score':
+            try:
+                out['score'] = float(val.split()[0])
+            except (ValueError, IndexError):
+                pass
+        elif key == 'issues':
+            v = val.strip('[]').strip()
+            out['issues'] = ([] if v.lower() in ('', 'none', '-')
+                             else [t.strip().strip('"\'') for t in v.split(',') if t.strip()])
+        elif key == 'reason':
+            out['reason'] = val
+    if 'grammatical' not in out:
+        raise ValueError(f'no GRAMMATICAL line in model output: {text[:160]!r}')
+    return out
+
+
+CLI_FORMAT_INSTRUCTIONS = """\
+Answer in EXACTLY this line format and nothing else — no JSON, no markdown, no \
+preamble:
+
+GRAMMATICAL: yes|no
+SCORE: <0.0-1.0>
+ISSUES: <comma-separated snake_case tags, or none>
+REASON: <one sentence; quote offending tokens with 'single quotes'>"""
+
+
+def judge_claude_cli(row: dict, model: str, timeout: int = 180) -> dict:
+    """Claude via the `claude` CLI in headless mode — uses the SUBSCRIPTION.
+
+    No ANTHROPIC_API_KEY required: `claude -p` authenticates with the user's
+    Claude subscription. This is the cheapest way to get Claude-quality
+    judgment, which matters because Esperanto grammaticality is exactly where a
+    weaker model fails *quietly*.
+
+    Trade-offs, stated honestly:
+      - One process per pair, so it is slow (seconds each). Fine at the scale
+        that matters here — the gold queue is 63 rows, not 63,000.
+      - No structured-output guarantee (hence _extract_json) and no temperature
+        control, so it is not bit-for-bit reproducible.
+
+    That last point is acceptable ONLY because this is construction-time
+    tooling: the verdict is frozen into an artifact, audited by a human (#798),
+    and committed. Scoring never calls a model. If this were a scoring-time
+    judge, non-determinism would be disqualifying — see the epic (#792).
+
+    Runs in a temp cwd so the CLI does not load this repo's CLAUDE.md as
+    context: we want the model judging Esperanto, not reading our conventions.
+    """
+    import subprocess
+    import tempfile
+
+    prompt = (SYSTEM_PROMPT + '\n\n' + build_user_prompt(row)
+              + '\n\n' + CLI_FORMAT_INSTRUCTIONS)
+    with tempfile.TemporaryDirectory() as tmp:
+        proc = subprocess.run(
+            ['claude', '-p', prompt, '--model', model],
+            capture_output=True, text=True, timeout=timeout, cwd=tmp,
+        )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f'claude CLI exited {proc.returncode}: {(proc.stderr or "").strip()[:200]}')
+    return _parse_line_protocol(proc.stdout)
+
+
 def judge_ollama(row: dict, model: str, timeout: int = 90) -> dict:
     """Local backend. Cheap first pass — NOT the last word on grammaticality.
 
@@ -297,7 +411,13 @@ def main() -> int:
     ap.add_argument('--in', dest='in_path', required=True)
     ap.add_argument('--out', dest='out_path',
                     help='default: <in>.triaged.jsonl')
-    ap.add_argument('--backend', choices=('claude', 'ollama'), default='claude')
+    ap.add_argument('--backend',
+                    choices=('claude-cli', 'claude-api', 'ollama'),
+                    default=DEFAULT_BACKEND,
+                    help='claude-cli (default): headless `claude -p`, uses your '
+                         'SUBSCRIPTION, no API key needed. claude-api: the '
+                         'anthropic SDK, needs ANTHROPIC_API_KEY. ollama: local '
+                         'model, cheap bulk pre-filter only.')
     ap.add_argument('--model', default=None,
                     help=f'default: {DEFAULT_CLAUDE_MODEL} / {DEFAULT_OLLAMA_MODEL}')
     ap.add_argument('--limit', type=int, default=None)
@@ -305,8 +425,8 @@ def main() -> int:
                     help='print the first prompt and exit — no credentials needed')
     args = ap.parse_args()
 
-    model = args.model or (DEFAULT_CLAUDE_MODEL if args.backend == 'claude'
-                           else DEFAULT_OLLAMA_MODEL)
+    model = args.model or (DEFAULT_OLLAMA_MODEL if args.backend == 'ollama'
+                           else DEFAULT_CLAUDE_MODEL)
     in_path = Path(args.in_path)
     out_path = Path(args.out_path) if args.out_path else in_path.with_suffix('.triaged.jsonl')
 
@@ -322,7 +442,11 @@ def main() -> int:
         print(f'\n=== would judge {len(rows)} rows via {args.backend}:{model} ===')
         return 0
 
-    judge = judge_claude if args.backend == 'claude' else judge_ollama
+    judge = {
+        'claude-cli': judge_claude_cli,
+        'claude-api': judge_claude,
+        'ollama':     judge_ollama,
+    }[args.backend]
 
     out: list[dict] = []
     errors = 0

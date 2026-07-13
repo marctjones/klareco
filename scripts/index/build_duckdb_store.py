@@ -115,7 +115,24 @@ def shred(ast: dict) -> dict:
         'obj_radiko': o.get('radiko'),
         'obj_kazo': o.get('kazo'),
         'aliaj_json': json.dumps(aliaj, ensure_ascii=False),
-        'success_rate': float(stats.get('success_rate') or 0.0),
+        # BUG (#805, fixed 2026-07-13): this read `success_rate`, an English key
+        # the parser never emits. `parse_statistics` is keyed in ESPERANTO:
+        #
+        #     {'tutaj_vortoj': 3, 'esperantaj_vortoj': 3,
+        #      'neesperantaj_vortoj': 0, 'sukcesoprocento': 1.0, ...}
+        #
+        # So `.get('success_rate')` returned None on every row and the `or 0.0`
+        # silently made it a constant. Measured on the live store: success_rate
+        # is EXACTLY 0.0 across all 5,391,442 rows — a column that is 100%
+        # non-null and carries zero information.
+        #
+        # This is the SECOND time this exact bug hit this function — see the
+        # `subj_propranoma_kat` comment 8 lines up, which read the wrong field
+        # name and left the column NULL for every sentence in the first build.
+        # A silent `.get()` on a misspelled key is how both happened.
+        'success_rate': float(
+            stats.get('sukcesoprocento',
+                      stats.get('success_rate', 0.0)) or 0.0),
     }
 
 

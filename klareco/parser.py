@@ -675,6 +675,13 @@ KNOWN_ROOTS = KNOWN_ROOTS | DICTIONARY_ROOTS | KNOWN_NUMBERS
 # -----------------------------------------------------------------------------
 
 # Load protected roots from JSON file (single source of truth)
+# Word classes that mean "we did NOT successfully analyse this as an Esperanto
+# word". `nekonata` = we could not identify it; `fremda_vorto` = we identified it
+# as foreign. Counting either as a parse success is how sukcesoprocento came to
+# report 1.0 on "Xyzzy plugh frobnicate." and on English. See #818.
+NON_ESPERANTO_VORTSPECOJ = frozenset({'nekonata', 'fremda_vorto'})
+
+
 PROTECTED_PREFIX_ROOTS = set()
 PROTECTED_SUFFIX_ROOTS = set()
 
@@ -2613,8 +2620,29 @@ def parse(text: str):
         sentence_ast["demandotipo"] = demandotipo
 
     # Add parse statistics (word-level success metrics) - Pure Esperanto
+    #
+    # BUG (#805 / #818, fixed 2026-07-13): this counted `analizstato == "sukceso"`
+    # alone. But `malsukceso` is set on exactly ONE error path, and the parser
+    # reaches `vortspeco: nekonata` and `vortspeco: fremda_vorto` by OTHER paths
+    # that still stamp `sukceso`. Result:
+    #
+    #     parse("Xyzzy plugh frobnicate.")  -> sukcesoprocento 1.0
+    #     parse("The quick brown fox.")     -> sukcesoprocento 1.0, neesperantaj_vortoj 0
+    #
+    # The metric reported 100% success on gibberish and on English, so it was a
+    # constant and told us nothing. (Downstream, `sentences.success_rate` is 0.0
+    # on all 5.39M rows for a *separate* reason — the store read an English key
+    # the parser never emitted. Both bugs made the same column useless.)
+    #
+    # Success is a property of the CLASSIFICATION OUTCOME, not of a flag that is
+    # almost never set to failure. `esperantaj_vortoj` means "Esperanto words" —
+    # a `fremda_vorto` is, by definition, not one.
     total_words = len(word_asts)
-    successful_words = sum(1 for ast in word_asts if ast.get("analizstato") == "sukceso")
+    successful_words = sum(
+        1 for ast in word_asts
+        if ast.get("analizstato") == "sukceso"
+        and ast.get("vortspeco") not in NON_ESPERANTO_VORTSPECOJ
+    )
     failed_words = total_words - successful_words
 
     # Categorize the failed words

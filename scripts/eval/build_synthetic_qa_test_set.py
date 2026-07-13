@@ -489,19 +489,54 @@ def _q_terms(q: str) -> list[str]:
     return [t for t in toks if t not in _GATE_STOP and len(t) > 2]
 
 
-def is_discriminating(searcher, qp, question: str, source_sid: int, top_k: int) -> bool:
-    """Check if the source sentence surfaces in BM25 top-K."""
+def gold_rank(searcher, qp, question: str, source_sid: int,
+              top_k: int) -> int | None:
+    """1-based BM25 rank of the source sentence, or None if not in top-K.
+
+    Returns a RANK, not a yes/no. The boolean version could express the R7
+    floor ("is it findable?") but not the R16 ceiling ("is it already won?"),
+    which is why the saturated test sets sailed through the old gate.
+    """
     terms = _q_terms(question)
     if not terms:
-        return False
+        return None
     q = qp.parse(' OR '.join(terms))
-    for h in searcher.search(q, limit=top_k):
+    for i, h in enumerate(searcher.search(q, limit=top_k), start=1):
         try:
             if int(h['id']) == int(source_sid):
-                return True
+                return i
         except (KeyError, ValueError):
             continue
-    return False
+    return None
+
+
+def is_discriminating(searcher, qp, question: str, source_sid: int, top_k: int) -> bool:
+    """R7 floor only: does the source sentence surface in BM25 top-K?
+
+    Retained for callers that only need the floor. New code should use
+    `gold_rank` + `passes_r7_r16`, which enforce the floor AND the ceiling.
+    """
+    return gold_rank(searcher, qp, question, source_sid, top_k) is not None
+
+
+def passes_r7_r16(rank: int | None, *, enforce_r16: bool) -> tuple[bool, str]:
+    """The two-sided discriminability gate.
+
+    R7  (floor)   — the gold passage must be findable:      rank is not None
+    R16 (ceiling) — it must not ALREADY be won by BM25:     rank > 1
+
+    The band between them is the only region where reranking is observable.
+    A pair at rank 1 is not a *bad* question — it is a fine regression pair —
+    but it carries **zero information** about ranking quality, and a set made
+    of them measures nothing. This is exactly how
+    synthetic_who_rebuild_17_cleanish came to be 58.8% rank-1, and why all
+    nine rerankers in the bench tied. See #778.
+    """
+    if rank is None:
+        return False, 'r7_floor: gold passage not in BM25 top-K (unanswerable)'
+    if enforce_r16 and rank == 1:
+        return False, 'r16_ceiling: gold passage already at BM25 rank 1 (trivial)'
+    return True, ''
 
 
 # =============================================================================
@@ -1479,6 +1514,12 @@ def main():
     parser.add_argument('--seed',        type=int, default=42)
     parser.add_argument('--query-limit', type=int, default=20000)
     parser.add_argument('--gate-top-k',  type=int, default=200)
+    parser.add_argument('--allow-trivial', action='store_true',
+                        help='Disable the R16 ceiling and keep pairs whose gold '
+                             'passage is already at BM25 rank 1. Use ONLY for a '
+                             'regression set (which legitimately contains pairs '
+                             'we already answer). A capability set built with '
+                             'this flag CANNOT measure reranking — see #778.')
     args = parser.parse_args()
 
     cfg = QUESTION_TYPES[args.type]
@@ -1504,6 +1545,8 @@ def main():
     n_surface_ok = 0
     n_verified = 0
     n_audit_rejected = 0
+    n_r7_rejected = 0    # gold passage not findable at all (unanswerable)
+    n_r16_rejected = 0   # gold passage already at BM25 rank 1 (trivial)
     evals = 0
     discriminating: list[dict] = []
     cap_kept = args.target_size * 2
@@ -1550,9 +1593,16 @@ def main():
                 continue
 
             evals += 1
-            if is_discriminating(s, qp, q, v['sentence_id'], args.gate_top_k):
+            rank = gold_rank(s, qp, q, v['sentence_id'], args.gate_top_k)
+            ok, why = passes_r7_r16(rank, enforce_r16=not args.allow_trivial)
+            if ok:
                 v['question'] = q
+                v['bm25_gold_rank'] = rank
                 discriminating.append(v)
+            elif why.startswith('r16'):
+                n_r16_rejected += 1
+            else:
+                n_r7_rejected += 1
 
             if len(discriminating) >= cap_kept or evals >= cap_evals:
                 break
@@ -1562,7 +1612,26 @@ def main():
     print(f"  Parser-verified:        {n_verified}")
     print(f"  Audit-rejected:         {n_audit_rejected}")
     print(f"  Discriminability evals: {evals}")
+    print(f"  R7-rejected  (unanswerable — gold not in top-K):  {n_r7_rejected}")
+    if args.allow_trivial:
+        print(f"  R16 ceiling:            DISABLED (--allow-trivial). "
+              f"This set may be saturated and unable to measure reranking.")
+    else:
+        print(f"  R16-rejected (trivial — gold already at BM25 rank 1): "
+              f"{n_r16_rejected}")
     print(f"  Kept:                   {len(discriminating)}")
+
+    # Headroom report — the set's own R16 audit, so a saturated set can never
+    # be written silently. Every kept pair is rank >= 2 by construction unless
+    # --allow-trivial was passed.
+    kept_ranks = [c['bm25_gold_rank'] for c in discriminating
+                  if c.get('bm25_gold_rank')]
+    if kept_ranks:
+        n_rank1 = sum(1 for r in kept_ranks if r == 1)
+        srt = sorted(kept_ranks)
+        print(f"  Gold-rank median:       {srt[len(srt) // 2]}")
+        print(f"  Gold-rank rank-1 share: {n_rank1 / len(kept_ranks):.1%} "
+              f"(R16 ceiling: 20%)")
 
     if not discriminating:
         print(f"ERROR: No discriminating pairs for {args.type}")
@@ -1604,13 +1673,23 @@ def main():
             'id':                   f'{args.type}_gen_{i:03d}',
             'question':             q,
             'expected_answer':      ans,
+            # Retrieval scoring: "is a passage containing this in the pool?"
+            # Sound as a proxy given R1 (rigid designators) + R16.
             'expected_keywords':    [ans],
+            # R17 — extraction scoring: the exact span the extractor must
+            # produce. NOT the sentence containing it. This is what makes
+            # extraction attributable instead of being folded into retrieval.
+            # See #783 and klareco/eval/answer_scoring.py.
+            'gold_answer_span':     ans,
             'source_sentence_id':   c['sentence_id'],
             'source_sentence_text': c['sentence_text'],
             'question_type':        cfg.qword.upper(),
             'pattern':              'active',
             'verb_root':            c['verb_root'],
             'answer_role':          c.get('answer_role') or '',
+            # R16 — recorded so the set's headroom is auditable after the fact
+            # without re-querying BM25.
+            'bm25_gold_rank':       c.get('bm25_gold_rank'),
         })
 
     with open(out_path, 'w') as f:

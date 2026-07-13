@@ -101,6 +101,124 @@ def is_discriminating(searcher, qp, question: str,
     return False
 
 
+# ---------------------------------------------------------------------------
+# R16 — non-triviality. The CEILING that R7 lacks. See #778.
+#
+# R7 asks "is the gold passage findable at all?" (rank <= top_k). It never asks
+# "is it ALREADY at rank 1?" — and that omission is why the 17-question set
+# saturated at recall@5 = 17/17. BM25 alone put the gold passage in the top 5
+# for every question, so a *perfect* reranker could not have moved the number.
+# Empirically, all nine rerankers then tied at recall@1 = 11.
+#
+# A test set on which the thing you are changing cannot possibly show up is not
+# a measurement instrument. It is a formality.
+#
+# The measurable band is: NOT rank 1, but WITHIN top_k.
+# ---------------------------------------------------------------------------
+
+# Share of rank-1 pairs above which a reranking-capability set is considered
+# saturated and is REJECTED.
+R16_MAX_RANK1_SHARE = 0.20
+
+
+def gold_rank(searcher, qp, question: str,
+              source_sid: int | None, top_k: int) -> int | None:
+    """1-based BM25 rank of the gold passage for `question`, or None if absent.
+
+    This is `is_discriminating` with the answer it should always have returned:
+    a rank, not a yes/no. A yes/no cannot express saturation.
+    """
+    if source_sid is None:
+        return None
+    terms = _q_terms(question)
+    if not terms:
+        return None
+    q = qp.parse(' OR '.join(terms))
+    for i, h in enumerate(searcher.search(q, limit=top_k), start=1):
+        try:
+            if int(h['id']) == int(source_sid):
+                return i
+        except (KeyError, ValueError):
+            continue
+    return None
+
+
+def r16_report(pairs_ranks: list[tuple[str, int | None]],
+               top_k: int,
+               gate: bool = True) -> dict:
+    """Gold-rank histogram + the R16 saturation gate.
+
+    `pairs_ranks` is [(pair_id, rank_or_None), ...].
+    """
+    n = len(pairs_ranks)
+    ranks = [r for _, r in pairs_ranks]
+    buckets = {'1': 0, '2-5': 0, '6-20': 0, f'21-{top_k}': 0, 'not found': 0}
+    for r in ranks:
+        if r is None:
+            buckets['not found'] += 1
+        elif r == 1:
+            buckets['1'] += 1
+        elif r <= 5:
+            buckets['2-5'] += 1
+        elif r <= 20:
+            buckets['6-20'] += 1
+        else:
+            buckets[f'21-{top_k}'] += 1
+
+    found = [r for r in ranks if r is not None]
+    n_rank1 = buckets['1']
+    rank1_share = (n_rank1 / n) if n else 0.0
+    # The measurable band: findable, but not already won by BM25.
+    measurable = sum(1 for r in found if r > 1)
+    measurable_share = (measurable / n) if n else 0.0
+
+    median_rank = None
+    if found:
+        s = sorted(found)
+        median_rank = s[len(s) // 2]
+
+    saturated = rank1_share > R16_MAX_RANK1_SHARE
+
+    print()
+    print("=" * 70)
+    print("R16 — NON-TRIVIALITY (the ceiling R7 lacks)")
+    print("=" * 70)
+    print(f"  pairs:                   {n}")
+    print("  gold-passage BM25 rank distribution:")
+    for label, count in buckets.items():
+        share = (count / n * 100) if n else 0.0
+        bar = "█" * int(share / 2)
+        flag = "  <- BM25 already wins; uninformative for ranking" if label == '1' and count else ""
+        print(f"    {label:>10}  {count:>4d}  {share:5.1f}%  {bar}{flag}")
+    print(f"  median gold rank:        {median_rank}")
+    print(f"  rank-1 share:            {rank1_share:.1%}  "
+          f"(R16 ceiling: {R16_MAX_RANK1_SHARE:.0%})")
+    print(f"  MEASURABLE band (2..{top_k}): {measurable_share:.1%}  "
+          f"— the only pairs on which reranking can show up at all")
+
+    if saturated:
+        print()
+        print("  ❌ SATURATED — this set cannot measure reranking.")
+        print("     BM25 already places the gold passage first too often, so a")
+        print("     perfect reranker could not move the number. Any A/B run on")
+        print("     this set will report a tie regardless of what you changed.")
+        print("     Regenerate under R16 (see #778).")
+    else:
+        print()
+        print("  ✅ Has headroom — reranking is observable on this set.")
+    print("=" * 70)
+
+    return {
+        'n': n,
+        'rank_buckets': buckets,
+        'median_gold_rank': median_rank,
+        'rank1_share': round(rank1_share, 4),
+        'measurable_share': round(measurable_share, 4),
+        'r16_saturated': saturated,
+        'r16_pass': (not saturated) if gate else None,
+    }
+
+
 def answer_match_in_results(searcher, qp, question: str,
                              answer: str, top_k: int) -> bool:
     """Fallback: check if the answer appears in the index at all via BM25.
@@ -358,6 +476,11 @@ def main():
                         help='Output markdown report path')
     parser.add_argument('--strict-source-only', action='store_true',
                         help='Disable fallback paths; only trust source_sentence_id')
+    parser.add_argument('--rank-histogram', action='store_true',
+                        help='R16: print the gold-rank histogram and apply the '
+                             'non-triviality gate (a set whose gold passage is '
+                             'already at BM25 rank 1 too often cannot measure '
+                             'reranking — see #778)')
     args = parser.parse_args()
 
     whoosh_idx_path = Path('data/indexes/whoosh_v2')
@@ -383,12 +506,36 @@ def main():
 
     # Audit each test set
     results = {}
+    r16_results = {}
+    r16_failed = False
     for ts_path in args.test_sets:
         print(f"Auditing {ts_path}...", file=sys.stderr)
         r = audit_test_set(ts_path, searcher, qp, args.top_k, duckdb_conn,
                           strict_source_only=args.strict_source_only)
         if r:
             results[ts_path] = r
+
+        # R16 — the ceiling. Run only on request, since it is meaningful for
+        # reranking-capability sets and reporting-only for the honest-ceiling
+        # and regression sets.
+        if args.rank_histogram:
+            pairs_ranks: list[tuple[str, int | None]] = []
+            with open(ts_path, encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    e = json.loads(line)
+                    pairs_ranks.append((
+                        e.get('id', '?'),
+                        gold_rank(searcher, qp, e.get('question', ''),
+                                  e.get('source_sentence_id'), args.top_k),
+                    ))
+            print(f"\n### {ts_path}")
+            rep = r16_report(pairs_ranks, args.top_k)
+            r16_results[ts_path] = rep
+            if rep['r16_saturated']:
+                r16_failed = True
 
     searcher.close()
     if duckdb_conn:

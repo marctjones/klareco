@@ -467,16 +467,47 @@ other two tracks.
 
 ## Roadmap
 
-The active milestone is
-**[#14 — Stable Base: Measure Before We Build](https://github.com/marctjones/klareco/milestone/14)**,
-tracked by [EPIC #790](https://github.com/marctjones/klareco/issues/790). It adds
-**no capabilities**. It builds the ruler (#783 valid + #778 discriminating),
-stops the silent degradation (#779), removes the dead Kuzu layer (#782),
-retroactively benchmarks the eight unmeasured features (#785), and puts the merge
-gate in force (#784).
+Four milestones, in dependency order. **None of them adds a capability.** They
+build the foundation that makes capability work measurable — which is the thing
+this project has been missing since May.
 
-Nothing else should start until that milestone closes. When it does, we can build
-again — and for the first time we will know whether what we build helps.
+| # | Milestone | What it delivers | Depends on |
+|---|---|---|---|
+| **[#16](https://github.com/marctjones/klareco/milestone/16)** | **Corpus & Index Integrity** | The data is honest: no redirect pollution, provenance preserved, parser artifacts restored, columns meaningful | — |
+| **[#17](https://github.com/marctjones/klareco/milestone/17)** | **Test Coverage** | We can tell when the system is unfit to test — tier gating, stage tests, perf/accuracy tiers | — (gating first) |
+| **[#15](https://github.com/marctjones/klareco/milestone/15)** | **Gold Q&A Corpus** | ≥250 verified pairs + a reusable pipeline | **#16** (a degraded parser corrupts gold answer spans) |
+| **[#14](https://github.com/marctjones/klareco/milestone/14)** | **Stable Base** | The merge gate in force; the eight unmeasured features finally measured | **#15** (needs a ruler) |
+
+### The dependency that governs everything
+
+**#16 → #15 → #14.**
+
+The parser is currently degraded (no proper-noun dictionary), so it tags every
+sentence-initial capitalized word as `propra_nomo`. That is why 18 of 26 salvaged
+test pairs have an **adverb**, an **adjective**, or a **truncated name** as their
+gold answer. A test set built on a degraded parser cannot measure extraction — so
+**#15 cannot produce a trustworthy ruler until #16 lands**, and **#14 cannot
+measure anything until #15 does.**
+
+Retrieval scoring is unaffected by this; extraction scoring is not.
+
+### Start here
+
+1. **#807** — *one rebuild, not five.* Four fixes in #16 need a reparse; do them
+   in a single 6-hour pass, in this order: filter redirects **first** (#802),
+   because the proper-noun dictionary rebuild (#804) mines proper nouns and
+   `REDIRECT` is currently the **#1 proper-noun subject in the store**. Mine
+   before you filter and you bake the pollution into the dictionary.
+2. **#811** — *tier gating.* Cheap, parallel, and it stops us testing pipelines on
+   a broken environment and believing the answer. That is precisely how nine
+   rerankers came to be "equivalent" — they were scored against an empty column.
+3. **#784** — *adopt the merge gate.* It is a policy, not code. Adopt it now, even
+   though it cannot be fully enforced until the ruler exists.
+
+### Stale, pending triage in #786
+
+Milestones **#10, #11, #12** (old model tiers) and **#13** (v2.1.0 GA — a
+Kuzu-era release) predate the migration and should be closed or rewritten.
 
 ## See also
 

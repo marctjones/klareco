@@ -1198,7 +1198,8 @@ GENERIC_SUBJECT_RADIKOS = {
 # Core Generator Functions
 # =============================================================================
 
-def stream_candidates(conn, cfg: QuestionTypeConfig, limit: int, seed: int):
+def stream_candidates(conn, cfg: QuestionTypeConfig, limit: int, seed: int,
+                      sample_mod: int = 1):
     """Stream candidates from the DuckDB store one row at a time.
 
     Single SELECT ... LIMIT N with fetchone() in a Python loop:
@@ -1212,11 +1213,24 @@ def stream_candidates(conn, cfg: QuestionTypeConfig, limit: int, seed: int):
         seeds see different slices of the corpus without an ORDER BY.
     """
     verbs = cfg.active_verbs if cfg.active_verbs else []
-    # Modular-hash sampling for seed-controlled diversity. With a
-    # ~5.4M-row table and most verbs matching many rows, even %2 splits
-    # let LIMIT pick from a different slice each seed.
-    seed_mod = max(2, int(limit) // 100 + 2)
+
+    # Modular-hash sampling for seed-controlled diversity.
+    #
+    # BUG (fixed 2026-07-13): seed_mod used to be `limit // 100 + 2`, so the
+    # sampling modulus grew with --query-limit and the filter kept 1/seed_mod
+    # of the rows. Raising the limit therefore SHRANK the sample. Concretely:
+    # only 73,385 sentences in the store carry a KIU verb; at the default
+    # limit=20000 the modulus was 202, so the scan saw 73385/202 = ~363 rows,
+    # and --query-limit 100000 would have seen ~73. The knob worked backwards,
+    # which is why the generator reported "Raw streamed: 359" and kept zero.
+    #
+    # `sample_mod` is now explicit and defaults to 1 (no sampling): LIMIT
+    # already bounds the scan, and the candidate pools here are small enough
+    # (tens of thousands, not millions) that we want to see all of them.
+    seed_mod = max(1, int(sample_mod))
     seed_pick = int(seed) % seed_mod
+    hash_clause = ('' if seed_mod == 1
+                   else f' AND (HASH(sid) % {seed_mod}) = {seed_pick}')
 
     text_clauses = ''
     text_params: list[str] = []
@@ -1232,7 +1246,7 @@ def stream_candidates(conn, cfg: QuestionTypeConfig, limit: int, seed: int):
             FROM sentences
             WHERE verb_radiko IN ({placeholders})
               AND ast_json IS NOT NULL
-              AND (HASH(sid) % {seed_mod}) = {seed_pick}
+              {hash_clause}
               {text_clauses}
             LIMIT {int(limit)}
         """
@@ -1242,7 +1256,7 @@ def stream_candidates(conn, cfg: QuestionTypeConfig, limit: int, seed: int):
             SELECT sid, text, subj_radiko, verb_radiko, obj_radiko, ast_json
             FROM sentences
             WHERE ast_json IS NOT NULL
-              AND (HASH(sid) % {seed_mod}) = {seed_pick}
+              {hash_clause}
               {text_clauses}
             LIMIT {int(limit)}
         """
@@ -1271,6 +1285,43 @@ def stream_candidates(conn, cfg: QuestionTypeConfig, limit: int, seed: int):
             'object_vortspeco':  obj.get('vortspeco') or '',
             'ast':               ast,
         }
+
+
+def _contiguous_entity_span(ast: dict, head_word: str) -> str | None:
+    """The full multi-token name beginning at `head_word`, contiguous only.
+
+    The parser's `multi_token_entities` groups carry both `tokens`/`positions`
+    (the entity tokens themselves) and `span_tokens` (everything between the
+    first and last, INCLUDING intervening function words). For
+    "James Dalgety de Britujo" the group is:
+
+        positions   [2, 3, 5]
+        tokens      ['James', 'Dalgety', 'Britujo']
+        span_tokens ['James', 'Dalgety', 'de', 'Britujo']   <- greedy
+
+    `span_tokens` glues a name to a following prepositional phrase, which is
+    wrong for an answer span (R1: the answer is the entity, not the entity plus
+    its origin). We therefore walk `positions` from the head word and stop at
+    the first gap, yielding "James Dalgety".
+
+    Returns None when the head word isn't the start of a multi-token entity, in
+    which case the single-token answer already stands.
+    """
+    for g in (ast.get('multi_token_entities') or []):
+        toks = g.get('tokens') or []
+        poss = g.get('positions') or []
+        if len(toks) != len(poss) or not toks:
+            continue
+        if toks[0] != head_word:
+            continue
+        run = [toks[0]]
+        for i in range(1, len(toks)):
+            if poss[i] == poss[i - 1] + 1:      # contiguous
+                run.append(toks[i])
+            else:
+                break                            # gap — stop; a PP follows
+        return ' '.join(run) if len(run) > 1 else None
+    return None
 
 
 def verify_with_parser(c: dict, cfg: QuestionTypeConfig) -> dict | None:
@@ -1431,6 +1482,26 @@ def verify_with_parser(c: dict, cfg: QuestionTypeConfig) -> dict | None:
         answer_text = answer_kerno.get('plena_vorto') or ''
         if not answer_text:
             return None
+
+        # R1 / failure mode F1: the ANSWER must be the full named-entity span,
+        # not the head word. This expansion was applied to the question anchor
+        # (above) but never to the answer, so the generator emitted truncated
+        # answers — `Arngrímur` for "Arngrímur Jónsson", `Schonfield` for
+        # "Hugh Schonfield". R1 forbids exactly this ("single first names are
+        # never sufficient"), and the DESIGN.md autopsy names truncated answers
+        # as a cause of the gold_anchor_50 recall ceiling: a truncated answer
+        # loses the discriminating term that makes the pair findable at all.
+        #
+        # Under R17 it is worse than before: the truncated string becomes the
+        # `gold_answer_span`, so the extractor is scored against a WRONG target
+        # and a correct full-name extraction is marked incorrect.
+        # NB: use `tokens`/`positions`, NOT `span_tokens`. The span is greedy
+        # and swallows the intervening function words: for
+        # "James Dalgety de Britujo" it yields ['James','Dalgety','de',
+        # 'Britujo'] — a name glued to a prepositional phrase. The answer must
+        # be the CONTIGUOUS name run starting at the head word ("James
+        # Dalgety"), so we walk `positions` and stop at the first gap.
+        answer_text = _contiguous_entity_span(ast, answer_text) or answer_text
 
     # === STEP 3: For KIU/KIO, verify answer is not the anchor ===
 

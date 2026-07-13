@@ -1,0 +1,170 @@
+# Proper Nouns: infer them, don't look them up
+
+> **The challenge that produced this document:** *"Do we need parser
+> dictionaries? Building a huge dictionary seems like giving up."*
+>
+> It is. This is what to do instead — and the method comes from Esperanto's own
+> normative tradition, not from us.
+
+## The reframe
+
+The two artifacts we lost in the June migration were **not the same kind of
+thing**, and conflating them is what made "restore the dictionaries" sound
+reasonable:
+
+| Artifact | What it really is | Verdict |
+|---|---|---|
+| `proper_nouns_dynamic_v3.json` | An **open-world list of every name that exists** | ❌ **Giving up.** Unbounded, stale by construction, pure world knowledge. |
+| `protected_roots.json` | A **closed-world fact about the language**: which forms have *lexicalized* | ✅ Legitimate — but **derive** it, don't hand-maintain it |
+
+**We do not need a list of names. We need a list of Esperanto roots** — finite,
+closed, and derivable from our own corpus. Then proper-nounhood is *inferred*:
+
+> **capitalized** (in a position where capitalization carries signal)
+> **AND stem is NOT a known Esperanto root** → **proper noun**
+
+An open-world *lookup* becomes a closed-world *inference*. That is the whole
+idea.
+
+---
+
+## What Esperanto itself says
+
+These rules are not heuristics we invented. Each is grounded in the language's
+own tradition — and two of the sources are **already in our corpus**.
+
+### 1. The alphabet is closed (16RULES, Rule 1)
+
+> *"There are 28 letters; each letter has only one sound."*
+
+Esperanto's orthography is **phonetic and closed**. `q`, `w`, `x`, `y` do not
+exist. Neither do clusters like `sch`, `th`, `ph`, `ck`, or doubled consonants.
+**Their presence is proof the token is not an Esperanto word.**
+
+### 2. Zamenhof licensed foreign spelling for names (*Lingvaj Respondoj* 63)
+
+*La Esperantisto*, 1891 — and this text is **in our own store**:
+
+> *"Propran nomon oni povas nun skribi tiel, kiel ĝi estas skribata en la
+> gepatra lingvo de ĝia posedanto, ĉar en la nuna tempo la fonetika skribado de
+> multaj nomoj kaŭzus tro grandan kriplaĵon de tiuj nomoj…"*
+>
+> *(A proper name may now be written as it is written in the native language of
+> its owner, because phonetic spelling would mutilate many names…)*
+
+So **non-Esperanto orthography positively licenses proper-nounhood.** This is not
+a hack — it is the founder's ruling, and it is why the signal is reliable.
+
+### 3. Unassimilated names resist the accusative (PMEG / Akademio)
+
+Foreign, formally unassimilated names are treated **as quotations**. They resist
+`-n`, and a **head noun carries the case instead**:
+
+```
+la urbo New York          <- "urbo" is the head; the name stays invariant
+la verkon «Faŭsto»        <- "verkon" carries -n; the title does not
+Mi konas sinjoron Glazunovski
+```
+
+This is a **syntactic** signal, not a lexical one — and it is the correct
+Esperanto construction, which is why our test-set generator producing
+`Kiu venkis Rorke's Driftn?` was not merely ugly but *ungrammatical* (#791).
+
+### 4. Assimilation is a spectrum, not a binary
+
+- Continents, oceans, countries → translated (`Britujo`, `Francio`)
+- Large well-known cities → often Esperantized (`Parizo`, `Londono`, `Nov-Jorko`)
+- Local names, personal names → usually kept native (`Shakespeare`, `Makita`)
+- Personal names → **the owner decides** (`Johano` or `John`)
+
+So a name may look *fully* Esperanto (`Prago`, `Esperanto`, `Homaranismo` — all
+end in `-o` and inflect normally). **The "invalid ending" test alone is
+therefore weak**: measured on UD-Prago, **85% of gold proper nouns have a valid
+Esperanto ending.** Assimilated names are morphologically indistinguishable from
+common nouns — which is exactly why the *root lexicon* is the load-bearing
+signal and orthography is only a supplement.
+
+---
+
+## The rule stack, and what it buys
+
+Measured against **UD_Esperanto-Prago** (linguist-curated, external, touches none
+of our code — the one ruler that cannot lie to us):
+
+| Rule | P | R | **F1** |
+|---|---|---|---|
+| **Current parser** (dictionary missing) | 18.2% | 57.1% | **27.6%** |
+| capitalized + stem not in the **root lexicon** | 29.1% | 85.2% | **43.4%** |
+| + ignore **ALL-CAPS** (a heading carries no capitalization signal) | 32.8% | 81.5% | **46.8%** |
+| + **position reset** after `.` `!` `?` `«` `(` `:` | 38.0% | 70.4% | **49.4%** |
+| + **foreign orthography** licenses a name (Zamenhof LR63) | 38.5% | 74.1% | **50.6%** |
+
+**27.6% → 50.6%, with no name list at all.**
+
+And note: with only the Fundamento's **2,481** roots, the rule already reaches
+**F1 42.2% at 100% recall** — it misses *nothing*. The bottleneck was never the
+concept. It was that our lexicon held 2,481 roots when Esperanto has ~20,000.
+
+`scripts/index/build_root_lexicon.py` now harvests **12,377** roots from the
+corpus (lowercase-attested only ∪ the Fundamento).
+
+### Why lowercase attestation is the discriminator
+
+A root is an Esperanto root if the corpus uses it as a **common word** — i.e.
+lowercase. **Names are capitalized; common words are not.** The corpus separates
+them for us, for free. We never have to know anything about the world.
+
+It works:
+
+```
+nord, brit, hund, urb    -> IN the lexicon   (Esperanto roots)
+zamenhof, shakespear     -> NOT in           -> correctly INFERRED as names
+```
+
+---
+
+## `protected_roots` is a *lexicalization* fact — and it is derivable
+
+The parser splits `Esperanton` → `esper` + `ant`. **Etymologically the parser is
+right**: Zamenhof's pseudonym was *Doktoro Esperanto* — "Doctor One-Who-Hopes".
+The word genuinely *is* `esper-ant-o`.
+
+The phenomenon is **lexicalization**: a compositionally-derived form has become a
+fixed lexeme with its own meaning. That is a fact about *usage*, not *grammar*,
+so no grammar rule recovers it — **but it is visible in the corpus.** A
+lexicalized form takes further derivation *as if it were a root*:
+
+```
+esperant-ist-o, esperant-uj-o, esperant-ig-i, esperant-ec-o
+    -> 102 distinct derivational tails attested in the corpus
+```
+
+So **compute it** from derivational productivity, human-review it once, and
+regenerate it when the corpus changes. It is a *derived artifact*, and it is
+small — lexicalization is rare.
+
+---
+
+## The residue that actually survives
+
+After all of the above, what genuinely remains is:
+
+> A **capitalized** token, in a **signal-bearing position**, with **valid
+> Esperanto morphology**, whose stem **IS a known root**.
+
+`Nordo` (the North / north). `Brita` (British / a surname). `Maria` (Mary / an
+adjective). Here morphology, position, and the lexicon *all* say "ordinary
+Esperanto word", and only world knowledge says otherwise.
+
+**That is a far smaller residue than "every name in the world"** — and it is the
+honest one. Sizing it is exactly what **#819** does, and until it is sized,
+VISION.md's claim that this residue is "confirmed" remains unearned.
+
+## Sources
+
+- [The Sixteen Rules of Esperanto Grammar, commented by Don Harlow](https://babel.ucsc.edu/~hank/105/Esperanto16.pdf)
+- [Rekomendo de la Akademio pri la uzo de propraj nomoj](https://sezonoj.ru/2013/10/akademio-2/)
+- [Respondoj de la Konsultejo — Akademio de Esperanto](https://www.akademio-de-esperanto.org/akademio/index.php?title=Respondoj_de_la_Konsultejo)
+- [Propraj nomoj, la esperantaj kaj la fremdaj](https://kovro.heliohost.org/eo/artikoloj/fremdaj-nomoj.html)
+- [Esperanto Proper Names — David G. Simpson](http://esperanto.davidgsimpson.com/eo-proper.html)
+- Zamenhof, *Lingvaj Respondoj* 61 & 63 — **in our own corpus** (`data/raw/eo/lingvaj_respondoj/`)

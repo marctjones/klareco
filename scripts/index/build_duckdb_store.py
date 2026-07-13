@@ -43,6 +43,7 @@ Last Updated: 2026-05-17
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import logging
 import sys
@@ -56,6 +57,7 @@ import pandas as pd
 from whoosh import index as whoosh_index
 from whoosh.fields import ID, TEXT, Schema
 
+from klareco.corpus_quality import assess
 from klareco.parser import parse
 
 import os as _os
@@ -226,6 +228,9 @@ def _worker(payload):
             **shredded, **prov}
 
 
+_REJECTED: Counter = Counter()
+
+
 def _corpus_payloads(start_after: int, limit):
     """Yield (sid, text) for corpus lines past the resume point. sid is
     the absolute 1-based line index — deterministic, so resume is exact."""
@@ -259,8 +264,24 @@ def _corpus_payloads(start_after: int, limit):
                 }
             except Exception:
                 continue
-            if text:
-                yield (i, text, prov)
+            if not text:
+                continue
+
+            # THE QUALITY GATE (#823) — one shared implementation, so it cannot
+            # be applied to one consumer and forgotten by the next. That is
+            # exactly what happened: the redirect filter lived only in
+            # rebuild_whoosh_from_duckdb.py, so the Whoosh index was clean while
+            # the STORE kept 123,654 redirect stubs — and `REDIRECT` became the
+            # single most common proper-noun SUBJECT in the entire corpus.
+            #
+            # Markup is STRIPPED, not fatal: `{{DISPLAYTITLE: …}} … estas
+            # asteroido` carries a real sentence, and ~27,000 rows are rescued
+            # this way rather than deleted.
+            verdict = assess(text)
+            if not verdict.keep:
+                _REJECTED[verdict.reason] += 1
+                continue
+            yield (i, verdict.text or text, prov)
 
 
 def main() -> int:
@@ -388,6 +409,19 @@ def main() -> int:
     build_indexes(con)
     cnt = con.execute("SELECT count(*) FROM sentences").fetchone()[0]
     outputs = DUCK if args.skip_whoosh else f"{DUCK} + {WHOOSH_DIR}"
+
+    # Never drop rows silently. A quality gate whose rejections are invisible is
+    # how you end up with 123,654 redirect stubs and nobody noticing (#823).
+    if _REJECTED:
+        total = sum(_REJECTED.values())
+        log.info("QUALITY GATE rejected %d rows (%.2f%% of input):",
+                 total, 100.0 * total / (total + cnt))
+        for reason, n in _REJECTED.most_common():
+            log.info("    %-16s %8d", reason, n)
+    else:
+        log.warning("QUALITY GATE rejected NOTHING — that is suspicious. "
+                    "Is klareco.corpus_quality wired in?")
+
     log.info("DONE: %d sentences in %.0f s -> %s",
              cnt, time.time() - t0, outputs)
     con.close()

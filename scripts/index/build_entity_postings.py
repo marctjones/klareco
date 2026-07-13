@@ -190,8 +190,9 @@ def phase_a_scan(args) -> None:
     # OOM safety: cap DuckDB's working memory. The 35GB store mmap-loaded
     # without bound can chew through all available RAM, especially when
     # multiple readers run concurrently. 2GB is plenty for chunked queries.
-    conn.execute("SET memory_limit = '2GB'")
-    conn.execute("SET threads = 4")  # don't grab all 16 cores
+    conn.execute(f"SET memory_limit = '{args.memory_limit}'")
+    conn.execute(f"SET threads = {args.threads}")  # don't grab all cores
+    conn.execute("SET preserve_insertion_order = false")
 
     n_total = conn.execute('SELECT COUNT(*) FROM sentences').fetchone()[0]
     print(f'Sentences in store: {n_total:,}')
@@ -214,7 +215,7 @@ def phase_a_scan(args) -> None:
         "OR ast_json LIKE '%\"vortspeco\": \"propra_nomo\"%')"
     )
 
-    CHUNK = 100_000
+    CHUNK = args.chunk_size
     n_scanned = 0
     n_postings = 0
     t0 = time.time()
@@ -283,8 +284,9 @@ def phase_b_apply(args) -> None:
 
     print(f'Opening DuckDB at {args.duckdb_path} (WRITE)…')
     conn = duckdb.connect(args.duckdb_path)
-    conn.execute("SET memory_limit = '2GB'")
-    conn.execute("SET threads = 4")
+    conn.execute(f"SET memory_limit = '{args.memory_limit}'")
+    conn.execute(f"SET threads = {args.threads}")
+    conn.execute("SET preserve_insertion_order = false")
 
     print('DROP TABLE IF EXISTS entity_postings')
     conn.execute('DROP TABLE IF EXISTS entity_postings')
@@ -344,6 +346,12 @@ def main() -> None:
                     help='Keep the staging file after --apply succeeds. '
                          'Default: delete it (the entity_postings table is '
                          'the source of truth once applied).')
+    ap.add_argument('--chunk-size', type=int, default=20_000,
+                    help='Phase A DuckDB query chunk size.')
+    ap.add_argument('--memory-limit', default='4GB',
+                    help='DuckDB memory limit for scan/apply phases.')
+    ap.add_argument('--threads', type=int, default=2,
+                    help='DuckDB worker threads for scan/apply phases.')
     args = ap.parse_args()
 
     if not args.scan_only and not args.apply:

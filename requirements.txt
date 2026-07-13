@@ -60,6 +60,7 @@ SPARQLWrapper>=2.0.0
 # ----------------------------------------------------------------------------
 
 # Fast DataFrame library for data preparation and analysis
+pandas>=3.0.0  # Required by scripts/index/build_duckdb_store.py
 polars>=1.38.0
 pyarrow>=23.0.0  # Required by Polars for Arrow interop (Kuzu → Polars)
 

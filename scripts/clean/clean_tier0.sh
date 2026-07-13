@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Activate venv
@@ -67,12 +67,23 @@ cp data/raw/eo/lingvaj_respondoj/lingvaj_respondoj.txt data/cleaned/eo/tier0/lin
 echo "  Copied: lingvaj_respondoj.txt (1.0M chars)"
 
 # Ekzercaro
-cp data/raw/eo/fundamento/ekzercaro.txt data/cleaned/eo/tier0/ekzercaro.txt
-echo "  Copied: ekzercaro.txt (150K chars)"
+if [ -f "data/raw/eo/fundamento/ekzercaro.txt" ]; then
+    cp data/raw/eo/fundamento/ekzercaro.txt data/cleaned/eo/tier0/ekzercaro.txt
+    echo "  Copied: ekzercaro.txt (150K chars)"
+else
+    echo "  ⚠ Ekzercaro skipped - source not acquired at data/raw/eo/fundamento/ekzercaro.txt"
+fi
 
 # Krestomatio
-cp data/raw/eo/fundamento/krestomatio.txt data/cleaned/eo/tier0/krestomatio.txt
-echo "  Copied: krestomatio.txt (7K chars)"
+if [ -f "data/raw/eo/fundamento/krestomatio.txt" ]; then
+    cp data/raw/eo/fundamento/krestomatio.txt data/cleaned/eo/tier0/krestomatio.txt
+    echo "  Copied: krestomatio.txt (7K chars)"
+elif [ -f "data/raw/eo/gutenberg/krestomatio.txt" ]; then
+    cp data/raw/eo/gutenberg/krestomatio.txt data/cleaned/eo/tier0/krestomatio.txt
+    echo "  Copied: krestomatio.txt (Gutenberg source)"
+else
+    echo "  ⚠ Krestomatio skipped - source not acquired"
+fi
 
 # Check if PAG OCR output exists
 if [ -f "data/raw/eo/pag/pag_ocr.txt" ]; then

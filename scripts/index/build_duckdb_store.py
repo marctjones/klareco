@@ -229,6 +229,8 @@ def main() -> int:
     ap.add_argument('--workers', type=int, default=10,
                     help='parse-pool workers (box has 16 cores; leave '
                          'headroom for the writer + competing load)')
+    ap.add_argument('--skip-whoosh', action='store_true',
+                    help='build DuckDB only; rebuild Whoosh later from DuckDB')
     args = ap.parse_args()
 
     Path('logs').mkdir(exist_ok=True)
@@ -245,22 +247,29 @@ def main() -> int:
     if args.resume:
         duck_max = con.execute(
             "SELECT max(sid) FROM sentences").fetchone()[0] or 0
-        wh_cnt = 0
-        if whoosh_index.exists_in(WHOOSH_DIR):
+        if args.skip_whoosh:
+            wh_cnt = None
+            start_after = duck_max
+        elif whoosh_index.exists_in(WHOOSH_DIR):
             wh_cnt = whoosh_index.open_dir(WHOOSH_DIR).doc_count()
-        # Clean common prefix only — Whoosh and DuckDB may disagree if a
-        # crash hit mid-batch. Reconcile to min, drop the inconsistent
-        # DuckDB tail; Whoosh's unique=True id makes any re-add idempotent.
-        start_after = min(duck_max, wh_cnt)
-        if duck_max > start_after:
-            con.execute("DELETE FROM sentences WHERE sid > ?",
-                        [start_after])
-        log.info("resume: duck_max=%d whoosh=%d -> clean prefix sid<=%d",
-                 duck_max, wh_cnt, start_after)
+            # Clean common prefix only — Whoosh and DuckDB may disagree if a
+            # crash hit mid-batch. Reconcile to min, drop the inconsistent
+            # DuckDB tail; Whoosh's unique=True id makes any re-add idempotent.
+            start_after = min(duck_max, wh_cnt)
+            if duck_max > start_after:
+                con.execute("DELETE FROM sentences WHERE sid > ?",
+                            [start_after])
+        else:
+            wh_cnt = 0
+            start_after = 0
+        log.info("resume: duck_max=%d whoosh=%s -> sid<=%d",
+                 duck_max,
+                 'skipped' if wh_cnt is None else str(wh_cnt),
+                 start_after)
     else:
         con.execute("DELETE FROM sentences")
 
-    ix = open_whoosh(fresh=not args.resume)
+    ix = None if args.skip_whoosh else open_whoosh(fresh=not args.resume)
 
     def flush(rows):
         if not rows:
@@ -287,7 +296,7 @@ def main() -> int:
     # memory pressure). Resume stays correct: start_after =
     # min(duck_max, whoosh_count) + DuckDB tail-delete + Whoosh unique-id
     # re-add is idempotent regardless of which store leads on a crash.
-    writer = ix.writer(limitmb=512, procs=1)
+    writer = None if args.skip_whoosh else ix.writer(limitmb=512, procs=1)
 
     # Parse in a process pool (pure-Python CPU). The main process keeps
     # the serial, non-picklable work (Whoosh writer, DuckDB). imap
@@ -296,7 +305,8 @@ def main() -> int:
         for row in pool.imap(_worker,
                              _corpus_payloads(start_after, args.limit),
                              chunksize=200):
-            writer.add_document(id=str(row['sid']), text=row['text'])
+            if writer is not None:
+                writer.add_document(id=str(row['sid']), text=row['text'])
             batch.append(row)
             n += 1
             since_whoosh += 1
@@ -309,24 +319,27 @@ def main() -> int:
                          last_sid, n, rate,
                          (5_400_000 - start_after - n) / rate / 60
                          if rate else -1)
-            if since_whoosh >= WHOOSH_COMMIT:
+            if writer is not None and since_whoosh >= WHOOSH_COMMIT:
                 writer.commit(merge=False)         # flush only, no merge
                 writer = ix.writer(limitmb=512, procs=1)
                 since_whoosh = 0
                 log.info("whoosh flushed @ sid~%d", n + start_after)
 
-    writer.commit(merge=False)                     # final partial flush
+    if writer is not None:
+        writer.commit(merge=False)                 # final partial flush
     flush(batch)
-    # Pool is closed here -> lowest memory pressure -> safe to do the
-    # ONE expensive full segment merge that makes queries fast.
-    log.info("whoosh: optimizing (single full merge of all segments)...")
-    t_opt = time.time()
-    ix.optimize()
-    log.info("whoosh: optimized in %.0f s", time.time() - t_opt)
+    if ix is not None:
+        # Pool is closed here -> lowest memory pressure -> safe to do the
+        # ONE expensive full segment merge that makes queries fast.
+        log.info("whoosh: optimizing (single full merge of all segments)...")
+        t_opt = time.time()
+        ix.optimize()
+        log.info("whoosh: optimized in %.0f s", time.time() - t_opt)
     build_indexes(con)
     cnt = con.execute("SELECT count(*) FROM sentences").fetchone()[0]
-    log.info("DONE: %d sentences in %.0f s -> %s + %s",
-             cnt, time.time() - t0, DUCK, WHOOSH_DIR)
+    outputs = DUCK if args.skip_whoosh else f"{DUCK} + {WHOOSH_DIR}"
+    log.info("DONE: %d sentences in %.0f s -> %s",
+             cnt, time.time() - t0, outputs)
     con.close()
     return 0
 

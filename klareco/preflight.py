@@ -211,6 +211,32 @@ def _check_duckdb(duckdb_path: Path) -> list[Finding]:
                     remedy=f"Populate {col} (see #777 for verb_klaso).",
                 ))
 
+        # A column can be 100% NON-NULL and still be DEAD. `success_rate` is
+        # 0.0 on every one of the 5.39M rows — a field-name mismatch (the corpus
+        # writes `parse_rate`, the store reads `success_rate`) — and it sails
+        # through every population check above. Population is not the contract;
+        # VARIANCE is. See #805.
+        CONSTANT_CHECKS = [
+            ("success_rate", "quality filtering — we cannot exclude "
+                             "badly-parsed sentences from retrieval or from "
+                             "test-set candidate mining"),
+        ]
+        for col, reader in CONSTANT_CHECKS:
+            lo, hi = con.execute(
+                f"SELECT min({col}), max({col}) FROM sentences").fetchone()
+            if lo is not None and lo == hi:
+                findings.append(Finding(
+                    f"sentences.{col}",
+                    required=False,
+                    detail=f"constant at {lo} across all {total:,} rows "
+                           f"(non-null everywhere, but zero information)",
+                    consequence=(f"{reader} is impossible. The column is "
+                                 f"present and passes every null check, so it "
+                                 f"looks healthy and is not."),
+                    remedy=f"Populate {col} (see #805 — field-name mismatch "
+                           f"`parse_rate` vs `success_rate`).",
+                ))
+
         # The ontology tables: present-but-empty is the trap.
         for tbl in ("ontology_nodes", "ontology_edges"):
             exists = con.execute(

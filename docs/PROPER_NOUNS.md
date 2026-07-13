@@ -168,3 +168,93 @@ VISION.md's claim that this residue is "confirmed" remains unearned.
 - [Propraj nomoj, la esperantaj kaj la fremdaj](https://kovro.heliohost.org/eo/artikoloj/fremdaj-nomoj.html)
 - [Esperanto Proper Names — David G. Simpson](http://esperanto.davidgsimpson.com/eo-proper.html)
 - Zamenhof, *Lingvaj Respondoj* 61 & 63 — **in our own corpus** (`data/raw/eo/lingvaj_respondoj/`)
+
+---
+
+## Improving it: what actually moved the number (measured 2026-07-13)
+
+### 1. Morphology beat "more roots" — decisively
+
+The false positives were **not** hard cases. They were `Homaranismo`, `Homaranoj`,
+`Presejo`, `Oficejo`, `Britio` — ordinary **derived** Esperanto nouns:
+`homar+an+ism+o`, `pres+ej+o`, `ofic+ej+o`, `brit+i+o`. **Every one of those roots
+was already in the lexicon.** The naive stemmer only stripped the *final ending*,
+so it never reached them.
+
+Replacing it with **full affix decomposition** against the closed affix inventory
+(the 16 rules give us a *finite* list of prefixes and suffixes — this is the
+language's own morphology, not a heuristic):
+
+| | P | R | **F1** |
+|---|---|---|---|
+| naive final-ending strip | 38.5% | 74.1% | **50.6%** |
+| **full affix decomposition** | **53.6%** | 55.6% | **54.5%** |
+| **…scheme-adjusted** | **83.3%** | 55.6% | **66.7%** |
+
+**Precision 38.5% → 83.3%.** Of the remaining false positives: **6** are
+abbreviations/initials (`D-ro`, `L.` — a separate fix DESIGN.md already lists),
+**4** are UD scheme choices (UD annotates `Esperanto` and `-ismo` doctrines as
+NOUN — the same class as `PRON→adjektivo` that we already credit), and only **3**
+are genuine errors.
+
+### 2. ⚠️ Do NOT feed the parser's own `radiko` back in — it is circular
+
+Using the parser's morphological decomposition instead of an independent one
+**collapsed F1 to 12.8%**. The root lexicon is *harvested from the parser's
+output*, so feeding that output back in is failure mode **F13** — the parser
+grading its own homework. Independence is what makes the signal worth anything.
+
+### 3. So — should we expand the root lexicon? **Yes, but the reason is subtle**
+
+With the positional heuristics in place, lexicon size looks **flat**:
+
+| roots | 4,502 | 12,118 | 31,855 |
+|---|---|---|---|
+| F1 | 47.4% | 47.9% | 47.3% |
+
+That flatness is an **artifact of the position veto**, which was masking the
+lexicon's real contribution. Positional evidence is *absent* at sentence-start —
+and that is exactly where we were missing names (`Varsovio`, `Zamenhof`). Turn
+the veto off, so morphology must carry the decision alone, and lexicon size
+matters enormously:
+
+| lexicon | size | P | R | **F1** (scheme-adj) |
+|---|---|---|---|---|
+| Fundamento only | 2,481 | 22.1% | 77.8% | **34.4%** |
+| + corpus ≥50 | 5,229 | 42.0% | 77.8% | **54.5%** |
+| + corpus ≥10 *(current)* | 12,377 | 45.7% | 77.8% | **57.5%** |
+| **+ corpus ≥3** | **31,928** | **50.0%** | 74.1% | **59.7%** |
+| + corpus ≥1 (everything) | 115,832 | 50.0% | 66.7% | **57.1%** ⬇ |
+
+**22.1% → 50.0% precision.** But note the last row: at ≥1 occurrence it gets
+*worse*. **Names leak into the lexicon** (harvested from a degraded parser that
+over-tags `propra_nomo`), and the recall drops as real names start "decomposing"
+to a contaminated root.
+
+> **The limit is lexicon PURITY, not lexicon SIZE.** Beyond ~30K roots, adding
+> more corpus-attested strings adds more contamination than coverage.
+
+**That is the case for ReVo (#806)**: not "more roots" but a *curated* ~20K-root
+lexicon with no name contamination. Quality is the axis that is still open; raw
+size is not.
+
+### 4. The real limiter on further progress is the ruler, not the method
+
+UD-Prago contains **27 PROPN tokens**. Every number on this page has enormous
+error bars, and the difference between 55% and 65% is not measurable on it.
+**Further tuning against this treebank would be fitting noise.**
+
+Before optimising further we need a bigger proper-noun evaluation set — which is
+a *measurement* problem, not a *modelling* one, and it is the honest next step.
+
+## Ranked next moves
+
+1. **A larger proper-noun eval set.** Everything else is unmeasurable without it.
+2. **ReVo (#806)** — a *curated* root lexicon. Purity, not size.
+3. **Abbreviations and initials** (`D-ro`, `L.`) — 6 of 13 remaining FPs; DESIGN.md
+   already lists it as deterministically fixable.
+4. **Hybrid position handling** — use positional evidence where it exists, fall
+   back to morphology where it does not, rather than letting position *veto*
+   morphology outright.
+5. **Scheme-adjusted reporting**, as we already do for POS — UD's treatment of
+   `Esperanto` as NOUN is a scheme difference, not our error.

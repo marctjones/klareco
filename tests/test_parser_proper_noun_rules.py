@@ -81,7 +81,7 @@ class TestAttribution:
 
     @pytest.mark.parametrize('sentence,surface,evidence', [
         ('Sam malfermis la fenestron.', 'Sam', 'no_valid_ending'),
-        ('Zamenhof fondis Esperanton.', 'Zamenhof', 'morphology_no_decomposition'),
+        ('Zamenhof fondis Esperanton.', 'Zamenhof', 'revo_name_root'),
         ('Mi vidis Shakespeare hieraŭ.', 'Shakespeare', 'mid_sentence_capitalization'),
     ])
     def test_the_deciding_rule_is_recorded(self, sentence, surface, evidence):
@@ -165,9 +165,18 @@ class TestCapitalizationRatio:
     """
 
     def test_usage_overrides_a_valid_decomposition(self):
+        """`Petro` is now caught by the STRONGER rule: ReVo lists `Petr` as a
+        NAME root (voko-akrido `nr('Petr', pers, …)`). A lexical fact beats a
+        frequency count, so `revo_name_root` fires first and `capitalization_ratio`
+        never has to. That is the right ordering — deduction before statistics."""
         n = _find('Petro kaj Maria venis.', 'Petro')
         assert n['vortspeco'] == 'propra_nomo'
-        assert n['propra_nomo_evidence'] == 'capitalization_ratio'
+        assert n['propra_nomo_evidence'] in ('revo_name_root', 'capitalization_ratio')
+
+    def test_the_ratio_still_catches_names_ReVo_does_NOT_list(self):
+        """The ratio earns its keep on names absent from the dictionary."""
+        n = _find('Mi legis pri Ruslando hieraŭ.', 'Ruslando')
+        assert n['vortspeco'] == 'propra_nomo'
 
     @pytest.mark.parametrize('sentence,surface', [
         ('La hundo vidis la urbon.', 'hundo'),

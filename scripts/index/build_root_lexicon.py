@@ -98,7 +98,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-REVO = Path('data/raw/eo/dictionaries/revo_roots.json')
+REVO_TYPED = Path('data/raw/eo/dictionaries/revo_typed_roots.json')   # voko-akrido: COMMON roots only
+REVO_NAMES = Path('data/raw/eo/dictionaries/revo_name_roots.json')    # voko-akrido: PROPER-NAME roots
+REVO = Path('data/raw/eo/dictionaries/revo_roots.json')               # legacy: filename harvest (CONTAMINATED)
 FUNDAMENTO = Path('data/vocabularies/fundamento_roots.json')
 DB = 'data/indexes/duckdb_store.db'
 OUT = Path('data/vocabularies/root_vocab.json')
@@ -150,16 +152,45 @@ def main() -> int:
                          '44.9%% vs 48.9%% for the union.')
     args = ap.parse_args()
 
-    if not REVO.exists():
+    # voko-akrido separates COMMON roots from PROPER-NAME roots. Prefer it.
+    #
+    # The legacy acquire_revo.py harvested ReVo by FILENAME, and ~1,835 ReVo
+    # articles have a PROPER NOUN as their root (zamenhof.xml, varsovio.xml).
+    # They went straight into the common-word lexicon, so `Zamenhof` and
+    # `Varsovio` began "decomposing" to known roots and stopped being detectable
+    # as names. That was a real bug, and this is the fix.
+    names: set[str] = set()
+    if REVO_TYPED.exists():
+        revo = set(json.loads(REVO_TYPED.read_text(encoding='utf-8'))['roots'])
+        if REVO_NAMES.exists():
+            names = {n.lower() for n in
+                     json.loads(REVO_NAMES.read_text(encoding='utf-8'))['roots']}
+        print(f'  voko-akrido: {len(revo):,} COMMON roots, '
+              f'{len(names):,} NAME roots held OUT of the lexicon')
+    elif REVO.exists():
+        revo = set(json.loads(REVO.read_text(encoding='utf-8'))['roots'])
+        print('  ⚠️  using the LEGACY filename harvest — it mixes ~1,835 proper-noun '
+              'roots into the common lexicon. Run acquire_voko_akrido.py.')
+    else:
         raise FileNotFoundError(
-            f'ReVo missing: {REVO}\n'
-            '  Acquire it:  python scripts/acquire/acquire_revo.py\n'
+            f'No ReVo lexicon: {REVO_TYPED} / {REVO}\n'
+            '  Acquire it:  python scripts/acquire/acquire_voko_akrido.py\n'
             'Refusing to build a lexicon out of parser output alone — that is '
             'the laundering loop this script exists to break (#806).')
-
-    revo = set(json.loads(REVO.read_text(encoding='utf-8'))['roots'])
     fund = set(json.loads(FUNDAMENTO.read_text(encoding='utf-8')).keys())
-    tier1 = revo | fund
+    # A NAME root is still a ROOT — `amerik` (Ameriko) must be in the lexicon or
+    # `amerikano` cannot decompose. What it is NOT is a COMMON WORD. So carry two
+    # INDEPENDENT flags rather than one list:
+    #
+    #   is_root  -> may participate in morphology        (common ∪ names)
+    #   is_name  -> the BARE root, with only a grammatical ending, is a PROPER NOUN
+    #
+    #     Zamenhof   = zamenhof + ø        -> name root, no derivation  -> PROPER NOUN
+    #     Varsovio   = varsovi  + o        -> name root, no derivation  -> PROPER NOUN
+    #     amerikano  = amerik + AN + o     -> name root + DERIVATION    -> common noun
+    #
+    # This replaces a pile of capitalisation heuristics with a lexical fact.
+    tier1 = revo | fund | names
 
     missing = [r for r in _MUST_BE_TIER1 if r not in tier1]
     present = [r for r in _MUST_NOT_BE_TIER1 if r in tier1]
@@ -190,6 +221,7 @@ def main() -> int:
     print(f'  tier 2  corpus (contaminated): {len(tier2):,}')
     print(f'  LEXICON                     : {len(roots):,}')
     print(f'  PROTECTED (ReVo says atomic): {len(protected):,}')
+    print(f'  NAME roots (bare form = a PROPER NOUN): {len(names):,}')
     print(f'\n  tier-2 roots ReVo CONTRADICTS (look like parser mis-splits): '
           f'{len(contradicted):,}')
     print(f'    e.g. {contradicted[:8]}')
@@ -200,6 +232,7 @@ def main() -> int:
         'roots': roots,
         'tier1': sorted(tier1),
         'protected': protected,
+        'name_roots': sorted(names),
         'provenance': {
             'tier1': 'ReVo (github.com/revuloj/revo-fonto, GPL-2.0) UNION Fundamento '
                      '— CURATED and INDEPENDENT of our parser',

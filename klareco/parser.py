@@ -736,9 +736,27 @@ if _protected_roots_path.exists():
 # ReVo headwords and therefore protected. `amerikan` and `kristan` are NOT in
 # ReVo, so `amerikano` correctly stays amerik+an.
 _rv = _VOCAB_DIR / 'root_vocab.json'
+NAME_ROOTS: frozenset[str] = frozenset()
 if _rv.exists():
-    PROTECTED_SUFFIX_ROOTS.update(
-        json.loads(_rv.read_text(encoding='utf-8')).get('protected', []))
+    _rv_data = json.loads(_rv.read_text(encoding='utf-8'))
+    PROTECTED_SUFFIX_ROOTS.update(_rv_data.get('protected', []))
+
+    # NAME ROOTS — 1,835 ReVo roots whose bare form IS a proper noun
+    # (`Zamenhof`, `Varsovi`, `Amerik`), typed person vs place by voko-akrido.
+    #
+    # A name root is still a ROOT: `amerik` must be in the lexicon or `amerikano`
+    # cannot decompose. What it is not is a COMMON WORD. So the two facts are
+    # INDEPENDENT, and the rule falls out of the lexicon rather than out of
+    # capitalisation guesswork:
+    #
+    #     Zamenhof  = zamenhof + ø       name root, NO derivation  -> PROPER NOUN
+    #     Varsovio  = varsovi  + o       name root, NO derivation  -> PROPER NOUN
+    #     amerikano = amerik + AN + o    name root + DERIVATION    -> common noun
+    #
+    # This is a LEXICAL FACT, and it outranks every capitalisation heuristic — it
+    # holds sentence-initially, in ALL-CAPS, and in a language we have never seen
+    # the word capitalised in.
+    NAME_ROOTS = frozenset(_rv_data.get('name_roots', []))
 
 # Combined set for fast lookup
 PROTECTED_ROOTS = PROTECTED_PREFIX_ROOTS | PROTECTED_SUFFIX_ROOTS
@@ -910,9 +928,71 @@ def _veto_by_usage(word_asts: list) -> None:
         if ast.get('propra_nomo_evidence') not in _USAGE_VETOABLE:
             continue
         if _usage_says_name(ast.get('plena_vorto')) is False:
-            ast['vortspeco'] = 'substantivo'
-            ast['kategorio'] = None
-            ast['propra_nomo_evidence'] = None
+            # RESTORE the morphological reading — do not GUESS one. Hardcoding
+            # 'substantivo' here turned `Intertempe` (an ADVERB) into a noun, and
+            # a noun can take the subject slot. Re-analysing the LOWERCASED form
+            # gives the reading the morphology would have produced if the word had
+            # never been capitalised, which is exactly what the corpus says it is.
+            real = _parse_word_impl((ast.get('plena_vorto') or '').lower())
+            if real.get('vortspeco') not in ('propra_nomo', 'nekonata', None):
+                for k in ('vortspeco', 'radiko', 'prefiksoj', 'sufiksoj',
+                          'kazo', 'nombro', 'tempo'):
+                    if k in real:
+                        ast[k] = real[k]
+                ast['kategorio'] = real.get('kategorio')
+                ast['propra_nomo_evidence'] = None
+
+
+
+# Determiner-like correlatives: ĉiu, tiu, iu, kiu, neniu, and tia/ĉia/… They
+# MODIFY a noun; they do not HEAD the phrase. Role assignment was first-come-
+# first-served over nominative tokens, so in "Ĉiu etna lingvo estas…" the
+# correlative arrived first, took `subjekto`, and the real head noun `lingvo`
+# found the slot occupied. 10% of our subject-precision errors.
+# Suffix `u` = "which individual" (ĉiu/tiu/iu/kiu), `a` = "of which kind"
+# (ĉia/tia/ia). Both MODIFY a noun. Suffix `o` (ĉio/tio = "everything/that
+# thing") is a genuine HEAD and must keep the slot.
+_DETERMINER_KORELATIVOJ = frozenset({'u', 'a'})
+
+
+def _is_determiner_like(ast: dict) -> bool:
+    if not isinstance(ast, dict) or ast.get('vortspeco') != 'korelativo':
+        return False
+    return ast.get('korelativo_sufikso') in _DETERMINER_KORELATIVOJ
+
+
+def _heads_a_following_noun(word_asts: list, i: int) -> bool:
+    """Does an AGREEING noun follow within the same phrase?
+
+    Rule 3 again: `Ĉiu` (sg, nom) agrees with `lingvo` (sg, nom), so `lingvo` is
+    the head and `Ĉiu` is a `priskribo`. If nothing agrees, the correlative IS
+    the head (`Ĉiu estas egala` — "everyone is equal"), and it correctly keeps
+    the slot.
+    """
+    d = word_asts[i]
+    for j in range(i + 1, min(i + 5, len(word_asts))):
+        w = word_asts[j]
+        if not isinstance(w, dict):
+            continue
+        vs = w.get('vortspeco')
+        if vs in ('substantivo', 'propra_nomo'):
+            return (w.get('kazo') == d.get('kazo')
+                    and w.get('nombro') == d.get('nombro'))
+        if vs in ('adjektivo',):
+            continue                 # "Ĉiu ETNA lingvo" — adjectives intervene
+        return False                 # a verb or anything else: no head follows
+    return False
+
+
+def _has_finite_verb(word_asts: list) -> bool:
+    """A sentence with no finite verb has NO SUBJECT to find.
+
+    `Manifesto de Prago`, `DEMOKRATIO`, `IV.` are HEADINGS. We were inventing a
+    subject for them, which was 63% of our subject-precision errors — the single
+    largest class.
+    """
+    return any(isinstance(w, dict) and w.get('vortspeco') == 'verbo'
+               and w.get('tempo') for w in word_asts)
 
 
 def _is_valid_eo_stem(s: str) -> bool:
@@ -1687,6 +1767,20 @@ def _parse_word_impl(word: str) -> dict:
             had_substantivo_ending
             and _is_genuine_esperanto_compound(stem)
         )
+        # ADVERBS (-e). This used to be excluded on the grounds that "many foreign
+        # names end in -e (Shakespeare, Goethe, Marie)". That reasoning is now
+        # obsolete: CAPITALIZATION_RATIO separates them cleanly and empirically —
+        #     intertempe 0.20 · multokaze 0.00 · krome 0.09   (common words)
+        #     shakespeare 1.00 · nietzsche 0.98               (names)
+        # and it runs AFTER this guard, so a real name is still promoted. Excluding
+        # -e cost us `Intertempe`, `Multokaze`, `Krome` — sentence-initial adverbs
+        # tagged propra_nomo, which then STOLE THE SUBJECT SLOT. 26% of our
+        # subject-precision errors.
+        had_adverbial_ending = lower_word != stem and lower_word.endswith(('e', 'en'))
+        had_adverbial_compound = (
+            had_adverbial_ending
+            and (stem in DICTIONARY_ROOTS or _is_genuine_esperanto_compound(stem))
+        )
         # Adjectival compounds (e.g., "Multiklasa" = multi + klas + a) — same
         # idea as substantivo compounds but for -a-ending words. Stem must
         # decompose into recognized Esperanto morphemes.
@@ -1699,6 +1793,7 @@ def _parse_word_impl(word: str) -> dict:
             or (had_substantivo_ending and stem in DICTIONARY_ROOTS)
             or had_substantivo_compound
             or had_adjectival_compound
+            or had_adverbial_compound
         ):
             return categorize_unknown_word(original_word)
         # Fall through: word is capitalized + valid Esperanto morphology.
@@ -1799,6 +1894,34 @@ def parse_word(word: str) -> dict:
     and the sentence-level API agree, instead of quietly disagreeing.
     """
     ast = _parse_word_impl(word)
+
+    # (0) THE LEXICAL FACT: ReVo says this root's bare form is a PROPER NOUN, and
+    # no derivational affix has been applied. `Zamenhof`, `Varsovio`, `Ameriko`.
+    # (`amerikano` = amerik + AN + o carries a derivation, so it is NOT caught.)
+    #
+    # But a root can be BOTH — and this is not a technicality, it is 30 of our
+    # false positives:
+    #     gent  = "tribe"  (common)  AND  Gento = Ghent  (a city)
+    #     aldon = "add"    (common)  AND  Aldono
+    # So the lexical fact is NECESSARY, not SUFFICIENT. Capitalisation
+    # disambiguates the homonym — and note this is capitalisation doing the job it
+    # is actually good at: separating two readings the LEXICON has already
+    # narrowed to two, rather than guessing from scratch.
+    #
+    # The usage check is the third leg: if the corpus strongly says this type
+    # behaves like a common word, believe the corpus.
+    if (isinstance(ast, dict)
+            and word[:1].isupper()
+            and (ast.get('radiko') or '').lower() in NAME_ROOTS
+            and not ast.get('sufiksoj') and not ast.get('prefiksoj')
+            and ast.get('vortspeco') != 'verbo'
+            and word.lower() not in _ALL_FUNCTION_WORDS
+            and _usage_says_name(word) is not False):
+        ast['vortspeco'] = 'propra_nomo'
+        ast['kategorio'] = 'propranomo'
+        ast['propra_nomo_evidence'] = 'revo_name_root'
+        return ast
+
     if (isinstance(ast, dict)
             and word[:1].isupper() and not word.isupper()
             and ast.get('vortspeco') in _CONTENT_VORTSPECOJ
@@ -2380,7 +2503,8 @@ def parse_clause(word_asts: list) -> dict:
                     ast["negita"] = True
         elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not frazo["objekto"] and not is_pp_governed:
             frazo["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not frazo["subjekto"] and not is_pp_governed:
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not frazo["subjekto"] and not is_pp_governed \
+                and not (_is_determiner_like(ast) and _heads_a_following_noun(word_asts, i)):
             frazo["subjekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
 
     # Associate adjectives with their nouns
@@ -2766,7 +2890,9 @@ def parse(text: str):
         elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not sentence_ast["objekto"] and not in_subordinate and not is_pp_governed:
             sentence_ast["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
         # Subject: any noun, pronoun, proper noun, correlative, or unknown word in nominative case (no -n)
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"] and not in_subordinate and not is_pp_governed:
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not sentence_ast["subjekto"] and not in_subordinate and not is_pp_governed \
+                and _has_finite_verb(word_asts) \
+                and not (_is_determiner_like(ast) and _heads_a_following_noun(word_asts, i)):
             sentence_ast["subjekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
 
     # Associate articles and adjectives with their noun groups

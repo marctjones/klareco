@@ -247,6 +247,116 @@ error bars, and the difference between 55% and 65% is not measurable on it.
 Before optimising further we need a bigger proper-noun evaluation set — which is
 a *measurement* problem, not a *modelling* one, and it is the honest next step.
 
+---
+
+## The AST helps — and improving morphology *hurt*. Both are real. (2026-07-13)
+
+> **The question that produced this section:** *"Does the AST of the rest of the
+> sentence help identify if something is a proper noun, or a common noun at the
+> start of a sentence?"*
+
+**Yes — and chasing the answer overturned the residue claim written above it.**
+
+### 1. Syntax resolves cases morphology provably cannot
+
+Two rules, both **deductive** — they come from the 16 rules, not from fitting:
+
+**Rules 2–7 — a content word must carry a grammatical ending.** `sam` is a
+*root*; `sama` is a *word*. `pet`+`er` is a root plus a suffix with no ending —
+not a word form at all. `decomposes_to_root` matched a **bare root** and so
+accepted `Sam` and `Peter` as ordinary Esperanto words. **That was a bug**, and
+it is why they could never be recognised. Fixed.
+
+**Rule 3 — an adjective must agree with its head noun in number and case.** This
+is the one that needs the *rest of the sentence*:
+
+```
+Maria gajnis bronzon      mar-i-a is an ADJECTIVE form. The next token is a VERB.
+                          There is no noun to agree with, so the adjective reading
+                          is UNGRAMMATICAL -> the token is not that word -> a name.
+
+Centra Oficejo            agrees with Oficejo -> an ordinary adjective. Not a name.
+```
+
+`Maria` = `mar-i-a` ("of the sea") is a genuine ambiguity **in isolation**. The
+sentence destroys it. This is exactly the information token-internal analysis
+lacks, and it produced **zero false positives** on gold.
+
+Position must therefore **stop vetoing grammar**. Capitalisation is *evidential*
+and is worthless at sentence-start; ending-validity and agreement are
+*deductive* and hold everywhere. `Varsovio` and `ZAMENHOF` were forced misses
+purely because a position/ALL-CAPS veto ran before the grammar. Reordered.
+
+### 2. But a *more correct* decomposer made name-detection *worse*
+
+Diagnosing the false positives showed they were not rule errors — they were
+**gaps in our own morphology**:
+
+| missing | examples | rule |
+|---|---|---|
+| the six **participles** | `Konsciante`, `Planita`, `Lanĉita` | **Rule 6** |
+| **root+root compounding** | `Hispanlando`, `Plurlingveco`, `Multokaze` | the most productive process in the language |
+| **prepositional prefixes** | `Subskribo`, `Transnacia`, `Antaŭparolo` | prepositions prefix freely |
+| inflected **correlatives** | `Kion`, `Ĉian` | closed class |
+
+Fixing all of them removed **17 genuine false positives** — and *dropped recall*,
+because the rule is *"fails to decompose → name"*, so a decomposer that
+decomposes more things detects fewer names. `Esperanto` (`esper-ant-o`) and
+`Ruslando` (`rus-land-o`) became undetectable **precisely by getting the grammar
+right.**
+
+> **This tension is itself a boundary finding.** Morphological completeness and
+> proper-noun-detection-by-morphological-failure are in **direct opposition**. You
+> cannot maximise both. Esperanto's productivity means almost any name can be
+> *given* a derivation — so the better the morphology, the weaker the signal.
+> What survives is not a grammar fact but a **usage** fact: **lexicalization**.
+> `Esperanto` *is* `esper-ant-o` and is *also* a name. That is `protected_roots`
+> (#804) — the artifact lost in the June migration — and this is independent
+> evidence that it is load-bearing, not legacy cruft.
+
+### 3. ⚠️ The ruler contradicts itself — no F1 claim is admissible
+
+**Of 26 remaining misses, 16 are on token types UD annotates BOTH ways:**
+
+| token | gold tags in the same treebank |
+|---|---|
+| `Esperanto` | **PROPN ×10, NOUN ×4** |
+| `Homaranismo` | **NOUN ×4, PROPN ×4** |
+| `L` | **NOUN ×6, PROPN ×2** |
+
+With 41 gold PROPN and the ruler self-contradicting on the majority of our
+disagreements, **neither a gain nor a regression is measurable here.** The rules
+above are landed on **deductive** grounds — they are grammar, not fitted
+parameters — and are explicitly **NOT** claimed as a merge-gate number. Under the
+merge gate this is a research-track characterization finding. **#820 (a real
+proper-noun eval set) is the unblock, and nothing here should be tuned further
+until it lands.**
+
+### 4. So what is the residue *now*?
+
+Smaller than "every name in the world", and **differently shaped** than this
+document claimed a day ago:
+
+- ❌ **not** foreign words — orthography solves those (Zamenhof LR63), 100% recall
+- ❌ **not** non-decomposing names — ending-validity solves those, at any position
+- ❌ **not** adjectival collisions like `Maria` — **syntax** solves those
+- ✅ **lexicalized** forms: `Esperanto`, `Ruslando` — derivable from the corpus (#804)
+- ✅ **the hard core**: a token that is a *valid noun form*, *correctly slotted*,
+  and *article-less* — `Petro` (`petr-o` = "rock"). Morphology says word, syntax
+  says word, and only usage says name.
+
+`Petro` is the honest residue. It is **not** dissolved by syntax, and `de Petro`
+without an article is odd but not ungrammatical (`libro de papero`), so the
+article signal is soft — its strongest form was confounded anyway (`has_la` was
+3/11, and all three were the self-contradicting `Homaranismo`).
+
+**Next signal to try, and it is still deterministic:** the corpus's own
+**capitalisation ratio** per token type. A name is capitalised mid-sentence
+almost always; a common noun almost never. That is a closed-world statistic over
+our own corpus — the same move as lowercase-attestation for the root lexicon —
+and it targets exactly the lexicalized + hard-core cases. It is *not* a gazetteer
+of the world's names.
+
 ## Ranked next moves
 
 1. **A larger proper-noun eval set.** Everything else is unmeasurable without it.

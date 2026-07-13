@@ -90,3 +90,12 @@ sentencepiece  # Required by MarianMT tokenizer
 # torch-geometric  # Was for GNN, now using simpler compositional embeddings
 # networkx  # Graph visualization
 # matplotlib  # Plotting
+
+# ----------------------------------------------------------------------------
+# Construction-time tooling only — NEVER imported by klareco/ at runtime.
+# ----------------------------------------------------------------------------
+# LLM grammaticality triage for TEST-SET CONSTRUCTION (#795). The model orders
+# the human review queue; it never scores an answer. See
+# docs/QA_TEST_SET_PIPELINE.md — "ML may BUILD a test set; ML may never SCORE
+# one." A scoring-time judge would make the merge gate (#784) unfalsifiable.
+anthropic>=0.40.0

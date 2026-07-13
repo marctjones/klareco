@@ -335,31 +335,148 @@ generators (#766, #775 — currently crashing on the missing `entity_facts` tabl
 It is wired into the factory and it runs. Whether it *helps* is unknown, and
 cannot be known until a discriminating test set exists.
 
+## The merge gate
+
+**No capability merges without a number that moved.**
+
+This is the correction to the failure mode that produced everything in the
+"Current state" section above, and it is the most important rule in this
+document.
+
+### The failure it corrects
+
+| Date | Event |
+|---|---|
+| 2026-05-04 | **#726**: *"30 questions is too small to measure retrieval improvements — the noise floor exceeds the effect size."* Still open. |
+| 2026-05-22 | **#736**, **#737**: build the honest-ceiling and frozen capability test sets. Still open. |
+| 2026-05-26 | **~25 capability issues filed in a single day** (#745–#776). |
+| 2026-05-26 → 06-01 | **Eight of them implemented.** |
+| — | **None was ever benchmarked.** |
+
+We reliably ship features and reliably defer measurement. Every defect in
+"Current state" is that one root cause wearing different clothes: nobody noticed
+`verb_klaso` was 0% populated because nobody was measuring; nobody noticed all
+nine rerankers were tied on a saturated test set; nobody noticed the parser had
+been silently degraded for a month.
+
+### The rule
+
+A PR that adds or changes a capability must state:
+
+1. **Which number it moves** — a specific metric from the frozen benchmark.
+2. **Before / after**, produced by that benchmark and appended to
+   `data/perf/bench_history.jsonl`.
+3. **If the number did not move, it does not merge.** It becomes a
+   research-track finding — *what did we learn about why the deterministic
+   approach didn't help?* — which under this project's thesis is a genuine
+   result, not a failure.
+
+Elegance, linguistic correctness, and "it obviously should help" are not
+admissible evidence. Under boundary-discovery, an unmeasured capability
+contributes nothing to the thesis **even when it works**, because the
+deliverable is the map of where deterministic methods stop — and maps are made
+of measurements.
+
+Exempt, narrowly: infrastructure with no runtime surface, docs, test-set
+construction, and research spikes.
+
+## The benchmark contract
+
+A change can only be gated by a benchmark that is both **discriminating** and
+**valid**. Today's is neither, which is why the gate has to be built before it
+can be enforced.
+
+**Discriminating** — the benchmark must be able to *see* the thing being
+changed. The current 17-question set has `recall@5 = 17/17`: BM25 already places
+the gold passage in the top 5 for every question, so a *perfect* reranker could
+not move the number. `docs/QA_TEST_SET_QUALITY_STANDARD.md` R7 requires the gold
+passage to rank inside BM25's top-50 — a **floor** — but sets no **ceiling**.
+That missing ceiling is precisely why the set saturated. The target band is
+**hard but possible**: retrievable from a generous pool, but *not* already at
+rank 1.
+
+**Valid** — the benchmark must attribute the change to the stage that made it.
+Answer correctness is currently substring containment over a whole retrieved
+sentence, so "correct" means only *a passage containing the keyword survived to
+the output*. That conflates retrieval and extraction into one number and makes
+extraction improvements unattributable. **Decomposable attribution is the
+thesis** (`VISION.md`) — a metric that cannot separate one stage's contribution
+from another's cannot test it, however many stages we build.
+
+The three numbers that must be reported separately:
+
+| Metric | Question it answers |
+|---|---|
+| `retrieval_recall@k` | Did the right passage rank well? *(Sound as a keyword proxy — once the keyword is a discriminating full name.)* |
+| `extraction_exact_match \| retrieved` | **Given the right passage**, did we pull out the right span? |
+| passage-selection accuracy | Given a noisy pool containing the right passage, did we pick it? *(The ORACLE-vs-MIXED diff — the harness already exists in `scripts/eval/extractor_oracle_test.py`.)* |
+
+Scoring is deterministic — exact match after case/diacritic folding, plus
+token-F1 for partial credit. **No LLM judge.**
+
+Construction rules are binding and live in
+`docs/QA_TEST_SET_QUALITY_STANDARD.md`. The parser layer already has a
+trustworthy, frozen ruler — UD_Esperanto-Prago, independent of the whole Q&A
+stack. This contract gives retrieval and extraction the equivalent they lack.
+
+## How work is planned: two tracks
+
+A single implementation queue cannot express "we don't know yet whether this is
+even deterministic" — and pretending otherwise is what turned an open research
+wishlist into 25 P1 implementation tasks.
+
+**BUILD track** — we know it is deterministic and the benchmark can see it.
+Gated by the merge gate: implement → measure → keep only if a number moved.
+
+**RESEARCH track** — a spike that produces a **decision, not a feature**. It
+answers: *is this deterministic or learned, and does it actually help?* It ends
+in a boundary-map entry in `VISION.md` — which **is** the thesis deliverable,
+not a byproduct of it. A capability may enter the BUILD track only once a spike
+(or settled theory) has resolved it.
+
+**DEFERRED** — sound idea, blocked behind the benchmark. Not closed; just not
+next.
+
+A well-formed BUILD issue names **(a)** the number it would move and **(b)** the
+test that would show it. An issue that cannot answer both belongs in one of the
+other two tracks.
+
 ## Decision principles
 
-1. **Deterministic before learned.** Every capability starts as a rule or a query.
+1. **Measure before you build.** No capability merges without a number that
+   moved. See the merge gate above.
+2. **Deterministic before learned.** Every capability starts as a rule or a query.
    A learned replacement must show it moves a number the rule version couldn't —
    and the failure it fixes must be *characterized*, not merely observed.
-2. **Reorder, don't expand.** Adding retrieval paths that produce extra candidates
+3. **Reorder, don't expand.** Adding retrieval paths that produce extra candidates
    almost always dilutes top-k. Prefer stages that *reorder* the existing
    candidate set.
-3. **Schema, not hardcoded lists.** One source of truth, extended in one place.
+4. **Schema, not hardcoded lists.** One source of truth, extended in one place.
    (See the caveat above about what this does and does not buy you.)
-4. **Immutable context.** Stages return `ContextDelta`, never mutate in place.
-5. **Make the failure visible.** Phase timings, ranks, and per-stage confidences
+5. **Immutable context.** Stages return `ContextDelta`, never mutate in place.
+6. **Make the failure visible.** Phase timings, ranks, and per-stage confidences
    are part of evaluation output, not just final accuracy.
-6. **A silently-degrading dependency is a bug.** Every artifact the pipeline loads
+7. **A silently-degrading dependency is a bug.** Every artifact the pipeline loads
    must fail loudly if absent. The June migration cost weeks of invisible quality
    loss precisely because missing files logged a warning and carried on.
+8. **An over-strong deterministic rule is a failure mode, not a win.** A rule that
+   hard-excludes a case it merely usually gets right (e.g. dropping every
+   pronoun-subject sentence, which also drops the passives whose agent is the
+   answer) trades recall for tidiness. Prefer penalties to hard filters until the
+   benchmark says otherwise.
 
 ## Roadmap
 
-Tracked in GitHub issues. Current EPICs:
-[#713](https://github.com/marctjones/klareco/issues/713) (QA accuracy),
-[#745](https://github.com/marctjones/klareco/issues/745) (entity-fact extraction),
-[#747](https://github.com/marctjones/klareco/issues/747) (symbolic reasoning
-layer). Immediate blockers: the restore work in "Current state", plus the
-discriminating test sets (#736, #737).
+The active milestone is
+**[#14 — Stable Base: Measure Before We Build](https://github.com/marctjones/klareco/milestone/14)**,
+tracked by [EPIC #790](https://github.com/marctjones/klareco/issues/790). It adds
+**no capabilities**. It builds the ruler (#783 valid + #778 discriminating),
+stops the silent degradation (#779), removes the dead Kuzu layer (#782),
+retroactively benchmarks the eight unmeasured features (#785), and puts the merge
+gate in force (#784).
+
+Nothing else should start until that milestone closes. When it does, we can build
+again — and for the first time we will know whether what we build helps.
 
 ## See also
 

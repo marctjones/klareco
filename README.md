@@ -32,19 +32,26 @@ Measurement target is retrieval-rank metrics (top-1 / top-5 / top-20 / MRR)
 plus extraction accuracy conditional on retrieval — not final-answer accuracy
 alone.
 
+> ⚠️ **Read `DESIGN.md` → "Current state" before trusting any number here.**
+> Several data artifacts were lost in a June 2026 laptop migration and the
+> pipeline degrades *silently* without them. Recovery is tracked in
+> [milestone #14](https://github.com/marctjones/klareco/milestone/14).
+
 | Component | Status |
 |-----------|--------|
-| 16-rule parser + deparser | ✅ 91.8% parse rate on 5.4M sentences |
-| Proper-noun dictionary v3 | ✅ cleaned + Wikipedia-category enriched (~628K entries) |
-| DuckDB v2.2 store + shredded AST columns | ✅ flat indexed store (Kuzu retired 2026-05) |
-| 4-layer semantic ontology (DuckDB tables) | ✅ verb/noun classes, frames, thematic roles, schema slots |
+| 16-rule parser + deparser | ✅ UD-Prago: 80.3% POS strict, 93.3% scheme-adjusted |
+| DuckDB store + shredded AST columns | ✅ 5.39M sentences, `ast_json` blob (Kuzu retired 2026-05) |
+| Whoosh BM25 index | ✅ live |
 | Orchestrator pipeline | ✅ active spine; immutable context, phase-level timing |
-| WhooshRetriever + AST-role matching | ✅ deterministic two-stage retrieval (primary) |
-| ASTRetriever / DuckDBRetriever | 🧪 alternative retrievers; under active bench |
-| DeterministicRerankStage | ✅ question-type AST boost (WHO/WHERE/WHEN/HOW_MANY) |
-| Multi-reranker bench harness | ✅ each AST reranker vs BM25 baseline (#733) |
-| ExtractiveAnswerGenerator | ✅ slot-keyed extraction; top-20 cap |
+| DuckDBRetriever + AST-role matching | ✅ **the** retriever — what `factory.py` builds |
+| ExtractiveAnswerGenerator | ✅ slot-keyed extraction |
 | Eval (local + Modal cloud) | ✅ `klareco.eval` shared by both runners |
+| Proper-noun dictionary | ⚠️ **JSON missing** — parser falls back to capitalization heuristics |
+| 4-layer semantic ontology | ⚠️ **not loaded** — `ontology_nodes`/`edges` empty, `verb_klaso` 0% populated |
+| `entity_facts` table | ⚠️ **missing** — crashes `BiographyFormatStage` |
+| AST rerankers (9 variants) | ⚠️ **all tied** — they differ only in components that read dead columns |
+| `WhooshRetriever` | ❌ **dead** — `__init__` raises `NotImplementedError` |
+| Symbolic layer (inference, planner, math, dialog, generation) | ❓ **never benchmarked** — in the pipeline, effect unknown |
 | Q&A quality framework (R1-R15 + 8 gates) | ✅ `docs/QA_TEST_SET_QUALITY_STANDARD.md` |
 | Neural reranker | 🔲 deferred — stage is a stub |
 | Learned root embeddings / M1 / M2 / M3 | 🔲 deferred until deterministic floor measured |

@@ -333,6 +333,104 @@ ontology class (`HAVAS_ENTECAN_TIPON`) or Wikidata top-category:
 distribution and fails the set if any bucket exceeds 2× target or
 falls below 0.5× target.
 
+### R16. Non-triviality — the set must have headroom (added 2026-07-13, #778)
+
+R7 gives discriminability a **floor** (the source must rank in BM25's
+top-50). It sets no **ceiling**. That omission is why
+`synthetic_who_rebuild_17_cleanish` saturated: **recall@5 = 17/17**.
+BM25 alone already put the gold passage in the top 5 for *every*
+question, so a **perfect reranker could not have moved the number** —
+and, empirically, all nine rerankers tied at recall@1 = 11.
+
+A test set on which the thing you are changing cannot possibly show up
+is not a measurement instrument. It is a formality.
+
+- A **reranking-capability** pair must be **hard but possible**:
+  - **Possible** (R7, unchanged): the source ranks within BM25 top-K
+    (K = 50) on question text alone.
+  - **Not trivial** (new): the source must **NOT** be at BM25 **rank 1**,
+    and preferably not in the top 5.
+- The band between "not rank-1" and "inside top-50" is the *only*
+  region where reranking is observable. Pairs outside it are still
+  valid for other purposes — a rank-1 pair is a fine **regression**
+  pair — but they carry **zero information** about ranking quality.
+- Questions like `Kiu inventis «Nonograms»?` hand BM25 a quoted title
+  and are solved by lexical overlap alone. They are not wrong; they are
+  *uninformative for ranking*, and a set made of them measures nothing.
+
+**Applies to:** capability sets used for reranker/retrieval work.
+**Does not apply to:** the honest-ceiling set (report the rank
+distribution, don't gate on it) or the regression set (which by
+construction contains pairs we already get right).
+
+**Report, always:** the BM25 rank distribution of the gold passage
+across the set. A set whose median gold rank is 1 cannot measure
+ranking, no matter what its headline accuracy says.
+
+**Check:** `audit_discriminability.py` must emit the rank histogram and
+fail a capability set whose share of rank-1 pairs exceeds 20%.
+
+### R17. Gold answer span — scoring must be attributable (added 2026-07-13, #783)
+
+R9 requires the answer to appear verbatim in the source. That makes the
+pair *well-formed*; it does not make the **scoring** valid.
+
+Answer correctness is currently computed as **substring containment**:
+
+```python
+correct = any(kw.lower() in final.lower() for kw in expected)
+```
+
+The pipeline's output is a whole retrieved sentence. So "correct" means
+only: *a passage containing the expected keyword survived to the
+output.* It cannot distinguish an extractor that returned `Zamenhof`
+from one that returned the entire paragraph. It applies no verbosity
+penalty — more text can only help the score.
+
+**Why this is disqualifying for this project specifically:** it
+conflates retrieval and extraction into a single number, so no
+improvement can ever be attributed to a stage. **Decomposable
+attribution is the thesis** (`VISION.md`). A metric that cannot
+separate one stage's contribution from another's cannot test the
+thesis, however many stages we build.
+
+- Every pair must carry a **`gold_answer_span`**: the exact answer
+  string, not the sentence containing it.
+  - Good: `"gold_answer_span": "Zamenhof"`
+  - Bad: the whole source sentence, or a keyword list standing in for
+    the span.
+- `expected_keywords` is retained for **retrieval** scoring (it is a
+  sound proxy for "is the right passage here" — *provided* R1 makes the
+  keyword a rigid designator). It is **not** used for extraction
+  scoring.
+- Scoring is **deterministic**: exact match after case- and
+  diacritic-folding, plus token-level F1 for partial credit.
+  **No LLM judge** — it would make the instrument unauditable.
+
+**Check:** `audit_qa_pairs.py` verifies `gold_answer_span` exists, is a
+diacritic-fold substring of `source_sentence_text` (R9), and is
+strictly shorter than that sentence (catches the whole-sentence-as-span
+degenerate case).
+
+## 3b. The metrics contract — three numbers, reported separately
+
+A set that satisfies R1–R17 supports exactly three headline numbers.
+They must be **reported separately** and never collapsed into one
+"accuracy":
+
+| Metric | Question it answers | Scored against |
+|---|---|---|
+| `retrieval_recall@k` | Did the right passage rank well? | `expected_keywords` in passage text (sound, given R1 + R16) |
+| `extraction_exact_match \| retrieved` | **Given the right passage**, did we pull the right span? | `gold_answer_span`, **conditional** on the gold passage having been retrieved |
+| passage-selection accuracy | Given a noisy pool containing the right passage, did we pick it? | ORACLE-vs-MIXED diff (Stage 4) |
+
+The conditional in the second row is the whole point: it is the number
+`DESIGN.md` has always *claimed* we measure ("extraction accuracy
+conditional on retrieval") and that we have never actually computed.
+
+Latency (p50 / p95, per stage and per phase) is reported alongside, not
+folded in.
+
 ## 4. How to test — the gate stack
 
 Run these in order. Stop at the first failure; fix it; re-run from
@@ -379,14 +477,21 @@ python scripts/eval/audit_corpus_coverage.py --in <set>.jsonl --min-support 3
 - Capability set: 100% PASS on both.
 - Honest-ceiling set: skip R14; run R12 and report results.
 
-### Stage 2 — Discriminability audit (seconds)
+### Stage 2 — Discriminability audit, floor AND ceiling (seconds)
 ```
-python scripts/eval/audit_discriminability.py --in <set>.jsonl --top-k 50
+python scripts/eval/audit_discriminability.py --in <set>.jsonl --top-k 50 --rank-histogram
 ```
-- For a *capability* set: target ≥ 95% in top-50.
-- For an *honest-ceiling* set (real trivia): no target — record the
-  rate and report it; missed pairs are corpus-coverage gaps to log,
-  not pair-quality failures.
+- **Floor (R7)** — for a *capability* set: target ≥ 95% in top-50.
+- **Ceiling (R16)** — for a *reranking-capability* set: ≤ 20% of pairs
+  may have the gold passage at BM25 **rank 1**. Above that, the set is
+  saturated and cannot measure ranking. **This is the check whose
+  absence produced recall@5 = 17/17 and nine tied rerankers.**
+- Always print the **gold-rank histogram**. A set whose median gold
+  rank is 1 measures nothing about ranking, whatever its headline
+  accuracy says.
+- For an *honest-ceiling* set (real trivia): no target on either bound —
+  record the rates and report them; missed pairs are corpus-coverage
+  gaps to log, not pair-quality failures.
 
 ### Stage 3 — Spot-check sampling (15 minutes, human)
 - Take a stratified sample: 20 pairs balanced across question types
@@ -399,22 +504,35 @@ python scripts/eval/audit_discriminability.py --in <set>.jsonl --top-k 50
 
 ### Stage 4 — Extractor-isolation oracle test (one-time per set)
 ```
-python scripts/eval/oracle_isolation_test.py --in <set>.jsonl
+python scripts/eval/extractor_oracle_test.py --in <set>.jsonl
 ```
-- For each pair: extract answer from source sentence directly (oracle
-  passage), compare to expected.
-- Failures here are **extractor bugs**, not retrieval issues. Separates
-  the "we found the right passage but didn't pull the right answer"
-  problem from the "we didn't even find the right passage" problem.
+> Note: earlier revisions of this doc called it `oracle_isolation_test.py`.
+> The file on disk is **`extractor_oracle_test.py`** — the harness exists
+> and is correct; only its scorer needs replacing (R17).
+
+- **ORACLE** — feed the extractor *only* the gold sentence. Tests the
+  extractor's upper bound: given the perfect passage, does it pull the
+  right span?
+- **MIXED** — feed it BM25's top-10 with the gold sentence forced in at
+  rank 5. Tests **passage selection** from a noisy pool.
+- The ORACLE→MIXED diff **is** the passage-selection failure rate. If
+  ORACLE passes and MIXED fails, the extractor is blindly trusting
+  rank 1. If ORACLE fails, extraction itself is broken.
+- Score against **`gold_answer_span`** (R17), not substring containment.
+  This is the harness that makes extraction attributable.
 
 ### Stage 5 — End-to-end pipeline eval (minutes)
 ```
 python scripts/eval/evaluate_extractive_qa.py --test-set <set>.jsonl
 ```
-- This is the headline measurement. Only run it on sets that passed
-  stages 0–4.
-- Report: answer accuracy, R@1/5/10, MRR, p50/p95 latency.
-- Append to `data/perf/bench_history.jsonl` so we can spot regressions.
+- Only run on sets that passed stages 0–4.
+- Report **the three metrics separately** (see §3b): `retrieval_recall@k`,
+  `extraction_exact_match | retrieved`, passage-selection accuracy —
+  plus p50/p95 latency per stage. **Do not collapse them into a single
+  "accuracy"** — that is precisely the defect R17 exists to fix.
+- Append to `data/perf/bench_history.jsonl`. **This file is what the
+  merge gate reads** (`AGENTS.md` → *The merge gate*): a capability PR
+  must show a before/after here, or it does not merge.
 
 ## 5. Target portfolio — what 100 questions should look like
 

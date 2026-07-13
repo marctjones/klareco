@@ -59,6 +59,39 @@ decomposable contributions.
 must fail loudly if absent. The June migration cost weeks of invisible quality
 loss because missing files logged a warning and carried on.
 
+## THE MERGE GATE (non-negotiable)
+
+**No capability merges without a number that moved.**
+
+A change that adds or alters a capability must state (a) which metric from the
+frozen benchmark it moves, and (b) the before/after, appended to
+`data/perf/bench_history.jsonl`. **If the number did not move, it does not
+merge** — it becomes a research-track finding instead, which under
+boundary-discovery is a real result, not a failure.
+
+Elegance, linguistic correctness, and "it obviously should help" are **not
+admissible evidence.** An unmeasured capability contributes nothing to the
+thesis even when it works, because the deliverable is a *map* of where
+deterministic methods stop, and maps are made of measurements.
+
+This rule exists because the project spent months failing at it: ~25 capability
+issues were filed on a single day (2026-05-26), eight were implemented within
+the week, **none was ever benchmarked** — while #726 ("the test set is too small
+to measure anything") sat open from 2026-05-04. Every bug in `DESIGN.md` →
+"Current state" traces back to that.
+
+Exempt, narrowly: infrastructure with no runtime surface, docs, test-set
+construction, and research spikes (which produce a decision, not a capability).
+
+**Before opening a capability issue**, it must name (a) the number it would move
+and (b) the test that would show it. If you cannot answer both, it is a
+**research spike** or it is **deferred** — not a build task. Filing an open
+research question as an implementation task is exactly how this happened.
+
+Benchmark construction rules are binding and live in
+`docs/QA_TEST_SET_QUALITY_STANDARD.md`. Active milestone:
+[#14 — Stable Base](https://github.com/marctjones/klareco/milestone/14).
+
 ## Schema-First Development
 
 **The store is DuckDB, not Kuzu.** Kuzu was removed in the May–June 2026

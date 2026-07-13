@@ -59,7 +59,10 @@ DialogStage               optional (off by default) — multi-turn pronoun resol
 MathToolStage             short-circuits arithmetic questions (SymPy)
 PlannerStage              decomposes nested questions; no-op on simple ones
   ↓
-RetrieveStage             Whoosh BM25 ∩ AST role compatibility, top-k from DuckDB
+RetrieveStage             DuckDBRetriever — BM25 ∩ AST role compatibility
+                          (NB: klareco/rag/whoosh_retriever.py is DEAD — its
+                          __init__ raises NotImplementedError. DuckDBRetriever
+                          is what factory.py actually builds.)
   ↓
 DeterministicRerankStage  AST-feature boost keyed by question type
 ASTAwareRerankStage       structural reranker over shredded AST columns (#741)
@@ -150,7 +153,55 @@ perfect reranker could not move recall@5 — and none moved recall@1 either.
 
 These must be fixed **together**. Populating the ontology without a discriminating
 test set shows nothing; building a hard test set without the ontology shows only
-that BM25 fails. Land both, and reranking becomes measurable for the first time.
+that BM25 fails.
+
+### But restoring the ontology will NOT be enough (measured 2026-07-12)
+
+The ontology's verb classes are seeded with **32 example roots** total
+(`kreado-26` = `["fond","kre","produk","far"]`, and seven more classes like it).
+The corpus contains **39,718 distinct verb roots**. Coverage:
+
+| | |
+|---|---|
+| Sentences whose verb is in an ontology class | **304,057 — 5.6% of corpus** (8.7% of sentences that have a verb) |
+| Top verb roots by frequency | `est` (1.24M), `hav` (146K), `situ` (71K), `trov` (65K), `aparten` (55K), `pov` (54K) — **none are in any class** |
+
+So even a perfect ontology restore leaves `verb_klaso` NULL on ~91% of verbed
+sentences, and the reranker's verb-class generalization would still almost never
+fire. **The ontology is not a database that needs reconnecting; it is a stub that
+was never filled in.** Hand-enumerating 39,718 roots into semantic classes is not
+a plausible deterministic project — which is precisely the *lexical synonymy
+residue* named in `VISION.md`. This is where the boundary actually is, and we
+found it by measurement.
+
+### The highest-leverage reranker features need no ontology at all
+
+This reorders the work. The following are computable **today**, from `ast_json`
+plus corpus statistics, with zero restore:
+
+- **Answer-slot constraint from the interrogative's case.** `Kiu` (nominative) →
+  the answer fills the SUBJECT slot; `Kiun` (accusative) → the OBJECT slot.
+  Esperanto states the answer's grammatical role *morphologically*; English can
+  only infer it from word order. This is a free, hard constraint and we do not
+  currently use it.
+- **Pronoun-subject exclusion.** A sentence whose subject is `li`/`ŝi`/`tiu`
+  cannot answer a KIU question — the entity is not in the sentence. That is
+  **642,063 sentences (11.9% of the corpus)** deterministically excluded from
+  KIU candidacy, using nothing but `subj_vortspeco`.
+- **Anchor weighting by specificity.** Among the presupposed (non-gap) terms,
+  weight by corpus rarity: proper names, quoted titles, and years narrow the
+  space; `est`/`hav`/`fari` narrow nothing. The `gold_anchor_50` autopsy already
+  proved this empirically — the impossible questions were exactly the ones with
+  no rare anchor.
+- **Voice / participle normalization.** `-int-` / `-it-` + `de`-phrase means
+  "Kiu fondis X", "la fondinto de X", and "X estis fondita de Y" are one
+  `(agent, predicate, patient)` triple, derivable **by affix rule**. This
+  generalizes across surface forms without knowing any lexical semantics.
+- **Negation penalty.** A sentence asserting the opposite of the presupposition
+  is lexically maximal and semantically wrong. BM25 ranks it up.
+
+None of these require a verb class, an entity type, or a schema slot. They are
+pure structure plus frequency — the deterministic case, unexploited.
 
 ## How we measure progress
 

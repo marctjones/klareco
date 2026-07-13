@@ -270,8 +270,10 @@ python -m klareco translate "The dog sees the cat." --to eo
 # Build the DuckDB store (sentences + shredded AST columns + ast_json blob)
 python scripts/index/build_duckdb_store.py
 
-# Build Whoosh BM25 index on top of the store
-python scripts/index/build_whoosh_index.py
+# Build Whoosh BM25 index FROM the DuckDB store
+python scripts/index/rebuild_whoosh_from_duckdb.py
+# ⚠️ NOT build_whoosh_index.py — it `import kuzu` (line 20) and crashes;
+#    kuzu is not even installed in .venv. It is dead.
 ```
 
 ### End-to-end question answering
@@ -565,8 +567,11 @@ klareco/
 │                           #   → DetRerank → ASTAwareRerank → Rerank(stub)
 │                           #   → ExtractGenerate → BiographyFormat → Format
 ├── rag/                    # Retrieval + extraction
-│   ├── whoosh_retriever.py #   Main retriever (BM25 ∩ AST roles)
-│   ├── duckdb_retriever.py #   Store-backed retrieval
+│   ├── duckdb_retriever.py #   THE retriever — what factory.py actually builds
+│   ├── whoosh_retriever.py #   ⚠️ DEAD — __init__ raises NotImplementedError
+│   │                       #      (Kuzu-retired). Still exported from rag/__init__;
+│   │                       #      scripts/eval/debug_retrieval.py constructs it
+│   │                       #      and therefore crashes.
 │   ├── ast_aware_reranker.py #  Structural reranker (#741)
 │   ├── entity_fact_retriever.py
 │   ├── unified_extractor.py#   Fact extraction

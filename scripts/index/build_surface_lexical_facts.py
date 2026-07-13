@@ -134,6 +134,24 @@ SUFFIXES = ('ant', 'int', 'ont', 'at', 'it', 'ot',
             'ar', 'er', 'uj', 'ej', 'estr', 'ad', 'aĝ', 'an', 'ig', 'iĝ',
             'il', 'obl', 'op', 'um', 'id', 'nj', 'ĉj')
 
+# TRANSPARENT suffixes — "member-of", "practitioner-of", "doctrine-of". These
+# compose RELIABLY and so never lexicalize: `kristano` really IS "a Christian"
+# (krist+an), `amerikano` really IS "an American" (amerik+an). Protecting them
+# would DESTROY the useful root — retrieval wants `krist`, not `kristan`.
+#
+# The stems that DO lexicalize are the ones whose inner split is an ACCIDENTAL
+# HOMOGRAPH — the "suffix" is not doing any morphological work at all:
+#     milit != mil+it ("thousand"+participle)   regul  != reg+ul
+#     postul != post+ul                          kalkul != kalk+ul
+#     esperant = esper+ant, "one who hopes" — true etymology, but the WORD is a
+#     NAME, and its meaning no longer composes.
+#
+# That is the real test — does the meaning still compose? — and it is SEMANTIC.
+# Excluding the transparent suffixes is a structural PROXY for it, and it is
+# where this method's honesty ends: separating `esperant` from `kristan` on
+# distribution alone is itself a residue. See docs/PROPER_NOUNS.md.
+TRANSPARENT_SUFFIXES = frozenset({'an', 'ist', 'ism'})
+
 # A word is a run of Esperanto letters. Apostrophes and hyphens split.
 WORD_RE = re.compile(r"[A-Za-zĈĉĜĝĤĥĴĵŜŝŬŭ]+")
 
@@ -227,6 +245,8 @@ def derive_protected_roots(surface: Counter, fundamento: set[str],
         # protection; it is already atomic.
         inner = None
         for suf in SUFFIXES:
+            if suf in TRANSPARENT_SUFFIXES:
+                continue
             if cand.endswith(suf) and len(cand) - len(suf) >= 3:
                 base = cand[: -len(suf)]
                 if base in fundamento:

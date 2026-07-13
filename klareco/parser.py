@@ -711,20 +711,68 @@ PROTECTED_SUFFIX_ROOTS = set()
 
 _protected_roots_path = Path(__file__).parent.parent / "data" / "vocabularies" / "protected_roots.json"
 if _protected_roots_path.exists():
-    try:
-        with open(_protected_roots_path, 'r', encoding='utf-8') as f:
-            _protected_data = json.load(f)
-            # Flatten prefix-protected roots (grouped by fake prefix)
-            for prefix, roots in _protected_data.get('prefix_protected', {}).items():
-                PROTECTED_PREFIX_ROOTS.update(roots)
-            # Flatten suffix-protected roots (grouped by fake suffix)
-            for suffix, roots in _protected_data.get('suffix_protected', {}).items():
-                PROTECTED_SUFFIX_ROOTS.update(roots)
-    except (json.JSONDecodeError, IOError) as e:
-        print(f"Warning: Could not load protected_roots.json: {e}")
+    with open(_protected_roots_path, 'r', encoding='utf-8') as f:
+        _protected_data = json.load(f)
+    # v2 schema (scripts/index/build_surface_lexical_facts.py): a flat `roots`
+    # list derived from DERIVATIONAL PRODUCTIVITY over RAW SURFACE TEXT. A stem
+    # that takes many distinct derivational tails has LEXICALIZED and must not be
+    # split — `esperant` (esperant-ist-o, esperant-uj-o, …), `milit` (NOT mil+it),
+    # `regul` (NOT reg+ul). This is a USAGE fact, so no grammar rule recovers it.
+    PROTECTED_SUFFIX_ROOTS.update(_protected_data.get('roots', []))
+    # v1 schema (hand-grouped by the affix they must not be split on).
+    for _prefix, _roots in _protected_data.get('prefix_protected', {}).items():
+        PROTECTED_PREFIX_ROOTS.update(_roots)
+    for _suffix, _roots in _protected_data.get('suffix_protected', {}).items():
+        PROTECTED_SUFFIX_ROOTS.update(_roots)
 
 # Combined set for fast lookup
 PROTECTED_ROOTS = PROTECTED_PREFIX_ROOTS | PROTECTED_SUFFIX_ROOTS
+
+# ---------------------------------------------------------------------------
+# CAPITALIZATION RATIO — namehood as a USAGE statistic.
+#
+# P(capitalised MID-SENTENCE | word type), counted over raw surface text with
+# sentence-initial tokens excluded (every sentence starts with a capital, so that
+# position carries no information). Names are capitalised mid-sentence almost
+# always; common nouns almost never:
+#
+#     ruslando 1.000   zamenhof 0.996   petro 0.986   esperanto 0.956
+#     libro    0.150   hundo    0.116   urbo  0.025
+#
+# This is the ONLY signal that reaches the residue. `Petro` decomposes to petr+o
+# ("rock"): morphology says ordinary word, syntax says ordinary word. Only USAGE
+# says name — and usage is countable.
+#
+# ⚠️ It is a MEMOIZATION OF USAGE, not world knowledge, and it generalises to ZERO
+# unseen tokens. The morphological rules still carry those. So it shrinks the
+# residue, it does not abolish it. See docs/PROPER_NOUNS.md and #819.
+#
+# DEGRADING (not REQUIRED): absent -> empty -> the rule simply never fires, and
+# the parser falls back to morphology. Build it with:
+#     ./scripts/index/build_surface_lexical_facts.sh
+CAPITALIZATION_RATIO: dict[str, float] = {}
+_cap_ratio_path = Path(__file__).parent.parent / "data" / "vocabularies" / "capitalization_ratio.json"
+if _cap_ratio_path.exists():
+    CAPITALIZATION_RATIO = json.loads(
+        _cap_ratio_path.read_text(encoding='utf-8')).get('types', {})
+
+# The corpus separates names from common nouns with a wide, empty gap (see the
+# anchors above), so these thresholds are not finely tuned — anything in
+# [0.5, 0.9] and [0.2, 0.4] gives the same partition on the anchors.
+_CAP_RATIO_NAME = 0.85      # at or above: behaves like a NAME
+_CAP_RATIO_COMMON = 0.30    # at or below: behaves like a COMMON word
+
+
+def _usage_says_name(surface: str) -> bool | None:
+    """Does the corpus's own usage call this type a name? None = it has no opinion."""
+    r = CAPITALIZATION_RATIO.get((surface or '').lower())
+    if r is None:
+        return None
+    if r >= _CAP_RATIO_NAME:
+        return True
+    if r <= _CAP_RATIO_COMMON:
+        return False
+    return None
 
 # Common Esperanto abbreviations — matched before any morphological analysis
 _KNOWN_ABBREVIATIONS: dict[str, str] = {
@@ -772,6 +820,47 @@ def _has_grammatical_ending(surface: str) -> bool:
     """
     s = (surface or '').lower()
     return any(s.endswith(e) for e in _GRAMMATICAL_ENDINGS)
+
+
+_CONTENT_VORTSPECOJ = ('substantivo', 'adjektivo', 'adverbo', 'verbo', 'nekonata')
+
+
+def _apply_capitalization_ratio(word_asts: list) -> None:
+    """Promote a capitalised token to `propra_nomo` when the corpus's OWN USAGE
+    says so, even though it decomposed to a perfectly good Esperanto word.
+
+    This is the residue rule (#819). `Petro` = petr-o = "rock"; `Esperanto` =
+    esper-ant-o; `Ruslando` = rus-land-o. Morphology and syntax both correctly
+    analyse them as ordinary words, because *as words* that is what they are.
+    Lexicalization is a fact about USAGE, and usage is the one thing the corpus
+    can count.
+
+    Deliberately conservative:
+      * only CAPITALISED tokens are considered
+      * only tokens the corpus has a STRONG opinion about (>= 0.85) are promoted
+      * function words and correlatives are never touched
+      * silent on unseen types — morphology still carries those, which is why
+        this MEMOIZES usage rather than replacing the rules
+    """
+    if not CAPITALIZATION_RATIO:
+        return
+    for ast in word_asts:
+        if not isinstance(ast, dict):
+            continue
+        pv = ast.get('plena_vorto') or ''
+        if not pv[:1].isupper() or pv.isupper():
+            continue                                  # ALL-CAPS carries no signal
+        if ast.get('vortspeco') not in _CONTENT_VORTSPECOJ:
+            continue                                  # never touch function words
+        if pv.lower() in _ALL_FUNCTION_WORDS:
+            continue
+        if _usage_says_name(pv) is True:
+            ast['vortspeco'] = 'propra_nomo'
+            ast['kategorio'] = 'propranomo'
+            ast['radiko'] = pv
+            ast['prefiksoj'] = []
+            ast['sufiksoj'] = []
+            ast['propra_nomo_evidence'] = 'capitalization_ratio'
 
 
 def _is_valid_eo_stem(s: str) -> bool:
@@ -2463,6 +2552,17 @@ def parse(text: str):
     # coincidental. Revert those to propra_nomo so role assignment can
     # pick them as subject.
     _validate_sentence_initial_adjective_agreement(word_asts)
+
+    # USAGE overrides a valid decomposition — the only rule that reaches the
+    # residue. `Petro` decomposes cleanly to petr+o ("rock") and lands correctly
+    # in a nominal slot, so morphology AND syntax both say "ordinary word". They
+    # are not wrong; they are simply blind here. The corpus is not: `petro` is
+    # capitalised mid-sentence 98.6% of the time, `hundo` 11.6%.
+    #
+    # This runs LAST, after morphology and agreement have had their say, so its
+    # verdict is attributable and can be ablated. It fires only where the corpus
+    # has a strong opinion; on unseen types it is silent and morphology carries on.
+    _apply_capitalization_ratio(word_asts)
 
     # Step 2: Syntactic analysis to find sentence structure
     sentence_ast = {

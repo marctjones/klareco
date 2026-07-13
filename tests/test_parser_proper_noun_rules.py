@@ -126,3 +126,53 @@ class TestAgreementPassStillWorks:
         kerno = subj.get('kerno', subj)
         assert kerno['radiko'] == 'ofic'
         assert kerno['vortspeco'] == 'substantivo'
+
+
+class TestLexicalization:
+    """`protected_roots` — a USAGE fact the grammar cannot recover.
+
+    The parser splits `Esperanton` -> esper+ant, and ETYMOLOGICALLY IT IS RIGHT:
+    Zamenhof was *Doktoro Esperanto*, "Doctor One-Who-Hopes". The word genuinely
+    IS esper-ant-o. What it no longer is, is COMPOSITIONAL — it has frozen into a
+    lexeme. Derived from derivational productivity over RAW SURFACE TEXT
+    (scripts/index/build_surface_lexical_facts.py), never from parser output.
+    """
+
+    def test_esperanton_is_not_split(self):
+        """The flagship bug from the June migration, named in CLAUDE.md."""
+        assert _find('Zamenhof fondis Esperanton.', 'Esperanton')['radiko'] == 'esperant'
+
+    @pytest.mark.parametrize('sentence,surface,root', [
+        ('Milito estas malbona.', 'Milito', 'milit'),       # NOT mil+it
+        ('La reguloj estas klaraj.', 'reguloj', 'regul'),   # NOT reg+ul
+    ])
+    def test_accidental_homographs_are_protected(self, sentence, surface, root):
+        assert _find(sentence, surface)['radiko'] == root
+
+    def test_TRANSPARENT_suffixes_still_decompose(self):
+        """`kristano` really IS "a Christian" (krist+an) — -an/-ist/-ism compose
+        reliably and must NOT be protected, or we destroy the useful root."""
+        assert _find('La kristano preĝis.', 'kristano')['radiko'] == 'krist'
+
+
+class TestCapitalizationRatio:
+    """The residue rule (#819). `Petro` = petr-o = "rock": morphology says
+    ordinary word, syntax says ordinary word, and BOTH ARE RIGHT — as a *word*
+    that is what it is. Only USAGE says name, and usage is countable.
+
+    ⚠️ Memoization of usage, NOT world knowledge: silent on unseen types, where
+    the morphological rules still carry the decision.
+    """
+
+    def test_usage_overrides_a_valid_decomposition(self):
+        n = _find('Petro kaj Maria venis.', 'Petro')
+        assert n['vortspeco'] == 'propra_nomo'
+        assert n['propra_nomo_evidence'] == 'capitalization_ratio'
+
+    @pytest.mark.parametrize('sentence,surface', [
+        ('La hundo vidis la urbon.', 'hundo'),
+        ('La hundo vidis la urbon.', 'urbon'),
+        ('Mi legis la libron.', 'libron'),
+    ])
+    def test_common_nouns_are_NOT_promoted(self, sentence, surface):
+        assert _find(sentence, surface)['vortspeco'] == 'substantivo'

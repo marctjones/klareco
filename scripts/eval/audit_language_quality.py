@@ -331,6 +331,179 @@ def check_tense_appropriate(question: str, question_type: str | None
 # Driver
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Checks added 2026-07-13 (#791).
+#
+# The auditor passed 8/8 on a batch that included:
+#
+#     Kiu venkis Rorke's Driftn?
+#     Kiu gajnis The World Is Not Overn?
+#     Kiu reĝisoris Théâtre des Variétésn?
+#     Kiu fondis Ĉambron de Arton?
+#     gold_answer_span: "Britaj"          <- an adjective, not a name
+#
+# It passed them because `check_parser_clean` exempts every word the parser
+# tags `propra_nomo`, and the parser tags every capitalized token that way. So
+# an entire English clause is exempted as if it were one anchor name.
+#
+# The quality standard's own rule applies: "if a question feels wrong but
+# passes audit, ADD A NEW CHECK to the auditor" — not a hand-fix, not a
+# tolerance. Each check below names the pair that motivated it.
+# ---------------------------------------------------------------------------
+
+# Letters outside the Esperanto alphabet. Legitimate *inside* a quoted work
+# («Nonograms», «Faust») — never in running text.
+_NON_EO_LETTERS_RE = re.compile(r'[qwxy]', re.IGNORECASE)
+_APOSTROPHE_RE = re.compile(r"[''`]")
+# Accusative endings, for a noun/adjective: -on, -ojn, -an, -ajn, -in, -un ...
+_ACC_RE = re.compile(r'\w+(?:o|a)j?n$', re.IGNORECASE)
+
+
+# The six Esperanto supersigned letters. Any OTHER combining accent (é, â, ü,
+# í …) marks a foreign word.
+_EO_SUPERSIGNS = set('ĉĝĥĵŝŭĈĜĤĴŜŬ')
+
+
+def _has_foreign_accent(s: str) -> bool:
+    """True if `s` carries a diacritic that Esperanto does not have.
+
+    Esperanto's own supersigns are stripped first, so `Ĉeĥio` is clean while
+    `Variétés` is not.
+    """
+    core = ''.join(c for c in s if c not in _EO_SUPERSIGNS)
+    return any(unicodedata.combining(c)
+               for c in unicodedata.normalize('NFD', core))
+
+
+def _strip_quoted(text: str) -> str:
+    """Remove quoted spans — a quoted work may legitimately be foreign."""
+    return re.sub(r'[«"„][^«»"„]*[»"]', ' ', text)
+
+
+def check_esperanto_orthography(question: str) -> tuple[bool, str]:
+    """L7: no non-Esperanto letters or apostrophes in UNQUOTED running text.
+
+    Motivating pair: `Kiu venkis Rorke's Driftn?` — an English possessive
+    dropped into an Esperanto question. A foreign title is fine when it is
+    *quoted* (R1 actively prefers quoted works); it is not fine bare.
+    """
+    bare = _strip_quoted(question)
+    if _APOSTROPHE_RE.search(bare):
+        return False, "apostrophe in unquoted text (foreign name — quote it)"
+    hits = sorted(set(_NON_EO_LETTERS_RE.findall(bare)))
+    if hits:
+        return False, (f"non-Esperanto letters in unquoted text: "
+                       f"{', '.join(hits)} (foreign title — quote it)")
+    return True, 'orthography is Esperanto'
+
+
+def check_foreign_title_not_inflected(question: str) -> tuple[bool, str]:
+    """L8: do not glue the accusative -n onto an unassimilated foreign name.
+
+    Motivating pairs: `Rorke's Driftn`, `The World Is Not Overn`,
+    `Théâtre des Variétésn`. R13 already says a quoted work is invariant; the
+    generator was appending -n to titles it had not quoted.
+    """
+    for tok in _strip_quoted(question).split():
+        t = tok.strip('?.,;:!')
+        if not t.endswith(('n', 'N')) or len(t) < 3:
+            continue
+        stem = t[:-1]
+        if (_NON_EO_LETTERS_RE.search(stem)
+                or _APOSTROPHE_RE.search(stem)
+                or _has_foreign_accent(stem)):
+            return False, (f"accusative -n glued onto a foreign name: '{t}' "
+                           f"(quote it and leave it uninflected)")
+    return True, 'no foreign name inflected'
+
+
+def check_no_accusative_after_de(question: str) -> tuple[bool, str]:
+    """L9: the noun governed by `de` is genitive — it must not take -n.
+
+    Motivating pair: `Kiu fondis Ĉambron de Arton?` — `Arton` is inside a
+    `de`-phrase and cannot be accusative. This is a double-accusative artifact
+    of template synthesis, not a real Esperanto sentence.
+
+    (A blanket 'one accusative per clause' rule would be WRONG — coordinated
+    objects legitimately take two: `Mi vidis la domon kaj la ĝardenon`. The
+    defect is specifically an accusative under a preposition.)
+    """
+    toks = [t.strip('?.,;:!') for t in _strip_quoted(question).split()]
+    for i, t in enumerate(toks[:-1]):
+        if t.lower() != 'de':
+            continue
+        nxt = toks[i + 1]
+        if nxt.lower() in ('la', 'lia', 'ŝia', 'ĝia', 'sia') and i + 2 < len(toks):
+            nxt = toks[i + 2]
+        if _ACC_RE.match(nxt):
+            return False, (f"accusative under the preposition 'de': "
+                           f"'de {nxt}' (a de-phrase is genitive, never -n)")
+    return True, 'no accusative under a preposition'
+
+
+def check_answer_is_nominal(pair: dict) -> tuple[bool, str]:
+    """L10: the answer must be a noun or a proper name — not an adjective.
+
+    Motivating pair: gold_answer_span `Britaj` ("British"). R2 requires the KIU
+    answer to be a subject NP. An adjective is not an answer to 'who'; it is a
+    property of one, and scoring extraction against it is scoring against a
+    target that cannot be right.
+    """
+    ans = (pair.get('gold_answer_span') or pair.get('expected_answer') or '').strip()
+    if not ans:
+        return True, 'no answer span to check'
+    head = ans.split()[0].strip('?.,;:!«»"')
+    try:
+        ast = parse(head)
+    except Exception:
+        return True, 'answer unparseable — deferred to parser_clean'
+
+    def _first_word(node):
+        if isinstance(node, dict):
+            if node.get('tipo') == 'vorto':
+                return node
+            for v in node.values():
+                w = _first_word(v)
+                if w:
+                    return w
+        elif isinstance(node, list):
+            for x in node:
+                w = _first_word(x)
+                if w:
+                    return w
+        return None
+
+    w = _first_word(ast)
+    vs = (w or {}).get('vortspeco')
+
+    if vs == 'adjektivo':
+        return False, (f"answer '{ans}' is an ADJECTIVE, not a nominal "
+                       f"(R2: a KIU/KIO answer is a noun phrase)")
+    if vs in ('verbo', 'adverbo', 'prepozicio', 'konjunkcio', 'artikolo'):
+        return False, f"answer '{ans}' is a {vs}, not a nominal (R2)"
+
+    # A capitalized word is tagged `propra_nomo` by the parser's capitalization
+    # heuristic, which MASKS adjectival morphology: `Britaj` ("British") came
+    # through as a propra_nomo and became a gold_answer_span. Esperanto's
+    # regularity settles the plural case deterministically — the adjectival
+    # plural `-aj` / `-ajn` is never a proper name.
+    #
+    # The SINGULAR `-a` case is NOT decidable here, and deliberately is not
+    # checked: `Brita` (adjective, root brit-) and `Maria` / `Anna` (names) are
+    # morphologically identical, and both lowercase to `adjektivo`. Telling them
+    # apart needs world knowledge, not rules. That is precisely the proper-noun
+    # disambiguation residue VISION.md names as irreducible — encountered here
+    # in the wild. Do not "fix" it with a rule; a name gazetteer would just be
+    # the residue relocated.
+    low = head.lower()
+    if vs == 'propra_nomo' and (low.endswith('aj') or low.endswith('ajn')):
+        return False, (f"answer '{ans}' has adjectival plural morphology "
+                       f"(-aj/-ajn) and cannot be a proper name — it is an "
+                       f"ADJECTIVE the capitalization heuristic mis-tagged (R2)")
+
+    return True, f'answer is nominal ({vs})'
+
+
 CHECKS = [
     ('parser_clean',            check_parser_clean),
     ('diacritic_system',        check_diacritic_system),
@@ -338,6 +511,11 @@ CHECKS = [
     ('accusative_agreement',    check_accusative_agreement),
     ('time_prep_correct',       check_time_prep_correct),
     ('tense_appropriate',       check_tense_appropriate),
+    # Added by #791 — see the block comment above.
+    ('esperanto_orthography',   check_esperanto_orthography),
+    ('foreign_title_not_inflected', check_foreign_title_not_inflected),
+    ('no_accusative_after_de',  check_no_accusative_after_de),
+    ('answer_is_nominal',       check_answer_is_nominal),
 ]
 
 
@@ -363,6 +541,10 @@ def audit_pair(pair: dict) -> dict:
                 ok, reason = fn(question)
             elif name in ('time_prep_correct', 'tense_appropriate'):
                 ok, reason = fn(question, qt)
+            elif name == 'answer_is_nominal':
+                # This one inspects the ANSWER, not the question — a defect
+                # class the auditor was entirely blind to (#791).
+                ok, reason = fn(pair)
             else:
                 ok, reason = fn(question)  # type: ignore[misc]
         except Exception as e:

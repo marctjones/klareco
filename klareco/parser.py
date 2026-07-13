@@ -878,9 +878,10 @@ def _apply_capitalization_ratio(word_asts: list) -> None:
         if _usage_says_name(pv) is True:
             ast['vortspeco'] = 'propra_nomo'
             ast['kategorio'] = 'propranomo'
-            ast['radiko'] = pv
-            ast['prefiksoj'] = []
-            ast['sufiksoj'] = []
+            # DO NOT clobber `radiko`. An assimilated name INFLECTS, and keeping the
+            # stem is what makes Esperanto/Esperanton both resolve to `esperant`, and
+            # Petro/Petron to `petr`. Overwriting radiko with the surface form throws
+            # that away — and roots are the whole point.
             ast['propra_nomo_evidence'] = 'capitalization_ratio'
 
 
@@ -1048,7 +1049,7 @@ def _is_genuine_esperanto_compound(stem: str) -> bool:
                 return True
     return False
 
-def parse_word(word: str) -> dict:
+def _parse_word_impl(word: str) -> dict:
     """
     Parse a single Esperanto word using Fundamento-first design.
 
@@ -1771,6 +1772,46 @@ def parse_word(word: str) -> dict:
     ast["radiko"] = stem
     return ast
 
+
+
+
+def parse_word(word: str) -> dict:
+    """Parse a single word, then let the corpus's own USAGE overrule morphology.
+
+    `parse_word` is the CONTEXT-FREE entry point: no sentence, so no position, no
+    agreement, no neighbours. Morphology is all it has — and morphology alone is
+    wrong for a lexicalized name:
+
+        Brisbane -> brisban + e -> ADVERBO
+
+    `brisban` really IS a ReVo headword (Brisbano, the city), so the adverb
+    reading is morphologically impeccable. It is just not what the word means. The
+    corpus settles it: `brisbane` is capitalised mid-sentence 100% of the time.
+
+    Safe to apply here because the gap is wide and empty — the adjectives the
+    agreement pass exists to protect sit far below the threshold:
+
+        brisbane 1.00  shakespeare 1.00  maria 0.99  petro 0.98
+        centra   0.34  nova        0.26  polaj 0.17  usona 0.15
+
+    Sentence-level parsing applies the same rule again in
+    `_apply_capitalization_ratio`; doing it here as well means the word-level API
+    and the sentence-level API agree, instead of quietly disagreeing.
+    """
+    ast = _parse_word_impl(word)
+    if (isinstance(ast, dict)
+            and word[:1].isupper() and not word.isupper()
+            and ast.get('vortspeco') in _CONTENT_VORTSPECOJ
+            and word.lower() not in _ALL_FUNCTION_WORDS
+            and _usage_says_name(word) is True):
+        ast['vortspeco'] = 'propra_nomo'
+        ast['kategorio'] = 'propranomo'
+        # DO NOT clobber `radiko`. An assimilated name INFLECTS, and keeping the
+        # stem is what makes Esperanto/Esperanton both resolve to `esperant`, and
+        # Petro/Petron to `petr`. Overwriting radiko with the surface form throws
+        # that away — and roots are the whole point.
+        ast['propra_nomo_evidence'] = 'capitalization_ratio'
+    return ast
 
 def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
     """

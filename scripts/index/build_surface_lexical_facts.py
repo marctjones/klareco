@@ -152,6 +152,11 @@ SUFFIXES = ('ant', 'int', 'ont', 'at', 'it', 'ot',
 # distribution alone is itself a residue. See docs/PROPER_NOUNS.md.
 TRANSPARENT_SUFFIXES = frozenset({'an', 'ist', 'ism'})
 
+# A stem's -o form must behave like a NAME to count as a lexicalized name.
+# The corpus separates these with a wide, empty gap: esperanto 0.957 vs
+# arbaro 0.210, lernejo 0.218, komunumo 0.021. Not a tuned parameter.
+_NAME_RATIO = 0.85
+
 # A word is a run of Esperanto letters. Apostrophes and hyphens split.
 WORD_RE = re.compile(r"[A-Za-zĈĉĜĝĤĥĴĵŜŝŬŭ]+")
 
@@ -203,8 +208,20 @@ def scan(con, limit: int | None) -> tuple[Counter, Counter, Counter]:
     return lower, cap_mid, surface
 
 
+def load_tier1() -> set[str]:
+    """ReVo + Fundamento — the CURATED root inventory (#806)."""
+    p = Path('data/vocabularies/root_vocab.json')
+    if p.exists():
+        d = json.loads(p.read_text(encoding='utf-8'))
+        if d.get('tier1'):
+            return set(d['tier1'])
+    return load_fundamento()
+
+
 def derive_protected_roots(surface: Counter, fundamento: set[str],
-                           min_tails: int, min_count: int) -> dict[str, int]:
+                           min_tails: int, min_count: int,
+                           tier1: set[str] | None = None,
+                           cap: dict[str, float] | None = None) -> dict[str, int]:
     """Stems that take further derivation AS IF THEY WERE ROOTS -> lexicalized.
 
     `esperant` is analysable as esper+ant, yet the corpus attests esperant-ist-o,
@@ -252,8 +269,33 @@ def derive_protected_roots(surface: Counter, fundamento: set[str],
                 if base in fundamento:
                     inner = (base, suf)
                     break
-        if inner:
-            protected[cand] = len(ts)
+        if not inner:
+            continue
+
+        # DERIVATIONAL PRODUCTIVITY IS NOT THE DISCRIMINATOR. It only looked like
+        # one on a 300K sample. At full corpus scale EVERY productive stem is
+        # productive, so `arbar` (12 tails), `lernej`, `prezidant` and `komunum`
+        # all qualify — and `arbaro` genuinely IS arb+ar+o ("a collection of
+        # trees"). Protecting them destroys the useful root.
+        #
+        # The right division of labour, and it is clean:
+        #
+        #   ReVo covers lexicalized COMMON words — `milit`, `regul`, `organ`,
+        #     `banan` are all headwords, so build_root_lexicon.py already
+        #     protects them ("ReVo says X is a root => X is atomic").
+        #
+        #   THIS artifact covers lexicalized NAMES — which a dictionary does not
+        #     list. `esperant` is not in ReVo, and `esperanto` is capitalised
+        #     mid-sentence 95.7% of the time. `arbaro` is 21%.
+        #
+        # So: productive, NOT a ReVo headword, and it behaves like a NAME.
+        if tier1 is not None and cand in tier1:
+            continue                       # ReVo already protects it
+        if cap is not None:
+            ratio = cap.get(cand + 'o')
+            if ratio is None or ratio < _NAME_RATIO:
+                continue                   # compositional, not a lexicalized name
+        protected[cand] = len(ts)
     return protected
 
 
@@ -295,8 +337,12 @@ def main() -> int:
 
     lower, cap_mid, surface = scan(con, args.limit)
 
-    protected = derive_protected_roots(surface, fundamento, args.min_tails, args.min_count)
     cap = derive_cap_ratio(lower, cap_mid, args.min_count)
+    tier1 = load_tier1()
+    print(f'  tier-1 (ReVo + Fundamento): {len(tier1):,} — these are ALREADY '
+          f'protected by build_root_lexicon.py')
+    protected = derive_protected_roots(surface, fundamento, args.min_tails,
+                                       args.min_count, tier1=tier1, cap=cap)
 
     print(f'\n  lexicalized stems (>= {args.min_tails} distinct tails): {len(protected):,}')
     for r, n in sorted(protected.items(), key=lambda x: -x[1])[:15]:

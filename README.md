@@ -80,10 +80,16 @@ gates (`doc_count`, segment count, round-trip sample) before exiting.
 ```bash
 # Parse a sentence
 python -m klareco parse "Mi amas la hundon."
+```
 
-# Answer a question end-to-end
-python -m klareco run "Kiu fondis Esperanton?"
+```python
+# Answer a question end-to-end (no `klareco run` subcommand — use the factory)
+from klareco.orchestrator.factory import build_default_pipeline
+pipeline = build_default_pipeline(whoosh_index_dir='data/indexes/whoosh_v2')
+print(pipeline.answer("Kiu fondis Esperanton?").text)
+```
 
+```bash
 # Run extractive-QA evaluation on a test set
 python scripts/eval/evaluate_extractive_qa.py \
     --test-set data/test_sets/qa_test_diverse_30.jsonl

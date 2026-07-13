@@ -1,128 +1,180 @@
-# Klareco Vision: Esperanto-First AI
+# Klareco Vision: Mapping the Boundary
 
-## The Problem
+## The Thesis
 
-Traditional LLMs are black boxes. They learn everything from scratch—grammar, vocabulary, semantics, reasoning—all entangled in billions of parameters. You can't see what they're "thinking" or why they produce a particular output.
+Klareco is not primarily an attempt to build a small language model. It is an
+attempt to **find, empirically, where deterministic computation stops.**
 
-They also waste enormous capacity learning things that are already known. English grammar is irregular but documented. Yet an LLM must rediscover it from patterns in text, using parameters that could be spent on reasoning instead.
+The question is:
 
-## The Insight
+> Given a language whose grammar is genuinely regular, how much of "understanding"
+> can be done with ordinary, classical, deterministic programming — rules, tables,
+> graph queries, unification, constraint solving, search — and what is the
+> *irreducible residue* that resists it?
 
-Esperanto was designed to be regular. Its grammar has 16 rules with no exceptions. Morphology is fully compositional—every word decomposes into prefix + root + suffixes + ending, and the ending tells you the part of speech, case, tense, and number.
+The residue is the interesting part. Whatever is left over after we have pushed
+deterministic methods as far as they honestly go is, by construction, the part
+that actually requires learning. That residue is where machine learning belongs
+— and nowhere else.
 
-This means **grammar is deterministic**. We don't need to learn it. We can extract it with rules.
+## What changed (and why this document was rewritten)
 
-## The Key Principle: Decomposable Contributions
+An earlier version of this document said the goal was to "get grammar for free so
+learned parameters can be spent entirely on reasoning." That framing pre-assigned
+the boundary: grammar → rules, reasoning → neural network.
 
-**Explainability doesn't require zero learned parameters—it requires decomposable contributions.**
+**That pre-assignment was an assumption, not a finding, and we are dropping it.**
 
-The goal is not to eliminate learning, but to ensure every prediction can be traced to its sources:
-- What came from deterministic rules? (grammar, morphology, Fundamento definitions)
-- What came from learned models? (semantic similarity, contextual refinement)
-- What evidence was retrieved? (citation trails to source documents)
+We do not know in advance that reasoning requires learning. A great deal of what
+gets called "reasoning" — transitive inference, type hierarchies, constraint
+propagation, quantifier scope, arithmetic, planning, path-finding through a fact
+graph — is classical computer science with decades of theory behind it. We should
+attempt all of it deterministically first, and find out where it breaks.
 
-By layering deterministic and learned components, we can show exactly how much each contributes. A prediction might be "77% deterministic rule (mal- means opposite), 23% learned adjustment (context: moral judgment)." This preserves explainability while leveraging learning where it's most valuable.
+Likewise, we do not know that all of grammar is deterministic. Esperanto has no
+morphological marker distinguishing a proper noun from a common noun; a novel
+capitalized surname that is also an ordinary word is genuinely ambiguous, and no
+rule can settle it. That is a *grammatical* problem that provably needs
+distributional knowledge.
 
-## The Architecture
+So the boundary does not run neatly between "grammar" and "reasoning." It runs
+somewhere else, and its actual shape is the research output of this project.
 
-Klareco uses the **AST as the universal contract** between all components:
+## The method
 
-```
-Text → Parser → AST → Semantic Enrichment → AST → Reasoning → AST → Linearizer → Text
-       (rules)        (learned models)            (learned)        (rules)
-```
+1. **Attempt it deterministically.** Every capability starts as a rule, a table,
+   a graph query, a unification, or a search. Implement it. Measure it.
+2. **Find the failure mode.** Where does the deterministic version break, and
+   *why*? Not "it scores 71%" — but "it fails precisely on cases where two roots
+   are synonymous and no rule can know that."
+3. **Characterize the residue.** State the failure as a property of the problem,
+   not of the implementation. A residue is only real if you can say what
+   information the deterministic method provably lacks.
+4. **Only then, learn it.** Introduce a learned component targeted at that
+   specific, characterized residue — as small as it can be — and measure how much
+   of the residue it actually recovers.
+5. **Keep the contribution decomposable.** Because the deterministic version still
+   exists and still runs, we can always say how much the learned component added.
 
-At each step:
-1. **The AST carries everything known so far**—grammatical structure, semantic roles, morpheme decomposition, embeddings, reasoning chains, attribution metadata
-2. **Deterministic layers extract what rules can derive**—grammar, case, tense, word structure
-3. **Learned layers add only what requires inference**—semantic similarity, entity relationships, reasoning
-4. **Attribution is preserved**—each AST node tracks whether it came from rules or learning
-5. **The AST is readable at every step**—you can inspect it to see what the system "knows" and "thinks"
+The output of step 3, accumulated across many capabilities, *is the thesis*. A
+map of the boundary is a more durable contribution than a benchmark number.
 
-## The Payoff
+## Why Esperanto
 
-### Trainable on a Laptop
-The goal isn't to eliminate deep learning—it's to make the models **small enough to train on a laptop without a GPU**. By getting grammar for free, learned parameters focus entirely on semantics and reasoning. A 50-100M parameter reasoning core may achieve what takes billions of parameters when grammar must also be learned.
+Esperanto is the ideal testbed because it maximizes the deterministic side of the
+experiment. Its grammar has 16 rules and no exceptions. Its morphology is fully
+compositional: every word decomposes into prefix + root + suffixes + ending, and
+the ending states the part of speech, case, number, and tense. Its correlative
+system is a closed, regular table. Its accusative case marks grammatical role
+explicitly, so the role of a constituent need not be inferred from word order.
 
-### Explainable "Thoughts"
-The AST is the system's intermediate representation—its working memory. Because it's structured and annotated with attribution, you can decode what the system is "thinking" at each step:
-- What grammatical structure did it find? (deterministic)
-- What semantic relationships did it infer? (learned)
-- What evidence did it retrieve? (cited)
-- How did it compose its answer? (reasoning chain)
-- What percentage came from rules vs learning? (attribution)
+This means that when a deterministic method fails on Esperanto, we learn
+something real. The failure cannot be blamed on morphological irregularity or on
+syntactic ambiguity that a better parser would have resolved — because in
+Esperanto those ambiguities largely do not exist. **Esperanto lets us isolate the
+residue.** A failure here is evidence that the problem is genuinely not
+rule-shaped.
 
-This is not post-hoc explanation. The AST *is* the computation, and attribution is built in from the start.
+If a capability *can* be done deterministically in Esperanto but not in English,
+that is also a finding — it tells us the obstacle was linguistic irregularity,
+not the nature of the task.
 
-### Grammatically Perfect Output
-The linearizer converts AST back to text using rules, not generation. Output is grammatically correct by construction—not because a model learned to usually produce valid grammar.
+## What the residue looks like so far
 
-### Grounded Answers
-Retrieval operates on ASTs, matching semantic structure. Answers come from retrieved evidence with full citation trails. The system can't hallucinate facts it didn't retrieve.
+These are the places where deterministic methods have actually broken, with the
+reason stated as a property of the problem. This list is the real deliverable and
+should grow.
 
-### Hybrid Components Validate the Thesis
-By layering deterministic and learned components with attribution, we can empirically measure how much learning actually helps:
-- If learned layers contribute <5%: deterministic is sufficient
-- If learned layers contribute 10-15%: hybrid approach optimal
-- If learned layers contribute >20%: need more learned capacity
+**Proper-noun disambiguation (confirmed residue).** Esperanto has no
+morphological proper-noun marker. A capitalized token whose morphology, position,
+and function-word context give no signal — a novel surname that is also a common
+word, sentence-initial position, an all-caps title, a quoted phrase — cannot be
+resolved by any rule. Disambiguation requires distributional or world knowledge.
+This is the cleanest confirmed residue we have.
 
-This turns the "Pure Esperanto AI" thesis into a measurable hypothesis, not an assumption.
+**Lexical synonymy (confirmed residue, currently faked).** Deciding that `fond-`,
+`kre-`, `starig-`, and `establ-` denote the same relation *in a given context* is
+not derivable from morphology. We currently approximate this with a hand-seeded
+verb-class ontology, which is a lookup table pretending to be knowledge: its
+coverage is thin, and it cannot generalize to a root nobody enumerated. The
+honest description is that this is a learned problem we are currently solving
+with a list.
 
-## The Core Thesis
+**Word-sense disambiguation (suspected residue).** Which sense of a root is in
+play depends on context in ways the AST records but does not resolve.
 
-> By making linguistic structure deterministic, using decomposable learned components, and passing annotated ASTs between layers, we can build AI systems that are smaller, explainable, and provably correct—while achieving comparable capabilities to much larger black-box models.
+**Cross-sentence coreference (suspected residue).** Resolving `li` / `tiu` / `ĝi`
+to an antecedent in a *different* sentence requires discourse modeling. A large
+share of the corpus has pronoun subjects, and for those sentences the answer to
+"who" is simply not present in the sentence at all.
 
-Esperanto is the ideal testbed because its regularity maximizes what can be deterministic. If the thesis holds for Esperanto, the approach may extend (with more complex parsers) to other languages.
+**Ranking among structurally valid candidates (open question).** When many
+passages satisfy every structural constraint, something must break the tie. It is
+genuinely unclear how much of this is deterministic — information-theoretic
+specificity, which we have not yet exploited — versus learned calibration. This
+is unresolved, and it is the most interesting open question in the project.
 
-## What This Is Not
+**Not residue — deterministic, and being built:** transitive inference over facts,
+type hierarchies, constraint propagation, aggregation and quantifiers, arithmetic,
+path-finding, task decomposition. These have working symbolic implementations.
+Whether they hold up under real questions is a measurement problem, not a theory
+problem.
 
-- **Not eliminating deep learning**—we need learned models for semantics and reasoning
-- **Not a translation system**—Klareco works natively in Esperanto
-- **Not a grammar checker**—grammar is infrastructure, not the goal
-- **Not an Esperanto teaching tool**—though it could become one
-- **Not trying to compete with GPT-4 on English**—it's proving a different thesis
-- **Not claiming pure rule-based AI**—hybrid deterministic + learned with attribution
+## What we still believe
 
-## The Design Principle
+The architectural commitments below survive the reframing, because they serve
+boundary-discovery rather than assuming its answer.
 
-At each stage of implementation, ask:
-1. **What can we do deterministically?** Do that first—it's free and explainable.
-2. **What requires learning?** Make it as small as possible and track its contribution.
-3. **Does the AST carry all the information?** If not, enrich it with attribution metadata.
-4. **Can we decompose the prediction?** Show what came from rules vs learning.
-5. **How do we validate quality?** Test both deterministic and learned components separately.
-6. **How do we demonstrate progress?** Build a demo that shows what this stage accomplishes.
+**The AST is the universal contract.** Every component consumes and produces
+role-annotated ASTs. This is what makes the boundary *visible*: you can see
+exactly what structure was derived by rule and what was left underdetermined.
 
-We're not trying to eliminate neural networks. We're trying to make them small enough that you don't need a data center to train them, while ensuring every prediction is traceable to its sources.
+**Attribution is built in, not post-hoc.** Each AST node tracks whether it came
+from a rule or a model. Explainability does not require zero learned parameters —
+it requires *decomposable contributions*. A prediction that is "77% deterministic
+rule, 23% learned adjustment" is explainable in a way a monolithic model is not.
 
-## Validation at Every Stage
+**Output is grammatically correct by construction.** The linearizer converts AST
+back to text by rule, not by generation. Correct grammar is not something the
+system learns to usually do; it is something it cannot fail to do.
 
-Each stage must have:
-- **Tests for deterministic components**—Do the rules produce correct output?
-- **Tests for learned components**—Does the model meet quality thresholds?
-- **Attribution tests**—Can we decompose predictions into rule-based vs learned?
-- **A working demo**—Shows what this stage accomplishes in isolation
-- **Integration validation**—Does the enriched AST flow correctly to the next stage?
+**Answers are grounded and cited.** Retrieval operates over structure, and answers
+are extracted from retrieved evidence with citation trails. The system cannot
+assert a fact it did not retrieve.
 
-No stage is complete until you can demonstrate it working, measure its quality, and attribute its predictions.
+**Small enough to train on a laptop.** If the residue is small, the models that
+cover it are small. This is a *prediction* of the thesis, not an axiom of it — and
+if the residue turns out to be large, that is a finding too, and an honest one.
 
-## Success Looks Like
+## Success looks like
 
-A working system where you can:
-1. Ask a question in Esperanto
-2. Watch the AST evolve through each layer
-3. See exactly which evidence was retrieved and why
-4. See what came from rules vs learned models (with percentages)
-5. Get a grammatically perfect, grounded answer
-6. Trace every step of the reasoning in the AST with full attribution
+Not a leaderboard score. Success is being able to say, with evidence:
 
-All with models small enough to train on a laptop without a GPU.
+- Here is the set of capabilities we implemented deterministically, and how well
+  each works.
+- Here is precisely where each one breaks, stated as a property of the problem.
+- Here is the learned component we added to cover that specific gap, how large it
+  is, and how much of the gap it actually recovered.
+- Here is the resulting map of the deterministic/learned boundary for a language
+  with a perfectly regular grammar.
 
-## The Proof of Concept Plan
+And, as a working artifact: you can ask a question in Esperanto, watch the AST
+evolve through each layer, see which evidence was retrieved and why, see what came
+from rules versus models, and get a grammatically perfect, grounded, cited answer.
 
-- **Month 1-2**: Build symbolic reasoner + deterministic features
-- **GOAL**: Answer 50 questions using ONLY deterministic processing + retrieval (zero learned reasoning)
-- **NEXT**: Add minimal 20M param reasoning core with attribution, measure improvement
-- **THESIS TEST**: If 50-100M param core with attribution gets 80%+ accuracy on Esperanto Q&A while being fully explainable and grammatically perfect, the thesis is proven
+## What this is not
 
-This is achievable. The foundation is strong. The key shift: stop trying to learn grammar, focus learned capacity entirely on reasoning, and preserve attribution at every layer.
+- **Not eliminating machine learning.** ML is the tool for the residue. The point
+  is to know what the residue *is* before reaching for it.
+- **Not pure rule-based AI.** It is a hybrid whose boundary is measured rather
+  than assumed.
+- **Not a translation system.** Klareco works natively in Esperanto.
+- **Not a grammar checker.** Grammar is infrastructure, not the goal.
+- **Not competing with frontier models on English.** It is answering a different
+  question.
+
+## See also
+
+- `DESIGN.md` — the architecture as it actually is today, including what is broken
+  and what is unmeasured.
+- `CLAUDE.md` — working conventions.

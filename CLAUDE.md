@@ -4,43 +4,88 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Core Concept
 
-Klareco is a **Pure Esperanto AI** that maximizes deterministic processing and minimizes learned parameters. The core thesis: By making grammar, morphology, and linguistic structure 100% programmatic, we can focus all learned capacity on *reasoning*, not language rules.
+Klareco is an experiment to **find where deterministic computation stops.** Given
+a language with a genuinely regular grammar, how much of "understanding" can be
+done with ordinary classical programming — rules, tables, queries, unification,
+constraint solving, search — and what is the *irreducible residue* that resists
+it? The residue, once characterized, is where machine learning belongs. Nowhere
+else.
 
-**The Proof of Concept Plan:**
-- Month 1-2: Build symbolic reasoner + deterministic features
-- GOAL: Answer 50 questions using ONLY deterministic processing + retrieval (zero learned reasoning)
-- NEXT: Add minimal 20M param reasoning core, measure improvement
-- THESIS TEST: If 50-100M param core gets 80%+ accuracy on Esperanto Q&A while being fully explainable and grammatically perfect, the thesis is proven
+**This is a boundary-discovery project, not a small-model project.** Do not
+pre-assign work to "rules" or "neural" by category. In particular, do **not**
+assume reasoning requires learning: transitive inference, type hierarchies,
+constraint propagation, quantifiers, arithmetic, and planning are classical CS and
+must be attempted deterministically first. Equally, do not assume all of grammar
+is deterministic — proper-noun disambiguation in Esperanto provably is not.
 
-**This is achievable.** The foundation is strong. The key shift: stop trying to learn grammar, focus learned capacity entirely on reasoning.
+**The method** (see `VISION.md` for the full argument):
+1. Attempt it deterministically. Implement. Measure.
+2. Find where it breaks — and *why*, stated as a property of the problem, not of
+   the implementation.
+3. Characterize the residue: what information does the deterministic method
+   provably lack?
+4. Only then introduce a learned component, targeted at that specific residue.
+5. Keep it decomposable — the deterministic version still runs, so we can always
+   say how much the model added.
+
+**⚠️ Before trusting any number in this repo, read the "Current state" section of
+`DESIGN.md`.** Several data artifacts were lost in a June 2026 laptop migration
+and the pipeline degrades *silently* without them.
 
 ## Key Architecture Principles
 
-**AST-First Pipeline**: Everything operates on structured Abstract Syntax Trees, not raw text.
+**AST-First Pipeline**: Everything operates on structured Abstract Syntax Trees,
+not raw text. The AST is the universal contract between stages, and it is what
+makes the deterministic/learned boundary *visible*.
 
 ```
-Text → Parser (rules) → AST → Compositional Embeddings → Retrieval/Reasoning → Linearizer → Text
-       ├─ deterministic     ├─ learned (~500K params)                           └─ deterministic
-       └─ 16 Esperanto rules
+Text → Parser (16 rules) → AST → Retrieval / Symbolic reasoning → AST → Deparser → Text
+       └─ deterministic          └─ deterministic today             └─ deterministic
+                                    (learned components: see DESIGN.md "deferred")
 ```
 
-**What's Deterministic vs Learned**:
-- **100% Deterministic**: Parser, deparser, morphology analyzer, grammar checker, symbolic reasoner, prefix/suffix/ending features, **function word handling**
-- **Minimal Learned**: Root embeddings for content words only (320K params), AST Reasoning Core (target 20-100M params), retrieval reranking
-- **Goal**: Maximum deterministic processing. Learn reasoning patterns, NOT grammar rules.
+**Attribution is built in.** Each AST node tracks whether it came from a rule or a
+model. Explainability does not require zero learned parameters — it requires
+decomposable contributions.
 
-**Function Word Exclusion Principle** (see Wiki for details):
+**Function Word Exclusion Principle**:
 - **Function words** (kaj, de, en, la, mi, etc.) are grammatical, not semantic
 - They are handled by the **deterministic AST layer**, not learned embeddings
 - Including them in embedding training causes **embedding collapse** (all words become similar)
 - Only **content words** (hundo, tablo, legi, bela) get learned embeddings
 - This is a core architectural decision, not a workaround
 
-**The Big Idea** (see `VISION.md`): Traditional LLMs waste capacity learning grammar. By making grammar explicit through ASTs, we hypothesize a 100M-500M param "reasoning core" could match larger models on structured tasks.
+**A silently-degrading dependency is a bug.** Every artifact the pipeline loads
+must fail loudly if absent. The June migration cost weeks of invisible quality
+loss because missing files logged a warning and carried on.
 
-## MANDATORY: Schema-First Development (v2.2+)
+## Schema-First Development
 
-**CRITICAL**: Klareco now has a comprehensive 4-layer semantic ontology in the database. You MUST use it instead of creating piecemeal solutions.
+**The store is DuckDB, not Kuzu.** Kuzu was removed in the May–June 2026
+migration; there are no `kuzu` imports left in `klareco/`, and no Kuzu database on
+disk. Everything lives in `data/indexes/duckdb_store.db` (table `sentences`, one
+row per sentence, AST carried as an `ast_json` blob) plus a Whoosh BM25 index at
+`data/indexes/whoosh_v2`. Any doc, script, or code comment that tells you to write
+Cypher is stale — fix it when you find it.
+
+**⚠️ Ontology status: defined in code, NOT loaded at runtime.** The four layers
+below are real, but they only ever loaded into Kuzu. In the DuckDB store,
+`ontology_nodes` and `ontology_edges` are **empty** and `verb_klaso` is **0%
+populated**. So:
+
+- The "always query the ontology" rule below is currently **unfollowable**, and a
+  couple of paths (e.g. `klareco/knowledge/synonyms.py`) fall back to hardcoded
+  lists. That is **acknowledged debt, not a licence to add more.**
+- The class definitions survive as Python literals in
+  `scripts/index/extend_kuzu_schema_semantic_ontology.py`. Restoring the ontology
+  means emitting a snapshot from those literals into the DuckDB tables — not
+  re-deriving it from scratch.
+- **Honest caveat:** even when loaded, the ontology is hand-seeded and thin
+  (`kreado-26` = `["fond","kre","produk","far"]`; `persono` = `["homo","vir",
+  "infan","kuracist"]`). Querying it beats hardcoding a list in Python — one
+  source of truth, one place to extend — but it is the *same kind* of knowledge,
+  just relocated. Lexical synonymy is a genuine learned residue we are currently
+  faking with a list. Don't oversell it.
 
 ### What's in the Ontology
 
@@ -65,99 +110,99 @@ Text → Parser (rules) → AST → Compositional Embeddings → Retrieval/Reaso
 
 ### Mandatory Rules
 
-**1. AST access — do NOT use KuzuASTReconstructor**
+**1. AST access — read the `ast_json` blob; never reconstruct, never re-parse**
 ```python
-# ⚠️ MEASURED 2026-05: KuzuASTReconstructor.reconstruct_ast() is
-# ~17,000 ms PER AST (not "<5ms" as previously claimed here — that
-# figure was wrong by ~3400x). It issues many unindexed Kuzu
-# traversals per sentence. NEVER use it.
-#
-# Until the store migration lands, re-parse on demand — parse(text)
-# is ~milliseconds and is what the active retriever already does
-# (commit 3dd0b73 switched off the reconstructor for this reason):
-from klareco.parser import parse
-ast = parse(text)
+# ✅ DO THIS — the store carries the parsed AST as a JSON blob (~0.9 ms):
+import json, duckdb
+con = duckdb.connect('data/indexes/duckdb_store.db', read_only=True)
+ast = json.loads(con.execute(
+    "SELECT ast_json FROM sentences WHERE sid = ?", [sid]).fetchone()[0])
 
-# Target architecture (see DuckDB de-risk, 2026-05): a flat store
-# carries the parsed AST as a JSON blob; AST access becomes
-# json.loads(ast_json) at ~0.9 ms — ~20,000x faster than the
-# reconstructor and ~50x faster than re-parsing.
+# ✅ For text that is NOT in the store (e.g. the user's question), parse it:
+from klareco.parser import parse
+ast = parse(question)          # ~milliseconds
+
+# ❌ NEVER: KuzuASTReconstructor — the Kuzu DB no longer exists, and the
+#    reconstructor was measured at ~17,000 ms per AST before removal.
+# ❌ NEVER: re-parse a sentence that is already in the store. The blob is
+#    ~50x faster and is what was actually indexed.
 ```
 
-**2. ALWAYS query semantic ontology instead of hardcoded lists**
+**2. Query the ontology instead of hardcoding lists** *(blocked: see status above)*
 ```python
 # ❌ NEVER DO THIS:
 PERSON_WORDS = ['homo', 'vir', 'kuracist']  # Hardcoded gazetteer!
 
-# ✅ ALWAYS DO THIS:
-result = kuzu_conn.execute("""
-    MATCH (r:Radiko)-[:HAVAS_ENTECAN_TIPON]->(e:EntecaTipo {tipo_id: 'persono'})
-    RETURN r.radiko
-""")
+# ✅ DO THIS — ontology_edges maps radiko → class_id:
+con.execute("""
+    SELECT radiko FROM ontology_edges
+    WHERE rel = 'HAVAS_ENTECAN_TIPON' AND class_id = 'persono'
+""").fetchall()
+# ⚠️ Returns [] today — ontology_edges is empty. If you need this, the
+#    correct move is to RESTORE the ontology, not to add another list.
 ```
 
-**3. ALWAYS use verb/noun classes for synonyms**
+**3. Use verb classes for synonyms, not manual lists**
 ```python
 # ❌ NEVER DO THIS:
 CREATION_VERBS = ['fond', 'kre', 'produk']  # Manual list!
 
-# ✅ ALWAYS DO THIS:
-result = kuzu_conn.execute("""
-    MATCH (r:Radiko)-[:APARTENAS_AL_VERBA_KLASO]->(v:VerbaKlaso {klaso_id: 'kreado-26'})
-    RETURN r.radiko
-""")
+# ✅ DO THIS:
+con.execute("""
+    SELECT radiko FROM ontology_edges
+    WHERE rel = 'APARTENAS_AL_VERBA_KLASO' AND class_id = 'kreado-26'
+""").fetchall()
+# The store also has a `verb_klaso` column on `sentences` for filtering —
+# ⚠️ currently 0% populated; populating it is part of the ontology restore.
 ```
 
-**4. ALWAYS use schema slots for importance ranking**
+**4. Use schema slots for importance ranking, not hardcoded weights**
 ```python
 # ❌ NEVER DO THIS:
 if question_type == 'WHO':
     importance = 0.95  # Hardcoded!
 
-# ✅ ALWAYS DO THIS:
-result = kuzu_conn.execute("""
-    MATCH (s:SkemaSloto {sloto_id: 'ĉefa_realigo'})
-    RETURN s.graveco_pezo
-""")
+# ✅ DO THIS — SkemaSloto nodes carry graveco_pezo:
+rows = con.execute(
+    "SELECT node_json FROM ontology_nodes WHERE label = 'SkemaSloto'").fetchall()
 ```
 
-**5. ALWAYS use thematic roles for answer extraction**
+**5. Use grammatical role + thematic role for answer extraction, not string matching**
 ```python
 # ❌ NEVER DO THIS:
 if question.startswith('Kiu'):
-    return ast['subjekto']  # Pattern matching!
+    return ast['subjekto']  # String matching on the surface form!
 
-# ✅ ALWAYS DO THIS:
-# Query thematic roles to find Aganto (agent) in creation events
-result = kuzu_conn.execute("""
-    MATCH (v:Radiko)-[:APARTENAS_AL_VERBA_KLASO]->(vc:VerbaKlaso {klaso_id: 'kreado-26'})
-    MATCH (v)-[:HAVAS_TEMAN_ROLON]->(tr:TemaRolo {rolo_id: 'aganto'})
-    RETURN tr
-""")
+# ✅ DO THIS — the interrogative's CASE tells you which slot the answer fills.
+#    Esperanto marks this explicitly: "Kiu" (nominative) → the gap is the
+#    SUBJECT; "Kiun" (accusative) → the gap is the OBJECT. This is free,
+#    deterministic, and English cannot do it. Read `kazo` off the korelativo
+#    kerno rather than pattern-matching the question string.
 ```
 
 ### Decision Checklist
 
 Before implementing ANY feature, ask:
 
-- [ ] Does this need entity classification? → Query EntecaTipo
-- [ ] Does this need verb synonyms? → Query VerbaKlaso
-- [ ] Does this need importance ranking? → Query SkemaSloto
-- [ ] Am I creating a hardcoded list? → STOP, use ontology
-- [ ] Am I re-parsing ASTs? → STOP, use reconstructor
-- [ ] Am I pattern matching on word forms? → STOP, use semantic classes
+- [ ] Does this need entity classification? → Query `ontology_edges` (`persono`, `loko`, …)
+- [ ] Does this need verb synonyms? → Query the verb class, don't list roots
+- [ ] Does this need importance ranking? → Query `SkemaSloto.graveco_pezo`
+- [ ] Am I creating a hardcoded list? → STOP. Restore/extend the ontology instead.
+- [ ] Am I re-parsing a sentence already in the store? → STOP, read `ast_json`
+- [ ] Am I pattern matching on word forms or question strings? → STOP, use the AST's
+      grammatical features (`kazo`, `vortspeco`, `sufiksoj`) — they are already there
 
 ### What to Do Instead of Piecemeal Solutions
 
 | Piecemeal Approach | Schema-First Approach |
 |--------------------|----------------------|
-| Gazetteer of place names | Query `EntecaTipo {tipo_id: 'loko'}` |
-| List of person words | Query `EntecaTipo {tipo_id: 'persono'}` |
-| Time word patterns | Query `EntecaTipo {tipo_id: 'tempo'}` |
-| Verb synonym lists | Query `VerbaKlaso` members |
+| Gazetteer of place names | Query `ontology_edges` for `class_id = 'loko'` |
+| List of person words | Query `ontology_edges` for `class_id = 'persono'` |
+| Verb synonym lists | Query the `VerbaKlaso` members |
 | Hardcoded importance weights | Query `SkemaSloto.graveco_pezo` |
-| Pattern matching for WHO | Query thematic role `aganto` |
-| Slow `KuzuASTReconstructor` (~17,000ms/AST, measured) | Re-parse on demand `parse(text)` (~ms); target store: `json.loads(ast_json)` blob (~0.9ms) |
+| `if question.startswith('Kiu')` | Read `kazo` / `vortspeco` off the interrogative AST node |
+| Re-parsing an indexed sentence | `json.loads(ast_json)` from the store (~0.9 ms) |
+| `KuzuASTReconstructor` | **Removed.** Kuzu no longer exists. |
 
 ### Files That Should NOT Exist
 
@@ -219,24 +264,34 @@ python -m klareco translate "The dog sees the cat." --to eo
 
 ### Build the corpus + indexes
 ```bash
-# Parse cleaned texts into a unified corpus with ASTs
+# Parse cleaned texts into a unified corpus with ASTs (~5-6 h)
 ./scripts/parse/parse_corpus.sh
 
-# Build Kuzu v2.1 graph (export CSV → load → load ReVo → extend ontology)
-./scripts/index/reindex_kuzu_v2.1.sh
+# Build the DuckDB store (sentences + shredded AST columns + ast_json blob)
+python scripts/index/build_duckdb_store.py
 
-# Build Whoosh BM25 index on top of the corpus
+# Build Whoosh BM25 index on top of the store
 python scripts/index/build_whoosh_index.py
 ```
 
 ### End-to-end question answering
-```bash
-# Run the orchestrator pipeline on one question
-python -m klareco run "Kiu fondis Esperanton?"
+```python
+# There is NO `python -m klareco run`. The CLI exposes: parse, query,
+# translate, corpus, info. To run the full orchestrator, use the factory:
+from klareco.orchestrator.factory import build_default_pipeline
+pipeline = build_default_pipeline(whoosh_index_dir='data/indexes/whoosh_v2')
+result = pipeline.answer("Kiu fondis Esperanton?")
+print(result.text)
+```
 
+```bash
 # Evaluate against a test set (local, single-process)
 python scripts/eval/evaluate_extractive_qa.py \
     --test-set data/test_sets/qa_test_diverse_30.jsonl
+
+# A/B the rerankers against each other
+python scripts/eval/multi_reranker_bench.py \
+    --test-set data/test_sets/synthetic_who_rebuild_17_cleanish.jsonl
 
 # Same evaluator on Modal (parallel workers)
 # Push index volume first, then run
@@ -465,11 +520,16 @@ python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
 | Acquire tier-0 sources | `./scripts/acquire/acquire_all_tier0.sh` | Download authoritative Esperanto sources |
 | Clean all texts | `./scripts/clean/clean_all.sh` | Clean Gutenberg + ReVo |
 | Extract all | `./scripts/extract/extract_all.sh` | Extract Wikipedia + Books |
-| Parse corpus | `./scripts/parse/parse_corpus.sh` | Build unified corpus with ASTs |
-| Re-index Kuzu | `./scripts/index/reindex_kuzu_v2.1.sh` | CSV export → Kuzu load → ReVo + ontology |
-| Build Whoosh index | `python scripts/index/build_whoosh_index.py` | Build BM25 index over the corpus |
-| Post-reparse pipeline | `./scripts/pipeline/post_reparse_pipeline.sh` | Schema + ReVo + Whoosh + eval (after a reparse) |
-| Validate all | `./scripts/validate/validate_all.sh` | Run corpus + Kuzu integrity checks |
+| Parse corpus | `./scripts/parse/parse_corpus.sh` | Build unified corpus with ASTs (~5-6 h) |
+| Build DuckDB store | `python scripts/index/build_duckdb_store.py` | Corpus → `sentences` table (AST blob + shredded columns) |
+| Build Whoosh index | `python scripts/index/build_whoosh_index.py` | Build BM25 index over the store |
+| Post-reparse pipeline | `./scripts/pipeline/post_reparse_pipeline.sh` | Schema + Whoosh + eval (after a reparse) |
+| Validate store | `python scripts/index/validate_duckdb_store.py` | DuckDB integrity checks |
+| Validate all | `./scripts/validate/validate_all.sh` | Run corpus integrity checks |
+
+⚠️ The `*_kuzu_*` scripts under `scripts/index/` are **dead** — Kuzu is gone. The
+one exception is `extend_kuzu_schema_semantic_ontology.py`, which is still the
+source of truth for the ontology's class definitions (see Schema-First above).
 
 ### Pipeline Stages
 
@@ -479,7 +539,7 @@ CLEAN    → Normalize text              (scripts/clean/)
 EXTRACT  → Extract sentence JSONL      (scripts/extract/)
 OCR      → PDF → text (PAG only)       (scripts/ocr/)
 PARSE    → Parse to ASTs                (scripts/parse/)
-INDEX    → Kuzu graph + Whoosh         (scripts/index/)
+INDEX    → DuckDB store + Whoosh       (scripts/index/)
 EVAL     → Run evaluators               (scripts/eval/)
 VALIDATE → Data-integrity checks       (scripts/validate/)
 PIPELINE → Post-parse orchestrator     (scripts/pipeline/)
@@ -497,28 +557,34 @@ klareco/
 ├── proper_nouns.py         # v3 cleaned + Wikipedia-category dictionary
 ├── cli.py / __main__.py    # CLI entry points
 ├── orchestrator/           # Immutable QueryContext pipeline (active spine)
-│   ├── pipeline.py         #   Orchestrator runner
-│   ├── factory.py          #   build_default_pipeline()
+│   ├── pipeline.py         #   Orchestrator.answer(question)
+│   ├── factory.py          #   build_default_pipeline(whoosh_index_dir=...)
 │   ├── context.py          #   QueryContext / ContextDelta dataclasses
 │   ├── phase_timer.py      #   Sub-stage timing
-│   └── stages/             #   Parse → Retrieve → DetRerank → Rerank
-│                           #   → ExtractGenerate → FormatOutput
+│   └── stages/             #   Parse → [Dialog, Math, Planner] → Retrieve
+│                           #   → DetRerank → ASTAwareRerank → Rerank(stub)
+│                           #   → ExtractGenerate → BiographyFormat → Format
 ├── rag/                    # Retrieval + extraction
 │   ├── whoosh_retriever.py #   Main retriever (BM25 ∩ AST roles)
+│   ├── duckdb_retriever.py #   Store-backed retrieval
+│   ├── ast_aware_reranker.py #  Structural reranker (#741)
+│   ├── entity_fact_retriever.py
 │   ├── unified_extractor.py#   Fact extraction
 │   ├── extractive_answering.py
-│   ├── ast_semantic_ranker.py
-│   ├── kuzu_ast_reconstructor.py
 │   ├── importance_scorer.py
-│   ├── grammatical_variants.py
-│   ├── discourse_planner.py
 │   ├── question_classifier.py
 │   └── entity_recognizer.py
-├── knowledge/              # Kuzu-backed vocabularies (no hardcoded lists)
-├── ontology/               # Kuzu query API for the 4-layer ontology
-├── schema/                 # Kuzu v2.1 DDL
+├── reasoning/              # Forward-chaining inference, path-finding (#749, #761)
+├── planning/               # STRIPS-style task planner (#771)
+├── generation/             # Biography / definition / comparison generators
+├── dialog/                 # Multi-turn conversational state (#767)
+├── tools/                  # SymPy math evaluator (#772)
+├── knowledge/              # Vocabularies — ontology-backed by design;
+│                           #   ⚠️ some hardcoded fallbacks active while
+│                           #   the ontology is unpopulated (acknowledged debt)
+├── ontology/               # ⚠️ DEAD — semantic_query.py still takes a kuzu_conn
 ├── eval/qa_metrics.py      # Shared evaluator (local + Modal)
-└── utils/kuzu_open.py      # Single Kuzu opener with env-var memory caps
+└── (klareco/utils/ was removed with Kuzu; tests/test_kuzu_open.py is stale)
 
 scripts/
 ├── acquire/      # Raw downloads from upstream sources
@@ -526,7 +592,7 @@ scripts/
 ├── extract/      # Cleaned → sentence JSONL
 ├── ocr/          # PDF → text (PAG)
 ├── parse/        # Build unified corpus from extracted sentences
-├── index/        # Corpus → Kuzu graph + Whoosh BM25 index
+├── index/        # Corpus → DuckDB store + Whoosh BM25 index
 ├── eval/         # Evaluators, comparators, debug tools
 ├── validate/     # Data-integrity checks
 ├── pipeline/     # Post-parse orchestrator
@@ -681,25 +747,45 @@ Monitor with: `tail -f logs/<script-name>_*.log`
 ## Current Development Status
 
 **Active spine**: AST-native orchestrator pipeline (`klareco/orchestrator/`)
-with deterministic-first evaluation. See `DESIGN.md` for the full picture.
+with deterministic-first evaluation. See `DESIGN.md` — especially its
+**"Current state"** section — for the full picture.
 
-**Production-Ready**:
-- 16-rule parser + deparser (91.8% parse rate on 4.2M sentences)
-- v2.1 Kuzu graph with 4-layer semantic ontology
-- WhooshRetriever with AST-role matching
-- DeterministicRerankStage (question-type AST boost)
-- UnifiedASTExtractor + ExtractiveAnswerGenerator
-- `klareco.eval` shared by local + Modal cloud evaluators
-- Proper-noun dictionary v3 (cleaned + Wikipedia-category enriched)
+**Working**:
+- 16-rule parser + deparser (UD-Prago: 80.3% POS strict, 93.3% scheme-adjusted)
+- DuckDB store: 5.39M sentences, `ast_json` blob + shredded AST columns
+- Whoosh BM25 index with AST-role matching
+- Extractive QA end-to-end: retrieves and answers with citations
+- `klareco.eval` shared by local + Modal evaluators
 
-**In Progress**: Iterative QA-accuracy improvements driven by retrieval-rank
-metrics — see [EPIC #713](https://github.com/marctjones/klareco/issues/713).
+**Broken / degraded — read before trusting any number:**
+- ⚠️ Parser data lost in the June 2026 migration (`protected_roots.json`,
+  `proper_nouns_dynamic_v*.json`). `Esperanton` parses to root `esper` + suffix
+  `ant`. Fails silently.
+- ⚠️ Semantic ontology **not loaded**: `ontology_nodes`/`ontology_edges` empty,
+  `verb_klaso` 0% populated. Everything downstream of it no-ops.
+- ⚠️ `entity_facts` table missing — `BiographyFormatStage` crashes.
+- ⚠️ **All nine rerankers are tied.** Everything they *share* (BM25, phrase boost,
+  exact radiko match, tense) is alive; everything that makes any one of them
+  *different* (verb class, negation, entity-type gating) reads a dead column.
+  Identical live inputs → identical rankings. The smart reranker is written; it is
+  running on empty. Compounding this, the 17-question test set has no headroom
+  (recall@5 = 17/17). Fixing either alone proves nothing — both must land together.
 
-**Deferred** (working code on disk but not in the active loop): Stage 1
-root embeddings, M1 selectional preference, neural cross-encoder reranker,
-entity classifier, summarization stack. These return once the deterministic
-floor is stable enough to attribute a measurable improvement to a specific
-learned component.
+**Unmeasured** (landed just before the migration, never benchmarked): symbolic
+reasoning (#749, #761), planner (#771), math tool (#772), dialog (#767),
+biography/definition generators (#766, #775).
+
+**In Progress**: restore the lost artifacts, then build a *discriminating* test
+set (#736, #737) — one where BM25 fails but the answer is still findable. Until
+that exists, reranker work cannot be measured.
+See [EPIC #713](https://github.com/marctjones/klareco/issues/713).
+
+**Deferred**: the learned stack was **pruned from the repo** (commits `b68320e`,
+`822a3eb`, `313ec3e`) — `klareco/embeddings/`, `klareco/models/`, and
+`klareco/summarization/` no longer exist; recover from git history if needed. Only
+the neural reranker remains, as a no-op stub in `RerankStage`. Learned components
+re-enter the pipeline only when the deterministic floor is stable enough to
+attribute a measurable improvement to a specific model.
 
 ## Testing Philosophy
 

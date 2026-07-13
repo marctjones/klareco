@@ -26,6 +26,7 @@ from klareco.orchestrator.stages.planner import PlannerStage
 from klareco.orchestrator.stages.biography_format import BiographyFormatStage
 from klareco.rag.extractive_answering import ExtractiveAnswerGenerator
 from klareco.rag.duckdb_retriever import DuckDBRetriever
+from klareco.preflight import preflight
 
 
 def build_default_pipeline(
@@ -39,6 +40,7 @@ def build_default_pipeline(
     enable_math_tool: bool = True,
     enable_planner: bool = True,
     enable_biography: bool = True,
+    allow_degraded: Optional[bool] = None,
 ) -> Orchestrator:
     """
     Build the standard Klareco RAG pipeline.
@@ -64,6 +66,14 @@ def build_default_pipeline(
     """
     whoosh_index_dir = Path(whoosh_index_dir)
     duckdb_path = Path(duckdb_path)
+
+    # Fail loudly if the artifacts we depend on are missing or empty (#779).
+    # A silently-degrading dependency is a bug: the June 2026 migration cost a
+    # month of invisible quality loss because every loader logged a warning and
+    # carried on. You may run degraded — you may not do so by accident.
+    preflight(duckdb_path=duckdb_path,
+              whoosh_index_dir=whoosh_index_dir,
+              allow_degraded=allow_degraded)
 
     if models is None:
         models = ModelRegistry()

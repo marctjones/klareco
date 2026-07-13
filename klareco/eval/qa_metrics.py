@@ -18,6 +18,8 @@ Used by:
 import time
 from statistics import mean
 
+from klareco.eval.answer_scoring import aggregate_extraction, score_extraction
+
 
 def _percentile(values: list[float], pct: float) -> float:
     """Simple nearest-rank percentile (no interpolation)."""
@@ -143,6 +145,7 @@ def evaluate_question(pipeline, entry: dict) -> dict:
             "question_type":         entry.get("question_type"),
             "expected_keywords":     expected_kw,
             "error":                 f"{type(e).__name__}: {e}",
+            "gold_answer_span":      entry.get("gold_answer_span"),
             "answer":                "",
             "matched_keywords":      [],
             "answer_correct":        False,
@@ -150,6 +153,12 @@ def evaluate_question(pipeline, entry: dict) -> dict:
             "first_relevant_rank":   None,
             "retrieval_recall@k":    False,
             "mrr":                   0.0,
+            # A crashed question is an extraction failure only if the pipeline
+            # was given a fair chance — it wasn't, so gold_retrieved=False and
+            # the conditional metrics come back None. It is not silently
+            # scored as a miss.
+            "extraction":            score_extraction(
+                                         "", entry.get("gold_answer_span"), False),
             "latency_sec":           round(time.perf_counter() - t0, 2),
             "stage_timings_ms":      {},
             "stage_phase_timings_ms": {},
@@ -161,15 +170,38 @@ def evaluate_question(pipeline, entry: dict) -> dict:
     matched = _keywords_in_text(expected_kw, result.text or "")
     stage_timings = _extract_stage_timings(result.trace)
     phase_timings = _extract_phase_timings(result.trace)
+    answer_text = (result.text or "").strip()
+
+    # --- Extraction scoring (R17 / #783) --------------------------------
+    # Scored against the labeled gold span, and CONDITIONED on whether the
+    # gold passage was retrieved at all. Without the conditioning we cannot
+    # tell an extractor that failed from a retriever that never gave it the
+    # right passage — and decomposable attribution is the thesis.
+    #
+    # `gold_retrieved` uses the keyword proxy deliberately: given R1 (anchors
+    # are rigid designators) and R16 (the set is non-trivial), "a passage
+    # containing the answer keyword was retrieved" is a sound stand-in for
+    # "the gold passage was retrieved". It is NOT sound as a stand-in for
+    # "we extracted the answer" — that conflation is precisely the bug.
+    gold_span = entry.get("gold_answer_span")
+    gold_retrieved = rank is not None
+    extraction = score_extraction(answer_text, gold_span, gold_retrieved)
 
     return {
         "id":                    entry.get("id"),
         "question":              question,
         "question_type":         entry.get("question_type"),
         "expected_keywords":     expected_kw,
-        "answer":                (result.text or "").strip(),
+        "gold_answer_span":      gold_span,
+        "answer":                answer_text,
         "matched_keywords":      matched,
+
+        # LEGACY substring metric. Retained so old runs stay comparable and so
+        # the gap between it and `extraction.exact_match` is visible in every
+        # report. It conflates retrieval with extraction — do NOT headline it.
         "answer_correct":        bool(matched),
+
+        # Retrieval — sound as a keyword proxy (see note above).
         "retrieved_count":       len(passages),
         "first_relevant_rank":   rank,
         "retrieval_recall@k":    rank is not None,
@@ -177,6 +209,10 @@ def evaluate_question(pipeline, entry: dict) -> dict:
         "density_at_k":          _density_curve(relevance),
         "n_relevant":            sum(relevance),
         "mrr":                   (1.0 / rank) if rank else 0.0,
+
+        # Extraction — attributable to ExtractAndGenerateStage.
+        "extraction":            extraction,
+
         "latency_sec":           round(elapsed, 2),
         "stage_timings_ms":      stage_timings,
         "stage_phase_timings_ms": phase_timings,
@@ -293,13 +329,30 @@ def summarize(results: list[dict]) -> dict:
         d_sum = sum((r.get("density_at_k") or {}).get(sk, 0.0) for r in results)
         density_curve[sk] = d_sum / n
 
+    # Extraction, scored against the gold span and conditioned on retrieval
+    # (R17 / #783). This is the number that attributes to the extractor —
+    # `answer_accuracy` below cannot, because it is substring containment over
+    # a whole retrieved sentence and therefore conflates the two stages.
+    extraction = aggregate_extraction(
+        [r["extraction"] for r in results if r.get("extraction")])
+
     return {
         "n":                  n,
+
+        # ⚠️ LEGACY. Substring containment: "a passage containing the keyword
+        # survived to the output". Conflates retrieval and extraction. Kept for
+        # continuity with historical runs — do not headline it, and never
+        # report it as "accuracy" without the extraction block beside it.
         "answer_accuracy":    n_correct / n,
+
         "retrieval_recall":   n_recall / n,
         "mrr":                mrr,
         "recall_at_k":        recall_curve,
         "density_at_k":       density_curve,
+
+        # The attributable numbers.
+        "extraction":         extraction,
+
         "avg_latency_sec":    round(avg_latency, 2),
         "p50_latency_sec":    round(_percentile(latencies, 50), 2),
         "p95_latency_sec":    round(_percentile(latencies, 95), 2),
@@ -315,9 +368,41 @@ def print_summary(summary: dict, by_type: dict | None = None) -> None:
     print("AGGREGATE RESULTS")
     print("=" * 70)
     print(f"  Questions evaluated:   {summary['n']}")
-    print(f"  Answer accuracy:       {summary['answer_accuracy']:.1%}")
-    print(f"  Retrieval recall@k:    {summary['retrieval_recall']:.1%}")
-    print(f"  Mean Reciprocal Rank:  {summary['mrr']:.3f}")
+    print()
+    print("  RETRIEVAL — did the right passage rank well?")
+    print(f"    recall@k:            {summary['retrieval_recall']:.1%}")
+    print(f"    MRR:                 {summary['mrr']:.3f}")
+
+    ex = summary.get("extraction") or {}
+    print()
+    print("  EXTRACTION — given the right passage, did we pull the right span?")
+    if not ex.get("scorable_questions"):
+        print("    ⚠️  UNSCORABLE — no question carries a `gold_answer_span`.")
+        print("        This test set predates R17. Extraction quality cannot be")
+        print("        attributed on it. See docs/QA_TEST_SET_QUALITY_STANDARD.md")
+    else:
+        egr = ex.get("em_given_retrieved")
+        fgr = ex.get("f1_given_retrieved")
+        print(f"    exact match | retrieved:  "
+              f"{'n/a' if egr is None else format(egr, '.1%')}"
+              f"   (n={ex.get('gold_retrieved_n', 0)})")
+        print(f"    token F1    | retrieved:  "
+              f"{'n/a' if fgr is None else format(fgr, '.3f')}")
+        print(f"    exact match (all):        {ex['exact_match']:.1%}")
+        print(f"    gold passage retrieved:   {ex['gold_retrieved_frac']:.1%}")
+        if ex.get("note"):
+            print(f"    note: {ex['note']}")
+
+    print()
+    print("  ⚠️  LEGACY (substring containment — conflates retrieval with")
+    print("      extraction; kept only for continuity with historical runs):")
+    print(f"    answer_accuracy:     {summary['answer_accuracy']:.1%}")
+    if ex.get("scorable_questions") and ex.get("legacy_contains") is not None:
+        gap = ex["legacy_contains"] - ex["exact_match"]
+        print(f"    gap vs exact match:  {gap:+.1%}  "
+              f"← credit taken for text we did not actually extract")
+
+    print()
     print(f"  Latency  avg/p50/p95/max:  "
           f"{summary['avg_latency_sec']:.1f}s / "
           f"{summary['p50_latency_sec']:.1f}s / "

@@ -8,30 +8,54 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-# Dictionary roots — the "every root we've ever seen in the corpus" set.
-# Loaded from JSON so the data lives under data/vocabularies/ alongside the
-# other vocab files, not as a 16 MB auto-generated Python module.
-_dict_roots_path = (
-    Path(__file__).parent.parent / "data" / "vocabularies" / "merged_roots.json"
-)
-if _dict_roots_path.exists():
-    with open(_dict_roots_path, "r", encoding="utf-8") as _f:
-        DICTIONARY_ROOTS = set(json.load(_f))
-else:
-    DICTIONARY_ROOTS = set()
+# Dictionary roots — the language's own vocabulary. This is the artifact the
+# parser's NEGATIVE DETECTION rests on: "capitalised AND the root is not a known
+# Esperanto morpheme -> proper noun". With an EMPTY lexicon that rule fires on
+# every ordinary word it has never heard of.
+#
+# ⚠️ THIS FILE WENT MISSING IN THE JUNE 2026 MIGRATION AND THE PARSER CARRIED ON.
+# `merged_roots.json` was absent, `DICTIONARY_ROOTS` silently became `set()`, and
+# the parser ran on 2,481 Fundamento roots — which do not contain `centr`,
+# `list`, `muze` or `krom`. Consequence, measured on the live store: 41.8% of all
+# 5.39M sentences were given a `propra_nomo` SUBJECT, 700,925 of them an ordinary
+# Esperanto word (`Ĝia` x29,222, `Krome` x6,369, `Ambaŭ` x4,783). See #821.
+#
+# CLAUDE.md: "A silently-degrading dependency is a bug." This was one, in the
+# parser's own first twenty lines. It now FAILS LOUDLY.
+_VOCAB_DIR = Path(__file__).parent.parent / "data" / "vocabularies"
 
-# Load Fundamento roots (authoritative, tier 1 vocabulary)
-# These are used to disambiguate prefix/suffix conflicts
-_FUNDAMENTO_ROOTS = set()
-try:
-    _fundamento_path = Path(__file__).parent.parent / "data" / "vocabularies" / "fundamento_roots.json"
-    if _fundamento_path.exists():
-        with open(_fundamento_path, 'r', encoding='utf-8') as f:
-            _fundamento_data = json.load(f)
-            # JSON structure: {"hund": {...}, "libr": {...}, ...}
-            _FUNDAMENTO_ROOTS = set(_fundamento_data.keys())
-except Exception:
-    pass  # Silently fall back to empty set if file not found
+def _load_root_lexicon() -> set:
+    # merged_roots.json is the legacy artifact (a bare list). root_vocab.json is
+    # the rebuilt one (scripts/index/build_root_lexicon.py) and carries provenance.
+    legacy = _VOCAB_DIR / "merged_roots.json"
+    if legacy.exists():
+        return set(json.loads(legacy.read_text(encoding="utf-8")))
+    rebuilt = _VOCAB_DIR / "root_vocab.json"
+    if rebuilt.exists():
+        return set(json.loads(rebuilt.read_text(encoding="utf-8"))["roots"])
+    raise FileNotFoundError(
+        "The parser has NO ROOT LEXICON, and without one its proper-noun rule "
+        "misfires on every ordinary word (see #821 — this cost 700,925 corrupted "
+        "subjects).\n"
+        f"  looked for: {legacy}\n"
+        f"              {rebuilt}\n"
+        "  build it:   python scripts/index/build_root_lexicon.py\n"
+        "Refusing to parse with an empty lexicon rather than degrade silently."
+    )
+
+DICTIONARY_ROOTS = _load_root_lexicon()
+
+# Fundamento roots (authoritative, tier-1 vocabulary). Used to disambiguate
+# prefix/suffix conflicts. Also a REQUIRED artifact — it too used to fail silently
+# (`except Exception: pass`).
+_fundamento_path = _VOCAB_DIR / "fundamento_roots.json"
+if not _fundamento_path.exists():
+    raise FileNotFoundError(
+        f"Fundamento roots missing: {_fundamento_path}\n"
+        "This is the normative floor of the language. Refusing to degrade silently."
+    )
+# JSON structure: {"hund": {...}, "libr": {...}, ...}
+_FUNDAMENTO_ROOTS = set(json.loads(_fundamento_path.read_text(encoding="utf-8")).keys())
 
 # All function words (grammatical morphemes, not content words)
 # Used for negative detection: these should NEVER be marked as proper nouns

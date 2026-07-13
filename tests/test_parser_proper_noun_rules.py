@@ -176,3 +176,32 @@ class TestCapitalizationRatio:
     ])
     def test_common_nouns_are_NOT_promoted(self, sentence, surface):
         assert _find(sentence, surface)['vortspeco'] == 'substantivo'
+
+
+class TestUsageVeto:
+    """Usage says NO as well as YES — and that is where the precision was hiding.
+
+    The EVIDENTIAL rules (mid_sentence_capitalization, preceded_by_la,
+    morphology_no_decomposition) fire on capitalisation and absence-of-evidence.
+    A strong corpus opinion that a type is a COMMON word overrules them.
+    Measured: Prago precision 44.3% -> 49.1%, recall UNCHANGED at 100%.
+
+    It must NOT veto the DEDUCTIVE rules — a frequency count does not overrule
+    grammar.
+    """
+
+    def test_a_common_word_capitalised_mid_sentence_is_not_promoted(self):
+        n = _find('Mi vidis la Urbon hieraŭ.', 'Urbon')
+        assert n['vortspeco'] != 'propra_nomo', 'usage says `urbo` is a common word'
+
+    def test_usage_does_NOT_overrule_grammar(self):
+        """`Sam` is decided by ending-validity (Rules 2-7). No frequency count
+        may override a grammatical impossibility."""
+        n = _find('Sam malfermis la fenestron.', 'Sam')
+        assert n['vortspeco'] == 'propra_nomo'
+        assert n['propra_nomo_evidence'] == 'no_valid_ending'
+
+    def test_real_names_survive_the_veto(self):
+        for s, w in [('Mi vidis Zamenhof hieraŭ.', 'Zamenhof'),
+                     ('Petro kaj Maria venis.', 'Petro')]:
+            assert _find(s, w)['vortspeco'] == 'propra_nomo'

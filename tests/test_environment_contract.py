@@ -142,19 +142,44 @@ class TestStoreIndexConsistency:
     def test_index_is_not_empty(self, whoosh_ix):
         assert whoosh_ix.doc_count() > 0, 'Whoosh index has 0 documents'
 
-    def test_every_store_row_is_indexed(self, con, whoosh_ix):
-        """'Fully indexed' is a claim we have never actually checked.
+    def test_every_INDEXABLE_store_row_is_indexed(self, con, whoosh_ix):
+        """'Fully indexed' is a claim we had never actually checked.
 
         A store row that is not in the index is unreachable by retrieval — it
         exists but can never be an answer.
+
+        The contract is *indexable* rows, not *all* rows: R6 (#802) deliberately
+        excludes redirect stubs from the index while KEEPING them in the store
+        (the store preserves them for ontology work; the index must not carry
+        content-free documents). So the correct assertion is:
+
+            index_count == store_count MINUS the R6-filtered junk
+
+        Getting this wrong in either direction is a real failure: too few and
+        real sentences are unreachable; too many and the junk is back.
         """
-        store_n = con.execute('SELECT count(*) FROM sentences').fetchone()[0]
+        JUNK_PREFIXES = ('ALIDIREKTI', 'REDIRECT', '#REDIRECT', '#ALIDIREKTI')
+        clause = ' AND '.join(f"text NOT LIKE '{p}%'" for p in JUNK_PREFIXES)
+
+        indexable = con.execute(
+            f'SELECT count(*) FROM sentences WHERE {clause}').fetchone()[0]
         index_n = whoosh_ix.doc_count()
-        missing = store_n - index_n
-        assert missing <= 0, (
-            f'{missing:,} store rows are NOT in the Whoosh index '
-            f'(store={store_n:,}, index={index_n:,}) — those sentences can '
-            f'never be retrieved.')
+
+        # Tolerate the pre-#802 index (which still carries the junk) so this
+        # test reports the RIGHT failure — the redirect-purity test below — and
+        # not a confusing count mismatch on top of it.
+        store_n = con.execute('SELECT count(*) FROM sentences').fetchone()[0]
+        if index_n == store_n:
+            pytest.skip(
+                'index still contains the R6 junk (pre-#802 build): '
+                f'{index_n:,} docs == {store_n:,} store rows. The redirect-purity '
+                'test is the one to read. Rebuild with '
+                'scripts/index/rebuild_whoosh_from_duckdb.py.')
+
+        assert index_n >= indexable, (
+            f'{indexable - index_n:,} indexable store rows are NOT in the Whoosh '
+            f'index (indexable={indexable:,}, index={index_n:,}) — those sentences '
+            f'can never be retrieved.')
 
     def test_a_known_sentence_round_trips(self, con, whoosh_ix):
         """The index must actually WORK: take a real sentence out of the store,

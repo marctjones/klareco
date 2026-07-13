@@ -81,7 +81,35 @@ def main() -> None:
     total = con.execute('SELECT COUNT(*) FROM sentences').fetchone()[0]
     print(f'DuckDB rows: {total:,}', flush=True)
 
-    q = 'SELECT sid, text FROM sentences ORDER BY sid'
+    # R6 — filter corpus noise BEFORE Whoosh ingest (#802).
+    #
+    # The quality standard is explicit: "post-index sanity query ... must return
+    # 0 IN THE WHOOSH INDEX". Measured on the live index 2026-07-13 it returned
+    # 121,939 — 78,491 ALIDIREKTI + 43,448 REDIRECT. Content-free redirect
+    # stubs, indexed, scored and retrievable.
+    #
+    # They are not inert. They corrupt three things:
+    #   1. Retrieval — failure mode F5: "3/3 misses on the diversified-51 set
+    #      were redirects."
+    #   2. Entity extraction — `REDIRECT` is the #1 proper-noun SUBJECT in the
+    #      whole store (42,319 occurrences), ahead of every real person or place.
+    #      Anything mining proper nouns drinks from this — including the
+    #      proper-noun dictionary rebuild (#804), which is why this filter must
+    #      land FIRST or the pollution gets baked into the dictionary.
+    #   3. Test-set construction — the generator streams candidates from here.
+    #
+    # The DuckDB store KEEPS them (R6 preserves them for ontology work). The
+    # INDEX must not have them.
+    JUNK_PREFIXES = ('ALIDIREKTI', 'REDIRECT', '#REDIRECT', '#ALIDIREKTI')
+    junk_clause = ' AND '.join(
+        f"text NOT LIKE '{p}%'" for p in JUNK_PREFIXES)
+
+    n_junk = con.execute(
+        f"SELECT COUNT(*) FROM sentences WHERE NOT ({junk_clause})").fetchone()[0]
+    print(f'R6 filter: excluding {n_junk:,} redirect/disambiguation stubs '
+          f'({100 * n_junk / max(total, 1):.1f}% of the store)', flush=True)
+
+    q = f'SELECT sid, text FROM sentences WHERE {junk_clause} ORDER BY sid'
     if args.limit:
         q += f' LIMIT {args.limit}'
 

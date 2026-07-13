@@ -745,6 +745,35 @@ _EO_VOWELS = frozenset("aeiou")
 _EO_VALID_CHARS = frozenset("abcĉdefgĝhĥijĵklmnoprstŭvzŝ") | _EO_VOWELS
 
 
+# Rules 2-7: every CONTENT word carries a grammatical ending. This is the test
+# that separates a ROOT from a WORD — and the parser did not have it.
+#
+# `sam` is a root (Fundamento: `sama` = "same"). `Sam` is not a word: it carries
+# no ending. Negative detection asked only "is the ROOT known?", answered yes,
+# and so refused to call `Sam` a name — leaving it `nekonata` forever. Same for
+# `Peter` (`pet` + `er`: a suffix is not an ending).
+#
+# The closed ending-less class (la, kaj, mi, tiu, ĉar, ankaŭ, …) is the grammar's
+# own named exception and is handled separately via _ALL_FUNCTION_WORDS.
+_GRAMMATICAL_ENDINGS = (
+    'ojn', 'oj', 'on', 'o',        # substantivo
+    'ajn', 'aj', 'an', 'a',        # adjektivo
+    'en', 'e',                     # adverbo
+    'as', 'is', 'os', 'us', 'i', 'u',   # verbo
+)
+
+
+def _has_grammatical_ending(surface: str) -> bool:
+    """Does the surface form carry one of the grammatical endings (Rules 2-7)?
+
+    A root without an ending is not a word. This is what makes "capitalised AND
+    not a well-formed Esperanto word -> proper noun" decidable WITHOUT any list
+    of names.
+    """
+    s = (surface or '').lower()
+    return any(s.endswith(e) for e in _GRAMMATICAL_ENDINGS)
+
+
 def _is_valid_eo_stem(s: str) -> bool:
     """Return True if s is phonologically valid as an Esperanto root.
 
@@ -1654,6 +1683,7 @@ def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
         ast["analizeraro"] = ""
         ast["vortspeco"] = "propra_nomo"
         ast["kategorio"] = "propranomo"
+        ast["propra_nomo_evidence"] = "morphology_no_decomposition"
 
         # Esperantized proper nouns carry Esperanto case/number endings
         # (Parizon, Berlinoj). Extract them deterministically; bare-foreign
@@ -2297,15 +2327,34 @@ def parse(text: str):
                     current_vortspeco = ast.get("vortspeco", "")
                     if current_vortspeco == 'nekonata':
                         root = ast.get("radiko", "").lower()
+                        surface = ast.get("plena_vorto", "")
+                        # A known ROOT is not the same thing as a known WORD.
+                        # Rules 2-7: a content word must carry a grammatical
+                        # ending. `sam` is a Fundamento root, but `Sam` has no
+                        # ending, so it is not a word — and the old check, which
+                        # asked only whether the ROOT was known, therefore
+                        # refused to call it a name.
+                        is_known_word = (
+                            (root in _FUNDAMENTO_ROOTS or root in DICTIONARY_ROOTS)
+                            and _has_grammatical_ending(surface)
+                        )
                         is_common_root = (
-                            root in _FUNDAMENTO_ROOTS or
-                            root in DICTIONARY_ROOTS or
-                            root in _ALL_FUNCTION_WORDS or
+                            is_known_word or
+                            root in _ALL_FUNCTION_WORDS or   # closed ending-less class
                             len(root) <= 2
                         )
                         if not is_common_root:
                             ast["vortspeco"] = "propra_nomo"
                             ast["kategorio"] = "propranomo"
+                            # WHICH rule decided this? Attribution is the thesis
+                            # (VISION.md): it makes per-rule precision measurable
+                            # on gold, and it is where a learned tie-breaker for
+                            # the residue would later declare itself.
+                            ast["propra_nomo_evidence"] = (
+                                "no_valid_ending"
+                                if (root in _FUNDAMENTO_ROOTS or root in DICTIONARY_ROOTS)
+                                else "root_not_in_lexicon"
+                            )
                     elif current_vortspeco == 'adverbo':
                         # Bug #5: foreign names ending in -e (Goethe, Crusoe,
                         # Brontë, etc.) get parse_word'd as 'adverbo' because
@@ -2323,6 +2372,7 @@ def parse(text: str):
                         if not is_known_adverb_root:
                             ast["vortspeco"] = "propra_nomo"
                             ast["kategorio"] = "propranomo"
+                            ast["propra_nomo_evidence"] = "foreign_e_ending"
                     # else: trust parse_word (content classification or an
                     # already-deterministic propra_nomo).
                 # For non-initial words: capitalization is a strong signal
@@ -2378,6 +2428,7 @@ def parse(text: str):
                         # decided here (ontology/learned layer's job).
                         ast["vortspeco"] = "propra_nomo"
                         ast["kategorio"] = "propranomo"
+                        ast["propra_nomo_evidence"] = "mid_sentence_capitalization"
 
                 # Special case: "la X" pattern → X is a referenced entity.
                 # Same ALL-CAPS exception ("la DEMOKRATIO" = the democracy).
@@ -2391,6 +2442,7 @@ def parse(text: str):
                         and not _allcaps_content):
                     ast["vortspeco"] = "propra_nomo"
                     ast["kategorio"] = "propranomo"
+                    ast["propra_nomo_evidence"] = "preceded_by_la"
 
             word_asts.append(ast)
         except ValueError as e:
@@ -2853,6 +2905,7 @@ def _validate_sentence_initial_adjective_agreement(word_asts: list) -> None:
         if not has_agreement:
             ast['vortspeco'] = 'propra_nomo'
             ast['kategorio'] = 'propranomo'
+            ast['propra_nomo_evidence'] = 'adjective_unlicensed'
             ast['radiko'] = pv
             ast['_reverted_from_adjektivo'] = True
 

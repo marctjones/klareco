@@ -153,11 +153,17 @@ def evaluate(sents: list[list[dict]]) -> dict:
         except Exception:
             continue
 
+        # Walk the TREE: every clause contributes its own subject and object.
+        # Falls back to the legacy top-level slots when `propozicioj` is absent,
+        # so this script also scores the old single-slot AST and the two are
+        # directly comparable.
         got = {'subj': set(), 'obj': set()}
-        for key, slot in (('subj', 'subjekto'), ('obj', 'objekto')):
-            sf = _surface(ast.get(slot))
-            if sf:
-                got[key].add(sf)
+        frames = ast.get('propozicioj') or [ast]
+        for frame in frames:
+            for key, slot in (('subj', 'subjekto'), ('obj', 'objekto')):
+                sf = _surface(frame.get(slot))
+                if sf:
+                    got[key].add(sf)
 
         for key in ('subj', 'obj'):
             c = counts[key]
@@ -207,12 +213,14 @@ def report(name: str, r: dict) -> None:
         d = r[key]
         print(f'    {label:16s} P {d["precision"]:6.1%}  R {d["recall"]:6.1%}  '
               f'F1 {d["f1"]:6.1%}   (tp={d["tp"]} fp={d["fp"]} fn={d["fn"]})')
-    print(f'\n    {r["subjects_per_sentence"]} subjects/sentence  ->  '
-          f'SINGLE-SLOT AST RECALL CEILING = {r["single_slot_recall_ceiling"]:.1%}')
-    if r['subj']['recall'] and r['single_slot_recall_ceiling']:
-        pct = r['subj']['recall'] / r['single_slot_recall_ceiling']
-        print(f'    we are at {pct:.0%} of what the SHAPE allows — '
-              f'rules cannot break the ceiling, only a shape change can')
+    ceiling = r['single_slot_recall_ceiling']
+    print(f'\n    {r["subjects_per_sentence"]} subjects/sentence  ->  a SINGLE-SLOT '
+          f'AST could never exceed {ceiling:.1%} recall')
+    if r['subj']['recall'] > ceiling:
+        print(f'    we are at {r["subj"]["recall"]:.1%} — PAST that ceiling, because the AST is '
+              f'now a TREE\n    (one predicate-argument frame per CLAUSE, not one per sentence)')
+    elif r['subj']['recall'] and ceiling:
+        print(f'    we are at {r["subj"]["recall"] / ceiling:.0%} of what a flat record allows')
     if r['wrong_pick']:
         print('\n    precision errors, by what we WRONGLY picked:')
         tot = sum(r['wrong_pick'].values())

@@ -2548,6 +2548,138 @@ def parse_clause(word_asts: list) -> dict:
     return frazo
 
 
+# ---------------------------------------------------------------------------
+# CLAUSES — the AST becomes an actual TREE.
+#
+# It was not one. It was a fixed-arity RECORD: one `subjekto`, one `verbo`, one
+# `objekto` per SENTENCE, and nothing recursed. Measured on gold, that is a hard
+# ceiling, not a bug:
+#
+#     1.64 gold subjects per sentence
+#     35.8% of sentences have 2+ subjects (i.e. more than one clause)
+#     -> a single-slot AST can never recover more than 42.5% of subjects
+#
+# We measured 33.7%. The rules were already at 79% of what the SHAPE allowed.
+# No rule improvement can break 42.5%. Only this can.
+#
+# The fix is small and preserves everything: the predicate-argument frame moves
+# from the SENTENCE to the CLAUSE, and there is one frame per finite verb.
+#
+#     "Zamenhof fondis Esperanton kaj li skribis librojn, ĉar li amis la lingvon."
+#      └── propozicio: fondis(Zamenhof, Esperanton)
+#      └── propozicio: skribis(li, librojn)          <- was dumped into `aliaj`
+#      └── propozicio: amis(li, lingvon)             <- as a flat word list
+# ---------------------------------------------------------------------------
+
+# Words that OPEN a new clause. Esperanto marks its clause boundaries lexically,
+# which is exactly the kind of thing that makes this language tractable.
+_SUBORDINATORS = frozenset({
+    'ke', 'ĉar', 'se', 'kvankam', 'dum', 'ĝis', 'apenaŭ', 'kvazaŭ', 'ol',
+})
+_COORDINATORS = frozenset({'kaj', 'sed', 'aŭ', 'nek', 'tamen'})
+
+
+def _is_finite_verb(w) -> bool:
+    return (isinstance(w, dict) and w.get('vortspeco') == 'verbo'
+            and bool(w.get('tempo')))
+
+
+def _opens_a_clause(w) -> bool:
+    if not isinstance(w, dict):
+        return False
+    r = (w.get('radiko') or '').lower()
+    if r in _SUBORDINATORS or r in _COORDINATORS:
+        return True
+    # ki- correlatives introduce relative and indirect-interrogative clauses:
+    # kiu, kiam, kie, kial, kiel, kion...
+    return (w.get('vortspeco') == 'korelativo'
+            and w.get('korelativo_prefikso') == 'ki')
+
+
+def segment_clauses(word_asts: list) -> list[list[int]]:
+    """Split a sentence into clause spans — one per finite verb.
+
+    A new clause starts at a subordinator/coordinator/ki-correlative, but ONLY
+    once the current clause already has its finite verb. Without that guard,
+    `Zamenhof kaj Ludoviko venis` (a coordinated SUBJECT, one clause) would be cut
+    in two.
+    """
+    spans: list[list[int]] = []
+    cur: list[int] = []
+    has_verb = False
+
+    def _is_nominative_nominal(w) -> bool:
+        return (isinstance(w, dict)
+                and w.get('vortspeco') in ('substantivo', 'pronomo',
+                                           'propra_nomo', 'korelativo')
+                and w.get('kazo') == 'nominativo')
+
+    for i, w in enumerate(word_asts):
+        # (a) an explicit clause opener — but only once this clause has its verb,
+        #     or `Zamenhof kaj Ludoviko venis` (a coordinated SUBJECT, ONE clause)
+        #     would be cut in two.
+        if has_verb and _opens_a_clause(w) and cur:
+            spans.append(cur)
+            cur = []
+            has_verb = False
+
+        # (b) A SECOND FINITE VERB with no conjunction between them. Esperanto
+        #     writes this with a comma, and the comma is not in our token stream:
+        #         "Kvankam Esperanto ne estas perfekta, ĝi funkcias bone."
+        #     So the new verb IS the boundary. Its clause starts at the nearest
+        #     preceding nominative nominal — its subject.
+        elif has_verb and _is_finite_verb(w) and cur:
+            split = len(cur)
+            for k in range(len(cur) - 1, -1, -1):
+                if _is_nominative_nominal(word_asts[cur[k]]):
+                    split = k
+                    break
+            if split < len(cur):
+                spans.append(cur[:split])
+                cur = cur[split:]
+            else:
+                spans.append(cur)
+                cur = []
+            has_verb = False
+
+        cur.append(i)
+        if _is_finite_verb(w):
+            has_verb = True
+    if cur:
+        spans.append(cur)
+    return spans
+
+
+def _clause_role(marker) -> str:
+    """What kind of clause is this, relative to its parent?"""
+    if not isinstance(marker, dict):
+        return 'ĉefa'                       # main clause
+    r = (marker.get('radiko') or '').lower()
+    if r in _COORDINATORS:
+        return 'kunordigita'                # coordinate
+    if marker.get('vortspeco') == 'korelativo' and \
+            marker.get('korelativo_prefikso') == 'ki':
+        return 'rilativa'                   # relative
+    if r in _SUBORDINATORS:
+        return 'subordigita'                # subordinate
+    return 'ĉefa'
+
+
+def build_clauses(word_asts: list) -> list[dict]:
+    """One predicate-argument frame PER CLAUSE. This is the tree."""
+    out: list[dict] = []
+    for span in segment_clauses(word_asts):
+        words = [word_asts[i] for i in span]
+        if not any(_is_finite_verb(w) for w in words):
+            continue                        # verbless fragment: no frame to build
+        frame = parse_clause(words)
+        frame['tipo'] = 'propozicio'
+        frame['rolo'] = _clause_role(words[0] if words else None)
+        frame['fonto'] = 'regulo'           # attribution (VISION.md)
+        out.append(frame)
+    return out
+
+
 @lru_cache(maxsize=10000)
 def parse(text: str):
     """
@@ -3075,6 +3207,17 @@ def parse(text: str):
 
     # Annotate multi-token entity groups (consecutive propra_nomo runs).
     _annotate_multi_token_entities(sentence_ast, word_asts)
+
+    # ---- THE TREE -------------------------------------------------------
+    # One predicate-argument frame PER CLAUSE, instead of one per SENTENCE.
+    #
+    # The flat record could hold exactly one subject, and 35.8% of real sentences
+    # have two or more — a hard recall ceiling of 42.5% that no rule could break.
+    # `propozicioj` breaks it. The legacy top-level `subjekto`/`verbo`/`objekto`
+    # stay put and still describe the MAIN clause, so every existing consumer
+    # (DuckDBRetriever, the rerankers, the shredded columns) keeps working
+    # unchanged while new consumers can walk the tree.
+    sentence_ast["propozicioj"] = build_clauses(word_asts)
 
     return sentence_ast
 

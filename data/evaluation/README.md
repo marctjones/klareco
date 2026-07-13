@@ -1,5 +1,23 @@
 # RAG Test Set Documentation
 
+> ## ⛔ RETIRED 2026-07-13 — `rag_test_set.jsonl` has moved to `data/test_sets/archive/`
+>
+> **Do not use this test set. Do not repair it. Everything below is kept only as
+> a record of how it was built.**
+>
+> Measured under [#793](https://github.com/marctjones/klareco/issues/793):
+> **0 of its 30 pairs carry a `source_sentence_id`, and 0 carry an
+> `expected_answer`** — only an `expected_answer_pattern` (a human-readable hint
+> like `"Esperanto estas [definition]"`). There is no label in the file that a
+> deterministic scorer can compare an output against. This is failure mode
+> **F9** exactly, and it violates **R8** (provenance) and **R17** (gold answer
+> span).
+>
+> Any number ever reported against this file is uninterpretable.
+>
+> See `data/test_sets/archive/README.md` for the full evidence, and
+> `data/test_sets/README.md` for what to use instead.
+
 ## Overview
 
 This directory contains a comprehensive Q&A test set for evaluating the Klareco RAG system. The test set includes 30 questions spanning 13 categories, labeled with expected performance and required capabilities.

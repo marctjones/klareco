@@ -30,6 +30,7 @@ Related Issues: Epic #637-642 (CLI Architecture)
 See Also: docs/CLI_ARCHITECTURE.md, docs/VERSION_COMPATIBILITY.md
 """
 
+import ast
 import sys
 import re
 from pathlib import Path
@@ -56,36 +57,51 @@ RECOMMENDED_FIELDS = [
     'Related Issues',
 ]
 
-# Valid stages
-VALID_STAGES = ['Data', 'Training', 'Evaluation', 'Inspection', 'Utility']
+# Valid stages. These mirror the pipeline stages the project actually has
+# (see CLAUDE.md → Pipeline Stages) plus the cross-cutting ones. The original
+# list predated the data pipeline and rejected `Index` — the stage used by the
+# entire indexing chain, including build_duckdb_store.py.
+VALID_STAGES = [
+    # Pipeline stages, in order
+    'Acquire', 'Clean', 'Extract', 'OCR', 'Parse', 'Index',
+    'Eval', 'Evaluation', 'Validate', 'Pipeline',
+    # Cross-cutting
+    'Data', 'Training', 'Inspection', 'Diagnostics', 'Repair', 'Utility',
+]
+
+# VERSION accepts vN.N (v2.1) and vN.x (v2.x — "the v2 series", used across the
+# DuckDB-era scripts where the exact minor is not meaningful).
+VERSION_RE = re.compile(r'^v\d+\.(\d+|x)')
 
 
 def extract_docstring(file_path: Path) -> str:
-    """Extract module-level docstring from Python file."""
+    """Extract the module-level docstring from a Python file.
+
+    Uses ast.get_docstring rather than a regex. The previous implementation
+    matched a comment-skip group followed by a triple-quoted string, under
+    re.DOTALL | re.MULTILINE. re.DOTALL makes the dot in the comment-skip
+    group match newlines too, so that group greedily swallowed past the real
+    module docstring and captured some *function* docstring further down the
+    file.
+
+    Effect: every script with a shebang before its docstring was silently
+    mis-reported. The linter declared build_duckdb_store.py to be missing all
+    four required fields when it has all four. Since it is wired into a
+    pre-commit hook, its output was actively misleading. See issue #781.
+    """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        # Find module-level docstring (first string literal)
-        # Match triple-quoted strings at start of file
-        pattern = r'^(?:\s*#.*\n)*\s*"""(.*?)"""'
-        match = re.search(pattern, content, re.DOTALL | re.MULTILINE)
-
-        if match:
-            return match.group(1)
-
-        # Try single quotes
-        pattern = r"^(?:\s*#.*\n)*\s*'''(.*?)'''"
-        match = re.search(pattern, content, re.DOTALL | re.MULTILINE)
-
-        if match:
-            return match.group(1)
-
-        return ""
-
+        source = file_path.read_text(encoding='utf-8')
     except Exception as e:
         print(f"ERROR reading {file_path}: {e}")
         return ""
+
+    try:
+        tree = ast.parse(source, filename=str(file_path))
+    except SyntaxError as e:
+        print(f"ERROR parsing {file_path}: {e}")
+        return ""
+
+    return ast.get_docstring(tree, clean=False) or ""
 
 
 def check_field(docstring: str, field: str) -> Tuple[bool, str]:
@@ -152,18 +168,23 @@ def validate_script(file_path: Path, verbose: bool = False) -> Dict:
         if not found:
             result['missing_recommended'].append(field)
 
-    # Validate STAGE value
+    # Validate STAGE value. A stage may be qualified ("Index / Schema
+    # augmentation") or list alternatives ("Data | Evaluation") — validate the
+    # leading token, which is the stage proper.
     found, stage_value = check_field(docstring, 'STAGE')
-    if found and stage_value not in VALID_STAGES:
-        result['warnings'].append(
-            f"Invalid STAGE: '{stage_value}'. Must be one of: {', '.join(VALID_STAGES)}"
-        )
+    if found:
+        head = re.split(r'[/|,]', stage_value, maxsplit=1)[0].strip()
+        if head not in VALID_STAGES:
+            result['warnings'].append(
+                f"Invalid STAGE: '{head}'. Must be one of: {', '.join(VALID_STAGES)}"
+            )
 
-    # Check for VERSION format (should be v*.*)
+    # Check VERSION format. Accepts vN.N and vN.x — see VERSION_RE.
     found, version_value = check_field(docstring, 'VERSION')
-    if found and not re.match(r'v\d+\.\d+', version_value):
+    if found and not VERSION_RE.match(version_value):
         result['warnings'].append(
-            f"VERSION format should be 'vX.Y' (e.g., v2.1, v3.0), got: '{version_value}'"
+            f"VERSION format should be 'vX.Y' or 'vX.x' (e.g. v2.1, v3.0, "
+            f"v2.x), got: '{version_value}'"
         )
 
     return result

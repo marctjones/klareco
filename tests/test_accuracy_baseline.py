@@ -69,9 +69,31 @@ class TestBaselineRecordIsUsable:
             assert r.get('n_questions'), 'bench run records no question count'
 
     def test_runs_record_a_metric(self):
+        """bench_history holds several BENCHMARK TYPES, each with its own shape:
+
+            reranker A/B  -> {'rerankers': {name: {...}}}
+            retriever A/B -> {'retrievers': {name: {...}}}
+            parser (UD)   -> {'metrics': {...}}          <- flat; one system
+
+        A run with none of these recorded nothing.
+        """
         for r in _entries():
-            metrics = r.get('rerankers') or r.get('retrievers') or {}
-            assert metrics, f'bench run at {r.get("timestamp")} recorded no metrics at all'
+            has = r.get('rerankers') or r.get('retrievers') or r.get('metrics')
+            assert has, f'bench run at {r.get("timestamp")} recorded no metrics at all'
+
+    def test_degraded_runs_say_so(self):
+        """A number measured on a broken instrument must carry that fact FOREVER,
+        or someone will cite it in six months.
+
+        The UD-Prago baseline is stamped `degraded: true` with the reason (no
+        proper-noun dictionary — which is exactly what its 27.6% proper-noun F1
+        measures). Any run flagged degraded must explain why.
+        """
+        for r in _entries():
+            if r.get('degraded'):
+                assert r.get('degraded_reason'), (
+                    f'run at {r.get("timestamp")} is flagged degraded but does not '
+                    f'say WHY — an unexplained caveat is no caveat at all')
 
 
 class TestNoCatastrophicRegression:

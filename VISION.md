@@ -85,12 +85,42 @@ These are the places where deterministic methods have actually broken, with the
 reason stated as a property of the problem. This list is the real deliverable and
 should grow.
 
-**Proper-noun disambiguation (confirmed residue).** Esperanto has no
-morphological proper-noun marker. A capitalized token whose morphology, position,
-and function-word context give no signal — a novel surname that is also a common
-word, sentence-initial position, an all-caps title, a quoted phrase — cannot be
-resolved by any rule. Disambiguation requires distributional or world knowledge.
-This is the cleanest confirmed residue we have.
+**Proper-noun disambiguation (⚠️ CLAIMED residue — under test, see #819).**
+Esperanto has no morphological proper-noun marker. A capitalized token whose
+morphology, position, and function-word context give no signal — a novel surname
+that is also a common word, sentence-initial position, an all-caps title, a
+quoted phrase — cannot be resolved by any rule, so disambiguation requires
+distributional or world knowledge.
+
+**That argument is plausible. It is not yet earned** — and this document
+previously called it *"confirmed"* without ever measuring it. Two things are
+wrong with that:
+
+- It is currently being invoked to excuse an F1 of **27.6%** (UD-Prago, measured
+  2026-07-13: precision 18.2%, recall 57.1%, 36 false positives against 8 true
+  positives). **You do not get to call a problem unsolvable while your solution
+  is that bad** — and ours is bad for a mundane reason: the proper-noun
+  dictionary is *missing* (#804), the ontology is *empty* (#777), and 569,743
+  Wikipedia article titles are not even *in* the store (#803). A 27.6% F1 with a
+  missing dictionary is a property of the **implementation**, not of the
+  **problem**.
+- As written, the claim is **unfalsifiable**: "a token where morphology, position
+  and context give *no* signal" defines the residue as whatever is left over. The
+  honest question is not *"does an irreducible core exist?"* — trivially it does,
+  for some tokens — but **"how big is it?"** A residue of 5% and a residue of 60%
+  are entirely different findings, and only one of them justifies a model.
+
+**#819 tests it properly**: push the deterministic method to its ceiling
+(dictionary → article-title gazetteer → positional rules → morphological
+decomposition → function-word context), measuring each step against UD-Prago —
+the one ruler that is external and cannot lie to us — and report the ceiling **as
+a number**. If it lands at 0.98, this entry gets **deleted**, and that is a *win*:
+it is the thesis working. If it stalls at 0.6, we will have *earned* the word
+irreducible, and be able to name exactly which token classes defeat every rule.
+
+**This is the method this document itself demands, applied to this document's own
+favourite example.** A hypothesis must not become a load-bearing assumption
+merely because it is written down in the vision.
 
 **Lexical synonymy (confirmed residue, currently faked).** Deciding that `fond-`,
 `kre-`, `starig-`, and `establ-` denote the same relation *in a given context* is

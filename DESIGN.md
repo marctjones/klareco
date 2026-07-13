@@ -184,10 +184,18 @@ plus corpus statistics, with zero restore:
   Esperanto states the answer's grammatical role *morphologically*; English can
   only infer it from word order. This is a free, hard constraint and we do not
   currently use it.
-- **Pronoun-subject exclusion.** A sentence whose subject is `li`/`ŝi`/`tiu`
-  cannot answer a KIU question — the entity is not in the sentence. That is
-  **642,063 sentences (11.9% of the corpus)** deterministically excluded from
-  KIU candidacy, using nothing but `subj_vortspeco`.
+- **Pronoun-subject penalty** (*penalize, do not hard-exclude*). A sentence whose
+  subject is `li`/`ŝi`/`tiu` usually cannot answer a KIU question — the entity is
+  not in the sentence, and resolving it needs cross-sentence coreference we do not
+  have. That is **642,063 sentences (11.9% of the corpus)**.
+  ⚠️ **But this must not be a hard filter**, because it collides with voice
+  normalization below: in *"Ĝi estis fondita **de Zamenhof**"* the subject **is** a
+  pronoun and the answer is the agent in the `de`-phrase. A wholesale
+  `subj_vortspeco='pronomo'` exclusion would drop exactly the passive sentences
+  the participle rule is designed to catch. Exclude only *after* voice
+  normalization confirms there is no agent — otherwise penalize. An over-strong
+  deterministic rule is the failure mode this project is supposed to notice, not
+  commit.
 - **Anchor weighting by specificity.** Among the presupposed (non-gap) terms,
   weight by corpus rarity: proper names, quoted titles, and years narrow the
   space; `est`/`hav`/`fari` narrow nothing. The `gold_anchor_50` autopsy already

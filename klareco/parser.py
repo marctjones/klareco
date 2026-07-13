@@ -725,6 +725,21 @@ if _protected_roots_path.exists():
     for _suffix, _roots in _protected_data.get('suffix_protected', {}).items():
         PROTECTED_SUFFIX_ROOTS.update(_roots)
 
+# ReVo-derived protections (scripts/index/build_root_lexicon.py v2).
+#
+# **ReVo says X is a root => X is ATOMIC => never split X.**
+#
+# This is what neutralises the laundering loop (#806) WITHOUT throwing away the
+# corpus tier. A laundered root like `org` is harmless sitting in the lexicon —
+# it is harmful only when it lets `organo` become org+an. So we do not remove it;
+# we make the dictionary's reading WIN. `organ`, `banan`, `milit`, `regul` are
+# ReVo headwords and therefore protected. `amerikan` and `kristan` are NOT in
+# ReVo, so `amerikano` correctly stays amerik+an.
+_rv = _VOCAB_DIR / 'root_vocab.json'
+if _rv.exists():
+    PROTECTED_SUFFIX_ROOTS.update(
+        json.loads(_rv.read_text(encoding='utf-8')).get('protected', []))
+
 # Combined set for fast lookup
 PROTECTED_ROOTS = PROTECTED_PREFIX_ROOTS | PROTECTED_SUFFIX_ROOTS
 

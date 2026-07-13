@@ -1,80 +1,91 @@
 #!/usr/bin/env python3
 """
-Build the Esperanto ROOT LEXICON — the closed-world artifact that replaces the
-open-world proper-noun gazetteer.
+Build the Esperanto ROOT LEXICON — ReVo-first, tiered, and no longer laundered.
 
-VERSION: v1.0
-COMPATIBLE WITH: DuckDB store (v2.2 schema)
-DEPENDENCIES: duckdb; data/vocabularies/fundamento_roots.json
+VERSION: v2.0
+COMPATIBLE WITH: v2.2 DuckDB store
+DEPENDENCIES: data/raw/eo/dictionaries/revo_roots.json (scripts/acquire/acquire_revo.py);
+              data/vocabularies/fundamento_roots.json; duckdb (optional, tier 2)
 STAGE: Index
 
 Description:
-    "Building a huge dictionary seems like giving up."  — and it is, if the
-    dictionary is a list of NAMES. This script builds the other thing.
+    v1 of this script harvested roots from `subj_radiko` / `verb_radiko` /
+    `obj_radiko` — i.e. FROM PARSER OUTPUT. When the parser was wrong, the
+    harvest wrote the error down as evidence and fed it straight back:
 
-    THE INSIGHT
-    -----------
-    We do not need a list of every name in the world (unbounded, stale by
-    construction, pure world knowledge). We need a list of ESPERANTO ROOTS —
-    which is finite, closed, and derivable from our own corpus. Then
-    proper-nounhood is INFERRED rather than looked up:
+        degraded parser splits   organo -> org + an
+        harvest records          `org` as a ROOT
+        parser reloads,  splits  organo -> org + an       <-- self-reinforcing
 
-        capitalized (where capitalisation carries signal)
-          AND stem is NOT a known Esperanto root
-          -> proper noun
+    **A corpus-harvested lexicon can never be more correct than the parser that
+    harvested it**, and no `--min-count` escapes it: the parser makes the same
+    mis-split on EVERY occurrence, so the bad root has a HIGH count. That is
+    failure mode F13 in the data pipeline (#806).
 
-    An open-world lookup becomes a closed-world inference.
+    THE FIX IS NOT A SMALLER LEXICON. IT IS AN INDEPENDENT ONE.
+    ----------------------------------------------------------
+    TIER 1 — ReVo + Fundamento. Curated, external, and nothing of ours in it.
+             ReVo's source is one XML article per root and the FILENAME IS THE
+             ROOT, so the inventory is a directory listing. It separates every
+             contaminated case exactly:
 
-    WHY LOWERCASE ATTESTATION IS THE DISCRIMINATOR
-    ---------------------------------------------
-    A root is an Esperanto root if the corpus uses it as a COMMON word — i.e.
-    lowercase. Names are capitalised; common words are not. So we harvest roots
-    only from lowercase, non-propra_nomo usage. The corpus separates the two for
-    us, for free.
+                 organ  YES / org       no        amerik YES / amerikan  no
+                 banan  YES / mak       no        (esperant: correctly ABSENT —
+                                                   it is LEXICALIZED, not a root)
 
-    MEASURED (UD-Prago gold, 2026-07-13)
-    ------------------------------------
-        current parser (dictionary missing)      P 18.2%  R 57.1%  F1 27.6%
-        + root lexicon                           P 29.1%  R 85.2%  F1 43.4%
-        + ignore ALL-CAPS headings               P 32.8%  R 81.5%  F1 46.8%
-        + position reset after . ! ? « ( :       P 38.0%  R 70.4%  F1 49.4%
-        + foreign orthography (Zamenhof LR63)    P 38.5%  R 74.1%  F1 50.6%
+    TIER 2 — the corpus harvest. KEPT, because ReVo lacks ~7,900 roots the corpus
+             attests (neologisms, technical and geographic vocabulary), and
+             dropping it COSTS us: measured on UD gold, curated-only scores
+             proper-noun F1 44.9% vs 48.9% for the union. Coverage matters.
 
-    F1 27.6% -> 50.6% with NO name list at all. Even the Fundamento's 2,481
-    roots alone reach F1 42.2% at 100% RECALL — it misses nothing. The
-    bottleneck was never the concept; it was that our lexicon held 2,481 roots
-    when Esperanto has ~20,000.
+    SO WHAT STOPS THE CONTAMINATION? — PROTECTION, NOT EXCLUSION.
+    ------------------------------------------------------------
+    The damage a laundered root does is that it ENABLES A BAD SPLIT. `org` is
+    harmless sitting in the lexicon; it is harmful only when it lets `organo`
+    become org+an. So we do not have to remove it — we have to make the correct
+    reading WIN:
 
-Grounding — these are not ad-hoc heuristics; they come from Esperanto itself:
+        **ReVo says X is a root => X is ATOMIC => never split X.**
 
-  * 16RULES Rule 1 — the alphabet is CLOSED: 28 letters, one sound each. So
-    q/w/x/y and clusters like sch/th/ph/ck are IMPOSSIBLE in an Esperanto word.
-  * Zamenhof, Lingvaj Respondoj 63 (La Esperantisto, 1891) — "Propran nomon oni
-    povas nun skribi tiel, kiel ĝi estas skribata en la gepatra lingvo de ĝia
-    posedanto": a proper name MAY keep its native orthography. So non-Esperanto
-    orthography LICENSES proper-nounhood. (This text is in our own corpus.)
-  * PMEG / Akademio — unassimilated foreign names are treated as QUOTATIONS:
-    they resist the accusative -n, and a head noun carries the case instead
-    ("la urbo New York", "la verkon «Faŭsto»"). A syntactic signal, not lexical.
+    Every tier-1 root that merely LOOKS decomposable is emitted as PROTECTED
+    (2,364 of them: `organ`, `banan`, `milit`, `regul`, `kalkul`, `postul` …).
+    `amerikan` and `kristan` are NOT in ReVo, so they are NOT protected, and
+    `amerikano` correctly stays amerik+an. This is `protected_roots` — derived
+    from a dictionary, not hand-listed.
+
+    Lexicalization (`esperant`) is a DIFFERENT fact — about usage, not about the
+    dictionary — and comes from scripts/index/build_surface_lexical_facts.py.
+    The parser unions the two.
 
 Pipeline Position:
-    duckdb_store --[THIS]--> data/vocabularies/root_vocab.json --> parser
+    ReVo + Fundamento --[THIS]--> root_vocab.json {roots, protected} --> parser
+    duckdb (tier 2)   --^
 
 Usage:
+    python scripts/acquire/acquire_revo.py        # once, or when ReVo updates
     python scripts/index/build_root_lexicon.py
-    python scripts/index/build_root_lexicon.py --min-count 3
+    python scripts/index/build_root_lexicon.py --no-corpus   # tier 1 only
+
+Inputs:
+    - data/raw/eo/dictionaries/revo_roots.json   (REQUIRED — tier 1)
+    - data/vocabularies/fundamento_roots.json    (REQUIRED — tier 1, normative)
+    - data/indexes/duckdb_store.db               (optional — tier 2 coverage)
 
 Outputs:
-    data/vocabularies/root_vocab.json  — {"roots": [...], "provenance": {...}}
+    - data/vocabularies/root_vocab.json
+      {"roots": [...], "tier1": [...], "protected": [...], "provenance": {...}}
 
 Quality Checks:
-    - Fundamento roots are always unioned in (normative floor).
-    - Roots are lowercase-attested only (names cannot leak in).
-    - Reports coverage against the Fundamento so a bad harvest is obvious.
+    - Asserts the anchors #806 rests on: organ/banan/amerik present in tier 1;
+      org/amerikan/mak absent from it. Fails loudly if ReVo ever stops
+      separating them.
+    - Reports how many tier-2 roots ReVo contradicts (the laundering estimate).
 
 Last Updated: 2026-07-13
-Related Issues: #804, #806, #819
-See Also: VISION.md (the residue), docs/QA_TEST_SET_QUALITY_STANDARD.md (R13)
+Author: Claude (with Marc Jones)
+Related Issues: #806, #804, #819, #821
+See Also: docs/PROPER_NOUNS.md, scripts/acquire/acquire_revo.py,
+          scripts/index/build_surface_lexical_facts.py (lexicalization)
 """
 
 from __future__ import annotations
@@ -87,24 +98,36 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import duckdb
-
+REVO = Path('data/raw/eo/dictionaries/revo_roots.json')
+FUNDAMENTO = Path('data/vocabularies/fundamento_roots.json')
 DB = 'data/indexes/duckdb_store.db'
-FUNDAMENTO = 'data/vocabularies/fundamento_roots.json'
-OUT = 'data/vocabularies/root_vocab.json'
+OUT = Path('data/vocabularies/root_vocab.json')
+
+# The closed suffix inventory (the 16 rules). Used ONLY to decide which tier-1
+# roots merely LOOK decomposable and therefore need protecting.
+_SUFFIXES = ('ant', 'int', 'ont', 'at', 'it', 'ot',
+             'ism', 'ist', 'ind', 'em', 'ec', 'aĵ', 'ul', 'in', 'et', 'eg',
+             'ar', 'er', 'uj', 'ej', 'estr', 'ad', 'aĝ', 'an', 'ig', 'iĝ',
+             'il', 'obl', 'op', 'um', 'id')
+
+_MUST_BE_TIER1 = ('organ', 'banan', 'amerik', 'hund', 'milit', 'regul')
+_MUST_NOT_BE_TIER1 = ('org', 'amerikan', 'mak')
 
 
-def harvest(con, min_count: int) -> Counter:
-    """Roots attested in LOWERCASE, non-proper-noun usage.
+def harvest_corpus(min_count: int) -> Counter:
+    """TIER 2 — lowercase-attested roots from the store.
 
-    Lowercase is what separates a common word from a name, and the corpus does
-    that separation for us — we do not have to know anything about the world.
+    ⚠️ This is PARSER OUTPUT and is therefore contaminated. It is kept for
+    COVERAGE (ReVo lacks ~7,900 roots the corpus attests), and its contamination
+    is neutralised by PROTECTION rather than by exclusion — see the module
+    docstring. Do not treat these as authoritative.
     """
+    import duckdb
+    con = duckdb.connect(DB, read_only=True)
     rows = con.execute("""
-        SELECT radiko, n FROM (
+        SELECT radiko, sum(n) FROM (
             SELECT subj_radiko AS radiko, count(*) n FROM sentences
-              WHERE subj_radiko IS NOT NULL
-                AND subj_vortspeco <> 'propra_nomo'      -- exclude names
+              WHERE subj_radiko IS NOT NULL AND subj_vortspeco <> 'propra_nomo'
               GROUP BY 1
             UNION ALL
             SELECT verb_radiko, count(*) FROM sentences
@@ -113,60 +136,91 @@ def harvest(con, min_count: int) -> Counter:
             SELECT obj_radiko, count(*) FROM sentences
               WHERE obj_radiko IS NOT NULL GROUP BY 1
         )
-        WHERE radiko = lower(radiko)      -- lowercase-attested ONLY
-          AND length(radiko) >= 2
+        WHERE radiko = lower(radiko) AND length(radiko) >= 2
+        GROUP BY 1
     """).fetchall()
-    cnt: Counter = Counter()
-    for r, n in rows:
-        cnt[r] += n
-    return cnt
+    return Counter({r: int(n) for r, n in rows})
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[1])
-    ap.add_argument('--duckdb-path', default=DB)
-    ap.add_argument('--min-count', type=int, default=10,
-                    help='minimum lowercase attestations (default 10 — the '
-                         'sweep showed 10 and 3 perform the same, and 10 is '
-                         'cleaner)')
-    ap.add_argument('--out', default=OUT)
+    ap = argparse.ArgumentParser(description='Build the ReVo-first root lexicon')
+    ap.add_argument('--min-count', type=int, default=10)
+    ap.add_argument('--no-corpus', action='store_true',
+                    help='tier 1 only (curated). Costs coverage: proper-noun F1 '
+                         '44.9%% vs 48.9%% for the union.')
     args = ap.parse_args()
 
-    con = duckdb.connect(args.duckdb_path, read_only=True)
-    cnt = harvest(con, args.min_count)
+    if not REVO.exists():
+        raise FileNotFoundError(
+            f'ReVo missing: {REVO}\n'
+            '  Acquire it:  python scripts/acquire/acquire_revo.py\n'
+            'Refusing to build a lexicon out of parser output alone — that is '
+            'the laundering loop this script exists to break (#806).')
 
-    fundamento = set(json.load(open(FUNDAMENTO)))
-    corpus = {r for r, n in cnt.items() if n >= args.min_count}
+    revo = set(json.loads(REVO.read_text(encoding='utf-8'))['roots'])
+    fund = set(json.loads(FUNDAMENTO.read_text(encoding='utf-8')).keys())
+    tier1 = revo | fund
 
-    # The Fundamento is the NORMATIVE floor — always included, regardless of how
-    # often our corpus happens to use a root. It is the language's own
-    # definition of itself.
-    roots = sorted(fundamento | corpus)
+    missing = [r for r in _MUST_BE_TIER1 if r not in tier1]
+    present = [r for r in _MUST_NOT_BE_TIER1 if r in tier1]
+    if missing or present:
+        raise SystemExit(
+            f'TIER-1 FAILED THE ANCHORS that #806 rests on.\n'
+            f'  expected but ABSENT : {missing}\n'
+            f'  unexpected, PRESENT : {present}')
 
-    missing_fund = fundamento - corpus
-    print(f'  corpus-attested (>= {args.min_count}) : {len(corpus):,}')
-    print(f'  Fundamento                    : {len(fundamento):,}')
-    print(f'  union (the lexicon)           : {len(roots):,}')
-    print(f'  Fundamento roots our corpus does not attest {args.min_count}+ times: '
-          f'{len(missing_fund):,}')
+    tier2: set[str] = set()
+    if not args.no_corpus:
+        cnt = harvest_corpus(args.min_count)
+        tier2 = {r for r, n in cnt.items() if n >= args.min_count} - tier1
 
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({
+    # ReVo says it is a root => it is ATOMIC => never split it.
+    protected = sorted(
+        r for r in tier1
+        if any(r.endswith(s) and len(r) - len(s) >= 2 for s in _SUFFIXES))
+
+    roots = sorted(tier1 | tier2)
+    contradicted = sorted(t for t in tier2
+                          if any(t.endswith(s) and t[:-len(s)] in tier1
+                                 for s in _SUFFIXES))
+
+    print(f'  tier 1  ReVo                : {len(revo):,}')
+    print(f'  tier 1  Fundamento          : {len(fund):,}')
+    print(f'  tier 1  union (AUTHORITATIVE): {len(tier1):,}')
+    print(f'  tier 2  corpus (contaminated): {len(tier2):,}')
+    print(f'  LEXICON                     : {len(roots):,}')
+    print(f'  PROTECTED (ReVo says atomic): {len(protected):,}')
+    print(f'\n  tier-2 roots ReVo CONTRADICTS (look like parser mis-splits): '
+          f'{len(contradicted):,}')
+    print(f'    e.g. {contradicted[:8]}')
+
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    tmp = OUT.with_suffix('.tmp')
+    tmp.write_text(json.dumps({
         'roots': roots,
+        'tier1': sorted(tier1),
+        'protected': protected,
         'provenance': {
-            'source': 'lowercase-attested corpus roots UNION fundamento_roots',
-            'min_count': args.min_count,
-            'n_corpus': len(corpus),
-            'n_fundamento': len(fundamento),
-            'n_total': len(roots),
-            'note': 'Lowercase attestation is the discriminator: names are '
-                    'capitalised, common words are not. This is a CLOSED-world '
-                    'lexicon of the language, NOT an open-world gazetteer of '
-                    'names. See #804.',
+            'tier1': 'ReVo (github.com/revuloj/revo-fonto, GPL-2.0) UNION Fundamento '
+                     '— CURATED and INDEPENDENT of our parser',
+            'tier2': ('corpus-harvested from parser output — kept for COVERAGE only, '
+                      'NOT authoritative' if tier2 else 'excluded (--no-corpus)'),
+            'protected': 'tier-1 roots that merely LOOK decomposable. ReVo says they '
+                         'are roots, so they are ATOMIC and must never be split: '
+                         'organ, banan, milit, regul. `amerikan`/`kristan` are NOT in '
+                         'ReVo and so correctly stay decomposable.',
+            'n_tier1': len(tier1), 'n_tier2': len(tier2),
+            'n_protected': len(protected),
+            'n_tier2_contradicted_by_revo': len(contradicted),
+            'note': 'v1 harvested from subj_radiko and LAUNDERED the parser\'s own '
+                    'mis-splits back in as roots (org<-organo, amerikan<-amerikano, '
+                    'mak<-Makita). Contamination is now neutralised by PROTECTION, '
+                    'not exclusion — removing tier 2 costs more coverage than it '
+                    'buys purity. See #806.',
         },
     }, ensure_ascii=False, indent=1), encoding='utf-8')
-    print(f'\n  wrote {out}')
+    tmp.rename(OUT)
+    print(f'\n  wrote {OUT}')
     return 0
 
 

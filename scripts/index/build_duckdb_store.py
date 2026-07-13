@@ -145,7 +145,13 @@ def ensure_schema(con):
             verb_radiko VARCHAR, verb_tempo VARCHAR,
             obj_radiko VARCHAR, obj_kazo VARCHAR,
             aliaj_json VARCHAR, success_rate DOUBLE,
-            ast_json VARCHAR)
+            ast_json VARCHAR,
+            -- PROVENANCE (#803). Without these we cannot cite a source
+            -- article, cannot count INDEPENDENT documents (R14), and cannot
+            -- hit R15's topic targets — there is no article, so no category.
+            source_name VARCHAR, source_type VARCHAR,
+            article_title VARCHAR, article_id VARCHAR,
+            section VARCHAR, quality VARCHAR)
     """)
     con.execute("CREATE TABLE IF NOT EXISTS ontology_nodes("
                 "label VARCHAR, node_json VARCHAR)")
@@ -176,7 +182,10 @@ def load_ontology(con):
 
 def build_indexes(con):
     for col in ('verb_radiko', 'obj_radiko', 'subj_radiko',
-                'subj_vortspeco', 'subj_propranoma_kat'):
+                'subj_vortspeco', 'subj_propranoma_kat',
+                # #803: document-level aggregation (R14 independent-document
+                # counts) and per-source row-count assertions (#815).
+                'article_id', 'source_name'):
         con.execute(f"CREATE INDEX IF NOT EXISTS i_{col} "
                     f"ON sentences({col})")
     log.info("DuckDB secondary indexes built")
@@ -200,7 +209,7 @@ _NULL_SHRED = {k: None for k in (
 def _worker(payload):
     """CPU-heavy per-sentence work, run in a Pool worker: parse + shred
     + serialize. Returns a fully-formed row dict (picklable)."""
-    sid, text = payload
+    sid, text, prov = payload
     try:
         ast = parse(text)
     except Exception:
@@ -213,7 +222,8 @@ def _worker(payload):
         shredded['aliaj_json'] = '[]'
         shredded['success_rate'] = 0.0
         ast_json = None
-    return {'sid': sid, 'text': text, 'ast_json': ast_json, **shredded}
+    return {'sid': sid, 'text': text, 'ast_json': ast_json,
+            **shredded, **prov}
 
 
 def _corpus_payloads(start_after: int, limit):
@@ -229,11 +239,28 @@ def _corpus_payloads(start_after: int, limit):
             if not line:
                 continue
             try:
-                text = json.loads(line).get('text') or ''
+                rec = json.loads(line)
+                text = rec.get('text') or ''
+                # PROVENANCE (#803). The corpus HAS this — nested in `source` —
+                # and the store was throwing it away. Consequences of the loss:
+                # R15 topic targets unimplementable (no article => no category),
+                # R14 unable to count INDEPENDENT documents, and citations that
+                # read "[1] Unknown" for a project whose thesis includes
+                # "answers are grounded and cited".
+                src = rec.get('source') or {}
+                prov = {
+                    'source_name':   src.get('name'),          # wikipedia, pmeg, ...
+                    'source_type':   src.get('source_type'),   # encyclopedia, ...
+                    'article_title': src.get('source_name'),   # the article/work title
+                    'article_id':    (str(src.get('article_id'))
+                                      if src.get('article_id') is not None else None),
+                    'section':       src.get('section'),
+                    'quality':       src.get('quality'),
+                }
             except Exception:
                 continue
             if text:
-                yield (i, text)
+                yield (i, text, prov)
 
 
 def main() -> int:
@@ -292,11 +319,17 @@ def main() -> int:
         if not rows:
             return
         df = pd.DataFrame(rows)          # noqa: F841 (used by DuckDB)
+        # Columns are listed EXPLICITLY and in schema order. A positional
+        # `SELECT *` here would silently mis-map the moment a column is added —
+        # and this file has already shipped two silent field-name bugs
+        # (subj_propranoma_kat, success_rate). Be explicit.
         con.execute(
             "INSERT INTO sentences SELECT sid, text, subj_radiko, "
             "subj_vortspeco, subj_propranoma_kat, subj_kazo, verb_radiko, "
             "verb_tempo, obj_radiko, obj_kazo, aliaj_json, success_rate, "
-            "ast_json FROM df")
+            "ast_json, "
+            "source_name, source_type, article_title, article_id, "
+            "section, quality FROM df")
 
     t0 = time.time()
     n = 0

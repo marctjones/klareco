@@ -13,18 +13,36 @@ Description:
     There are **3,343 tokens** of free gold Esperanto UD in existence. Cairo is
     177. Every accuracy claim this project makes is a claim about 3.3k tokens.
 
-    The standard error on an accuracy p over N tokens is sqrt(p(1-p)/N), so at our
-    current LAS of 57%:
+    ⚠️ AND TOKENS ARE NOT INDEPENDENT SAMPLES. The obvious sizing calculation —
+    SE = sqrt(p(1-p)/N) over N tokens — is WRONG for LAS, and I shipped it before
+    checking. **Attachment errors CLUSTER BY SENTENCE**: one garbled 40-token
+    sentence gets a dozen arcs wrong together, a clean short one gets them all
+    right. The tokens within a sentence are nothing like independent draws.
 
-        gold tokens   SE     smallest LAS change we can SEE (2*SE)
-          3,343      0.86%        1.7%      <- what we have TODAY
-         10,000      0.50%        1.0%
-         20,000      0.35%        0.7%
-         52,000      0.22%        0.4%      <- Arbobanko
+    MEASURED on Prago (scripts/eval/eval_conllu.py, per-sentence bootstrap vs
+    binomial, 5,000 resamples):
 
-    Everything we shipped today (LAS 34.9% -> 57.0%) was big enough to see.
-    **The next round of work will not be.** 10,000 tokens is the sweet spot: 1-point
-    resolution for 10-20 hours of annotation.
+        SE, binomial over 2,426 TOKENS    1.013%     <- the naive figure
+        SE, bootstrap over 130 SENTENCES  1.866%     <- the truth
+        DESIGN EFFECT                     3.4x       (SE inflated 1.84x)
+
+    So the real resolution, and the lever is SENTENCE COUNT, not token count:
+
+        gold tokens   sents    2*SE naive    2*SE REAL
+          3,343         179       1.7%          3.2%    <- what we have TODAY
+         10,000         536       1.0%          1.8%
+         20,000       1,072       0.7%          1.3%
+         52,000       2,786       0.4%          0.8%    <- Arbobanko
+
+    **To actually SEE a 1-point LAS move takes ~33,000 tokens, not 10,000.** 10k
+    still roughly halves our error bar (3.2% -> 1.8%) and is worth ~10-20 hours;
+    20k is the honest target. When scoring against this set, take the CI from a
+    SENTENCE-LEVEL BOOTSTRAP — never the binomial.
+
+    (This matters more than it looks. Stratifying toward long, hard sentences —
+    which we do deliberately, below — RAISES the intra-sentence correlation and so
+    makes the design effect worse, not better. The stratification is still right;
+    it just has to be paid for in sentences.)
 
     WHY IT MUST BE STRATIFIED
     -------------------------

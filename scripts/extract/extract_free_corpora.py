@@ -122,6 +122,33 @@ def sentences_of(text: str) -> list[str]:
     return [s for p in paragraphs(text) for s in split_sentences(p)]
 
 
+# ── register classification ──────────────────────────────────────────────────
+# Vikifontaro carries a title but no structured author field. The title is enough:
+# `Hamleto` is Shakespeare, `Bulonja deklaracio` is Zamenhof. Same three-way tag as
+# the Gutenberg shelf, and the same rule — never guess: anything unmatched stays
+# `nekonata` and is COUNTED, so the uncertainty stays visible.
+_ORIG = re.compile(
+    r'zamenhof|kalocsay|camacho|luyken|bulthuis|forge|vallienne|privat|boirac|'
+    r'devjatnin|baghy|schwartz|originale?\s+verkit|originalaj?\s+|'
+    r'lingvaj?\s+respondoj|bulonja|deklaracio|homaranismo|proverbaro|'
+    r'esenco\s+kaj\s+estonteco|dua\s+libro|aldono\s+al\s+la\s+dua', re.I)
+# Authors whose presence in a Wikisource title means the text is a TRANSLATION into
+# Esperanto — and therefore carries that language's clause structure.
+_TRANS = re.compile(
+    r'shakespear|hamleto|makbeto|ibsen|goethe|schiller|moli[eè]re|dickens|'
+    r'andersen|grimm|poe|twain|puŝkin|pushkin|tolstoj|turgenev|balzac|'
+    r'cervantes|homero|vergili|biblio|testamento|psalmaro|evangelio|kora[nn]o|'
+    r'aesop|ezopo|la\s+fontaine|defoe|kruso|alicio|mirlando', re.I)
+
+
+def classify_title(title: str) -> str:
+    if _ORIG.search(title):
+        return 'originala'
+    if _TRANS.search(title):
+        return 'tradukita'
+    return 'nekonata'
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description='Extract the redistributable corpora')
     ap.add_argument('--min-words', type=int, default=3)
@@ -174,6 +201,13 @@ def main() -> int:
     write('gutenberg', g)
 
     # ── Vikifontaro ───────────────────────────────────────────────────────
+    # REGISTER MUST BE LABELLED HERE TOO. Leaving Vikifontaro as `nekonata` left
+    # 62.4% of the sampled tokens unlabelled — which made the whole register
+    # control DECORATIVE. "We avoid translationese domination" is not a claim you
+    # can make while you cannot say what most of your corpus is. Vikifontaro's
+    # titles identify original-vs-translated exactly as Gutenberg's do
+    # (`Hamleto` -> tradukita, `Bulonja deklaracio` -> originala), so we reuse the
+    # SAME classifier rather than inventing a second one.
     v = []
     p = Path('data/raw/eo/wikisource/vikifontaro.jsonl')
     if p.exists():
@@ -181,7 +215,7 @@ def main() -> int:
             r = json.loads(line)
             v.append({'_text': r['text'], 'source': 'vikifontaro',
                       'source_title': r['title'], 'author': None,
-                      'kind': 'nekonata',
+                      'kind': classify_title(r['title']),
                       'licence': 'PD + CC BY-SA 4.0'})
     write('vikifontaro', v)
 

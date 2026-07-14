@@ -156,7 +156,19 @@ def evaluate(path: str, emit: list | None = None) -> dict:
             'uas': uas / aligned if aligned else 0.0,
             'las': las / aligned if aligned else 0.0,
             'upos': pos_ok / aligned if aligned else 0.0,
-            'coverage': aligned / n if n else 0.0}
+            'coverage': aligned / n if n else 0.0,
+            # ── THE NUMBER TO STEER BY ──────────────────────────────────────
+            # `las` above divides by ALIGNED tokens, and alignment is not fixed:
+            # it depends on our own tokenizer. So a structural change can RAISE
+            # `las` while making the parse WORSE, simply by aligning fewer but
+            # easier tokens. The denominator moves under the metric.
+            #
+            # `las_all` divides by ALL non-punct gold tokens, counting anything we
+            # failed to align as WRONG. The denominator is then a property of the
+            # gold file alone and cannot be gamed. Before/after comparisons must
+            # use this one.
+            'uas_all': uas / n if n else 0.0,
+            'las_all': las / n if n else 0.0}
 
 
 def main() -> int:
@@ -175,11 +187,19 @@ def main() -> int:
             continue
         r = evaluate(path, emit)
         print(f'\n  {name}')
-        print(f'    UAS  (correct HEAD)            {r["uas"]:6.1%}')
-        print(f'    LAS  (correct HEAD + RELATION) {r["las"]:6.1%}')
+        print(f'    UAS  (correct HEAD)            {r["uas"]:6.1%}   '
+              f'over aligned')
+        print(f'    LAS  (correct HEAD + RELATION) {r["las"]:6.1%}   '
+              f'over aligned')
         print(f'    UPOS                           {r["upos"]:6.1%}')
         print(f'    token coverage                 {r["coverage"]:6.1%}  '
               f'({r["aligned"]} of {r["gold_tokens"]} non-punct gold tokens)')
+        print(f'    ── steer by these: denominator is ALL gold tokens, so it '
+              f'cannot be gamed')
+        print(f'    UAS_all                        {r["uas_all"]:6.1%}   '
+              f'unaligned counted WRONG')
+        print(f'    LAS_all                        {r["las_all"]:6.1%}   '
+              f'unaligned counted WRONG')
 
     if args.emit and emit:
         Path(args.emit).write_text('\n'.join(emit), encoding='utf-8')

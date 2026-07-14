@@ -266,3 +266,53 @@ class TestPredicativeVsAttributive:
         assert _dep(rows, 'granda')['dep'] == 'amod'
         assert _dep(rows, 'granda')['head'] == _dep(rows, 'domo')['id']
         assert _dep(rows, 'bela')['dep'] == 'root'
+
+
+class TestEllipsisGapping:
+    """#829 — `Maria gajnis bronzon, Petro arĝenton, kaj Jane oron.`
+       (Mary won bronze, Peter [won] silver, and Jane [won] gold.)
+
+    TWO of those clauses have NO VERB. `segment_clauses` found ONE, and `Petro`,
+    `arĝenton`, `Jane`, `oron` floated as `nmod` — two whole clauses, lost.
+
+    ESPERANTO TELLS US THE GAP IS THERE, MORPHOLOGICALLY: an ACCUSATIVE needs a
+    verb to govern it. So a NOMINATIVE nominal immediately followed by an
+    ACCUSATIVE one, with no verb between, is a clause whose predicate has been
+    elided. English has no such signal — it has to guess.
+
+    Schuster, Nivre & Manning (2018): reconstruction works well "when the parser
+    correctly predicts the EXISTENCE of a gap" — DETECTION is the bottleneck.
+    Here the accusative detects it for free.
+    """
+
+    def test_the_gapped_clauses_are_recovered(self):
+        rows = _rows('Maria gajnis bronzon, Petro arĝenton, kaj Jane oron.')
+        v = _dep(rows, 'gajnis')['id']
+        # the promoted head of each gapped clause attaches to the VERB
+        assert _dep(rows, 'Petro')['dep'] == 'conj'
+        assert _dep(rows, 'Petro')['head'] == v
+        assert _dep(rows, 'Jane')['dep'] == 'conj'
+        assert _dep(rows, 'Jane')['head'] == v
+        # and the stranded argument attaches to it as an ORPHAN
+        assert _dep(rows, 'arĝenton')['dep'] == 'orphan'
+        assert _dep(rows, 'arĝenton')['head'] == _dep(rows, 'Petro')['id']
+        assert _dep(rows, 'oron')['dep'] == 'orphan'
+        assert _dep(rows, 'oron')['head'] == _dep(rows, 'Jane')['id']
+
+    def test_the_elision_is_FLAGGED_not_silently_reconstructed(self):
+        w = next(x for x in parse('Maria gajnis bronzon, Petro arĝenton.')['vortoj']
+                 if x.get('plena_vorto') == 'Petro')
+        assert w.get('elipsa') is True, \
+            'a reconstructed predicate must never be presented as if it were surface text'
+
+    def test_coordination_does_not_CLOBBER_the_gapped_head(self):
+        """`kaj` runs through the coordination pass, which used to overwrite the
+        head that gapping had already set — re-breaking the ellipsis. `Jane`
+        belongs to the VERB, not to the nearest preceding noun."""
+        rows = _rows('Maria gajnis bronzon, Petro arĝenton, kaj Jane oron.')
+        assert _dep(rows, 'Jane')['head'] == _dep(rows, 'gajnis')['id']
+
+    def test_an_ordinary_subject_object_clause_is_NOT_treated_as_a_gap(self):
+        rows = _rows('La hundo vidis la katon.')
+        assert _dep(rows, 'katon')['dep'] == 'obj'
+        assert 'orphan' not in {r['dep'] for r in rows}

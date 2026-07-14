@@ -2727,7 +2727,13 @@ def _attach_coordination(word_asts: list, i: int, w: dict, verb: int) -> None:
         if l is None or r is None:
             continue
         # The FIRST conjunct heads the second (UD, 177/177 in gold).
-        r['kapo'], r['rolo'] = l['id'], 'conj'
+        #
+        # …UNLESS it already has a head. GAPPING got there first: in
+        # `Maria gajnis bronzon, Petro arĝenton, kaj Jane oron`, `Jane` is the
+        # promoted head of a GAPPED CLAUSE and belongs to the VERB, not to the
+        # nearest preceding noun. Overwriting it here re-broke the ellipsis.
+        if r.get('kapo') is None:
+            r['kapo'], r['rolo'] = l['id'], 'conj'
         # The coordinator attaches to the conjunct that FOLLOWS it (150/153).
         w['kapo'], w['rolo'] = r['id'], 'cc'
         return
@@ -2998,8 +3004,52 @@ def attach_all(word_asts: list, clauses: list) -> None:
             if isinstance(x, dict) and x.get('id'):
                 clause_of[x['id']] = vid
 
-    # ---- 2. everything else ---------------------------------------------
+    # ---- 1b. ELLIPSIS / GAPPING (#829) -----------------------------------
+    #
+    #     Maria gajnis bronzon, Petro arĝenton, kaj Jane oron.
+    #     (Mary won bronze, Peter [won] silver, and Jane [won] gold.)
+    #
+    # TWO OF THOSE CLAUSES HAVE NO VERB. `segment_clauses` finds one clause, and
+    # `Petro`, `arĝenton`, `Jane`, `oron` were left floating as `nmod`.
+    #
+    # Esperanto tells us the gap is there, and it does so MORPHOLOGICALLY: an
+    # ACCUSATIVE needs a verb to govern it. So a NOMINATIVE nominal immediately
+    # followed by an ACCUSATIVE one, with NO verb between them, is a clause whose
+    # predicate has been elided. English has no such signal — it has to guess.
+    #
+    # UD's structure (verified against eo_cairo sent_id=9):
+    #     Petro    -> conj   of the VERB      the promoted head of the gapped clause
+    #     arĝenton -> orphan of Petro         the stranded argument
+    #
+    # Schuster, Nivre & Manning (2018) found reconstruction works well "when the
+    # parser correctly predicts the EXISTENCE of a gap" — detection is the
+    # bottleneck. Here the accusative detects it for free.
     n = len(word_asts)
+    if main_verb:
+        i = 0
+        while i < n:
+            w = word_asts[i]
+            if not (isinstance(w, dict) and w.get('kapo') is None
+                    and _nominal(w) and w.get('kazo') == 'nominativo'):
+                i += 1
+                continue
+            j = i + 1
+            while (j < n and isinstance(word_asts[j], dict)
+                   and word_asts[j].get('vortspeco') in ('artikolo', 'adjektivo')):
+                j += 1
+            if (j < n and isinstance(word_asts[j], dict)
+                    and _nominal(word_asts[j])
+                    and word_asts[j].get('kazo') == 'akuzativo'
+                    and word_asts[j].get('kapo') is None):
+                w['kapo'], w['rolo'] = main_verb, 'conj'
+                w['elipsa'] = True              # its predicate is elided
+                word_asts[j]['kapo'] = w['id']
+                word_asts[j]['rolo'] = 'orphan'
+                i = j + 1
+                continue
+            i += 1
+
+    # ---- 2. everything else ---------------------------------------------
     for i, w in enumerate(word_asts, start=1):
         if not isinstance(w, dict) or w.get('kapo') is not None:
             continue

@@ -2688,7 +2688,19 @@ def parse_clause(word_asts: list) -> dict:
                         or (prev.get("vortspeco") == "korelativo"
                             and prev.get("korelativo_prefikso") == "neni")):
                     ast["negita"] = True
-        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not frazo["objekto"] and not is_pp_governed:
+        # A DETERMINER IS NOT THE OBJECT.
+        #
+        #     direktas TIUN manifeston
+        #
+        # `tiun` is accusative, so it matched here and became the object — while
+        # `manifeston`, the actual object, fell through to the generic pass and
+        # was labelled `obl`. The guard for this already existed and was applied
+        # ONLY TO THE SUBJECT (see the next branch); the object branch never got
+        # it. On the live store that is **39,034 rows (3.1%) whose `obj_radiko` is
+        # a determiner** — `tiu`, `ĉiu`, `unu` — instead of the noun. Every one of
+        # them is a retrieval miss, because DuckDBRetriever filters on obj_radiko.
+        elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "akuzativo" and not frazo["objekto"] and not is_pp_governed \
+                and not (_is_determiner_like(ast) and _heads_a_following_noun(word_asts, i)):
             frazo["objekto"] = {"tipo": "vortgrupo", "kerno": ast, "priskriboj": []}
         elif ast["vortspeco"] in ["substantivo", "pronomo", "propra_nomo", "korelativo", "nekonata"] and ast["kazo"] == "nominativo" and not frazo["subjekto"] and not is_pp_governed \
                 and not (_is_determiner_like(ast) and _heads_a_following_noun(word_asts, i)):
@@ -2800,6 +2812,38 @@ def _attach_coordination(word_asts: list, i: int, w: dict, verb: int) -> None:
 
     left = _scan(range(i - 1, max(i - 9, 0), -1))
     right = _scan(range(i + 1, min(i + 9, n) + 1))
+
+    # ── THE ADJACENT PAIR WINS. COORDINATION IS LOCAL. ──────────────────────
+    #
+    #     lingvaj KAJ kulturaj baroj
+    #
+    # `kaj` joins `lingvaj` and `kulturaj` — the two words either side of it.
+    # But the class-preference loop below ranks NOUNS above ADJECTIVES, so if any
+    # noun appeared within nine tokens to the left it would out-rank the adjective
+    # standing immediately there, pair it with `baroj`, and coordinate the wrong
+    # things entirely.
+    #
+    # Class preference is the right tie-breaker when the neighbours DISAGREE
+    # (`Li venis kaj ŝi foriris` — `venis`/`ŝi` are different classes, so we must
+    # search out to the verbs). It is the wrong rule when they AGREE: two words of
+    # the SAME class flanking a coordinator are what it coordinates, full stop.
+    _ADJACENT = {
+        'verbo': ('verbo',),
+        'substantivo': ('substantivo', 'propra_nomo', 'pronomo', 'korelativo'),
+        'propra_nomo': ('substantivo', 'propra_nomo', 'pronomo', 'korelativo'),
+        'pronomo': ('substantivo', 'propra_nomo', 'pronomo', 'korelativo'),
+        'korelativo': ('substantivo', 'propra_nomo', 'pronomo', 'korelativo'),
+        'adjektivo': ('adjektivo',),
+        'adverbo': ('adverbo',),
+    }
+    l0 = left[0] if left else None
+    r0 = right[0] if right else None
+    if (isinstance(l0, dict) and isinstance(r0, dict)
+            and r0.get('vortspeco') in _ADJACENT.get(l0.get('vortspeco') or '', ())):
+        if r0.get('kapo') is None:
+            r0['kapo'], r0['rolo'] = l0['id'], 'conj'
+        w['kapo'], w['rolo'] = r0['id'], 'cc'
+        return
 
     for cls in _CONJUNCT_CLASSES:
         l = next((x for x in left if x.get('vortspeco') in cls), None)
@@ -3189,6 +3233,54 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 w['kapo'] = c.get('id')
                 w['rolo'] = ('nummod' if w.get('vortspeco') == 'numero' else 'det')
             break
+
+    # ---- 0b. AN ADJECTIVE BELONGS TO THE NOUN IT AGREES WITH --------------
+    #
+    #     Ni, anoj de la TUTMONDA movado, ...
+    #
+    # `tutmonda` modifies `movado` — both nominative singular. We attached it to
+    # `Ni`, the clause SUBJECT, several words away, because the clause skeleton
+    # sweeps `priskriboj` onto their noun-group's kerno and sets `kapo` first, and
+    # every later pass skips a token whose `kapo` is already set. Whoever writes
+    # first wins, and the pass that wrote first did not know the answer.
+    #
+    # This is the THIRD time that ordering has bitten (possessives -> `Kiam`;
+    # determiners -> stealing the object slot). The rule is now explicit: any
+    # attachment Esperanto decides by AGREEMENT is settled BEFORE the frame passes
+    # run, because agreement is a fact and the frame is an inference.
+    #
+    # 57 `amod` errors, all "right label, wrong noun".
+    for i, w in enumerate(word_asts, start=1):
+        if not isinstance(w, dict) or w.get('kapo') is not None:
+            continue
+        if w.get('vortspeco') != 'adjektivo' or _is_possessive(w):
+            continue
+        if not w.get('kazo'):
+            continue
+        # …but NOT an adjective that is a CONJUNCT. In
+        #
+        #     La domo estas granda kaj BELA.
+        #
+        # `bela` agrees with `domo` (nominative singular) and this pass would
+        # happily call it an `amod` of it — but it is a conjunct of `granda`, and
+        # coordination must have it. Agreement is necessary for `amod`, not
+        # sufficient: a coordinator standing immediately to the left outranks it.
+        prev = word_asts[i - 2] if i >= 2 else None
+        if isinstance(prev, dict) and (prev.get('radiko') or '').lower() in _COORDINATORS:
+            continue
+        # Look RIGHT first (`granda domo`), then LEFT (`la domo, granda kaj bela`).
+        # The first nominal that agrees in CASE and NUMBER wins.
+        for j in (list(range(i + 1, min(i + 5, len(word_asts) + 1)))
+                  + list(range(i - 1, max(i - 5, 0), -1))):
+            c = word_asts[j - 1]
+            if not isinstance(c, dict):
+                continue
+            if c.get('vortspeco') not in ('substantivo', 'propra_nomo'):
+                continue
+            if (c.get('kazo') == w.get('kazo')
+                    and c.get('nombro') == w.get('nombro')):
+                w['kapo'], w['rolo'] = c.get('id'), 'amod'
+                break
 
     # ---- 0. POSSESSIVES CLAIM THEIR NOUN FIRST ---------------------------
     #

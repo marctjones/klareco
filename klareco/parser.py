@@ -1951,6 +1951,52 @@ def _apply_morphology(ast: dict, word: str) -> dict:
     return ast
 
 
+
+def _apply_senses(ast: dict) -> dict:
+    """SENSE-level OR-nodes (#830) — the third level of the forest.
+
+    Same node type as the morpheme level, same `fonto`/`kialo` machinery. Only
+    `nivelo` changes. That is the payoff of having ONE mechanism:
+
+        morfemo   papero = paper|o  OR  pap|er|o
+        alligo    "kun teleskopo" attaches to VIDIS  OR  to VIRON
+        senco     `hundo` = the ANIMAL  OR  an INSULT for an aggressive man
+
+    `hund` has THREE senses in ReVo. **Which one is meant is not a grammatical
+    question**, and nothing in this parser answers it. So we do not pretend to:
+    `fonto=None`, and the OR-node stands.
+
+    Bick measured this on Esperanto: 3.8% of noun lemmas are semantically
+    ambiguous in running text. That is the sense residue, and it is where a
+    learned ranker belongs — and nowhere else.
+    """
+    root = (ast.get('radiko') or '').lower()
+    if not root or ast.get('vortspeco') not in _MORPH_OWNS:
+        return ast
+    try:
+        from klareco.ontology import ontology
+        onto = ontology()
+    except Exception:
+        return ast
+
+    senses = onto.senses(root)
+    if len(senses) < 2:
+        # a single sense is not a choice; record it for downstream use anyway
+        if senses:
+            ast['senco'] = senses[0]
+        return ast
+
+    ast['sencoj'] = {
+        'nivelo': 'senco',
+        'elektita': None,          # NOTHING deterministic can choose
+        'fonto': None,             # == THE RESIDUE
+        'kialo': (f'`{root}` has {len(senses)} senses in ReVo and no grammatical '
+                  f'rule distinguishes them — this is world knowledge'),
+        'opcioj': [{'difino': d} for d in senses],
+    }
+    return ast
+
+
 def parse_word(word: str) -> dict:
     """Parse a single word, then let the corpus's own USAGE overrule morphology.
 
@@ -2017,7 +2063,7 @@ def parse_word(word: str) -> dict:
         ast['propra_nomo_evidence'] = 'capitalization_ratio'
     # The grammar may permit more than one reading. SAY SO, rather than
     # committing to one and discarding the rest in silence.
-    return _apply_morphology(ast, word)
+    return _apply_senses(_apply_morphology(ast, word))
 
 def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
     """

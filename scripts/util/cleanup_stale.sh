@@ -82,9 +82,15 @@ count_size() {
 
 # ---------- 1. Old per-run log files ----------
 echo "[1] logs/ — *.log older than ${LOG_DAYS} days"
-mapfile -t OLD_LOGS < <(find logs/ -type f -name '*.log' -mtime "+${LOG_DAYS}" 2>/dev/null)
-count_size "${OLD_LOGS[@]}"
-for f in "${OLD_LOGS[@]}"; do $RM "$f"; done
+# ⚠️ NO `mapfile`. macOS ships bash 3.2 (2007) — `mapfile` is a bash 4 builtin, so
+# every array here failed with "mapfile: command not found" followed by an unbound-
+# variable abort. The MAINTENANCE TOOLKIT DID NOT RUN ON THE MACHINE IT WAS FOR,
+# which is how the disk filled to zero during a rebuild with nobody able to clean up.
+# `while read` is POSIX and works everywhere.
+OLD_LOGS=()
+while IFS= read -r f; do OLD_LOGS+=("$f"); done < <(find logs/ -type f -name '*.log' -mtime "+${LOG_DAYS}" 2>/dev/null)
+count_size ${OLD_LOGS[@]+${OLD_LOGS[@]+"${OLD_LOGS[@]}"}}
+for f in ${OLD_LOGS[@]+${OLD_LOGS[@]+"${OLD_LOGS[@]}"}}; do $RM "$f"; done
 # Empty leftover dirs
 if [ "$APPLY" -eq 1 ]; then
     find logs/ -type d -empty -delete 2>/dev/null || true
@@ -93,9 +99,10 @@ fi
 # ---------- 2. Old per-run bench / eval results ----------
 echo ""
 echo "[2] results/ — *.json{,l} older than ${RESULTS_DAYS} days"
-mapfile -t OLD_RES < <(find results/ -type f \( -name '*.json' -o -name '*.jsonl' \) -mtime "+${RESULTS_DAYS}" 2>/dev/null)
-count_size "${OLD_RES[@]}"
-for f in "${OLD_RES[@]}"; do $RM "$f"; done
+OLD_RES=()
+while IFS= read -r f; do OLD_RES+=("$f"); done < <(find results/ -type f \( -name '*.json' -o -name '*.jsonl' \) -mtime "+${RESULTS_DAYS}" 2>/dev/null)
+count_size ${OLD_RES[@]+${OLD_RES[@]+"${OLD_RES[@]}"}}
+for f in ${OLD_RES[@]+${OLD_RES[@]+"${OLD_RES[@]}"}}; do $RM "$f"; done
 
 # ---------- 3. Applied staging files ----------
 # These are regenerable from the DB and the build scripts should clean
@@ -109,27 +116,29 @@ APPLIED=(
     # Add new applied-staging files here as they accumulate.
 )
 PRESENT=()
-for f in "${APPLIED[@]}"; do
+for f in ${APPLIED[@]+"${APPLIED[@]}"}; do
     [ -f "$f" ] && PRESENT+=("$f")
 done
-count_size "${PRESENT[@]}"
-for f in "${PRESENT[@]}"; do $RM "$f"; done
+count_size ${PRESENT[@]+"${PRESENT[@]}"}
+for f in ${PRESENT[@]+"${PRESENT[@]}"}; do $RM "$f"; done
 
 # ---------- 4. Leftover .tmp checkpoints ----------
 echo ""
 echo "[4] *.tmp checkpoint files (orphaned atomic-write scratch)"
-mapfile -t OLD_TMP < <(find . -type f -name '*.tmp' -mmin +60 \
+OLD_TMP=()
+while IFS= read -r f; do OLD_TMP+=("$f"); done < <(find . -type f -name '*.tmp' -mmin +60 \
     -not -path './.git/*' -not -path './.venv/*' 2>/dev/null)
-count_size "${OLD_TMP[@]}"
-for f in "${OLD_TMP[@]}"; do $RM "$f"; done
+count_size ${OLD_TMP[@]+${OLD_TMP[@]+"${OLD_TMP[@]}"}}
+for f in ${OLD_TMP[@]+${OLD_TMP[@]+"${OLD_TMP[@]}"}}; do $RM "$f"; done
 
 # ---------- 5. /tmp claude-1000 buffer files for THIS project ----------
 echo ""
-echo "[5] /tmp/claude-1000/-home-marc-Projects-klareco/* older than 7 days"
-mapfile -t OLD_TASKS < <(find /tmp/claude-1000/-home-marc-Projects-klareco \
+echo "[5] "${TMPDIR:-/tmp}"/claude-*/-*klareco/* older than 7 days"
+OLD_TASKS=()
+while IFS= read -r f; do OLD_TASKS+=("$f"); done < <(find "${TMPDIR:-/tmp}"/claude-*/-*klareco \
     -type f -mtime +7 2>/dev/null)
-count_size "${OLD_TASKS[@]}"
-for f in "${OLD_TASKS[@]}"; do $RM "$f"; done
+count_size ${OLD_TASKS[@]+${OLD_TASKS[@]+"${OLD_TASKS[@]}"}}
+for f in ${OLD_TASKS[@]+${OLD_TASKS[@]+"${OLD_TASKS[@]}"}}; do $RM "$f"; done
 
 echo ""
 echo "=== Done ==="

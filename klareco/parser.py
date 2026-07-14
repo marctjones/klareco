@@ -2934,6 +2934,33 @@ _NMOD_PREPOSITIONS = frozenset({
     'de', 'por', 'pri', 'kun', 'el', 'pro', 'inter', 'sen', 'krom', 'laŭ',
 })
 
+# ---------------------------------------------------------------------------
+# POSSESSIVES — 66 tokens in gold, and we scored 0.0% on every one.
+#
+# Esperanto builds a possessive REGULARLY: personal pronoun + `-a`.
+#
+#     mi -> mia      li -> lia      ĝi -> ĝia      ili -> ilia
+#
+# So `ĝiaj` parses as radiko `ĝi` + adjectival `-a`, agreeing in number and case
+# exactly like any adjective. Our parser therefore called it an ADJECTIVE and
+# labelled it `amod` — and it was RIGHT about the morphology and WRONG about the
+# relation. UD calls a possessive `nmod`: it is a PRONOUN modifying a noun, not a
+# property of it. `mia domo` is not a domo that is mia, the way `granda domo` is a
+# domo that is granda.
+#
+# 41 of the 66 were ALREADY ATTACHED TO THE CORRECT HEAD and merely misnamed. This
+# is a pure labelling fix, it is decidable from the ROOT alone, and it is free.
+_PRONOUN_ROOTS = frozenset({
+    'mi', 'vi', 'li', 'ŝi', 'ĝi', 'ni', 'ili', 'si', 'oni', 'ci',
+})
+
+
+def _is_possessive(w) -> bool:
+    """`mia`/`lia`/`ĝia`… — an adjective whose ROOT is a personal pronoun."""
+    return (isinstance(w, dict)
+            and w.get('vortspeco') == 'adjektivo'
+            and (w.get('radiko') or '').lower() in _PRONOUN_ROOTS)
+
 # Prepositions the gold data says are genuinely two-way. These become OR-nodes.
 _AMBIGUOUS_PREPOSITIONS = frozenset({'en', 'al', 'per', 'kiel', 'sur', 'sub',
                                      'ĉe', 'post', 'antaŭ', 'tra', 'super'})
@@ -2966,6 +2993,20 @@ def _attach_pp(word_asts: list, w: dict, i: int, gov, verb: int) -> None:
     """
     prep = (gov.get('radiko') or '').lower() if isinstance(gov, dict) else None
     noun = _nearest_noun_head(word_asts, i, verb)
+
+    # (0) A NUMERAL PRECEDES ITS NOUN — `la TRI hundoj`. `_nearest_noun_head`
+    #     searches BACKWARD (a PP follows what it modifies), so for a numeral it
+    #     found nothing and fell through to "attach to the verb", giving
+    #     `tri --nmod--> kuras`. Look FORWARD instead, and the relation is
+    #     `nummod`, not `nmod`. 0/15 in gold before this.
+    if w.get('vortspeco') in ('numero', 'numeralo'):
+        for j in range(i + 1, min(i + 4, len(word_asts) + 1)):
+            c = word_asts[j - 1]
+            if _nominal(c):
+                w['kapo'], w['rolo'] = c.get('id'), 'nummod'
+                return
+        w['kapo'], w['rolo'] = noun or verb, 'nummod'
+        return
 
     # (1) THE ACCUSATIVE OF DIRECTION. `en la domoN` = INTO the house — motion,
     #     therefore the VERB. This is a hard, morphological signal that English
@@ -3252,6 +3293,7 @@ def attach_all(word_asts: list, clauses: list) -> None:
                         d.setdefault('kapo', nid)
                         d.setdefault('rolo',
                                      'det' if d.get('vortspeco') == 'artikolo'
+                                     else 'nmod' if _is_possessive(d)
                                      else 'amod')
         for x in (c.get('aliaj') or []):
             if isinstance(x, dict) and x.get('id'):
@@ -3433,7 +3475,11 @@ def attach_all(word_asts: list, clauses: list) -> None:
                         and c2.get('nombro') == w.get('nombro')):
                     hit = j
                     break
-            w['kapo'], w['rolo'] = (hit, 'amod') if hit else (verb, 'xcomp')
+            # A POSSESSIVE (`mia`, `ĝiaj`) is morphologically an adjective and
+            # relationally an `nmod` — a pronoun modifying a noun, not a property
+            # of it. See _is_possessive.
+            rel = 'nmod' if _is_possessive(w) else 'amod'
+            w['kapo'], w['rolo'] = (hit, rel) if hit else (verb, 'xcomp')
 
         elif _nominal(w):
             # A nominal with no role yet is inside a prepositional phrase.
@@ -3460,6 +3506,32 @@ def attach_all(word_asts: list, clauses: list) -> None:
             _attach_pp(word_asts, w, i, gov, verb)
         else:
             w['kapo'], w['rolo'] = verb, 'dep'
+
+    # ---- 3. `nmod` vs `obl` IS DECIDED BY THE HEAD, NOT BY WHOEVER SET IT ----
+    #
+    # These two labels are not a free choice — they are DEFINITIONS:
+    #
+    #     a nominal hanging off a NOUN  is  nmod
+    #     a nominal hanging off a VERB  is  obl
+    #
+    # So the label is a FUNCTION of the head's part of speech, and it can simply
+    # be recomputed at the end. Any disagreement is an error by construction.
+    #
+    # It mattered: in a COPULAR clause the head of the clause is the PREDICATE,
+    # which is a NOUN (`Esperanto estas lingvo por ĉiuj`), and `clause_of` maps the
+    # clause's tokens to it. `_attach_pp` then attached `por ĉiuj` to that noun —
+    # correctly — and stamped it `obl`, because the variable it came from is called
+    # `verb`. Right head, impossible label. Ten `por` phrases died that way.
+    for w in word_asts:
+        if not isinstance(w, dict) or w.get('rolo') not in ('nmod', 'obl'):
+            continue
+        h = w.get('kapo')
+        if not h or h > n:
+            continue
+        head = word_asts[h - 1]
+        if not isinstance(head, dict):
+            continue
+        w['rolo'] = 'obl' if head.get('vortspeco') == 'verbo' else 'nmod'
 
 # ---------------------------------------------------------------------------
 # CLAUSES — the AST becomes an actual TREE.

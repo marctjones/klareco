@@ -380,6 +380,50 @@ of measurements.
 Exempt, narrowly: infrastructure with no runtime surface, docs, test-set
 construction, and research spikes.
 
+### The parser's gate is LAS (#832)
+
+For any change to `klareco/parser.py`, `klareco/morphology.py` or the AST, the
+number is **LAS** — labeled attachment score against the Universal Dependencies
+Esperanto treebanks:
+
+```bash
+python scripts/eval/eval_conllu.py     # LAS / UAS / UPOS / coverage
+```
+
+Three things must be reported **every time**, and none of them is optional:
+
+1. **Prago and Cairo separately.** Prago is the *Prago Manifesto* /
+   *Homaranismo* — texts almost certainly **in our own corpus** — so anything
+   corpus-derived (`capitalization_ratio`, the root lexicon) may have memorised
+   its tokens. **Cairo is the honest ruler.**
+
+2. **Coverage.** A parser that silently skips tokens looks excellent. Coverage
+   was **84.6%** on Cairo before #825 and is now 100%; on Prago it is 89.5%. The
+   number is part of the result, not a footnote.
+
+3. **Strict AND scheme-adjusted, never merged.** About 90% of our POS
+   disagreements with UD are annotation-scheme mismatches, not errors —
+   Esperanto possessives *are* adjectives (`mi`+`a`), `estas` is not a separate
+   AUX class, participles *are* adjectival, and the correlatives are one closed
+   paradigm that UD splits across PRON/DET/ADV.
+
+**And say the ruler's size out loud, every time.** There are **3,343 tokens** of
+free gold Esperanto UD in existence. Cairo is **177**. Every accuracy claim we
+make today is a claim about 3.3k tokens, and the 52k-token Arbobanko is paywalled
+at €1,500 (ELRA-W0129). That is the real bottleneck, and it is #820.
+
+For reference — and to keep us honest about how far there is to go:
+
+| | LAS / syntactic accuracy |
+|---|---|
+| **klareco** (held-out Cairo) | **57.0%** |
+| **EspGram** (Bick, Constraint Grammar, *published*) | **96.5%** |
+| Biaffine neural parser, English PTB (for scale) | 94.1 |
+
+**The ~40-point gap to EspGram requires no machine learning.** It is attachment,
+lexical coverage, and the residual scheme differences. Do not reach for a model to
+fix a lexicon.
+
 ## The benchmark contract
 
 A change can only be gated by a benchmark that is both **discriminating** and

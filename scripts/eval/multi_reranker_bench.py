@@ -715,6 +715,114 @@ class ClauseAwareReranker(Reranker):
                               metadata={'q_verb': q_verb, 'q_obj': q_obj})
 
 
+def _question_arcs(question_ast: dict) -> list[tuple[str, str, str]]:
+    """The QUESTION's dependency arcs — the half nobody used.
+
+    `Kiu fondis Esperanton?` is not a bag of words. It is a TREE:
+
+        (fond, nsubj, kiu)        <- the GAP. `kiu` is what we are asking FOR.
+        (fond, obj,   esperant)   <- the CONSTRAINT. It must be about Esperanto.
+
+    The gap arc is dropped (matching on `kiu` would match every question), and the
+    constraint arcs are what we look for in the candidate's tree. That is a
+    different question from "does this sentence mention founding and Esperanto":
+    it asks whether the sentence ASSERTS that Esperanto was the thing founded.
+    BM25 cannot tell those apart. A tree can.
+    """
+    # FUNCTION-WORD ARCS CARRY NO RETRIEVAL SIGNAL, and including them is actively
+    # harmful. `Kiu verkis la libron de Petro?` yields
+    #
+    #     libr --det --> la          every sentence containing `la libro` matches
+    #     petr --case--> de          every `de`-phrase matches
+    #
+    # That is a uniform boost across the candidate pool — noise, not evidence. It is
+    # CLAUDE.md's Function Word Exclusion Principle exactly: function words are
+    # GRAMMATICAL, not semantic. The arcs worth matching are the ones that say what
+    # the sentence is ABOUT: obj, nsubj, nmod, obl, amod, acl.
+    _STRUCTURAL = ('punct', 'dep', 'root', 'det', 'case', 'cc', 'mark', 'cop', 'aux')
+
+    toks = question_ast.get('vortoj') or []
+    by_id = {w['id']: w for w in toks if isinstance(w, dict) and w.get('id')}
+    out = []
+    for w in toks:
+        if not isinstance(w, dict):
+            continue
+        rolo = w.get('rolo')
+        if not rolo or rolo in _STRUCTURAL:
+            continue
+        if w.get('vortspeco') in ('interpunkcio', 'korelativo'):
+            continue          # the GAP — `kiu`/`kio` is the thing being asked for
+        head = by_id.get(w.get('kapo') or 0)
+        if not head:
+            continue
+        hr = (head.get('radiko') or '').lower()
+        dr = (w.get('radiko') or '').lower()
+        if hr and dr:
+            out.append((hr, rolo, dr))
+    return out
+
+
+class TreeAwareReranker(Reranker):
+    """Match the QUESTION'S TREE against the CANDIDATE'S TREE, arc by arc.
+
+    Every other reranker here — including `I_clause_aware` — compares a fixed
+    FRAME: (subject, verb, object). That frame cannot express a modifier. Ask
+
+        "Kiu verkis la libron DE Petro?"
+
+    and the constraint that matters lives on an `nmod` arc (libro -nmod-> Petro)
+    that no frame column holds. Arcs hold everything the tree holds.
+
+    Both halves of the tree are used, and both were previously ignored:
+
+      INDEX TIME   `dependency_arcs` — one row per arc, 91M of them, built from
+                   `ast_json`, which nothing in retrieval had ever read.
+      SEARCH TIME  the QUESTION is parsed to arcs too, its interrogative GAP
+                   (`kiu`) dropped, and the remaining arcs are the constraints.
+
+    Scoring is deliberately transparent:
+      +3.0  an EXACT arc match (same head root, same relation, same dependent)
+      +1.0  head and dependent match but the RELATION differs — the right words in
+            the wrong structural roles. Worth something; worth less.
+    """
+    name = 'J_tree_aware'
+    requires = ['dependency_arcs']
+
+    def rerank(self, question, question_ast, candidates, conn, top_k=10):
+        q_arcs = _question_arcs(question_ast)
+        if not q_arcs:
+            return RerankerResult(name=self.name, ranked=list(candidates[:top_k]),
+                                  metadata={'q_arcs': []})
+
+        scored = []
+        for p in candidates:
+            try:
+                rows = conn.execute(
+                    "SELECT kapo_radiko, rolo, dep_radiko FROM dependency_arcs "
+                    "WHERE sid = ?", [int(p.sentence_id)]).fetchall()
+            except Exception:
+                rows = []
+            exact = {(h, r, d) for h, r, d in rows}
+            loose = {(h, d) for h, r, d in rows}
+
+            boost = 0.0
+            for hr, rolo, dr in q_arcs:
+                if (hr, rolo, dr) in exact:
+                    boost += 3.0                       # the tree AGREES
+                elif (hr, dr) in loose:
+                    boost += 1.0                       # right words, wrong roles
+            scored.append((p.score + boost, p))
+
+        scored.sort(key=lambda kv: -kv[0])
+        ranked = [
+            ParsedPassage(sentence_id=p.sentence_id, text=p.text, ast=p.ast,
+                          score=ns, source_doc=p.source_doc, source_type=p.source_type)
+            for ns, p in scored[:top_k]
+        ]
+        return RerankerResult(name=self.name, ranked=ranked,
+                              metadata={'q_arcs': q_arcs})
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--test-set', required=True)
@@ -778,6 +886,7 @@ def main() -> None:
         ASTAwareRanker(),
         HybridReranker(),
         ClauseAwareReranker(),
+        TreeAwareReranker(),
     ]
     enabled: list[Reranker] = []
     skipped: list[str] = []

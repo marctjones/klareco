@@ -183,3 +183,86 @@ class TestAdverbScope:
         rows = _rows('La domo estas tre granda.')
         assert _dep(rows, 'tre')['dep'] == 'advmod'
         assert _dep(rows, 'tre')['head'] == _dep(rows, 'granda')['id']
+
+
+class TestCoordination:
+    """#827 — 11.5% of LAS. Bick found coordination 4x over-represented among
+    Esperanto attachment errors, second only to PP attachment.
+
+    The STRUCTURE is fully deterministic, and the gold data says so:
+        conj:  NOUN<-NOUN 92 · VERB<-VERB 45 · ADJ<-ADJ 18   LIKE coordinates LIKE
+        direction: head BEFORE conj   177/177 = 100%
+        cc:        head AFTER cc      150/153 =  98%
+    """
+
+    def test_coordinated_NOUNS(self):
+        """`kaj` attaches to the SECOND conjunct; the second attaches to the FIRST."""
+        rows = _rows('Zamenhof kaj Ludoviko venis.')
+        assert _dep(rows, 'Ludoviko')['dep'] == 'conj'
+        assert _dep(rows, 'Ludoviko')['head'] == _dep(rows, 'Zamenhof')['id']
+        assert _dep(rows, 'kaj')['dep'] == 'cc'
+        assert _dep(rows, 'kaj')['head'] == _dep(rows, 'Ludoviko')['id']
+
+    def test_coordinated_CLAUSES_coordinate_the_VERBS(self):
+        """UD coordinates the HIGHEST elements. `Li venis kaj ŝi foriris` joins
+        the VERBS — not the pronouns, even though `ŝi` is the first content word
+        after `kaj`. We used to send every coordinator to the next finite verb,
+        which got this right by accident and got nominal coordination wrong."""
+        rows = _rows('Li venis kaj ŝi foriris.')
+        assert _dep(rows, 'foriris')['dep'] == 'conj'
+        assert _dep(rows, 'foriris')['head'] == _dep(rows, 'venis')['id']
+        assert _dep(rows, 'ŝi')['dep'] == 'nsubj'
+        assert _dep(rows, 'ŝi')['head'] == _dep(rows, 'foriris')['id']
+
+    def test_coordinated_ADJECTIVES(self):
+        rows = _rows('La domo estas granda kaj bela.')
+        assert _dep(rows, 'bela')['dep'] == 'conj'
+        assert _dep(rows, 'bela')['head'] == _dep(rows, 'granda')['id']
+
+
+class TestAgreementDecidesTheHeadNoun:
+    """Esperanto's adjective agreement does work English cannot.
+
+    An adjective agrees with its head in NUMBER and CASE, so it can only attach
+    to a noun it agrees with. In a coordination that is a hard disambiguation:
+
+        maljuna  viro kaj virinoj   `maljuna` is SINGULAR -> cannot head `virinoj`
+        maljunaj viroj kaj virinoj  `maljunaj` is PLURAL
+
+    (Note: UD does not encode adjective SCOPE structurally — both attach to the
+    first conjunct. What agreement buys us is the correct HEAD NOUN, which is the
+    part that can actually go wrong.)
+    """
+
+    def test_a_singular_adjective_cannot_head_a_plural_noun(self):
+        rows = _rows('La maljuna viro kaj virinoj venis.')
+        adj = _dep(rows, 'maljuna')
+        assert adj['head'] == _dep(rows, 'viro')['id'], \
+            'a SINGULAR adjective must not attach to a PLURAL noun'
+
+    def test_plural_agreement(self):
+        rows = _rows('La maljunaj viroj kaj virinoj venis.')
+        assert _dep(rows, 'maljunaj')['head'] == _dep(rows, 'viroj')['id']
+
+
+class TestPredicativeVsAttributive:
+    """`La domo estas granda` — `granda` AGREES with `domo` (both nominative
+    singular), so the agreement pass filed it as an attributive adjective. But it
+    is PREDICATIVE: it comes after the copula, and UD makes it the ROOT.
+
+    POSITION is what separates them, and nothing else can:
+        la GRANDA domo estas bela    precedes the noun -> attributive (amod)
+        la domo estas GRANDA         follows the verb  -> predicative (root)
+    """
+
+    def test_a_predicative_adjective_is_the_ROOT(self):
+        rows = _rows('La domo estas granda.')
+        assert _dep(rows, 'granda')['dep'] == 'root'
+        assert _dep(rows, 'estas')['dep'] == 'cop'
+        assert _dep(rows, 'domo')['dep'] == 'nsubj'
+
+    def test_an_attributive_adjective_is_still_an_amod(self):
+        rows = _rows('La granda domo estas bela.')
+        assert _dep(rows, 'granda')['dep'] == 'amod'
+        assert _dep(rows, 'granda')['head'] == _dep(rows, 'domo')['id']
+        assert _dep(rows, 'bela')['dep'] == 'root'

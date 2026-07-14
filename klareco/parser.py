@@ -2574,6 +2574,83 @@ def parse_clause(word_asts: list) -> dict:
 
 
 
+
+# ---------------------------------------------------------------------------
+# COORDINATION (#827) — 11.5% of LAS, and Bick found it 4x over-represented among
+# Esperanto attachment errors, second only to PP attachment.
+#
+# The STRUCTURE is completely deterministic, and the gold data says so:
+#
+#     conj:  NOUN<-NOUN 92 · VERB<-VERB 45 · ADJ<-ADJ 18   LIKE coordinates LIKE
+#     direction: head BEFORE conj   177/177 = 100%         the FIRST conjunct heads
+#     cc:        head AFTER cc      150/153 =  98%         the coordinator attaches RIGHT
+#
+# So: the second conjunct attaches to the FIRST with `conj`; the coordinator
+# attaches to the conjunct that FOLLOWS it with `cc`. No guessing required.
+#
+# WHAT IS *NOT* DETERMINISTIC IS SCOPE — and Esperanto rescues most of it for free
+# in a way English cannot:
+#
+#     maljunaj viroj kaj virinoj    `maljunaj` is PLURAL -> may scope over BOTH
+#     maljuna  viro  kaj virino     `maljuna` is SINGULAR -> scopes over `viro` ONLY
+#
+# The adjective's number and case AGREE with what it modifies, so agreement
+# decides the scope. Our `amod` rule already checks agreement, so this falls out.
+# Where agreement does NOT decide (both conjuncts same number and case), the scope
+# is genuinely ambiguous — Ficler & Goldberg (2016) found the Berkeley parser
+# recovers coordination boundaries at 68.9 F1 while scoring >90 on constituents
+# overall, because the two signals that work (conjunct SIMILARITY, and
+# substitutability) are SEMANTIC, not syntactic.
+# ---------------------------------------------------------------------------
+
+# UD's own priority: coordinate the HIGHEST elements. `Li venis kaj ŝi foriris`
+# coordinates the VERBS (venis/foriris), not the pronouns — even though `ŝi` is
+# the first content word after `kaj`.
+_CONJUNCT_CLASSES = (
+    ('verbo',),
+    ('substantivo', 'propra_nomo', 'pronomo', 'korelativo'),
+    ('adjektivo',),
+    ('adverbo',),
+)
+
+
+def _attach_coordination(word_asts: list, i: int, w: dict, verb: int) -> None:
+    """`kaj`, `sed`, `aŭ`, `nek` — attach the coordinator and the second conjunct.
+
+    Finds a conjunct PAIR of the same class, one on each side, preferring the
+    highest class present on BOTH sides. That is what makes
+    `Zamenhof kaj Ludoviko venis` coordinate the NAMES (no verb precedes `kaj`)
+    while `Li venis kaj ŝi foriris` coordinates the VERBS.
+    """
+    n = len(word_asts)
+
+    def _scan(rng):
+        out = []
+        for j in rng:
+            x = word_asts[j - 1]
+            if not isinstance(x, dict):
+                continue
+            if x.get('vortspeco') == 'konjunkcio':
+                break                       # stop at the next/previous coordinator
+            out.append(x)
+        return out
+
+    left = _scan(range(i - 1, max(i - 9, 0), -1))
+    right = _scan(range(i + 1, min(i + 9, n) + 1))
+
+    for cls in _CONJUNCT_CLASSES:
+        l = next((x for x in left if x.get('vortspeco') in cls), None)
+        r = next((x for x in right if x.get('vortspeco') in cls), None)
+        if l is None or r is None:
+            continue
+        # The FIRST conjunct heads the second (UD, 177/177 in gold).
+        r['kapo'], r['rolo'] = l['id'], 'conj'
+        # The coordinator attaches to the conjunct that FOLLOWS it (150/153).
+        w['kapo'], w['rolo'] = r['id'], 'cc'
+        return
+
+    w['kapo'], w['rolo'] = verb, 'cc'       # nothing to coordinate: fall back
+
 # ---------------------------------------------------------------------------
 # PP ATTACHMENT (#826) — Bick's #1 error class, and the one place the grammar
 # genuinely runs out.
@@ -2761,13 +2838,31 @@ def attach_all(word_asts: list, clauses: list) -> None:
         if (vk.get('radiko') or '').lower() != 'est':
             continue
         subj_id = _id(c.get('subjekto'))
-        # the predicate: a NOMINATIVE nominal or adjective that is not the subject
-        for x in (c.get('aliaj') or []):
+
+        # The predicate: a NOMINATIVE nominal or adjective that is not the subject.
+        #
+        # It may hide in TWO places. `La domo estas granda` — `granda` AGREES with
+        # `domo` (both nominative singular), so the agreement pass files it as a
+        # priskribo (attributive adjective) of the subject. But it is not
+        # attributive, it is PREDICATIVE: it comes AFTER the copula.
+        #
+        # POSITION is what separates them, and nothing else can:
+        #     la GRANDA domo estas bela     `granda` precedes the noun -> attributive
+        #     la domo estas GRANDA          `granda` follows the verb  -> predicative
+        candidates = list(c.get('aliaj') or [])
+        subj_grp = c.get('subjekto')
+        if isinstance(subj_grp, dict):
+            candidates += [d for d in (subj_grp.get('priskriboj') or [])
+                           if isinstance(d, dict) and (d.get('id') or 0) > vid]
+
+        for x in candidates:
             if not isinstance(x, dict) or x.get('id') in (None, subj_id):
                 continue
             if (x.get('vortspeco') in ('substantivo', 'propra_nomo', 'adjektivo')
                     and x.get('kazo') == 'nominativo'):
                 predikato_of[vid] = x['id']
+                # it is the PREDICATE, not a modifier of the subject
+                x['kapo'], x['rolo'] = None, None
                 break
 
     clause_of: dict[int, int] = {}          # token id -> its clause's verb id
@@ -2858,11 +2953,11 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 nxt = predikato_of.get(nxt, nxt)
                 w['kapo'], w['rolo'] = nxt or verb, 'mark'
             else:
-                # `kaj`, `sed` -> CC of the conjunct that follows.
-                nxt = next((word_asts[j - 1].get('id')
-                            for j in range(i + 1, n + 1)
-                            if _is_finite_verb(word_asts[j - 1])), None)
-                w['kapo'], w['rolo'] = nxt or verb, 'cc'
+                # `kaj`, `sed`, `aŭ`, `nek` — real coordination. We used to send
+                # the coordinator to the next FINITE VERB, which is right for
+                # clause coordination and WRONG for `Zamenhof kaj Ludoviko venis`,
+                # where gold attaches `kaj` to `Ludoviko`.
+                _attach_coordination(word_asts, i, w, verb)
 
         elif vs in ('adverbo', 'partiklo'):
             # `tre granda`, `tre rapide` — an adverb modifying an ADJECTIVE or

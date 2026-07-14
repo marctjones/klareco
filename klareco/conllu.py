@@ -134,142 +134,24 @@ def to_conllu(text: str, sent_id: str = '1') -> str:
     """
     ast = parse(text)
 
-    # Collect the word nodes in surface order.
-    words: list[dict] = []
+    # PURE SERIALIZER. The parser now assigns `id`, `kapo` (head) and `rolo`
+    # (relation) to every token — see `attach_all` in klareco/parser.py. This
+    # function no longer computes any attachment of its own.
+    #
+    # It used to. That was wrong: the AST and the emitted dependencies could
+    # disagree and nothing would catch it. If a relation is missing here, the
+    # BUG IS IN THE AST, which is where it should be visible.
+    ordered = [w for w in (ast.get('vortoj') or []) if isinstance(w, dict)]
+    if not ordered:
+        return f'# sent_id = {sent_id}\n# text = {text}\n'
 
-    def walk(n):
-        if not isinstance(n, dict):
-            return
-        if n.get('tipo') == 'vorto':
-            words.append(n)
-            return
-        for k in ('kerno', 'subjekto', 'verbo', 'objekto'):
-            walk(n.get(k))
-        for k in ('aliaj', 'priskriboj'):
-            for x in (n.get(k) or []):
-                walk(x)
-
-    for c in (ast.get('propozicioj') or [ast]):
-        walk(c)
-
-    # Surface order: match against the raw tokens.
-    surface = text.replace('.', ' .').replace(',', ' ,').split()
-    ordered: list[dict] = []
-    used: set[int] = set()
-    for tok in surface:
-        for i, w in enumerate(words):
-            if i in used:
-                continue
-            if (w.get('plena_vorto') or '').lower() == tok.lower().strip('.,;:!?'):
-                ordered.append(w)
-                used.add(i)
-                break
-    idx = {id(w): i + 1 for i, w in enumerate(ordered)}
-
-    # HEAD / DEPREL from the clause frames.
-    head: dict[int, int] = {}
-    rel: dict[int, str] = {}
-    root_set = False
-    for c in (ast.get('propozicioj') or []):
-        v = _kern(c.get('verbo'))
-        if not v or id(v) not in idx:
-            continue
-        vi = idx[id(v)]
-        if not root_set and c.get('rolo') == 'ĉefa':
-            head[vi], rel[vi] = 0, 'root'
-            root_set = True
-        else:
-            head[vi] = 0            # provisional; linked below if a main clause exists
-            rel[vi] = {'kunordigita': 'conj', 'subordigita': 'advcl',
-                       'rilativa': 'acl:relcl'}.get(c.get('rolo'), 'parataxis')
-        for slot, deprel in (('subjekto', 'nsubj'), ('objekto', 'obj')):
-            n = _kern(c.get(slot))
-            if n and id(n) in idx:
-                head[idx[id(n)]], rel[idx[id(n)]] = vi, deprel
-            grp = c.get(slot)
-            if isinstance(grp, dict):
-                for d in (grp.get('priskriboj') or []):
-                    if id(d) in idx and n is not None:
-                        head[idx[id(d)]] = idx[id(n)]
-                        rel[idx[id(d)]] = ('det' if d.get('vortspeco') == 'artikolo'
-                                           else 'amod')
-
-    # Attach every non-main clause's verb to the main root.
+    head = {w['id']: (w.get('kapo') if w.get('kapo') is not None else 0)
+            for w in ordered}
+    rel = {w['id']: (w.get('rolo') or 'dep') for w in ordered}
     main = next((i for i, r in rel.items() if r == 'root'), None)
-    if main:
-        for i, r in rel.items():
-            if head.get(i) == 0 and i != main:
-                head[i] = main
-    if not root_set and ordered:
-        head[1], rel[1] = 0, 'root'
-        main = 1
-
-    # ---- MODIFIER ATTACHMENT -------------------------------------------
-    # Everything above only attaches subjects, objects and verbs. Everything else
-    # went into `aliaj`, an unstructured junk drawer, and got no head at all —
-    # which is why UAS was 9.7%.
-    #
-    # But most of these attachments are DETERMINISTIC in Esperanto, and cheap:
-    #
-    #   la hundo            `la` -> det of the noun that follows
-    #   granda hundo        adjective AGREES in case+number -> amod of that noun
-    #   en la domo          preposition -> `case` of the noun it governs (UD's
-    #                       convention: the ADPOSITION depends on the NOUN)
-    #   rapide kuris        adverb -> advmod of the verb
-    #
-    # What is NOT deterministic is where the whole PREPOSITIONAL PHRASE attaches —
-    # to the verb or to a preceding noun. `Mi vidis la viron kun teleskopo` is
-    # ambiguous BY GRAMMAR, and Bick measured it at 1/4-1/3 of all Esperanto
-    # attachment errors. We attach it to the verb (`obl`), which is the majority
-    # baseline, and that CHOICE is exactly the residue a learned ranker should
-    # collapse — see klareco/forest.py.
-    def _agrees(a: dict, n: dict) -> bool:
-        return (a.get('kazo') == n.get('kazo')
-                and a.get('nombro') == n.get('nombro'))
-
-    verb_of_clause = main
-    for i, w in enumerate(ordered, start=1):
-        if i in head:
-            continue
-        vs = w.get('vortspeco')
-
-        if vs == 'artikolo':
-            for j in range(i + 1, len(ordered) + 1):
-                if ordered[j - 1].get('vortspeco') in ('substantivo', 'propra_nomo'):
-                    head[i], rel[i] = j, 'det'
-                    break
-
-        elif vs == 'adjektivo':
-            # Rule 3: the adjective agrees with its head noun. Look right, then left.
-            for j in list(range(i + 1, len(ordered) + 1)) + list(range(i - 1, 0, -1)):
-                n = ordered[j - 1]
-                if n.get('vortspeco') in ('substantivo', 'propra_nomo') and _agrees(w, n):
-                    head[i], rel[i] = j, 'amod'
-                    break
-
-        elif vs == 'prepozicio':
-            # UD attaches the ADPOSITION to the NOUN it governs, not vice versa.
-            for j in range(i + 1, len(ordered) + 1):
-                if ordered[j - 1].get('vortspeco') in ('substantivo', 'propra_nomo',
-                                                       'pronomo', 'korelativo'):
-                    head[i], rel[i] = j, 'case'
-                    break
-
-        elif vs == 'adverbo':
-            head[i], rel[i] = verb_of_clause or 0, 'advmod'
-
-        elif vs in ('substantivo', 'propra_nomo', 'pronomo'):
-            # A nominal with no role yet is governed by a preposition -> the PP.
-            # WHERE the PP attaches is the ambiguous part; the verb is the
-            # majority baseline.
-            prev = ordered[i - 2] if i >= 2 else None
-            if prev is not None and prev.get('vortspeco') == 'prepozicio':
-                head[i], rel[i] = verb_of_clause or 0, 'obl'
-            else:
-                head[i], rel[i] = verb_of_clause or 0, 'nmod'
-
-        elif vs == 'konjunkcio':
-            head[i], rel[i] = verb_of_clause or 0, 'cc'
+    if main is None and ordered:
+        main = ordered[0]['id']
+        head[main], rel[main] = 0, 'root'
 
     lines = [f'# sent_id = {sent_id}', f'# text = {text}']
     for i, w in enumerate(ordered, start=1):

@@ -2548,6 +2548,237 @@ def parse_clause(word_asts: list) -> dict:
     return frazo
 
 
+
+# ---------------------------------------------------------------------------
+# ATTACHMENT — every token gets a HEAD and a ROLE. `aliaj` stops being a bucket.
+#
+# The AST modelled `subjekto`, `verbo`, `objekto` and dumped EVERYTHING ELSE into
+# `aliaj`: a flat list, no heads, no roles. Worse, some tokens were absorbed and
+# never emitted at all — `la` was folded into the `vortgrupo` as an attribute and
+# simply vanished. 13 tokens in, 10 in the AST.
+#
+# MEASURED COST, on UD gold (share of LAS / our recall):
+#     det   (`la` -> its noun)          9.1%  ->  0.0%
+#     cc    (coordinator)               5.3%  ->  0.0%
+#     mark  (subordinator ke/ĉar)       3.1%  ->  0.0%
+#     aux+cop (`estas`)                 2.7%  ->  0.0%
+#     advmod (adverb -> verb)           7.5%  ->  3.3%
+#                                      ~20%   of LAS scored ZERO
+#
+# We were not attaching these WRONGLY. We were not emitting them.
+#
+# After this pass the AST IS a dependency tree, and klareco/conllu.py becomes a
+# pure serializer. It used to RECONSTRUCT attachments at emit time, which meant
+# the tree and the emitted dependencies could disagree and nothing would catch it.
+# ---------------------------------------------------------------------------
+
+# UD attaches the ADPOSITION to the noun it governs, not the other way round.
+_CASE_ROLE = 'case'
+
+
+def _nominal(w) -> bool:
+    return (isinstance(w, dict)
+            and w.get('vortspeco') in ('substantivo', 'propra_nomo', 'pronomo',
+                                       'korelativo', 'numero'))
+
+
+def attach_all(word_asts: list, clauses: list) -> None:
+    """Give EVERY token a `kapo` (head id) and a `rolo` (relation). In place.
+
+    Heads are 1-based surface positions; 0 means ROOT. Deterministic throughout —
+    the ONE genuinely ambiguous decision (where a prepositional phrase attaches:
+    to the verb, or to a preceding noun?) is marked, not guessed. See #826.
+    """
+    for i, w in enumerate(word_asts, start=1):
+        if isinstance(w, dict):
+            w['id'] = i
+
+    def _id(node):
+        if not isinstance(node, dict):
+            return None
+        k = node.get('kerno', node)
+        return k.get('id') if isinstance(k, dict) else None
+
+    def _set(node, kapo, rolo):
+        k = node.get('kerno', node) if isinstance(node, dict) else None
+        if isinstance(k, dict) and k.get('kapo') is None:
+            k['kapo'], k['rolo'] = kapo, rolo
+
+    # ---- 1. clause skeleton: verbs, subjects, objects --------------------
+    main_verb = None
+    for c in clauses:
+        vid = _id(c.get('verbo'))
+        if vid is None:
+            continue
+        if main_verb is None and c.get('rolo') == 'ĉefa':
+            main_verb = vid
+    if main_verb is None:
+        main_verb = next((_id(c.get('verbo')) for c in clauses
+                          if _id(c.get('verbo'))), None)
+
+    # ---- THE COPULA ------------------------------------------------------
+    # `Esperanto estas lingvo` — UD makes the PREDICATE (`lingvo`) the ROOT and
+    # `estas` a `cop` CHILD of it. We were making `estas` the root, which is not
+    # merely a label difference: it drags `root` accuracy down, mis-attaches the
+    # subject, and scores 0.0% on `aux`+`cop` (2.7% of LAS).
+    #
+    # Esperanto has no auxiliary verb class — `esti` is an ordinary verb — so this
+    # is a genuine SCHEME difference and we adopt UD's view for comparability,
+    # while `MISC` keeps our native analysis.
+    predikato_of: dict[int, int] = {}       # clause verb id -> predicate id
+    for c in clauses:
+        vid = _id(c.get('verbo'))
+        v = c.get('verbo')
+        vk = v.get('kerno', v) if isinstance(v, dict) else None
+        if vid is None or not isinstance(vk, dict):
+            continue
+        if (vk.get('radiko') or '').lower() != 'est':
+            continue
+        subj_id = _id(c.get('subjekto'))
+        # the predicate: a NOMINATIVE nominal or adjective that is not the subject
+        for x in (c.get('aliaj') or []):
+            if not isinstance(x, dict) or x.get('id') in (None, subj_id):
+                continue
+            if (x.get('vortspeco') in ('substantivo', 'propra_nomo', 'adjektivo')
+                    and x.get('kazo') == 'nominativo'):
+                predikato_of[vid] = x['id']
+                break
+
+    clause_of: dict[int, int] = {}          # token id -> its clause's verb id
+    for c in clauses:
+        vid = _id(c.get('verbo'))
+        if vid is None:
+            continue
+        pred = predikato_of.get(vid)
+        if pred is not None:
+            # the PREDICATE heads the clause; `estas` becomes its `cop`.
+            head_id = pred
+            word_asts[pred - 1]['kapo'] = 0 if vid == main_verb else (main_verb or 0)
+            word_asts[pred - 1]['rolo'] = (
+                'root' if vid == main_verb
+                else {'kunordigita': 'conj', 'subordigita': 'advcl',
+                      'rilativa': 'acl:relcl'}.get(c.get('rolo'), 'parataxis'))
+            _set(c['verbo'], pred, 'cop')
+            for slot, rolo in (('subjekto', 'nsubj'), ('objekto', 'obj')):
+                if _id(c.get(slot)) is not None:
+                    _set(c[slot], pred, rolo)
+            for x in (c.get('aliaj') or []):
+                if isinstance(x, dict) and x.get('id'):
+                    clause_of[x['id']] = pred
+            continue
+
+        if vid == main_verb:
+            _set(c['verbo'], 0, 'root')
+        else:
+            _set(c['verbo'], main_verb or 0,
+                 {'kunordigita': 'conj', 'subordigita': 'advcl',
+                  'rilativa': 'acl:relcl'}.get(c.get('rolo'), 'parataxis'))
+
+        for slot, rolo in (('subjekto', 'nsubj'), ('objekto', 'obj')):
+            grp = c.get(slot)
+            if not isinstance(grp, dict):
+                continue
+            nid = _id(grp)
+            if nid is not None:
+                _set(grp, vid, rolo)
+                # the article and adjectives of this noun phrase
+                if grp.get('artikolo'):
+                    pass                    # handled in pass 2 (the token itself)
+                for d in (grp.get('priskriboj') or []):
+                    if isinstance(d, dict):
+                        d.setdefault('kapo', nid)
+                        d.setdefault('rolo',
+                                     'det' if d.get('vortspeco') == 'artikolo'
+                                     else 'amod')
+        for x in (c.get('aliaj') or []):
+            if isinstance(x, dict) and x.get('id'):
+                clause_of[x['id']] = vid
+
+    # ---- 2. everything else ---------------------------------------------
+    n = len(word_asts)
+    for i, w in enumerate(word_asts, start=1):
+        if not isinstance(w, dict) or w.get('kapo') is not None:
+            continue
+        vs = w.get('vortspeco')
+        verb = clause_of.get(i, main_verb) or 0
+
+        if vs == 'artikolo':
+            # `la` -> DET of the next nominal. It was being ABSORBED and lost.
+            for j in range(i + 1, min(i + 5, n + 1)):
+                if _nominal(word_asts[j - 1]):
+                    w['kapo'], w['rolo'] = j, 'det'
+                    break
+            else:
+                w['kapo'], w['rolo'] = verb, 'det'
+
+        elif vs == 'prepozicio':
+            for j in range(i + 1, min(i + 6, n + 1)):
+                if _nominal(word_asts[j - 1]):
+                    w['kapo'], w['rolo'] = j, _CASE_ROLE
+                    break
+            else:
+                w['kapo'], w['rolo'] = verb, _CASE_ROLE
+
+        elif vs == 'konjunkcio':
+            r = (w.get('radiko') or '').lower()
+            if r in _SUBORDINATORS:
+                # `ke`, `ĉar` -> MARK of the clause they open.
+                nxt = next((word_asts[j - 1].get('id')
+                            for j in range(i + 1, n + 1)
+                            if _is_finite_verb(word_asts[j - 1])), verb)
+                w['kapo'], w['rolo'] = nxt or verb, 'mark'
+            else:
+                # `kaj`, `sed` -> CC of the conjunct that follows.
+                nxt = next((word_asts[j - 1].get('id')
+                            for j in range(i + 1, n + 1)
+                            if _is_finite_verb(word_asts[j - 1])), None)
+                w['kapo'], w['rolo'] = nxt or verb, 'cc'
+
+        elif vs in ('adverbo', 'partiklo'):
+            w['kapo'], w['rolo'] = verb, 'advmod'
+
+        elif vs == 'adjektivo':
+            # Rule 3: agrees with its head noun. Look right, then left.
+            hit = None
+            for j in (list(range(i + 1, min(i + 5, n + 1)))
+                      + list(range(i - 1, max(i - 5, 0), -1))):
+                c2 = word_asts[j - 1]
+                if (_nominal(c2) and c2.get('kazo') == w.get('kazo')
+                        and c2.get('nombro') == w.get('nombro')):
+                    hit = j
+                    break
+            w['kapo'], w['rolo'] = (hit, 'amod') if hit else (verb, 'xcomp')
+
+        elif _nominal(w):
+            # A nominal with no role yet is inside a prepositional phrase.
+            #
+            # ⚠️ WHERE THE PP ATTACHES IS AMBIGUOUS BY GRAMMAR — to the verb
+            # (`obl`) or to a preceding noun (`nmod`)? `Mi vidis la viron kun
+            # teleskopo` licenses BOTH, and Bick measured this as 1/4-1/3 of all
+            # Esperanto attachment errors. We take the verb (the majority
+            # baseline) and MARK the decision, so #826 can turn it into an
+            # OR-node instead of a guess.
+            # Look back PAST determiners and adjectives — `en la granda ĝardeno`
+            # is still a prepositional phrase, and the noun's immediate
+            # predecessor is `granda`, not `en`.
+            gov = None
+            for j in range(i - 1, max(i - 5, 0), -1):
+                c2 = word_asts[j - 1]
+                if not isinstance(c2, dict):
+                    break
+                if c2.get('vortspeco') in ('artikolo', 'adjektivo'):
+                    continue
+                if c2.get('vortspeco') == 'prepozicio':
+                    gov = c2
+                break
+            if gov is not None:
+                w['kapo'], w['rolo'] = verb, 'obl'
+                w['alligo_ambigua'] = True
+            else:
+                w['kapo'], w['rolo'] = verb, 'nmod'
+        else:
+            w['kapo'], w['rolo'] = verb, 'dep'
+
 # ---------------------------------------------------------------------------
 # CLAUSES — the AST becomes an actual TREE.
 #
@@ -3218,6 +3449,11 @@ def parse(text: str):
     # (DuckDBRetriever, the rerankers, the shredded columns) keeps working
     # unchanged while new consumers can walk the tree.
     sentence_ast["propozicioj"] = build_clauses(word_asts)
+
+    # Every token now gets a HEAD and a ROLE. `aliaj` stops being a junk drawer,
+    # and `la` stops vanishing. The AST becomes a real dependency tree.
+    attach_all(word_asts, sentence_ast["propozicioj"])
+    sentence_ast["vortoj"] = word_asts
 
     return sentence_ast
 

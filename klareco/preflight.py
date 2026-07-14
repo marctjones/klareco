@@ -131,23 +131,44 @@ def _check_parser_vocabularies() -> list[Finding]:
         findings.append(f)
 
     # proper_nouns.py has a documented fallback chain: v3 -> v2 -> legacy.
-    # Only report if the whole chain is absent.
-    pn_paths = [
-        _PROJECT_ROOT / "data" / "proper_nouns_dynamic_v3.json",
-        _PROJECT_ROOT / "data" / "proper_nouns_dynamic_v2.json",
-        _PROJECT_ROOT / "data" / "proper_nouns_dynamic.json",
-    ]
-    if not any(p.exists() for p in pn_paths):
-        findings.append(Finding(
-            "proper_nouns_dynamic_v*.json",
-            required=False,
-            detail="none of v3 / v2 / legacy exists (whole fallback chain absent)",
-            consequence=("Proper-noun dictionary loads as None. The parser falls "
-                         "back to capitalization heuristics alone, so it cannot "
-                         "distinguish a name from a sentence-initial common noun. "
-                         "Every downstream stage keyed on propra_nomo is degraded."),
-            remedy="Restore the dictionary, or rebuild it (see #779).",
-        ))
+    # THE PROPER-NOUN GAZETTEER IS GONE ON PURPOSE (#804).
+    #
+    # This check used to demand `proper_nouns_dynamic_v3.json` — an OPEN-WORLD LIST
+    # OF EVERY NAME THAT EXISTS. That was the wrong artifact, and restoring it was
+    # the wrong fix. "Building a huge dictionary seems like giving up." It was.
+    #
+    # It is replaced by CLOSED-WORLD inference from the language's own vocabulary:
+    #   revo_name_roots.json   1,835 ReVo roots whose bare form IS a name, typed
+    #                          person vs place. `Zamenhof` is a name because the
+    #                          DICTIONARY says so — a LEXICAL FACT, not a heuristic.
+    #   root_vocab.json        the tiered root lexicon (ReVo + Fundamento + corpus)
+    #   protected_roots.json   lexicalized forms — `Esperanton` is NOT esper+ant
+    #   capitalization_ratio   namehood as a USAGE statistic
+    #   affix_table.json       the SELECTIONAL restrictions that rank the readings
+    #
+    # These ARE the parser's dependencies now, and every one of them fails loudly.
+    for name, rel in [
+        ("revo_name_roots.json", "data/raw/eo/dictionaries/revo_name_roots.json"),
+        ("revo_typed_roots.json", "data/raw/eo/dictionaries/revo_typed_roots.json"),
+        ("affix_table.json", "data/raw/eo/dictionaries/affix_table.json"),
+        ("root_vocab.json", "data/vocabularies/root_vocab.json"),
+    ]:
+        path = _PROJECT_ROOT / rel
+        if not path.exists():
+            findings.append(Finding(
+                name,
+                required=True,
+                detail=f"missing: {rel}",
+                consequence=(
+                    "The parser has no curated lexicon. Negative detection then "
+                    "fires on every ordinary word it has never heard of — that is "
+                    "what gave 41.8% of the corpus a propra_nomo SUBJECT (#821). "
+                    "And without the selectional table there is nothing to RANK "
+                    "the readings with, so 8% of tokens stay arbitrarily "
+                    "disambiguated."),
+                remedy=("python scripts/acquire/acquire_voko_akrido.py && "
+                        "python scripts/index/build_root_lexicon.py"),
+            ))
 
     return findings
 
@@ -378,3 +399,24 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def preflight_artifacts() -> None:
+    """Check the PARSER'S ARTIFACTS only — not the store.
+
+    Running the full preflight BEFORE a rebuild is backwards: it validates the
+    very store you are about to replace, so it fails on exactly the things the
+    rebuild is there to fix (verb_klaso 0%, ontology 0 rows, success_rate
+    constant). The store's gate is scripts/validate/validate_rebuild.py, and it
+    runs AFTER.
+
+    This is the gate that runs BEFORE: do we have the lexicons the parser needs?
+    """
+    findings = [f for f in _check_parser_vocabularies() if f.required]
+    if findings:
+        lines = ['Preflight failed — the parser\'s artifacts are not intact.', '']
+        for f in findings:
+            lines.append(f'  ✗ {f.name}: {f.detail}')
+            lines.append(f'      {f.consequence}')
+            lines.append(f'      remedy: {f.remedy}')
+        raise PreflightError('\n'.join(lines))

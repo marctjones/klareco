@@ -114,6 +114,29 @@ def main() -> int:
     for k in ENTITY_CLASSES:
         print(f'    {k:10s} {len(onto.members(k)):5,} members')
 
+    # ---- entity_facts ----------------------------------------------------
+    # The table BiographyFormatStage reads and CRASHES on, because it does not
+    # exist. Seed it from the ontology: root -> entity class, with the ReVo sense
+    # as the fact. That is not a biography, but it is a real table with real rows,
+    # and the stage stops crashing — which is the difference between "broken" and
+    # "thin".
+    con.execute('DROP TABLE IF EXISTS entity_facts')
+    con.execute("""
+        CREATE TABLE entity_facts (
+          entito   VARCHAR,   -- the root
+          klaso    VARCHAR,   -- persono | loko | …
+          fakto    VARCHAR,   -- the ReVo definition
+          fonto    VARCHAR    -- attribution (VISION.md)
+        )""")
+    facts = []
+    for klaso in ENTITY_CLASSES:
+        for m in onto.members(klaso):
+            senses = onto.senses(m)
+            facts.append((m, klaso, senses[0] if senses else None, 'revo'))
+    con.executemany('INSERT INTO entity_facts VALUES (?,?,?,?)', facts)
+    con.execute('CREATE INDEX idx_efacts_entito ON entity_facts(entito)')
+    print(f'  entity_facts   : {len(facts):,} rows   (table did not EXIST)')
+
     # ---- verb_klaso on the clause table ---------------------------------
     # The verb's SEMANTIC CLASS comes from the typed root lexicon (voko-akrido):
     # tr / ntr / best / pers / parc / subst. This is the DIFFERENTIATING input the

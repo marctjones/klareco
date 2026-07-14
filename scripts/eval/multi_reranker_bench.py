@@ -646,6 +646,75 @@ def find_first_relevant_rank(ranked: list[ParsedPassage],
     return None
 
 
+class ClauseAwareReranker(Reranker):
+    """Match the question's frame against EVERY clause, not just the main one.
+
+    THIS IS THE FIRST RERANKER THAT READS THE TREE.
+
+    Every other reranker in this file scores against the SHREDDED COLUMNS —
+    `sentences.subj_radiko / verb_radiko / obj_radiko` — which describe the MAIN
+    CLAUSE and nothing else. That schema is a flat record: one subject, one verb,
+    one object per SENTENCE.
+
+    But gold has 1.64 subjects per sentence, 33.5% of clauses in the store are
+    SUBORDINATE, and a sentence like
+
+        "Ne klaras, ĉu UN transdonis la petskribon al Unesko…"
+                        ^^^^^^^^^^^^^^^^^^ clause 1
+
+    has its answer in a clause the flat columns DO NOT CONTAIN. `subj_radiko` for
+    that sentence is whatever heads the main clause; `UN` is simply not there.
+
+    So this reranker asks the `clauses` table — 6,954,535 rows, one per clause —
+    whether ANY clause of the candidate matches the question's verb and object.
+    It is the difference between "does this sentence's main clause match?" and
+    "does this sentence SAY the thing?".
+
+    Deliberately simple: no new signal, no ontology, no learning. The ONLY change
+    is the scope of the lookup. If it moves the number, what moved it is the tree.
+    """
+    name = 'I_clause_aware'
+    requires = ['clauses.verb_radiko']
+
+    def rerank(self, question, question_ast, candidates, conn, top_k=10):
+        q_verb = (question_ast.get('verbo') or {}).get('radiko')
+        q_obj = question_ast.get('objekto') or {}
+        q_obj = (q_obj.get('kerno') or q_obj).get('radiko') if isinstance(q_obj, dict) else None
+
+        scored = []
+        for p in candidates:
+            boost = 0.0
+            try:
+                rows = conn.execute(
+                    "SELECT clause_idx, subj_radiko, verb_radiko, obj_radiko "
+                    "FROM clauses WHERE sid = ?", [int(p.sentence_id)]
+                ).fetchall()
+            except Exception:
+                rows = []
+            for ci, s_, v_, o_ in rows:
+                m = 0.0
+                if q_verb and v_ == q_verb:
+                    m += 1.5
+                if q_obj and o_ == q_obj:
+                    m += 1.5
+                # BOTH in the SAME clause is the real evidence: this clause IS the
+                # proposition the question asks about. Matching the verb in one
+                # clause and the object in another is a coincidence, not an answer.
+                if q_verb and q_obj and v_ == q_verb and o_ == q_obj:
+                    m += 2.0
+                boost = max(boost, m)
+            scored.append((p.score + boost, p))
+
+        scored.sort(key=lambda kv: -kv[0])
+        ranked = [
+            ParsedPassage(sentence_id=p.sentence_id, text=p.text, ast=p.ast,
+                          score=ns, source_doc=p.source_doc, source_type=p.source_type)
+            for ns, p in scored[:top_k]
+        ]
+        return RerankerResult(name=self.name, ranked=ranked,
+                              metadata={'q_verb': q_verb, 'q_obj': q_obj})
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--test-set', required=True)
@@ -708,6 +777,7 @@ def main() -> None:
         EntityPostingsReranker(),
         ASTAwareRanker(),
         HybridReranker(),
+        ClauseAwareReranker(),
     ]
     enabled: list[Reranker] = []
     skipped: list[str] = []

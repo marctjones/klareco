@@ -2455,6 +2455,32 @@ def parse_subordinate_clauses(sentence_ast: dict, word_asts: list) -> dict:
     return sentence_ast
 
 
+
+def _is_pp_governed(word_asts: list, i: int) -> bool:
+    """Is word i governed by a PREPOSITION?
+
+    ⚠️ This used to check only the IMMEDIATELY preceding token, so `en la domon`
+    — preposition, ARTICLE, accusative noun — looked ungoverned, and `domon`
+    became the DIRECT OBJECT of the verb. "The dog ran INTO THE HOUSE" was parsed
+    as "the dog ran the house".
+
+    That corrupted `obj_radiko`, which DuckDBRetriever and every reranker read.
+    Any preposition + article/adjective + noun was affected, which in Esperanto is
+    most prepositional phrases.
+
+    Look back past articles and adjectives — they are inside the phrase.
+    """
+    for j in range(i - 1, max(i - 5, -1), -1):
+        w = word_asts[j]
+        if not isinstance(w, dict):
+            return False
+        vs = w.get('vortspeco')
+        if vs in ('artikolo', 'adjektivo'):
+            continue
+        return vs == 'prepozicio'
+    return False
+
+
 def parse_clause(word_asts: list) -> dict:
     """
     Parse a list of word ASTs into a frazo structure (subordinate clause).
@@ -2484,9 +2510,7 @@ def parse_clause(word_asts: list) -> dict:
         # role. Skip it as a subject/object candidate. This kills the
         # fronted-PP misattribution bug (`En Volterra, li skribis…` had
         # been treating Volterra as the subject).
-        is_pp_governed = (
-            i > 0 and word_asts[i-1].get("vortspeco") == "prepozicio"
-        )
+        is_pp_governed = _is_pp_governed(word_asts, i)
         if ast["vortspeco"] == "verbo" and not frazo["verbo"]:
             frazo["verbo"] = ast
             # Check for negation: `ne` immediately before the verb, OR
@@ -2548,6 +2572,108 @@ def parse_clause(word_asts: list) -> dict:
     return frazo
 
 
+
+
+# ---------------------------------------------------------------------------
+# PP ATTACHMENT (#826) — Bick's #1 error class, and the one place the grammar
+# genuinely runs out.
+#
+# `Mi vidis la viron kun teleskopo` — "with the telescope" can attach to SEEING
+# or to THE MAN. **No case, no agreement, and no rule in the 16 disambiguates
+# it.** The grammar licenses BOTH trees and is CORRECT to. Church & Patil (1982):
+# the parse count grows as the Catalan numbers, and you cannot write a rule that
+# removes a parse the grammar correctly licenses without also losing the
+# sentences that MEAN it.
+#
+# Bick (LREC 2020), measuring his own Constraint Grammar parser on Esperanto:
+# postnominal PP attachment is ~1/4 to 1/3 of ALL his errors, and he concludes
+# "ambiguity in this area arises from SEMANTICS rather than morphology".
+#
+# We were attaching EVERY modifier to the verb. Gold, measured:
+#
+#     nmod -> head is a NOUN   273        obl -> head is a VERB   73
+#     `de`     -> nmod 105 : obl   2      (the genitive. overwhelming.)
+#     (no prep)-> nmod 115 : obl   5      (bare nominal after a noun)
+#     por/pri/kun/el/pro       -> mostly nmod
+#     en / al / per / kiel     -> ~2:1    GENUINELY AMBIGUOUS
+#
+# So: take the deterministic half, and MARK the rest instead of guessing.
+# ---------------------------------------------------------------------------
+
+# Prepositions whose object attaches to a preceding NOUN, not to the verb.
+# `de` is the genitive and is the strongest signal in the language (105:2).
+_NMOD_PREPOSITIONS = frozenset({
+    'de', 'por', 'pri', 'kun', 'el', 'pro', 'inter', 'sen', 'krom', 'laŭ',
+})
+
+# Prepositions the gold data says are genuinely two-way. These become OR-nodes.
+_AMBIGUOUS_PREPOSITIONS = frozenset({'en', 'al', 'per', 'kiel', 'sur', 'sub',
+                                     'ĉe', 'post', 'antaŭ', 'tra', 'super'})
+
+
+def _nearest_noun_head(word_asts: list, i: int, verb_id: int):
+    """The nearest preceding NOMINAL that could head this modifier.
+
+    Must sit between the verb and us — a noun BEFORE the verb is the subject and
+    is not a candidate for a postnominal modifier.
+    """
+    for j in range(i - 1, 0, -1):
+        w = word_asts[j - 1]
+        if not isinstance(w, dict):
+            continue
+        if w.get('id') == verb_id:
+            return None                     # we walked back past the verb
+        if w.get('vortspeco') in ('artikolo', 'adjektivo', 'prepozicio'):
+            continue
+        if _nominal(w):
+            return w.get('id')
+        return None
+    return None
+
+
+def _attach_pp(word_asts: list, w: dict, i: int, gov, verb: int) -> None:
+    """Attach a nominal that has no role yet: to a NOUN (`nmod`) or the VERB (`obl`).
+
+    Deterministic where Esperanto decides it. An OR-node where it does not.
+    """
+    prep = (gov.get('radiko') or '').lower() if isinstance(gov, dict) else None
+    noun = _nearest_noun_head(word_asts, i, verb)
+
+    # (1) THE ACCUSATIVE OF DIRECTION. `en la domoN` = INTO the house — motion,
+    #     therefore the VERB. This is a hard, morphological signal that English
+    #     simply does not have, and it is free.
+    if prep and w.get('kazo') == 'akuzativo':
+        w['kapo'], w['rolo'] = verb, 'obl'
+        return
+
+    # (2) No candidate noun -> it can only be the verb.
+    if noun is None:
+        w['kapo'], w['rolo'] = verb, 'obl' if prep else 'nmod'
+        return
+
+    # (3) THE GENITIVE and its friends. `de` is 105:2 in gold — the strongest
+    #     attachment signal in the language.
+    if prep in _NMOD_PREPOSITIONS:
+        w['kapo'], w['rolo'] = noun, 'nmod'
+        return
+
+    # (4) A BARE nominal following a noun (no preposition at all) — apposition /
+    #     measure / genitive-like. 115:5 in gold.
+    if prep is None:
+        w['kapo'], w['rolo'] = noun, 'nmod'
+        return
+
+    # (5) THE RESIDUE. `en`, `al`, `per`, `kiel` run ~2:1 in gold — the grammar
+    #     licenses BOTH and nothing deterministic separates them. We take the
+    #     majority (the noun) and RECORD that a choice was made, with both
+    #     options, so #834's ranker can collapse it and we can COUNT how often we
+    #     had to guess. Guessing silently is what we are trying to stop doing.
+    w['kapo'], w['rolo'] = noun, 'nmod'
+    w['alligo_ambigua'] = True
+    w['alligo_opcioj'] = [
+        {'kapo': noun, 'rolo': 'nmod', 'fonto': None},
+        {'kapo': verb, 'rolo': 'obl', 'fonto': None},
+    ]
 
 # ---------------------------------------------------------------------------
 # ATTACHMENT — every token gets a HEAD and a ROLE. `aliaj` stops being a bucket.
@@ -2722,10 +2848,14 @@ def attach_all(word_asts: list, clauses: list) -> None:
         elif vs == 'konjunkcio':
             r = (w.get('radiko') or '').lower()
             if r in _SUBORDINATORS:
-                # `ke`, `ĉar` -> MARK of the clause they open.
+                # `ke`, `ĉar` -> MARK of the clause they open. But the clause's
+                # HEAD is the PREDICATE under a copula — `ĉar li estas granda`
+                # heads on `granda`, not on `estas`. Attaching to the verb was
+                # wrong wherever the clause was copular.
                 nxt = next((word_asts[j - 1].get('id')
                             for j in range(i + 1, n + 1)
                             if _is_finite_verb(word_asts[j - 1])), verb)
+                nxt = predikato_of.get(nxt, nxt)
                 w['kapo'], w['rolo'] = nxt or verb, 'mark'
             else:
                 # `kaj`, `sed` -> CC of the conjunct that follows.
@@ -2735,7 +2865,15 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 w['kapo'], w['rolo'] = nxt or verb, 'cc'
 
         elif vs in ('adverbo', 'partiklo'):
-            w['kapo'], w['rolo'] = verb, 'advmod'
+            # `tre granda`, `tre rapide` — an adverb modifying an ADJECTIVE or
+            # another ADVERB attaches to IT, not to the clause verb. We were
+            # sending every adverb to the verb, which is why advmod sat at 18%.
+            nxt = word_asts[i] if i < n else None
+            if (isinstance(nxt, dict)
+                    and nxt.get('vortspeco') in ('adjektivo', 'adverbo')):
+                w['kapo'], w['rolo'] = nxt['id'], 'advmod'
+            else:
+                w['kapo'], w['rolo'] = verb, 'advmod'
 
         elif vs == 'adjektivo':
             # Rule 3: agrees with its head noun. Look right, then left.
@@ -2771,11 +2909,7 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 if c2.get('vortspeco') == 'prepozicio':
                     gov = c2
                 break
-            if gov is not None:
-                w['kapo'], w['rolo'] = verb, 'obl'
-                w['alligo_ambigua'] = True
-            else:
-                w['kapo'], w['rolo'] = verb, 'nmod'
+            _attach_pp(word_asts, w, i, gov, verb)
         else:
             w['kapo'], w['rolo'] = verb, 'dep'
 
@@ -3232,9 +3366,7 @@ def parse(text: str):
         # this noun is the complement of that PP, NOT a clause role.
         # Fixes the fronted-PP misattribution class (`En Volterra, li…`
         # would otherwise pick Volterra as subjekto).
-        is_pp_governed = (
-            i > 0 and word_asts[i-1].get("vortspeco") == "prepozicio"
-        )
+        is_pp_governed = _is_pp_governed(word_asts, i)
 
         if ast["vortspeco"] == "verbo" and not sentence_ast["verbo"] and not in_subordinate:
             sentence_ast["verbo"] = ast

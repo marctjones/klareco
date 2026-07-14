@@ -116,10 +116,13 @@ class Lexicon:
 
     def __init__(self) -> None:
         self.roots: dict[str, str] = {}        # root -> POS/semantic class
+        self.protected: set[str] = set()       # ReVo says ATOMIC / lexicalized
+        self.tier1: set[str] = set()           # ReVo + Fundamento (CURATED)
         self.names: dict[str, str] = {}        # NAME root -> pers | subst
         self.suffix_rules: dict[str, list[tuple[str | None, str | None]]] = {}
         self.prefix_rules: dict[str, list[str | None]] = {}
         self.prefixes: set[str] = set()
+        self.ending_pos: dict[str, str] = {}   # f(ojn, subst). f(i, verb). …
         self._super: dict[str, set[str]] = {}
 
         tr = _DICT_DIR / 'revo_typed_roots.json'
@@ -134,6 +137,7 @@ class Lexicon:
 
         self.roots = {k: v['pos']
                       for k, v in json.loads(tr.read_text(encoding='utf-8'))['roots'].items()}
+        self.tier1 = set(self.roots)
         if nr.exists():
             self.names = {k.lower(): v['pos']
                           for k, v in json.loads(nr.read_text(encoding='utf-8'))['roots'].items()}
@@ -141,11 +145,41 @@ class Lexicon:
             # `amerikano` cannot decompose.
             for k, pos in self.names.items():
                 self.roots.setdefault(k, pos)
+                self.tier1.add(k)
+
+        # PROTECTED roots and the CORPUS tier. Without these, morphology.py is
+        # strictly weaker than the parser it is meant to replace:
+        #
+        #   * `esperant` is NOT a ReVo headword (it is LEXICALIZED, not a root), so
+        #     without protected_roots this module happily returns esper+ant — the
+        #     exact bug we spent the day fixing.
+        #   * ~7,000 roots are attested in the corpus but absent from ReVo
+        #     (neologisms, technical and geographic vocabulary). Dropping them
+        #     costs real coverage.
+        #
+        # POS is unknown for these, and `isa(None, x)` is vacuously true, so the
+        # selectional restrictions simply do not fire on them. That is the honest
+        # behaviour: no type information means no type check, not a false one.
+        rv = Path(__file__).parent.parent / 'data' / 'vocabularies' / 'root_vocab.json'
+        if rv.exists():
+            d = json.loads(rv.read_text(encoding='utf-8'))
+            for r in d.get('roots', []):
+                self.roots.setdefault(r, None)
+            for r in d.get('protected', []):
+                self.roots.setdefault(r, None)
+                self.protected.add(r)
+        pr = Path(__file__).parent.parent / 'data' / 'vocabularies' / 'protected_roots.json'
+        if pr.exists():
+            for r in json.loads(pr.read_text(encoding='utf-8')).get('roots', []):
+                self.roots.setdefault(r, None)
+                self.protected.add(r)
 
         a = json.loads(af.read_text(encoding='utf-8'))
         for s in a['suffixes']:
             self.suffix_rules.setdefault(s['affix'], []).append((s['out'], s['in']))
         self.prefixes = {p['affix'] for p in a['prefixes']}
+        for e in a.get('endings', []):
+            self.ending_pos[e['ending']] = e['pos']
         for p in a['prefixes']:
             self.prefix_rules.setdefault(p['affix'], []).append(p['in'])
         # A prefix with an unrestricted rule (mal-, pseŭdo-) selects for nothing.
@@ -193,7 +227,23 @@ def lexicon() -> Lexicon:
 #    `vir` is tagged `subst` in ReVo, not `best`, so `s(in, _, best)` strictly
 #    forbids `virino` — an ordinary word. A hard filter would delete real
 #    language. So a violating reading survives; it just loses.
-_SCORE_ROOT_KNOWN = 3.0        # the root is in the curated lexicon
+# THREE TIERS, and the ORDER matters more than the values.
+#
+# The corpus tier is HARVESTED FROM PARSER OUTPUT, so it contains the parser's own
+# mis-splits laundered back in as roots (`amerikan` from `amerikano`, `org` from
+# `organo`). If a corpus root scores as highly as a curated one, Occam prefers the
+# whole word and the contamination WINS:
+#
+#     amerikano  ->  `amerikan` (corpus, LAUNDERED)   beats   amerik + an  (ReVo)
+#
+# So a corpus root must NOT outrank a ReVo-backed decomposition. And a PROTECTED
+# root must outrank everything — ReVo (or derivational productivity) has declared
+# it ATOMIC, and that is the whole point of protecting it:
+#
+#     esperanto  ->  `esperant` (PROTECTED)           beats   esper + ant
+_SCORE_ROOT_PROTECTED = 5.0    # declared ATOMIC — never split it
+_SCORE_ROOT_KNOWN = 3.0        # ReVo / Fundamento: curated, typed
+_SCORE_ROOT_CORPUS = 1.0       # corpus-harvested: CONTAMINATED, keep for coverage only
 _SCORE_SELECTION_OK = 0.0      # restriction satisfied: NOT WRONG is not a reward
 _PENALTY_SELECTION_BAD = -3.0  # restriction violated: expensive, never fatal
 _PENALTY_PER_MORPHEME = -1.0   # Occam: `organ` beats `org`+`an`; `paper` beats `pap`+`er`
@@ -241,30 +291,29 @@ def _score(morphemes: list[Morpheme]) -> Analysis:
     a = Analysis(morphemes=list(morphemes))
     cur: str | None = None
 
-    # PREFIXES select too, and they were the ENTIRE remaining residue.
-    #     p(re,  verb).   re- means "again" and demands a VERB
-    #     p(ge,  best).   ge- demands an ANIMATE
-    #     p(bo,  parc).   bo- (in-law) demands a KINSHIP term
-    # A prefix attaches to the ROOT that FOLLOWS it, so this needs a look-ahead
-    # rather than the left-to-right accumulation the suffixes use:
-    #     registaro = reg(VERB) + ist + ar    vs    re- + gist(NOUN = "yeast") + ar
-    #     `re-` demands a verb, `gist` is a noun -> the re- reading is penalised
-    #     and the government wins over the collection of re-yeasted things.
-    root_pos = next((m.pos for m in morphemes if m.kind == 'radiko'), None)
-    for m in morphemes:
-        if m.kind != 'prefikso':
-            continue
-        reqs = [p for p in lex.prefix_rules.get(m.form, [])]
-        if reqs and not any(lex.isa(root_pos, r) for r in reqs):
-            a.score += _PENALTY_SELECTION_BAD
-            a.violations.append(
-                f'{m.form}- demands {{{", ".join(str(r) for r in reqs)}}}, '
-                f'got {root_pos}')
-
+    # ORDER MATTERS, and it is not the order the morphemes appear in.
+    #
+    # 1. the ROOT gives a POS
+    # 2. SUFFIXES transform it, left to right:  san(adj) + ig -> tr (verb)
+    # 3. PREFIXES select on the RESULT, not on the bare root:
+    #        `resanigi` = re + (san+ig)  —  `re-` demands a VERB, and `sanig` IS
+    #        one. Checking `re-` against `san` (an ADJECTIVE) reported a violation
+    #        that does not exist, and cost us the correct reading.
+    # 4. the ENDING must match the stem's POS. This is the check that was MISSING
+    #    entirely, and it decides real ambiguities:
+    #        `refari`   ref+ar -> a NOUN stem, and `-i` is the INFINITIVE, which
+    #                   demands a VERB.  VIOLATION.
+    #                   re+far -> `far` is `tr`.  -i is fine.  -> re+far WINS.
+    #    voko-akrido ships f(i, verb), f(o, subst)… and we simply were not using it.
     for m in morphemes:
         if m.kind == 'radiko':
             cur = m.pos
-            a.score += _SCORE_ROOT_KNOWN
+            if m.form in lex.protected:
+                a.score += _SCORE_ROOT_PROTECTED
+            elif m.form in lex.tier1:
+                a.score += _SCORE_ROOT_KNOWN
+            else:
+                a.score += _SCORE_ROOT_CORPUS
         elif m.kind == 'sufikso':
             rules = lex.suffix_rules.get(m.form, [])
             ok = [(out, req) for out, req in rules if lex.isa(cur, req)]
@@ -278,6 +327,25 @@ def _score(morphemes: list[Morpheme]) -> Analysis:
                     f'{{{", ".join(str(r) for _, r in rules)}}}, got {cur}')
                 cur = rules[0][0] if rules else cur
         a.score += _PENALTY_PER_MORPHEME
+
+    # (3) PREFIXES select on the DERIVED stem.
+    for m in morphemes:
+        if m.kind != 'prefikso':
+            continue
+        reqs = lex.prefix_rules.get(m.form, [])
+        if reqs and not any(lex.isa(cur, r) for r in reqs):
+            a.score += _PENALTY_SELECTION_BAD
+            a.violations.append(
+                f'{m.form}- demands {{{", ".join(str(r) for r in reqs)}}}, got {cur}')
+
+    # (4) THE ENDING must match the stem. `-i` is the infinitive: it demands a VERB.
+    end = next((m for m in morphemes if m.kind == 'finaĵo'), None)
+    if end is not None and cur is not None:
+        demanded = lex.ending_pos.get(end.form)
+        if demanded and not lex.isa(cur, demanded):
+            a.score += _PENALTY_SELECTION_BAD
+            a.violations.append(
+                f'|{end.form} demands a {demanded} stem, got {cur}')
 
     a.pos = cur
     return a
@@ -301,8 +369,17 @@ def analyze(word: str) -> tuple[Analysis, ...]:
                 # `hundo` is a noun even though `hund` is `best`.
                 a.pos = ENDINGS[end]
                 out.append(a)
-    if w in lexicon().roots:                       # bare root (rare; particles)
-        out.append(_score([Morpheme(w, 'radiko', lexicon().roots[w])]))
+    # ⚠️ NO BARE-ROOT FALLBACK. Rules 2-7: every CONTENT word carries a
+    # grammatical ending. `nov` is a ROOT; `nova` is a WORD.
+    #
+    # There used to be one, and it was actively harmful: a bare root has FEWER
+    # morphemes, so Occam scored it ABOVE the correct ending-stripped reading.
+    #     `nova` -> root `nova`  (+2.0)   beat   nov + |a  (+1.0)
+    #     `same` -> root `same`           beat   sam + |e
+    #     `ene`  -> root `ene`            beat   en  + |e
+    # Any string that happened to sit in the lexicon won against its own correct
+    # analysis. The closed ending-less class (la, kaj, mi, tiu) is handled by the
+    # parser, not here — this module analyses CONTENT words.
     out.sort(key=lambda a: -a.score)
     return tuple(out)
 

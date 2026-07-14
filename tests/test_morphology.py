@@ -130,5 +130,111 @@ class TestTheSetIsReturned:
         """A parser that returns ONE reading where the grammar permits TWO is not
         deterministic — it is arbitrary. The set is the honest output."""
         assert is_ambiguous('papero')
-        assert not is_ambiguous('organo')
         assert len(analyze('esperanto')) == 2
+
+    def test_the_grammar_licenses_it_and_the_RANKER_kills_it(self):
+        """`organo` IS grammatically ambiguous, because `org` sits in the
+        corpus-harvested tier — a laundered parser mis-split. The honest thing is
+        to ADMIT the reading exists and then CRUSH it, not to pretend the grammar
+        never licensed it.
+
+        This is the whole architecture in one assertion: enumerate everything the
+        rules permit, then rank.
+        """
+        readings = analyze('organo')
+        assert len(readings) == 2                      # the grammar permits both
+        assert readings[0].radiko == 'organ'           # and the ranker decides
+        assert readings[1].radiko == 'org'
+        assert readings[0].score - readings[1].score >= 3.0, \
+            'the ranker must decide this DECISIVELY, not by a hair'
+
+
+class TestTheASTCarriesTheAlternatives:
+    """#828 — the parser stops COMMITTING SILENTLY.
+
+    It ran its own morphology, picked one reading, and discarded the rest without
+    recording that a choice had been made. That is how `Esperanton` -> esper+ant
+    happened: it did not FAIL, it COMMITTED.
+
+    Now `klareco.morphology` owns the decomposition of CONTENT words, and the AST
+    carries an OR-node wherever the grammar permitted more than one reading —
+    stamped with WHO collapsed it.
+
+    Measured, as the AST actually carries it:
+        OR-nodes (grammar permits 2+)   8.02% of tokens
+        RESIDUE (fonto=None)            0.285%
+        collapsed by RULES             96.45% of the ambiguity
+    """
+
+    def test_an_unambiguous_word_gets_NO_or_node(self):
+        """Do not pay for ambiguity you do not have."""
+        from klareco.parser import parse_word
+        assert 'alternativoj' not in parse_word('hundo')
+
+    def test_a_resolved_ambiguity_records_WHO_decided_and_WHY(self):
+        from klareco.parser import parse_word
+        alt = parse_word('papero')['alternativoj']
+        assert alt['fonto'] == 'regulo'
+        assert alt['elektita'] == 0
+        assert alt['kialo']                       # it must say why
+        assert len(alt['opcioj']) == 2            # and keep the loser
+
+    def test_THE_RESIDUE_admits_it_could_not_decide(self):
+        """`filino` = fil+in ("daughter") or fi-lin ("contemptible flax"). Both
+        are grammatically legal AND satisfy every selectional restriction. The
+        grammar did its job perfectly and returned two answers.
+
+        fonto=None is the AST saying so — instead of picking one and calling it a
+        parse."""
+        from klareco.parser import parse_word
+        alt = parse_word('filino')['alternativoj']
+        assert alt['fonto'] is None
+        assert alt['elektita'] is None
+        assert 'TIED' in alt['kialo']
+
+
+class TestTheParserPrefixBugsMorphologyFixes:
+    """Comparing the two implementations on 10,223 corpus word types found the
+    parser OVER-APPLYING PREFIXES — the very bug the selectional table exists to
+    stop (`p(re, verb)`: `re-` demands a VERB)."""
+
+    @pytest.mark.parametrize('word,root', [
+        ('diskuto', 'diskut'),      # parser said dis+kut
+        ('eklezio', 'eklezi'),      # parser said ek+lezi
+        ('revuo', 'revu'),          # parser said re+vu
+    ])
+    def test_a_prefix_is_not_applied_where_the_root_is_whole(self, word, root):
+        from klareco.parser import parse_word
+        assert parse_word(word)['radiko'] == root
+
+    @pytest.mark.parametrize('word,prefix,root', [
+        ('refari', 're', 'far'),
+        ('revidi', 're', 'vid'),
+        ('rekonstrui', 're', 'konstru'),
+    ])
+    def test_but_a_REAL_prefix_still_applies(self, word, prefix, root):
+        from klareco.parser import parse_word
+        a = parse_word(word)
+        assert a['radiko'] == root and prefix in a['prefiksoj']
+
+    def test_a_PREFIX_selects_on_the_DERIVED_stem_not_the_bare_root(self):
+        """`resanigi` = re + (san+ig). `re-` demands a VERB, and `sanig` IS one —
+        even though `san` alone is an ADJECTIVE. Checking the prefix against the
+        BARE ROOT reported a violation that does not exist."""
+        from klareco.parser import parse_word
+        a = parse_word('resanigi')
+        assert a['radiko'] == 'san'
+        assert 're' in a['prefiksoj'] and 'ig' in a['sufiksoj']
+
+    def test_the_ENDING_must_match_the_STEM(self):
+        """The check that was missing entirely, and it decides real ambiguities:
+
+            refari:  ref+ar -> a NOUN stem, and `-i` is the INFINITIVE, which
+                     demands a VERB.  VIOLATION.
+                     re+far -> `far` is transitive.  -i is fine.  -> re+far WINS.
+
+        voko-akrido ships f(i, verb), f(o, subst) … and we were not using it."""
+        a = analyze('refari')
+        assert a[0].radiko == 'far'
+        loser = next(x for x in a if x.radiko == 'ref')
+        assert loser.violations and 'demands a verb stem' in loser.violations[0]

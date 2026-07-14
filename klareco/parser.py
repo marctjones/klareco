@@ -1870,6 +1870,87 @@ def _parse_word_impl(word: str) -> dict:
 
 
 
+
+# ---------------------------------------------------------------------------
+# #828 — THE PARSER STOPS COMMITTING SILENTLY.
+#
+# `klareco/morphology.py` enumerates every reading the grammar permits and RANKS
+# them by SELECTIONAL RESTRICTIONS (voko-akrido's typed lexicon + affix table).
+# `klareco/forest.py` packs them into OR-nodes stamped with WHO collapsed each.
+#
+# The parser called NEITHER. It ran its own morphology, picked one reading, and
+# discarded the rest without recording that a choice had been made. That is how
+# `Esperanton` -> esper+ant happened: it did not FAIL, it COMMITTED.
+#
+# MEASURED, comparing the two implementations on 10,223 corpus word types:
+#     same root      78.8%
+#     DIFFERENT       2.1%   <- and morphology.py is RIGHT in almost all of them
+#     parser only    19.0%   <- closed classes: function words, correlatives, numerals
+#
+# The disagreements are the parser OVER-APPLYING PREFIXES — precisely the bug the
+# selectional table already fixes (`p(re, verb)`: `re-` demands a VERB):
+#     diskuto   parser: dis+kut    morphology: diskut    "discussion"
+#     eklezio   parser: ek+lezi    morphology: eklezi    "church"
+#     revuo     parser: re+vu      morphology: revu      "magazine"
+#
+# So morphology.py OWNS the decomposition of CONTENT words. The parser keeps the
+# closed classes it does better — correlatives, pronouns, function words,
+# numerals, proper nouns — which morphology.py does not model at all.
+# ---------------------------------------------------------------------------
+
+_MORPH_OWNS = ('substantivo', 'adjektivo', 'adverbo', 'verbo')
+
+# How far apart two readings must be before the ranker may claim it DECIDED.
+# Below this they are effectively tied, and claiming a decision we did not make
+# is exactly the arbitrariness this exercise abolishes.
+_DECISION_MARGIN = 0.5
+
+
+def _apply_morphology(ast: dict, word: str) -> dict:
+    """Let klareco.morphology own the decomposition — and RECORD THE ALTERNATIVES."""
+    from klareco import morphology as _m
+
+    if not isinstance(ast, dict) or ast.get('vortspeco') not in _MORPH_OWNS:
+        return ast
+    try:
+        readings = _m.analyze(word)
+    except Exception:
+        return ast
+    if not readings:
+        return ast
+
+    best = readings[0]
+    ast['radiko'] = best.radiko
+    ast['prefiksoj'] = best.prefiksoj
+    ast['sufiksoj'] = best.sufiksoj
+
+    if len(readings) == 1:
+        return ast                      # the grammar left no choice
+
+    margin = best.score - readings[1].score
+    solved = margin >= _DECISION_MARGIN
+    ast['alternativoj'] = {
+        'nivelo': 'morfemo',
+        'elektita': 0 if solved else None,
+        'fonto': 'regulo' if solved else None,   # None == THE RESIDUE
+        'kialo': (
+            ((f'the runner-up violates a selectional restriction '
+              f'({readings[1].violations[0]})') if readings[1].violations
+             else f'fewer morphemes (Occam): {len(best.morphemes)} vs '
+                  f'{len(readings[1].morphemes)}')
+            if solved else
+            (f'TIED at {best.score:+.1f} — the grammar permits {len(readings)} '
+             f'readings and no deterministic rule separates them')
+        ),
+        'opcioj': [
+            {'radiko': r.radiko, 'prefiksoj': r.prefiksoj, 'sufiksoj': r.sufiksoj,
+             'poentaro': r.score, 'malobservoj': list(r.violations)}
+            for r in readings
+        ],
+    }
+    return ast
+
+
 def parse_word(word: str) -> dict:
     """Parse a single word, then let the corpus's own USAGE overrule morphology.
 
@@ -1934,7 +2015,9 @@ def parse_word(word: str) -> dict:
         # Petro/Petron to `petr`. Overwriting radiko with the surface form throws
         # that away — and roots are the whole point.
         ast['propra_nomo_evidence'] = 'capitalization_ratio'
-    return ast
+    # The grammar may permit more than one reading. SAY SO, rather than
+    # committing to one and discarding the rest in silence.
+    return _apply_morphology(ast, word)
 
 def categorize_unknown_word(word: str, error_msg: str = "") -> dict:
     """

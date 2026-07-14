@@ -74,10 +74,20 @@ class TestScratchDeparser(unittest.TestCase):
 
 class TestDeparsePunctuation(unittest.TestCase):
 
-    def test_declarative_sentence_ends_with_period(self):
-        ast = parse("mi amas vin")
-        result = deparse(ast)
-        self.assertTrue(result.endswith('.'), f"Expected '.', got '{result[-1]}'")
+    def test_terminal_punctuation_is_REPLAYED_not_INVENTED(self):
+        """The contract changed with #836, and it changed on purpose.
+
+        `deparse` used to APPEND a terminal mark inferred from `fraztipo`. That is
+        a GUESS, and guessing is what made this module emit `jarocento` and
+        `enohavas`. Punctuation is now a real token in the AST, in its real
+        position, so it is REPLAYED.
+
+        Consequence: a sentence with no period deparses to no period. That is
+        correct — `deparse` reproduces its input, it does not tidy it. Generation
+        (which SHOULD supply punctuation) is `deparse_structural`.
+        """
+        assert deparse(parse("Mi amas vin.")).endswith('.')      # in -> out
+        assert not deparse(parse("mi amas vin")).endswith('.')   # absent -> absent
 
     def test_question_ends_with_question_mark(self):
         ast = parse("Kiu fondis Esperanton?")

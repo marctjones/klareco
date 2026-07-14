@@ -44,7 +44,12 @@ class TestNoTokenIsLost:
         rows = _rows(s)
         forms = [r['form'].lower() for r in rows]
         assert forms.count('la') == 3, 'the articles are being absorbed and lost'
-        assert len(rows) == 13
+        # 13 words + the comma + the period. PUNCTUATION IS IN THE AST NOW (#836) —
+        # which is precisely what this test's name asks for and what it did not
+        # previously check. UD gold has 454 PUNCT tokens and every one has a head;
+        # we used to delete them all at tokenization.
+        assert len(rows) == 15, 'punctuation must be in the AST too'
+        assert ',' in forms and '.' in forms
 
     def test_every_token_has_a_head_and_a_role(self):
         for w in parse('La hundo ne vidis la katon en la ĝardeno.')['vortoj']:

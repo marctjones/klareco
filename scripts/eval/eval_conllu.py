@@ -177,6 +177,20 @@ def evaluate(path: str, emit: list | None = None) -> dict:
                 continue
             gold_id = ours_to_gold[o['id']]
             gt = next(t for t in g['tokens'] if t['id'] == gold_id)
+            # ⚠️ DO NOT SCORE PUNCTUATION.
+            #
+            # The parser now emits PUNCT tokens (they are syntax — gold has 454 of
+            # them, all with heads). But `n`, the denominator, counts NON-PUNCT gold
+            # tokens only. Scoring punct into the numerator against a non-punct
+            # denominator would push LAS_all above 1.0 — and, worse, punct
+            # attachment is EASY (a period hangs off the root), so it would inflate
+            # the score with the cheapest tokens in the sentence.
+            #
+            # Punctuation now ALIGNS (which is why coverage is high) but does not
+            # SCORE. Both denominators stay comparable to every number reported
+            # before it existed.
+            if gt['upos'] == 'PUNCT':
+                continue
             aligned += 1
             if o['upos'] == gt['upos']:
                 pos_ok += 1

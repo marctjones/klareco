@@ -41,6 +41,9 @@ from klareco.parser import parse
 
 # --- vortspeco -> UPOS ------------------------------------------------------
 _UPOS = {
+    # Punctuation is SYNTAX, not typography: UD gold has 454 PUNCT tokens and
+    # every one of them carries a HEAD. We used to delete them at tokenization.
+    'interpunkcio': 'PUNCT',
     'substantivo': 'NOUN',
     'propra_nomo': 'PROPN',
     'verbo': 'VERB',

@@ -364,13 +364,47 @@ def deparse(ast: dict) -> str:
     if not vortoj:
         return deparse_structural(ast)          # pre-#825 AST: fall back
 
-    words = [_reconstruct_word(w) for w in vortoj if isinstance(w, dict)]
-    body = ' '.join(w for w in words if w)
+    # PUNCTUATION IS IN `vortoj` NOW (#836), so it is REPLAYED, not GUESSED.
+    #
+    # This used to join every token with a space and then APPEND a terminal mark
+    # inferred from `fraztipo` — a guess, and the reason `deparse` only reproduced
+    # 93.3% of its input. The marks are real tokens now, in their real positions.
+    #
+    # They just need SPACING, which is a typographic convention and not something
+    # the AST should carry: a closing mark binds LEFT (`domo,` not `domo ,`), an
+    # opening mark binds RIGHT (`«Faust»` not `« Faust »`).
+    _BIND_LEFT = set('.,!?;:…)»]”’%°′″‰\u00ad')
+    _BIND_RIGHT = set('(«[“‘')
+
+    out: list[str] = []
+    bind_next = False
+    for w in vortoj:
+        if not isinstance(w, dict):
+            continue
+        s = _reconstruct_word(w)
+        if not s:
+            continue
+        # CASE is a property of the SURFACE, not of the morphology. `Akademio` and
+        # `akademio` have the same radiko, so a morpheme-rebuild cannot know which
+        # one was written — 331 of the round-trip failures were exactly this.
+        # Replay the recorded case, but ONLY when the rebuild agrees with the
+        # surface otherwise: a genuinely wrong rebuild must still show as wrong.
+        orig = w.get('plena_vorto') or ''
+        if orig and orig.lower() == s.lower() and orig != s:
+            s = orig
+        is_mark = w.get('vortspeco') == 'interpunkcio'
+        if not out:
+            out.append(s)
+        elif bind_next or (is_mark and s[0] in _BIND_LEFT):
+            out[-1] += s                    # no space
+        else:
+            out.append(s)
+        bind_next = bool(is_mark and s[-1] in _BIND_RIGHT)
+
+    body = ' '.join(out)
     if not body:
         return ''
-
-    punct = {'demando': '?', 'ordono': '!'}.get(ast.get('fraztipo', 'deklaro'), '.')
-    return body[0].upper() + body[1:] + punct
+    return body[0].upper() + body[1:]
 
 
 def deparse_structural(ast: dict) -> str:

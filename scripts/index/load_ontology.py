@@ -180,22 +180,56 @@ def main() -> int:
     # as the fact. That is not a biography, but it is a real table with real rows,
     # and the stage stops crashing — which is the difference between "broken" and
     # "thin".
-    con.execute('DROP TABLE IF EXISTS entity_facts')
-    con.execute("""
-        CREATE TABLE entity_facts (
-          entito   VARCHAR,   -- the root
-          klaso    VARCHAR,   -- persono | loko | …
-          fakto    VARCHAR,   -- the ReVo definition
-          fonto    VARCHAR    -- attribution (VISION.md)
-        )""")
-    facts = []
-    for klaso in ENTITY_CLASSES:
-        for m in onto.members(klaso):
-            senses = onto.senses(m)
-            facts.append((m, klaso, senses[0] if senses else None, 'revo'))
-    con.executemany('INSERT INTO entity_facts VALUES (?,?,?,?)', facts)
-    con.execute('CREATE INDEX idx_efacts_entito ON entity_facts(entito)')
-    print(f'  entity_facts   : {len(facts):,} rows   (table did not EXIST)')
+    # A FACT WITHOUT A SENTENCE IS NOT A FACT.
+    #
+    # The first version of this seeded `entity_facts` from the ontology — root ->
+    # class -> ReVo definition — purely so `BiographyFormatStage` would stop
+    # crashing. It had no `sid`, so it could not say WHERE any fact came from, and
+    # `test_entity_facts_reference_real_sentences` failed the moment the table
+    # existed:
+    #
+    #     SELECT count(*) FROM entity_facts f
+    #     LEFT JOIN sentences s ON f.sid = s.sid WHERE s.sid IS NULL
+    #
+    # That test is right and the stopgap was wrong. Attribution is the whole point
+    # of this project (VISION.md): every claim must say where it came from.
+    #
+    # And we do not need a stopgap any more. The `clauses` table IS a fact table:
+    # 6,954,535 rows of (subject, verb, object) — each one attached to the sentence
+    # it was parsed from. A clause whose subject is a PROPER NOUN is exactly an
+    # entity fact, with provenance, for free.
+    #
+    # Note it is built from ALL clauses, not just the main one — a fact stated in a
+    # subordinate clause is still a fact.
+    have = {t[0] for t in con.execute('SHOW TABLES').fetchall()}
+    if 'clauses' in have:
+        con.execute('DROP TABLE IF EXISTS entity_facts')
+        con.execute("""
+            CREATE TABLE entity_facts AS
+            SELECT c.sid                     AS sid,        -- PROVENANCE
+                   c.subj_radiko             AS entito,
+                   c.verb_radiko             AS rilato,
+                   c.obj_radiko              AS valoro,
+                   c.clause_idx              AS klauzo,
+                   (SELECT e.class_id FROM ontology_edges e
+                     WHERE e.rel = 'HAVAS_ENTECAN_TIPON'
+                       AND e.radiko = c.subj_radiko LIMIT 1) AS klaso,
+                   'regulo'                  AS fonto        -- attribution
+            FROM clauses c
+            WHERE c.subj_vortspeco = 'propra_nomo'
+              AND c.subj_radiko IS NOT NULL
+              AND c.verb_radiko IS NOT NULL
+        """)
+        con.execute('CREATE INDEX idx_efacts_entito ON entity_facts(entito)')
+        con.execute('CREATE INDEX idx_efacts_sid ON entity_facts(sid)')
+        n = con.execute('SELECT count(*) FROM entity_facts').fetchone()[0]
+        orph = con.execute(
+            'SELECT count(*) FROM entity_facts f LEFT JOIN sentences s '
+            'ON f.sid = s.sid WHERE s.sid IS NULL').fetchone()[0]
+        print(f'  entity_facts   : {n:,} rows, EVERY ONE with a sid')
+        print(f'    orphans (sid not in sentences): {orph}   <- the contract')
+    else:
+        print('  entity_facts   : SKIPPED — no `clauses` table to build it from.')
 
     # ---- verb_klaso on the clause table ---------------------------------
     # The verb's SEMANTIC CLASS comes from the typed root lexicon (voko-akrido):

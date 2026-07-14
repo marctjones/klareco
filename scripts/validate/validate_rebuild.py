@@ -96,10 +96,38 @@ def main() -> int:
     print(f'\n  store: {tot:,} sentences\n')
 
     # ---- 1. the quality gate actually ran -------------------------------
-    print('  QUALITY GATE (#823)')
-    for label, pred in _JUNK:
-        n = con.execute(f'SELECT count(*) FROM sentences WHERE {pred}').fetchone()[0]
-        (c.ok if n == 0 else c.fail)(label, f'{n:,} rows remain — the gate did not run')
+    #
+    # ⚠️ ASK THE GATE. DO NOT RE-IMPLEMENT IT IN SQL.
+    #
+    # This used to check `text LIKE '%[[%'` and call any match a markup row. That
+    # flagged this, and refused to ship the store over it:
+    #
+    #     "Teknike, por enmeti bildon en artikolon, vi skribu jenon:
+    #      [[Image:2006-bhh.JPG|thumb|right|…]]"
+    #
+    # — a Wikipedia HELP PAGE, in perfectly good Esperanto, QUOTING the markup it is
+    # explaining. A sentence that quotes markup is not a markup row, exactly as a
+    # sentence that quotes `Le Livre noir` is not a French sentence. That is the
+    # mistake that nearly deleted 569,000 good sentences, and here it was again in
+    # the validator.
+    #
+    # The redirect bug had the same shape: the rule lived in TWO places
+    # (corpus_quality.py and rebuild_whoosh_from_duckdb.py) and they drifted. So the
+    # validator now calls `assess()` — the same function the build uses. If the gate
+    # is wrong, this fails; if the gate is right, this agrees with it BY
+    # CONSTRUCTION. There is one definition of junk in this codebase.
+    print('  QUALITY GATE (#823) — asking the GATE, not a regex')
+    from klareco.corpus_quality import assess
+    sample = con.execute(
+        f'SELECT text FROM sentences USING SAMPLE {max(args.sample, 20000)} ROWS '
+        f'(reservoir, 7)').fetchall()
+    bad = [t for (t,) in sample if t and not assess(t).keep]
+    if bad:
+        c.fail('rows the gate would REJECT',
+               f'{len(bad):,} of {len(sample):,} sampled — the gate did not run. '
+               f'e.g. {bad[0][:48]!r}')
+    else:
+        c.ok('rows the gate would reject', f'0 of {len(sample):,} sampled')
     if tot > 5_000_000:
         c.fail('row count', f'{tot:,} — the gate should have dropped ~14.5% '
                             f'(expected ~4.6M)')

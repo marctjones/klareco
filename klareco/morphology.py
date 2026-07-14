@@ -118,6 +118,7 @@ class Lexicon:
         self.roots: dict[str, str] = {}        # root -> POS/semantic class
         self.names: dict[str, str] = {}        # NAME root -> pers | subst
         self.suffix_rules: dict[str, list[tuple[str | None, str | None]]] = {}
+        self.prefix_rules: dict[str, list[str | None]] = {}
         self.prefixes: set[str] = set()
         self._super: dict[str, set[str]] = {}
 
@@ -145,6 +146,12 @@ class Lexicon:
         for s in a['suffixes']:
             self.suffix_rules.setdefault(s['affix'], []).append((s['out'], s['in']))
         self.prefixes = {p['affix'] for p in a['prefixes']}
+        for p in a['prefixes']:
+            self.prefix_rules.setdefault(p['affix'], []).append(p['in'])
+        # A prefix with an unrestricted rule (mal-, pseŭdo-) selects for nothing.
+        for k, v in list(self.prefix_rules.items()):
+            if None in v:
+                self.prefix_rules[k] = []
 
         # Transitive closure of sub(Subtype, Supertype).
         direct: dict[str, set[str]] = {}
@@ -208,7 +215,20 @@ def _analyses_of_stem(stem: str, depth: int = 0) -> list[list[Morpheme]]:
         if stem.startswith(pre) and len(stem) - len(pre) >= 2:
             for inner in _analyses_of_stem(stem[len(pre):], depth + 1):
                 out.append([Morpheme(pre, 'prefikso')] + inner)
-    return out
+
+    # DEDUPE. `malkovrit` is reachable by two paths — strip the suffix first
+    # (mal-kovr, then -it) or strip the prefix first (mal-, then kovr-it) — and
+    # both yield the IDENTICAL morpheme sequence. Without this, the same reading
+    # appears twice, ties with itself, and gets counted as ambiguity that does
+    # not exist. It was inflating the measured residue.
+    seen: set[tuple] = set()
+    uniq: list[list[Morpheme]] = []
+    for ms in out:
+        key = tuple((m.form, m.kind) for m in ms)
+        if key not in seen:
+            seen.add(key)
+            uniq.append(ms)
+    return uniq
 
 
 def _score(morphemes: list[Morpheme]) -> Analysis:
@@ -220,6 +240,26 @@ def _score(morphemes: list[Morpheme]) -> Analysis:
     lex = lexicon()
     a = Analysis(morphemes=list(morphemes))
     cur: str | None = None
+
+    # PREFIXES select too, and they were the ENTIRE remaining residue.
+    #     p(re,  verb).   re- means "again" and demands a VERB
+    #     p(ge,  best).   ge- demands an ANIMATE
+    #     p(bo,  parc).   bo- (in-law) demands a KINSHIP term
+    # A prefix attaches to the ROOT that FOLLOWS it, so this needs a look-ahead
+    # rather than the left-to-right accumulation the suffixes use:
+    #     registaro = reg(VERB) + ist + ar    vs    re- + gist(NOUN = "yeast") + ar
+    #     `re-` demands a verb, `gist` is a noun -> the re- reading is penalised
+    #     and the government wins over the collection of re-yeasted things.
+    root_pos = next((m.pos for m in morphemes if m.kind == 'radiko'), None)
+    for m in morphemes:
+        if m.kind != 'prefikso':
+            continue
+        reqs = [p for p in lex.prefix_rules.get(m.form, [])]
+        if reqs and not any(lex.isa(root_pos, r) for r in reqs):
+            a.score += _PENALTY_SELECTION_BAD
+            a.violations.append(
+                f'{m.form}- demands {{{", ".join(str(r) for r in reqs)}}}, '
+                f'got {root_pos}')
 
     for m in morphemes:
         if m.kind == 'radiko':

@@ -93,13 +93,21 @@ from klareco.corpus_quality import assess
 # The extracted files still know where they came from. So we read them.
 # ─────────────────────────────────────────────────────────────────────────────
 SOURCES = {
-    # path                                                    quota  licence
-    'data/extracted/wikipedia_sentences.jsonl':              (0.40, 'CC-BY-SA'),
-    'data/extracted/eo/tier0/literary/alice_sentences.jsonl': (0.12, 'public domain'),
-    'data/extracted/eo/tier0/literary/andersen_sentences.jsonl': (0.10, 'public domain'),
-    'data/extracted/eo/tier0/literary/krestomatio_sentences.jsonl': (0.18, 'public domain'),
-    'data/extracted/eo/tier0/grammar/lingvaj_respondoj_sentences.jsonl': (0.20, 'public domain'),
+    # path                                                     quota  licence
+    'data/extracted/wikipedia_sentences.jsonl':               (0.28, 'CC-BY-SA'),
+    'data/extracted/eo/free/gutenberg_sentences.jsonl':       (0.24, 'public domain'),
+    'data/extracted/eo/free/vikifontaro_sentences.jsonl':     (0.24, 'PD + CC BY-SA'),
+    # ALL of Libera Folio is ORIGINAL Esperanto — the register we are starving for.
+    # The Gutenberg shelf is 86 translations to 18 originals, and a translation
+    # carries the SOURCE language's syntax. Weighted above its size for that reason.
+    'data/extracted/eo/free/libera_folio_sentences.jsonl':    (0.16, 'CC BY 4.0'),
+    'data/extracted/eo/tier0/grammar/lingvaj_respondoj_sentences.jsonl':
+                                                              (0.08, 'public domain'),
 }
+# NOTE the old tier0 literary files (alice, andersen, krestomatio) are GONE from
+# this table: all three are Gutenberg books and are now inside
+# gutenberg_sentences.jsonl. Listing both would have double-counted them and
+# quietly inflated their weight.
 # PMEG is EXCLUDED by default. It is excellent register (technical grammatical
 # prose) but it is Bertilo Wennergren's copyrighted work and its redistribution
 # terms are not clear to us. The whole point of choosing these sources is that the
@@ -165,6 +173,13 @@ def main() -> int:
         print('      we may redistribute it. The treebank may not be publishable.\n')
         sources[PMEG] = (0.15, 'UNCLEAR — copyrighted')
 
+    # Vikifontaro and Gutenberg BOTH host Zamenhof, Andersen and the Krestomatio.
+    # The same sentence can therefore arrive twice from two "independent" sources,
+    # and a gold set with duplicate sentences is a gold set that quietly weights
+    # some constructions twice while looking balanced.
+    seen: set[str] = set()
+    n_dupe = 0
+
     # pool[source][bucket] -> candidate sentences
     pool: dict[str, dict[str, list]] = {}
     print('  SOURCES (register matters: Wikipedia is the simplest prose in the language)\n')
@@ -203,11 +218,17 @@ def main() -> int:
                 n = len(text.split())
                 if n < 3 or n > 80:
                     continue
+                key = re.sub(r'\W+', '', text.lower())
+                if key in seen:
+                    n_dupe += 1
+                    continue
+                seen.add(key)
                 n_clean += 1
                 phen = {k for k, rx in PHENOMENA.items() if rx.search(text)}
                 by_bucket[_bucket(n)].append(
                     {'text': text, 'n': n, 'phenomena': sorted(phen),
-                     'source': p.stem.replace('_sentences', ''), 'licence': lic})
+                     'source': p.stem.replace('_sentences', ''),
+                     'kind': (r.get('kind') or 'nekonata'), 'licence': lic})
         pool[path] = by_bucket
         print(f'    {p.stem.replace("_sentences","")[:26]:26s} {n_read:8,} {n_clean:8,}'
               f'  {lic:14s}')
@@ -247,6 +268,23 @@ def main() -> int:
     print(f'\n    {"source":26s} {"tokens":>8s} {"share":>7s}')
     for s, n in by_src.most_common():
         print(f'    {s[:26]:26s} {n:8,} {n / total:7.1%}')
+    if n_dupe:
+        print(f'\n    de-duplicated across sources: {n_dupe:,} sentences')
+        print('      (Vikifontaro and Gutenberg both host Zamenhof — the same')
+        print('       sentence arriving twice would weight it twice)')
+
+    # THE NUMBER THAT DECIDES WHAT THIS TREEBANK MEASURES. A translation carries the
+    # SOURCE language's syntax; a gold set that is mostly translated prose measures
+    # Esperanto-as-relexified-European, which is the assumption this project exists
+    # NOT to make.
+    by_kind: collections.Counter = collections.Counter()
+    for s in picked:
+        by_kind[s.get('kind', 'nekonata')] += s['n']
+    print(f'\n    {"register":26s} {"tokens":>8s} {"share":>7s}')
+    for k in ('originala', 'tradukita', 'nekonata'):
+        print(f'    {k:26s} {by_kind[k]:8,} {by_kind[k] / total:7.1%}')
+    print('      originala = written IN Esperanto. tradukita = translated INTO it,')
+    print('      and therefore carrying another language\'s clause structure.')
 
     print('\n  PHENOMENON COVERAGE (a gold set without these cannot measure the fixes):')
     cov = collections.Counter()

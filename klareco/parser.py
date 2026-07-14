@@ -2955,10 +2955,22 @@ _PRONOUN_ROOTS = frozenset({
 })
 
 
+# The POSSESSIVE CORRELATIVES — `kies` (whose), `ties`, `ies`, `ĉies`, `nenies`.
+# The `-es` column of the correlative table IS the possessive column, and these
+# behave exactly like `mia`: they precede their noun and they are `nmod`.
+# `... lingvokomunumoj KIES parolantoj ...` — `kies` modifies `parolantoj`.
+_POSSESSIVE_CORRELATIVES = frozenset({
+    'kies', 'ties', 'ies', 'ĉies', 'nenies',
+})
+
+
 def _is_possessive(w) -> bool:
-    """`mia`/`lia`/`ĝia`… — an adjective whose ROOT is a personal pronoun."""
-    return (isinstance(w, dict)
-            and w.get('vortspeco') == 'adjektivo'
+    """`mia`/`lia`/`ĝia`/`kies`… — anything that possesses the noun after it."""
+    if not isinstance(w, dict):
+        return False
+    if (w.get('radiko') or '').lower() in _POSSESSIVE_CORRELATIVES:
+        return True
+    return (w.get('vortspeco') == 'adjektivo'
             and (w.get('radiko') or '').lower() in _PRONOUN_ROOTS)
 
 # Prepositions the gold data says are genuinely two-way. These become OR-nodes.
@@ -2978,7 +2990,20 @@ def _nearest_noun_head(word_asts: list, i: int, verb_id: int):
             continue
         if w.get('id') == verb_id:
             return None                     # we walked back past the verb
-        if w.get('vortspeco') in ('artikolo', 'adjektivo', 'prepozicio'):
+        # SKIP THE DETERMINERS. `_nominal` counts `korelativo` and `numero` as
+        # nominals — which they are, in isolation. But in
+        #
+        #     la anoj de ĈIUJ lingvoj
+        #     la provizo de TIU ŝanco
+        #
+        # `ĉiuj`/`tiu` are DETERMINERS of the very word we are attaching. Stopping
+        # on them made `lingvoj --nmod--> ĉiuj` (a noun modifying its own
+        # determiner) instead of `lingvoj --nmod--> anoj`. The head we want is the
+        # noun OUTSIDE this phrase, so walk past the whole determiner+adjective
+        # run and land on a real substantive. 10 `de` phrases died on `ĉiuj`/`tiu`
+        # alone.
+        if w.get('vortspeco') in ('artikolo', 'adjektivo', 'prepozicio',
+                                  'korelativo', 'numero'):
             continue
         if _nominal(w):
             return w.get('id')
@@ -3110,6 +3135,32 @@ def attach_all(word_asts: list, clauses: list) -> None:
     if main_verb is None:
         main_verb = next((_id(c.get('verbo')) for c in clauses
                           if _id(c.get('verbo'))), None)
+
+    # ---- 0. POSSESSIVES CLAIM THEIR NOUN FIRST ---------------------------
+    #
+    # A possessive in Esperanto ALWAYS PRECEDES its noun — `mia domo`, `lia
+    # patro`, `ĝiaj parolantoj`. It never follows. So its head is not something to
+    # search for in both directions; it is the next nominal to the right, full
+    # stop. That is a fact about the language, not a heuristic.
+    #
+    # This must run BEFORE the clause skeleton, because that pass sweeps
+    # `priskriboj` onto their noun-group's kerno and CLAIMS the possessive
+    # (`kapo` is set, so every later pass skips it). That is how `mia` in
+    # `... pri mia lingvo gepatra ...` ended up headed by `Kiam` — a token in a
+    # different clause entirely. Whoever sets `kapo` first wins, so the pass that
+    # actually knows the answer must go first.
+    for i, w in enumerate(word_asts, start=1):
+        if not _is_possessive(w) or w.get('kapo') is not None:
+            continue
+        for j in range(i + 1, min(i + 5, len(word_asts) + 1)):
+            c = word_asts[j - 1]
+            if not isinstance(c, dict):
+                continue
+            if c.get('vortspeco') == 'adjektivo':
+                continue                     # `mia GRANDA domo`
+            if _nominal(c):
+                w['kapo'], w['rolo'] = c.get('id'), 'nmod'
+            break
 
     # ---- THE COPULA ------------------------------------------------------
     # `Esperanto estas lingvo` — UD makes the PREDICATE (`lingvo`) the ROOT and

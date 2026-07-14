@@ -105,14 +105,33 @@ def parse_our_conllu(block: str) -> list[dict]:
 
 def evaluate(path: str, emit: list | None = None) -> dict:
     gold_sents = read_gold(path)
-    uas = las = pos_ok = n = 0
+    uas = las = pos_ok = 0
     aligned = 0
+    crashed = 0
+
+    # ── THE DENOMINATOR IS COMPUTED UP FRONT, FROM THE GOLD FILE ALONE ──────
+    #
+    # It used to be accumulated INSIDE the loop, AFTER the `except: continue` that
+    # skips a sentence the parser crashed on. So a crash did not merely lose those
+    # tokens — it REMOVED THEM FROM THE DENOMINATOR, and the score went UP.
+    #
+    # This is not hypothetical. A one-line UnboundLocalError in the parser crashed
+    # 40 of 131 Prago sentences; `gold_tokens` silently fell from 2,712 to 1,114
+    # and LAS_all "improved" from 48.6% to 56.6%. The metric rewarded the crash.
+    # Exactly the failure mode `las_all` was introduced to prevent, reintroduced
+    # one level down.
+    #
+    # Now: n is fixed by the gold file, a crash costs every one of its tokens, and
+    # `crashed` is reported so it can never be invisible again.
+    n = sum(len([t for t in g['tokens'] if t['upos'] != 'PUNCT'])
+            for g in gold_sents)
 
     for i, g in enumerate(gold_sents):
         text = g['text'] or ' '.join(t['form'] for t in g['tokens'])
         try:
             block = to_conllu(text, sent_id=str(i + 1))
         except Exception:
+            crashed += 1          # every token in this sentence now scores ZERO
             continue
         if emit is not None:
             emit.append(block)
@@ -150,9 +169,9 @@ def evaluate(path: str, emit: list | None = None) -> dict:
                 uas += 1
                 if o['dep'] == gt['dep']:
                     las += 1
-        n += len([t for t in g['tokens'] if t['upos'] != 'PUNCT'])
 
-    return {'aligned': aligned, 'gold_tokens': n,
+    return {'aligned': aligned, 'gold_tokens': n, 'crashed': crashed,
+            'n_sents': len(gold_sents),
             'uas': uas / aligned if aligned else 0.0,
             'las': las / aligned if aligned else 0.0,
             'upos': pos_ok / aligned if aligned else 0.0,
@@ -194,6 +213,9 @@ def main() -> int:
         print(f'    UPOS                           {r["upos"]:6.1%}')
         print(f'    token coverage                 {r["coverage"]:6.1%}  '
               f'({r["aligned"]} of {r["gold_tokens"]} non-punct gold tokens)')
+        if r['crashed']:
+            print(f'    ⚠️  PARSER CRASHED on {r["crashed"]}/{r["n_sents"]} sentences '
+                  f'— every one of their tokens scores ZERO')
         print(f'    ── steer by these: denominator is ALL gold tokens, so it '
               f'cannot be gamed')
         print(f'    UAS_all                        {r["uas_all"]:6.1%}   '

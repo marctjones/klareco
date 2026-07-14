@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -137,23 +138,39 @@ def evaluate(path: str, emit: list | None = None) -> dict:
             emit.append(block)
         ours = parse_our_conllu(block)
 
-        # Align by surface form, left to right.
+        # Align by surface form.
         #
         # ⚠️ INDEX SPACES DIFFER. Gold NUMBERS PUNCTUATION as tokens; our
         # tokenizer drops it. So our HEAD=4 and gold's HEAD=4 do not refer to the
         # same word, and comparing them raw scores almost everything wrong even
         # when the attachment is correct. We must translate our heads into GOLD's
         # index space first. (This bug alone was holding UAS at ~10%.)
+        #
+        # ⚠️ AND THE ALIGNER MUST RECOVER FROM A MISMATCH.
+        #
+        # This was a greedy one-way pointer: for each of OUR tokens, advance
+        # through gold until the forms match. If we emitted a token gold does not
+        # have, the scan ran to the END of the sentence, hit `break`, and
+        # ABANDONED EVERY REMAINING TOKEN — ours and gold's alike.
+        #
+        # One bad token discarded the rest of the sentence. Concretely: our
+        # tokenizer used to leave the guillemets on `«Respondaron»`, and that one
+        # token threw away the remaining ELEVEN of 22 gold tokens in its sentence.
+        # Across Prago it was 286 tokens (10.5% of the gold) scored as ZERO — and
+        # 93% of them were words like `la`, `kaj`, `de` that we obviously DO
+        # produce. The metric was blaming the parser for its own alignment.
+        #
+        # SequenceMatcher aligns maximal matching BLOCKS, so a single spurious or
+        # missing token costs only itself and the scan picks straight back up.
+        # Genuinely unmatched tokens stay unmatched — and `las_all` still counts
+        # them WRONG — so this is strictly more correct, not more generous.
+        gforms = [t['form'].lower() for t in g['tokens']]
+        oforms = [o['form'].lower() for o in ours]
         ours_to_gold: dict[int, int] = {}
-        gi = 0
-        for o in ours:
-            while gi < len(g['tokens']) and \
-                    g['tokens'][gi]['form'].lower() != o['form'].lower():
-                gi += 1
-            if gi >= len(g['tokens']):
-                break
-            ours_to_gold[o['id']] = g['tokens'][gi]['id']
-            gi += 1
+        for oi, gi_, size in SequenceMatcher(
+                a=oforms, b=gforms, autojunk=False).get_matching_blocks():
+            for k in range(size):
+                ours_to_gold[ours[oi + k]['id']] = g['tokens'][gi_ + k]['id']
 
         for o in ours:
             if o['id'] not in ours_to_gold:

@@ -3986,8 +3986,9 @@ def parse(text: str):
     # - Apostrophes for elision (l', hund')
     # - Hyphens connecting words (Esperanto-klubo, hundo-domo)
     # Remove common punctuation marks: . , ! ? : ; " ( ) [ ] { }
-    import string
     import re
+    import string
+    import unicodedata
     # First, preserve elision apostrophes by converting "letter'" to a safe form
     # Match: word character followed by apostrophe (straight or curly)
     text = re.sub(r"(\w)([''])", r"\1ZZZELISIONZZZ", text)
@@ -4005,9 +4006,26 @@ def parse(text: str):
     comma_after_indices = [
         i for i, tok in enumerate(_pre_strip_tokens) if tok.endswith(',')
     ]
-    # Remove all punctuation (now hyphens in compounds are protected)
-    for punct in string.punctuation:
-        text = text.replace(punct, ' ')
+    # Remove all punctuation (now hyphens in compounds are protected).
+    #
+    # ⚠️ `string.punctuation` IS ASCII-ONLY. It does not contain « » „ “ ” ‘ ’ — –
+    # … § ° • ‹ › — and Esperanto text, which is European and heavily
+    # typographic, is full of them. So
+    #
+    #     ... estas petata plenigi «Respondaron» kaj sendi ĝin ...
+    #
+    # tokenised as `«Respondaron»`, with the guillemets welded on. That token
+    # matches nothing: not the lexicon, not the gold. It was 10.5% of the gold
+    # treebank going unaligned — and because our evaluator aligned with a greedy
+    # one-way pointer, ONE such token discarded every remaining token in the
+    # sentence (11 of 22, in the example above).
+    #
+    # Unicode category `P*` is every punctuation mark there is, in any script, so
+    # this cannot go stale the next time a new dash shows up. `S*` catches the
+    # symbol classes (°, §, €) that behave the same way.
+    text = ''.join(
+        ' ' if unicodedata.category(ch)[0] in ('P', 'S') else ch
+        for ch in text)
     # Restore elision apostrophes
     text = text.replace("ZZZELISIONZZZ", "'")
     # Restore compound hyphens

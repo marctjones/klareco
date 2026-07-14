@@ -92,8 +92,9 @@ class ASTRetriever:
         self.have_pattern_founded = self._table_exists('pattern_founded_year_of')
         self.have_pattern_lingvo = self._table_exists('pattern_official_language_of')
 
-        self.have_verb_klaso = self._column_exists('sentences', 'verb_klaso')
-        self.have_verb_negated = self._column_exists('sentences', 'verb_negated')
+        # the frame lives on `clauses` (#836), not on `sentences`
+        self.have_verb_klaso = self._column_exists('clauses', 'verb_klaso')
+        self.have_verb_negated = self._column_exists('clauses', 'verb_negated')
 
         logger.info(
             f"ASTRetriever asset summary: "

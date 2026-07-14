@@ -207,24 +207,48 @@ def _check_duckdb(duckdb_path: Path) -> list[Finding]:
                             "Rebuild the store.")]
 
         # Columns that must carry data for the stage that reads them to do
-        # anything at all. (column, min_fraction, who_reads_it)
-        POPULATION_CONTRACTS: list[tuple[str, float, str]] = [
-            ("ast_json",   0.99, "every stage that inspects sentence structure"),
-            ("aliaj_json", 0.90, "KIE/KIAM answer-slot matching"),
-            ("subj_radiko", 0.80, "subject-role retrieval and KIU reranking"),
-            ("verb_klaso", 0.01, "ast_aware_reranker's verb-class generalization"),
+        # anything at all. (table, column, min_fraction, who_reads_it)
+        #
+        # ⚠️ `verb_klaso` LIVES ON `clauses`, NOT ON `sentences`.
+        #
+        # This checked `sentences.verb_klaso` and crashed the preflight with
+        # `BinderException: column "verb_klaso" not found` — which took down
+        # `build_default_pipeline`, and with it the entire reranker A/B.
+        #
+        # The column moved when the clause table landed (#836): the predicate-
+        # argument frame belongs to a CLAUSE, not a sentence, because gold has 1.64
+        # subjects per sentence. The preflight was written before that and still
+        # looks for the column where it used to be.
+        POPULATION_CONTRACTS: list[tuple[str, str, float, str]] = [
+            ("sentences", "ast_json",    0.99, "every stage that inspects structure"),
+            ("sentences", "aliaj_json",  0.90, "KIE/KIAM answer-slot matching"),
+            ("sentences", "subj_radiko", 0.80, "subject-role retrieval, KIU reranking"),
+            ("clauses",   "verb_klaso",  0.01, "ast_aware_reranker's verb-class "
+                                               "generalization"),
         ]
-        for col, min_frac, reader in POPULATION_CONTRACTS:
+        have_tables = {t[0] for t in con.execute('SHOW TABLES').fetchall()}
+        for table, col, min_frac, reader in POPULATION_CONTRACTS:
+            if table not in have_tables:
+                findings.append(Finding(
+                    table, required=False,
+                    detail="table does not exist",
+                    consequence=f"{reader} silently no-ops.",
+                    remedy=f"Build it (scripts/index/build_{table[:-1]}_table.py).",
+                ))
+                continue
+            denom = con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+            if not denom:
+                continue
             n = con.execute(
-                f"SELECT count(*) FROM sentences "
+                f"SELECT count(*) FROM {table} "
                 f"WHERE {col} IS NOT NULL AND CAST({col} AS VARCHAR) <> ''"
             ).fetchone()[0]
-            frac = n / total
+            frac = n / denom
             if frac < min_frac:
                 findings.append(Finding(
-                    f"sentences.{col}",
+                    f"{table}.{col}",
                     required=False,
-                    detail=f"{frac:.1%} populated ({n:,} of {total:,}); "
+                    detail=f"{frac:.1%} populated ({n:,} of {denom:,}); "
                            f"contract requires >= {min_frac:.0%}",
                     consequence=(f"{reader} silently no-ops. A scoring function "
                                  f"that reads this column contributes nothing, "

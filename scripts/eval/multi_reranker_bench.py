@@ -271,7 +271,18 @@ class NegationAwareReranker(Reranker):
     """Penalise passages whose verb has opposite negation polarity to the
     question. Requires #731's `verb_negated` column."""
     name = 'D_negation_aware'
-    requires = ['sentences.verb_negated']
+    # ⚠️ THE FRAME LIVES ON `clauses`, NOT ON `sentences`.
+    #
+    # `verb_klaso` and `verb_negated` moved when the clause table landed (#836):
+    # the predicate-argument frame belongs to a CLAUSE, because gold has 1.64
+    # subjects per sentence and a one-frame-per-sentence schema silently discards
+    # every subordinate clause.
+    #
+    # This bench still looked for them on `sentences`, so `requires` was never
+    # satisfied and FIVE OF THE NINE RERANKERS WERE SKIPPED — D, E, F, G, H. Not
+    # tied: never run. CLAUDE.md records "all nine rerankers are tied" as a
+    # finding; four of them were tied and five were not present.
+    requires = ['clauses.verb_negated']
 
     def rerank(self, question, question_ast, candidates, conn, top_k=10):
         q_negated = bool((question_ast.get('verbo') or {}).get('negita'))
@@ -282,7 +293,8 @@ class NegationAwareReranker(Reranker):
             penalty = 0.0
             try:
                 row = conn.execute(
-                    "SELECT verb_negated FROM sentences WHERE sid = ?",
+                    "SELECT verb_negated FROM clauses "
+                    "WHERE sid = ? AND clause_idx = 0",
                     [int(p.sentence_id)]
                 ).fetchone()
                 if row is not None and row[0] != q_negated and row[0] is not None:
@@ -304,7 +316,7 @@ class VerbClassReranker(Reranker):
     """Boost passages whose verb shares a VerbaKlaso with the question's verb.
     Requires #730's `verb_klaso` column."""
     name = 'E_verb_class'
-    requires = ['sentences.verb_klaso']
+    requires = ['clauses.verb_klaso']
 
     def rerank(self, question, question_ast, candidates, conn, top_k=10):
         q_verb_radiko = (question_ast.get('verbo') or {}).get('radiko')
@@ -327,7 +339,8 @@ class VerbClassReranker(Reranker):
             boost = 0.0
             try:
                 row = conn.execute(
-                    "SELECT verb_klaso FROM sentences WHERE sid = ?",
+                    "SELECT verb_klaso FROM clauses "
+                    "WHERE sid = ? AND clause_idx = 0",
                     [int(p.sentence_id)]
                 ).fetchone()
                 if row and row[0] == q_klaso:
@@ -395,7 +408,7 @@ class ASTAwareRanker(Reranker):
     Implements the framework from #741. Stage 1: uses only existing
     `sentences` columns + on-the-fly aliaj_json parsing for type flags."""
     name = 'G_ast_aware'
-    requires = ['sentences.verb_klaso', 'sentences.verb_negated']
+    requires = ['clauses.verb_klaso', 'clauses.verb_negated']
 
     _COLS_CORE = ('sid', 'text', 'subj_radiko', 'subj_vortspeco',
                   'subj_propranoma_kat', 'subj_kazo',
@@ -500,7 +513,7 @@ class HybridReranker(Reranker):
     them without letting either dominate.
     """
     name = 'H_hybrid'
-    requires = ['sentences.verb_klaso', 'sentences.verb_negated']
+    requires = ['clauses.verb_klaso', 'clauses.verb_negated']
 
     _COLS = ASTAwareRanker._COLS_CORE
     _COLS_STAGE2 = ASTAwareRanker._COLS_STAGE2

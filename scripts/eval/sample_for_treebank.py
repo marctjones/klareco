@@ -78,11 +78,38 @@ import duckdb
 
 from klareco.corpus_quality import assess
 
-DB = 'data/indexes/duckdb_store.db'
+# ─────────────────────────────────────────────────────────────────────────────
+# WE SAMPLE FROM THE EXTRACTED JSONL, NOT FROM THE STORE.
+#
+# The store has NO provenance column (#803). Sampling from it means sampling from
+# a pile in which Wikipedia outweighs everything else about 150:1 (1.6 GB vs
+# ~10 MB) — so a "random" draw is ~all Wikipedia, which is the SIMPLEST REGISTER
+# THE LANGUAGE HAS: short, declarative, name-heavy, few subordinate clauses.
+#
+# A gold set drawn that way would flatter the parser, and it would do so in
+# exactly the way the length-stratification below exists to prevent. Register is
+# the same trap one level up.
+#
+# The extracted files still know where they came from. So we read them.
+# ─────────────────────────────────────────────────────────────────────────────
+SOURCES = {
+    # path                                                    quota  licence
+    'data/extracted/wikipedia_sentences.jsonl':              (0.40, 'CC-BY-SA'),
+    'data/extracted/eo/tier0/literary/alice_sentences.jsonl': (0.12, 'public domain'),
+    'data/extracted/eo/tier0/literary/andersen_sentences.jsonl': (0.10, 'public domain'),
+    'data/extracted/eo/tier0/literary/krestomatio_sentences.jsonl': (0.18, 'public domain'),
+    'data/extracted/eo/tier0/grammar/lingvaj_respondoj_sentences.jsonl': (0.20, 'public domain'),
+}
+# PMEG is EXCLUDED by default. It is excellent register (technical grammatical
+# prose) but it is Bertilo Wennergren's copyrighted work and its redistribution
+# terms are not clear to us. The whole point of choosing these sources is that the
+# resulting treebank can be PUBLISHED; quietly including a source we may not be
+# able to redistribute would forfeit that. --include-pmeg if you have checked.
+PMEG = 'data/extracted/eo/tier0/grammar/pmeg_sentences.jsonl'
 
-# Target mix. Deliberately over-weights LONG sentences: that is where we fail
-# (LAS 39.2% at 40+ tokens vs 57.4% at 1-10), and where random sampling would give
-# us almost nothing (4.1% of the corpus).
+# Deliberately over-weights LONG sentences: that is where we fail (LAS 39.2% at
+# 40+ tokens vs 57.4% at 1-10), and where random sampling would give us almost
+# nothing (4.1% of the corpus).
 LENGTH_TARGETS = {
     '1-10': 0.15,
     '11-20': 0.25,
@@ -123,57 +150,103 @@ def main() -> int:
     ap.add_argument('--tokens', type=int, default=10_000,
                     help='target gold-token count (10k = 1-point LAS resolution)')
     ap.add_argument('--out', default='data/test_sets/treebank_sample.jsonl')
-    ap.add_argument('--pool', type=int, default=400_000,
-                    help='how many corpus sentences to consider')
+    ap.add_argument('--per-source', type=int, default=60_000,
+                    help='how many lines to read from each source file')
+    ap.add_argument('--include-pmeg', action='store_true',
+                    help='include PMEG — copyrighted, redistribution UNCLEAR')
     ap.add_argument('--seed', type=int, default=20260714)
     args = ap.parse_args()
 
     random.seed(args.seed)
-    con = duckdb.connect(DB, read_only=True)
-    rows = con.execute(
-        f'SELECT text FROM sentences USING SAMPLE {args.pool} ROWS (reservoir, '
-        f'{args.seed % 1000})').fetchall()
 
-    # Only CLEAN sentences — the quality gate (#823) drops redirects, English and
-    # markup. Annotating junk is the most expensive mistake available here.
-    pool: dict[str, list] = collections.defaultdict(list)
-    for (t,) in rows:
-        if not t:
-            continue
-        v = assess(t)
-        if not v.keep:
-            continue
-        text = v.text or t
-        n = len(text.split())
-        if n < 3 or n > 80:
-            continue
-        phen = {k for k, rx in PHENOMENA.items() if rx.search(text)}
-        pool[_bucket(n)].append({'text': text, 'n': n, 'phenomena': sorted(phen)})
+    sources = dict(SOURCES)
+    if args.include_pmeg:
+        print('  ⚠️  PMEG included. It is copyrighted and we have NOT verified that')
+        print('      we may redistribute it. The treebank may not be publishable.\n')
+        sources[PMEG] = (0.15, 'UNCLEAR — copyrighted')
 
-    print(f'  pool: {sum(len(v) for v in pool.values()):,} clean sentences')
-    for b in ('1-10', '11-20', '21-40', '40+'):
-        print(f'    {b:6s} {len(pool[b]):7,}')
+    # pool[source][bucket] -> candidate sentences
+    pool: dict[str, dict[str, list]] = {}
+    print('  SOURCES (register matters: Wikipedia is the simplest prose in the language)\n')
+    print(f'    {"source":26s} {"read":>8s} {"clean":>8s}  {"licence":14s}')
+    for path, (quota, lic) in sources.items():
+        p = Path(path)
+        if not p.exists():
+            print(f'    {p.stem[:26]:26s} {"MISSING":>8s}          {lic:14s}')
+            continue
+        by_bucket: dict[str, list] = collections.defaultdict(list)
+        n_read = n_clean = 0
+        with open(p, encoding='utf-8') as f:
+            for line in f:
+                if n_read >= args.per_source:
+                    break
+                n_read += 1
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                # The Wikipedia extractor writes `text`; the tier-0 literary and
+                # grammar extractors write `sentence`. Reading only `text` silently
+                # dropped EVERY literary sentence — 100% of exactly the register
+                # this source-stratification exists to include, and it looked like
+                # the quality gate rejecting them.
+                t = r.get('text') or r.get('sentence')
+                if not t:
+                    continue
+                # Only CLEAN sentences — the quality gate (#823) drops redirects,
+                # English and markup. Annotating junk is the most expensive mistake
+                # available here.
+                v = assess(t)
+                if not v.keep:
+                    continue
+                text = v.text or t
+                n = len(text.split())
+                if n < 3 or n > 80:
+                    continue
+                n_clean += 1
+                phen = {k for k, rx in PHENOMENA.items() if rx.search(text)}
+                by_bucket[_bucket(n)].append(
+                    {'text': text, 'n': n, 'phenomena': sorted(phen),
+                     'source': p.stem.replace('_sentences', ''), 'licence': lic})
+        pool[path] = by_bucket
+        print(f'    {p.stem.replace("_sentences","")[:26]:26s} {n_read:8,} {n_clean:8,}'
+              f'  {lic:14s}')
 
-    # Fill each length bucket to its token target, PREFERRING sentences that carry
-    # more of the phenomena we are failing on. A sentence with a coordinated
-    # subordinate clause and an ambiguous PP is worth three plain ones.
+    # Fill each (source x length) cell to its token target, PREFERRING sentences
+    # that carry more of the phenomena we are failing on. A sentence with a
+    # coordinated subordinate clause and an ambiguous PP is worth three plain ones.
     picked: list = []
-    got = collections.Counter()
-    for b, share in LENGTH_TARGETS.items():
-        target = int(args.tokens * share)
-        cands = sorted(pool[b], key=lambda s: (-len(s['phenomena']), random.random()))
-        for s in cands:
-            if got[b] >= target:
-                break
-            picked.append(s)
-            got[b] += s['n']
+    got: collections.Counter = collections.Counter()
+    by_src: collections.Counter = collections.Counter()
+    for path, (quota, _lic) in sources.items():
+        if path not in pool:
+            continue
+        for b, share in LENGTH_TARGETS.items():
+            target = int(args.tokens * quota * share)
+            cands = sorted(pool[path][b],
+                           key=lambda s: (-len(s['phenomena']), random.random()))
+            cell = 0
+            for s in cands:
+                if cell >= target:
+                    break
+                picked.append(s)
+                cell += s['n']
+                got[b] += s['n']
+                by_src[s['source']] += s['n']
 
     total = sum(got.values())
+    if not total:
+        print('\n  ✗ nothing sampled — are the extracted files present?')
+        return 1
     print(f'\n  PICKED: {len(picked):,} sentences / {total:,} tokens\n')
     print(f'    {"bucket":8s} {"tokens":>8s} {"share":>7s}   {"target":>7s}')
     for b in ('1-10', '11-20', '21-40', '40+'):
         print(f'    {b:8s} {got[b]:8,} {got[b] / total:7.1%}   '
               f'{LENGTH_TARGETS[b]:7.0%}')
+
+    print(f'\n    {"source":26s} {"tokens":>8s} {"share":>7s}')
+    for s, n in by_src.most_common():
+        print(f'    {s[:26]:26s} {n:8,} {n / total:7.1%}')
 
     print('\n  PHENOMENON COVERAGE (a gold set without these cannot measure the fixes):')
     cov = collections.Counter()

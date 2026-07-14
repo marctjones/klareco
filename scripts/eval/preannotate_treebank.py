@@ -111,6 +111,49 @@ _FUNCTION = {
     'ne': 'PART', 'ĉu': 'PART', 'ĉi': 'PART', 'jes': 'INTJ',
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# THE CORRELATIVES — and they are a TRAP the ending rule walks straight into.
+#
+# `kiu` ends in -u, so _BY_ENDING tags it VERB. `kio` ends in -o, so it tags it
+# NOUN. Both are silently WRONG, and `kiu` is the word that HEADS RELATIVE
+# CLAUSES — the very construction the sample's subordination stratum is built
+# around. Mis-labelling the clause head is exactly what corrupts attachment.
+#
+# This is the SAME bug as the infinitive regex that matched every pronoun: a
+# closed class whose members happen to end in a content-word vowel. It is a
+# 5x9 table fixed by the Fundamento, so we generate it rather than list it.
+# ─────────────────────────────────────────────────────────────────────────────
+_KOR_INIT = ('ki', 'ti', 'i', 'ĉi', 'neni')
+_KOR_FINAL = {
+    'u': 'PRON',   # kiu, tiu … PRON standalone, DET before a noun — genuinely
+    'o': 'PRON',   # kio, tio … ambiguous, so the -u/-a rows get CHECK=yes below
+    'a': 'DET',    # kia, tia …
+    'es': 'PRON',  # kies, ties …
+    'e': 'ADV',    # kie, tie …
+    'am': 'ADV',   # kiam, tiam …
+    'al': 'ADV',   # kial, tial …
+    'el': 'ADV',   # kiel, tiel …
+    'om': 'ADV',   # kiom, tiom …
+}
+# The substantive/adjectival ones inflect (-j, -n, -jn); the adverbial ones take
+# only -n (direction). Build every surface form.
+_CORRELATIVE: dict[str, str] = {}
+for _i in _KOR_INIT:
+    for _f, _pos in _KOR_FINAL.items():
+        _base = _i + _f
+        _CORRELATIVE[_base] = _pos
+        if _f in ('u', 'o', 'a'):
+            for _suf in ('j', 'n', 'jn'):
+                _CORRELATIVE[_base + _suf] = _pos
+        elif _f in ('e',):
+            _CORRELATIVE[_base + 'n'] = _pos
+
+# PRON-vs-DET on the -u/-a rows is a real annotator decision (`kiu venis` = PRON,
+# `kiu homo` = DET), so those get flagged rather than asserted.
+_CORR_AMBIG = {w for w in _CORRELATIVE
+               if any(w.startswith(i) and w[len(i):].rstrip('jn') in ('u', 'a')
+                      for i in _KOR_INIT)}
+
 
 def _upos(tok: str) -> tuple[str, str]:
     """(upos, how) — from the ENDING. Deterministic; no parser is consulted."""
@@ -119,6 +162,9 @@ def _upos(tok: str) -> tuple[str, str]:
         return 'PUNCT', 'punct'
     if t in _FUNCTION:
         return _FUNCTION[t], 'funkcio'
+    # BEFORE the ending rule, which would call `kiu` a VERB and `tio` a NOUN.
+    if t in _CORRELATIVE:
+        return _CORRELATIVE[t], 'korelativo-ambigua' if t in _CORR_AMBIG else 'korelativo'
     if t.isdigit():
         return 'NUM', 'ending'
     for e, pos in _BY_ENDING:
@@ -201,6 +247,9 @@ def main() -> int:
             if how == 'punct':
                 lemma, misc = t, 'Pos=punct'
                 src['punct'] += 1
+            elif how.startswith('korelativo'):
+                lemma, misc = t.lower(), f'Pos={how}'
+                src['function'] += 1
             elif how == 'funkcio':
                 lemma, misc = t.lower(), 'Pos=funkcio'
                 src['function'] += 1
@@ -220,7 +269,9 @@ def main() -> int:
                 misc = 'Pos=ending|Lemma=klareco|CHECK=yes'
                 src['klareco'] += 1
 
-            if how == 'unknown':
+            # PRON-vs-DET on `kiu`/`kia` is a real decision (`kiu venis` = PRON,
+            # `kiu homo` = DET) and the ending cannot settle it. Flag, don't assert.
+            if how in ('unknown', 'korelativo-ambigua'):
                 misc += '|CHECK=yes'
 
             # HEAD and DEPREL are '_'. THIS IS THE POINT — they are what LAS
@@ -234,11 +285,15 @@ def main() -> int:
     tot = sum(src.values())
     print('  UPOS — read off the ENDING. No parser is consulted, so no parser can')
     print('         bias it. This is the one place Esperanto is simply better.')
-    for k in ('ending', 'funkcio', 'punct', 'unknown'):
-        print(f'    {k:10s} {pos_src[k]:6,}  ({pos_src[k] / tot:5.1%})')
-    print(f'    -> {1 - pos_src["unknown"] / tot:.1%} of UPOS is FREE and CERTAIN.')
-    print(f'       the {pos_src["unknown"]:,} `unknown` are foreign words and')
-    print('       unadapted names, flagged CHECK=yes for the annotator.')
+    for k in ('ending', 'funkcio', 'korelativo', 'korelativo-ambigua',
+              'punct', 'unknown'):
+        print(f'    {k:20s} {pos_src[k]:6,}  ({pos_src[k] / tot:5.1%})')
+    flagged = pos_src['unknown'] + pos_src['korelativo-ambigua']
+    print(f'    -> {1 - flagged / tot:.1%} of UPOS is FREE and CERTAIN.')
+    print(f'       {pos_src["korelativo"]:,} correlatives handled EXPLICITLY — the ending')
+    print('       rule alone would call `kiu` a VERB and `tio` a NOUN, and `kiu` is')
+    print('       what HEADS the relative clauses this sample is built around.')
+    print(f'       {flagged:,} rows flagged CHECK=yes (foreign words; PRON-vs-DET).')
 
     print('\n  LEMMA — apertium first (INDEPENDENT); us only where it is silent.')
     for k in ('apertium', 'function', 'punct', 'klareco'):

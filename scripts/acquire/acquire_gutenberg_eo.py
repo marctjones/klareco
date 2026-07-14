@@ -74,6 +74,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 OUT = Path('data/raw/eo/gutenberg')
 CKPT = OUT / '.checkpoint.json'
 UA = {'User-Agent': 'klareco/1.0 (Esperanto treebank research; '
@@ -93,8 +95,26 @@ _ORIGINAL_TITLE = re.compile(
 
 # Gutenberg wraps every text in an ENGLISH licence header and footer. Leaving it in
 # would inject English prose into all 124 books.
-_START = re.compile(r'\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG.*?\*\*\*', re.I)
-_END = re.compile(r'\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG.*?\*\*\*', re.I)
+_START = re.compile(r'\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG.*?\*\*\*',
+                    re.I | re.S)
+_END = re.compile(r'\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG.*?\*\*\*',
+                  re.I | re.S)
+
+# Removing the START marker is NOT enough, and 54 of 124 books proved it: what
+# FOLLOWS the marker is Gutenberg's ENGLISH transcriber credit —
+#
+#     "Produced by David Starner, William Patterson and the Online
+#      Distributed Proofreading Team at http://www.pgdp.net"
+#
+# — a paragraph of English prose sitting at the head of an Esperanto book. It is
+# small (2-4 lines), which is exactly why it is dangerous: the per-sentence quality
+# gate flags it `not_esperanto` and drops it, so the contamination NEVER SHOWS UP
+# as a failure. It just quietly becomes 3.4% of every book's sentences being thrown
+# away, and any English that DOES score as Esperanto-ish rides in.
+# Cut it at the source, where it is unambiguous.
+_CREDIT = re.compile(
+    r'^\s*(Produced by|Transcribed by|Transcriber\'s Note|E-text prepared by|'
+    r'This (e|E)book was produced by).*?(?=\n\s*\n)', re.I | re.S)
 
 
 def _get(url: str, raw: bool = False):
@@ -120,6 +140,37 @@ def _kind(book: dict) -> str:
     return 'tradukita' if book.get('authors') else 'nekonata'
 
 
+_SENT = re.compile(r'(?<=[.!?])\s+')
+
+
+def esperanto_rate(text: str, sample: int = 400) -> float:
+    """What fraction of this book's sentences are actually Esperanto?
+
+    GUTENBERG'S LANGUAGE METADATA IS NOT SELF-CONSISTENT, and trusting it was a
+    mistake. `The Esperantist` is a BILINGUAL magazine; Gutenberg tags some of its
+    issues ['en','eo'] and ELEVEN OTHERS ['eo']. Those eleven sailed through the
+    metadata filter, and 34.7% of one issue's sentences are not Esperanto.
+
+    So we do not trust the label — we MEASURE THE TEXT. Any book whose sentences do
+    not overwhelmingly pass the Esperanto grammar gate is rejected, whatever
+    Gutenberg says it is. This is the one check that cannot be fooled by bad
+    metadata, because it reads the actual prose.
+    """
+    from klareco.corpus_quality import assess
+    sents = [s.strip().replace('\n', ' ') for s in _SENT.split(text)]
+    sents = [s for s in sents if len(s.split()) >= 4]
+    if not sents:
+        return 0.0
+    step = max(1, len(sents) // sample)
+    probe = sents[::step][:sample]
+    return sum(1 for s in probe if assess(s).keep) / len(probe)
+
+
+# Below this, the book is not a monolingual Esperanto text whatever its metadata
+# claims. Real Esperanto books score 0.95+; The Esperantist scores 0.65.
+_MIN_EO = 0.90
+
+
 def _strip(text: str) -> str:
     m = _START.search(text)
     if m:
@@ -127,6 +178,14 @@ def _strip(text: str) -> str:
     m = _END.search(text)
     if m:
         text = text[:m.start()]
+    text = text.lstrip()
+    # …and the English credit block that sits AFTER the START marker. Loop: some
+    # books carry both a "Produced by" and a "Transcriber's Note".
+    for _ in range(3):
+        m = _CREDIT.match(text)
+        if not m:
+            break
+        text = text[m.end():].lstrip()
     return text.strip()
 
 
@@ -173,6 +232,7 @@ def main() -> int:
 
     ok = fail = skip = 0
     total_bytes = 0
+    rejected: list = []
     for i, b in enumerate(mono, 1):
         bid = b['id']
         if bid in done:
@@ -201,6 +261,17 @@ def main() -> int:
             fail += 1
             continue
 
+        # DO NOT TRUST THE LANGUAGE TAG. Measure the prose.
+        rate = esperanto_rate(text)
+        if rate < _MIN_EO:
+            print(f'    [{i:3}/{len(mono)}] {bid:>6}  only {rate:.0%} Esperanto — '
+                  f'REJECTED despite languages=["eo"]  {b["title"][:34]}')
+            rejected.append((bid, b['title'], rate))
+            done.add(bid)          # decided; do not re-fetch on resume
+            CKPT.write_text(json.dumps({'done': sorted(done)}))
+            time.sleep(args.delay)
+            continue
+
         slug = _slug(b['title'])
         (OUT / f'pg{bid}_{slug}.txt').write_text(text, encoding='utf-8')
         (OUT / f'pg{bid}_{slug}.meta.json').write_text(json.dumps({
@@ -212,6 +283,7 @@ def main() -> int:
             'licence': 'public domain (Project Gutenberg)',
             'redistributable': True,
             'chars': len(text),
+            'esperanto_rate': round(rate, 3),
         }, ensure_ascii=False, indent=2), encoding='utf-8')
 
         done.add(bid)
@@ -222,7 +294,14 @@ def main() -> int:
               f'{_kind(b):10s} {b["title"][:44]}')
         time.sleep(args.delay)
 
-    print(f'\n  fetched {ok}   skipped(done) {skip}   failed {fail}')
+    if rejected:
+        print(f'\n  REJECTED {len(rejected)} books that Gutenberg tags languages=["eo"]')
+        print('  but whose PROSE is not monolingual Esperanto. The metadata lied;')
+        print('  the text does not.')
+        for bid, title, r in sorted(rejected, key=lambda x: x[2]):
+            print(f'    {bid:>6}  {r:5.0%}  {title[:56]}')
+
+    print(f'\n  fetched {ok}   rejected {len(rejected)}   skipped(done) {skip}   failed {fail}')
     print(f'  {total_bytes:,} chars this run  (~{total_bytes // 6:,} words)')
     if fail:
         print('  re-run to retry the failures — the checkpoint makes it cheap.')

@@ -297,7 +297,11 @@ python -m klareco translate "The dog sees the cat." --to eo
 
 ### Build the corpus + indexes
 ```bash
-# Parse cleaned texts into a unified corpus with ASTs (~5-6 h)
+# Parse cleaned texts into a unified corpus with ASTs
+# MEASURED 2026-07-14: the parser does 7,384 sentences/sec on one core with zero
+# crashes, so PARSING 5.39M sentences is ~15 MINUTES, not hours. The wall-clock
+# cost of a rebuild is I/O and INDEXING — writing a 20 GB JSONL and building the
+# Whoosh index over 5.4M documents — NOT the parse.
 ./scripts/parse/parse_corpus.sh
 
 # Build the DuckDB store (sentences + shredded AST columns + ast_json blob)
@@ -555,7 +559,7 @@ python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
 | Acquire tier-0 sources | `./scripts/acquire/acquire_all_tier0.sh` | Download authoritative Esperanto sources |
 | Clean all texts | `./scripts/clean/clean_all.sh` | Clean Gutenberg + ReVo |
 | Extract all | `./scripts/extract/extract_all.sh` | Extract Wikipedia + Books |
-| Parse corpus | `./scripts/parse/parse_corpus.sh` | Build unified corpus with ASTs (~5-6 h) |
+| Parse corpus | `./scripts/parse/parse_corpus.sh` | Build unified corpus with ASTs (parse ~15 min; the wall clock is writing the 20 GB JSONL) |
 | Build DuckDB store | `python scripts/index/build_duckdb_store.py` | Corpus → `sentences` table (AST blob + shredded columns) |
 | Build Whoosh index | `python scripts/index/build_whoosh_index.py` | Build BM25 index over the store |
 | Post-reparse pipeline | `./scripts/pipeline/post_reparse_pipeline.sh` | Schema + Whoosh + eval (after a reparse) |
@@ -692,7 +696,10 @@ and DuckDB doesn't auto-vacuum. Three hard rules and a maintenance toolkit.
 - `data/cleaned/` — Cleaned text feeding extraction.
 - `data/extracted/` — Extracted sentence JSONL feeding parsing.
 - `data/corpus/` and `data/enhanced_corpus/` — Parsed AST corpus. Re-parse
-  is ~5-6 hours.
+  is ~15 minutes of CPU (7,384 sentences/sec, measured 2026-07-14) plus the I/O
+  to write a 20 GB JSONL. The old "5-6 hours" figure predates the Kuzu removal —
+  `KuzuASTReconstructor` took ~17,000 ms PER AST. Do not use it to justify
+  deferring a reparse; that reasoning is stale, and it cost us once.
 - `data/indexes/` — Live DuckDB store + Whoosh index.
 - `data/vocabularies/` — Root/affix vocabularies.
 - `data/proper_nouns_dynamic_v3.json` AND its fallbacks

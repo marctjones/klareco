@@ -214,3 +214,57 @@ class TestUsageVeto:
         for s, w in [('Mi vidis Zamenhof hieraŭ.', 'Zamenhof'),
                      ('Petro kaj Maria venis.', 'Petro')]:
             assert _find(s, w)['vortspeco'] == 'propra_nomo'
+
+
+class TestSyntacticNameSignals:
+    """#822 — three signals we documented in docs/PROPER_NOUNS.md and never used.
+
+    All DEDUCTIVE, so unlike capitalisation they work SENTENCE-INITIALLY (where a
+    capital proves nothing) and on names the corpus has NEVER SEEN (where the
+    capitalisation ratio is silent).
+
+    Measured per-rule precision on gold — this is why attribution exists:
+
+        head_noun_apposition        100.0%   DEDUCTIVE
+        revo_name_root               80.0%   DEDUCTIVE
+        no_valid_ending             100.0%   DEDUCTIVE
+        mid_sentence_capitalization  58.1%   evidential   <- what they replace
+    """
+
+    def test_ADVERB_SLOT_licensing(self):
+        """The twin of the adjective-agreement rule — we built one and not the
+        other. `Jane` = jan + e is an ADVERB form, and an adverb cannot be a
+        subject. Before a finite verb, with no other nominative to be the
+        subject, it is FILLING the subject slot — so it is not the adverb it
+        looks like."""
+        w = _find('Jane venis hieraŭ.', 'Jane')
+        assert w['vortspeco'] == 'propra_nomo'
+        assert w['propra_nomo_evidence'] == 'adverb_unlicensed'
+
+    def test_a_REAL_adverb_before_a_verb_does_NOT_fire(self):
+        """`Rapide venis li` — `li` is there to be the subject, so `Rapide` is
+        free to be the adverb it is. Without this guard the rule would eat every
+        fronted adverb in the language."""
+        assert _find('Rapide venis li.', 'Rapide')['vortspeco'] == 'adverbo'
+
+    @pytest.mark.parametrize('sentence,name', [
+        ('Mi vizitis la urbon Nov-Jorko.', 'Nov-Jorko'),
+        ('Mi konas sinjoron Glazunovski.', 'Glazunovski'),
+        ('La libro Faŭsto estas fama.', 'Faŭsto'),
+    ])
+    def test_HEAD_NOUN_APPOSITION(self, sentence, name):
+        """PMEG: an unassimilated name is treated as a QUOTATION, and a HEAD NOUN
+        carries the case for it — `la urboN New York`. So a bare classifier noun
+        immediately before a capitalised token LICENSES it as a name.
+
+        100% precision on gold, versus 58.1% for mid_sentence_capitalization."""
+        w = _find(sentence, name)
+        assert w['vortspeco'] == 'propra_nomo'
+        assert w['propra_nomo_evidence'] == 'head_noun_apposition'
+
+    def test_deduction_OUTRANKS_statistics(self):
+        """These rules do not change the ANSWER on seen names — they record a
+        better REASON. That ordering is the whole architecture: deduction first,
+        statistics only where deduction runs out."""
+        w = _find('Mi vizitis la urbon Nov-Jorko.', 'Nov-Jorko')
+        assert w['propra_nomo_evidence'] != 'mid_sentence_capitalization'

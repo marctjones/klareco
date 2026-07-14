@@ -201,7 +201,14 @@ class Lexicon:
         # (a preposition prefixes anything), so they carry no restriction.
         self.prefixes |= {'en', 'al', 'tra', 'trans', 'pri', 'pro', 'post',
                           'antaŭ', 'inter', 'per', 'sen', 'kontraŭ', 'ĉirkaŭ',
-                          'el', 'sur', 'apud', 'laŭ'}
+                          'el', 'sur', 'apud', 'laŭ',
+                          # `vic-` (deputy) is one of the OFFICIAL prefixes and
+                          # voko-akrido's table omits it. Without it, `vic` is
+                          # also a ReVo ROOT, so `vicprezidanto` came out as a
+                          # COMPOUND (vic + prezid) instead of a prefixed word.
+                          # A prefix is CHEAPER than an extra root — correctly —
+                          # so simply listing it fixes the reading.
+                          'vic'}
         for e in a.get('endings', []):
             self.ending_pos[e['ending']] = e['pos']
         for p in a['prefixes']:

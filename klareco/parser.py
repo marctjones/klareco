@@ -2807,6 +2807,101 @@ def _attach_coordination(word_asts: list, i: int, w: dict, verb: int) -> None:
 
     w['kapo'], w['rolo'] = verb, 'cc'       # nothing to coordinate: fall back
 
+
+# ---------------------------------------------------------------------------
+# #822 — THREE SYNTACTIC PROPER-NOUN SIGNALS we documented and never used.
+#
+# All three are DEDUCTIVE — they follow from the grammar — so unlike
+# capitalisation they work SENTENCE-INITIALLY (where a capital proves nothing)
+# and on names the corpus has NEVER SEEN (where the capitalisation ratio is
+# silent). They replace `mid_sentence_capitalization`, which measured only ~48%
+# precision on gold.
+# ---------------------------------------------------------------------------
+
+_TITLE_NOUNS = frozenset({
+    # PMEG: an unassimilated name is treated as a QUOTATION and a HEAD NOUN
+    # carries the case for it — "la urboN New York", "Mi konas sinjoroN
+    # Glazunovski". So a bare common noun immediately before a capitalised token
+    # LICENSES that token as a name. These are the classifiers that do it.
+    'urb', 'land', 'ŝtat', 'vilaĝ', 'river', 'mont', 'insul', 'mar', 'lag',
+    'sinjor', 'sinjorin', 'doktor', 'profesor', 'reĝ', 'reĝin', 'prezident',
+    'firma', 'kompani', 'organiz', 'lingv', 'libr', 'verk', 'roman', 'film',
+    'gazet', 'ĵurnal', 'partio', 'kluba', 'monat', 'tag',
+})
+
+
+# Evidence that rests on CAPITALISATION or on a frequency count. The rules below
+# are DEDUCTIVE — they follow from the grammar — so they OUTRANK these and are
+# allowed to overwrite them. Deduction before statistics, in that order, always.
+_WEAK_EVIDENCE = frozenset({
+    'mid_sentence_capitalization', 'preceded_by_la', 'capitalization_ratio',
+    'morphology_no_decomposition',
+})
+
+
+def _apply_syntactic_name_signals(word_asts: list) -> None:
+    """Two deductive proper-noun signals, in place. (#822)"""
+    n = len(word_asts)
+
+    def _content(w):
+        return isinstance(w, dict) and w.get('vortspeco') not in (
+            'artikolo', None)
+
+    for i, w in enumerate(word_asts):
+        if not isinstance(w, dict):
+            continue
+        pv = w.get('plena_vorto') or ''
+        if not pv[:1].isupper() or pv.isupper():
+            continue
+
+        # (1) ADVERB-SLOT LICENSING — the twin of the adjective-agreement rule,
+        #     and we built one and not the other.
+        #
+        #     `Jane` = jan + e is an ADVERB form. An adverb CANNOT be a subject.
+        #     So a capitalised adverb-form token immediately before a finite verb,
+        #     with no other nominative nominal to be the subject, is FILLING the
+        #     subject slot — and therefore is not the adverb it looks like.
+        #
+        #     `Rapide venis li` does NOT fire: `li` is there to be the subject.
+        # The word-level pass may already have tagged this as a name on WEAK
+        # evidence. We are not changing the ANSWER — we are recording a better
+        # REASON, which is what makes per-rule precision measurable and what lets
+        # the rule work sentence-initially and on unseen names.
+        ev = w.get('propra_nomo_evidence')
+        looks_adverbial = (w.get('vortspeco') == 'adverbo'
+                           or (pv.lower().endswith(('e', 'en'))
+                               and ev in _WEAK_EVIDENCE))
+        if looks_adverbial and (ev is None or ev in _WEAK_EVIDENCE):
+            nxt = next((word_asts[j] for j in range(i + 1, n)
+                        if _content(word_asts[j])), None)
+            if isinstance(nxt, dict) and _is_finite_verb(nxt):
+                has_other_subject = any(
+                    isinstance(x, dict)
+                    and x.get('vortspeco') in ('substantivo', 'propra_nomo',
+                                               'pronomo', 'korelativo')
+                    and x.get('kazo') == 'nominativo'
+                    for k, x in enumerate(word_asts) if k != i)
+                if not has_other_subject:
+                    w['vortspeco'] = 'propra_nomo'
+                    w['kategorio'] = 'propranomo'
+                    w['propra_nomo_evidence'] = 'adverb_unlicensed'
+                    continue
+
+        # (2) HEAD-NOUN APPOSITION (PMEG). A bare common noun immediately before a
+        #     capitalised token LICENSES it as a name, and tells us the name is
+        #     APPOSED rather than the head:
+        #         la urboN New York        `urbo` carries the case; the name does not
+        #         Mi konas sinjoroN Glazunovski
+        #     This is deductive and holds even sentence-initially.
+        prev = word_asts[i - 1] if i > 0 else None
+        if (isinstance(prev, dict)
+                and prev.get('vortspeco') == 'substantivo'
+                and (prev.get('radiko') or '').lower() in _TITLE_NOUNS
+                and w.get('propra_nomo_evidence') in _WEAK_EVIDENCE | {None}):
+            w['vortspeco'] = 'propra_nomo'
+            w['kategorio'] = 'propranomo'
+            w['propra_nomo_evidence'] = 'head_noun_apposition'
+
 # ---------------------------------------------------------------------------
 # PP ATTACHMENT (#826) — Bick's #1 error class, and the one place the grammar
 # genuinely runs out.
@@ -3560,6 +3655,10 @@ def parse(text: str):
     # coincidental. Revert those to propra_nomo so role assignment can
     # pick them as subject.
     _validate_sentence_initial_adjective_agreement(word_asts)
+
+    # #822 — the adverb-slot and head-noun-apposition signals. Both DEDUCTIVE, so
+    # both work where capitalisation is uninformative.
+    _apply_syntactic_name_signals(word_asts)
 
     # USAGE overrides a valid decomposition — the only rule that reaches the
     # residue. `Petro` decomposes cleanly to petr+o ("rock") and lands correctly

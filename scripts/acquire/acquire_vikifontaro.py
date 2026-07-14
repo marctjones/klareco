@@ -17,23 +17,54 @@ Description:
     We take the official monthly dump (14.7 MB bz2) rather than scraping — it is
     the sanctioned path and it is one request.
 
-    WHAT WE THROW AWAY, AND WHY
-    ---------------------------
-    * NON-ARTICLE NAMESPACES. `Paĝo:` (per-scan-page proofreading), `Indekso:`,
-      `Kategorio:`, `Vikifontaro:` … These are scaffolding, not prose. Only ns=0.
+    THE TEXT IS IN `Paĝo:`, NOT IN THE ARTICLE NAMESPACE
+    ----------------------------------------------------
+    This is counter-intuitive and I got it wrong the first time. Measured from the
+    dump:
 
+        ns=104  `Paĝo:`   22,126 pages   37,282,626 chars   80.8% of all text
+        ns=0    articles  10,998 pages    6,371,706 chars   13.8%
+
+    Wikisource runs the ProofreadPage extension. A main-namespace page is usually a
+    TRANSCLUSION STUB — `<pages index="Foo.djvu" from=1 to=20 />` — and the actual
+    proofread prose lives in the `Paĝo:` namespace, one page of the scan per wiki
+    page. Dropping ns=104 as "scaffolding" throws away FOUR FIFTHS OF THE CORPUS
+    and leaves you wondering why an 8M-word source yielded 152k words.
+
+    So we take BOTH, and we reassemble `Paĝo:` pages into their parent work
+    (`Paĝo:<index>/<n>` → group by index, order by n) so that sentences spanning a
+    page break are not severed.
+
+    PROOFREADING QUALITY IS FREE, AND IT IS LOAD-BEARING
+    ---------------------------------------------------
+    Every `Paĝo:` carries `<pagequality level="N">`:
+
+        4  validated — proofread, then checked by a SECOND person
+        3  proofread by one person
+        2  incomplete
+        1  NOT proofread — RAW OCR
+        0  no text
+
+    Raw OCR in a gold treebank would be a catastrophe: we would be annotating
+    scanner errors. We take level >= 3 only, and we REPORT how many pages each
+    level cost us, because "we used the proofread subset" is a claim that has to
+    carry a number.
+
+    WHAT ELSE WE THROW AWAY, AND WHY
+    --------------------------------
     * THE FUNDAMENTO. `Fundamento de Esperanto` is a FIVE-LANGUAGE PARALLEL TEXT
       (French, English, German, Russian, Polish alongside the Esperanto). It is the
       single most important document in the language and it would be the single
       worst thing in a monolingual corpus. Excluded by name.
 
+    * `<noinclude>` BLOCKS — running heads, folio numbers, catchwords. They are
+      marked noinclude precisely because they are NOT the body text.
+
     * ANYTHING THAT DOES NOT READ AS ESPERANTO. Same rule as the Gutenberg shelf,
       and for the same reason: metadata lies, prose does not. Gutenberg tagged
       eleven issues of a bilingual magazine `languages=["eo"]` and we only caught it
-      by measuring. So every page is scored by the Esperanto grammar gate and
-      dropped if it does not pass. This catches the parallel texts, the
-      English-language front matter, and the Latin/Hebrew quotations without our
-      needing to enumerate them.
+      by measuring. Being ON the Esperanto Wikisource does not make a page
+      Esperanto. So every work is scored by the Esperanto grammar gate.
 
 Pipeline Position:
     [THIS] -> data/raw/eo/wikisource/vikifontaro.jsonl -> extract -> treebank
@@ -76,6 +107,22 @@ UA = {'User-Agent': 'klareco/1.0 (Esperanto treebank research; '
 # document of the language and the worst possible thing in a monolingual corpus.
 _EXCLUDE_TITLE = re.compile(r'fundamento de esperanto|universala vortaro|'
                             r'ekzercaro.*(franc|angl|german|rus|pol)', re.I)
+
+# ProofreadPage quality. 4 = validated by a SECOND person, 3 = proofread once,
+# 1 = RAW OCR. Annotating raw OCR would mean annotating scanner errors.
+_QUALITY = re.compile(r'<pagequality\s+level="(\d)"', re.I)
+_MIN_QUALITY = 3
+
+# `Paĝo:Zamenhof - Foo.djvu/190` → work = "Zamenhof - Foo.djvu", page = 190.
+_PAGO = re.compile(r'^Paĝo:(.+?)/(\d+)$')
+
+# Running heads, folio numbers, catchwords. Marked noinclude BECAUSE they are not
+# the body text.
+_NOINCLUDE = re.compile(r'<noinclude>.*?</noinclude>', re.S | re.I)
+_NOINC_OPEN = re.compile(r'</?noinclude>', re.I)
+_INCLUDEONLY = re.compile(r'<includeonly>|</includeonly>', re.I)
+# A page break may sever a word: "esper-\n" + "anto" → "esperanto".
+_HYPHEN_BREAK = re.compile(r'(\w)[-­]\s*$')
 
 # ── wikitext stripping ───────────────────────────────────────────────────────
 _COMMENT = re.compile(r'<!--.*?-->', re.S)
@@ -153,9 +200,12 @@ def main() -> int:
         probe = s[::step][:sample]
         return sum(1 for x in probe if assess(x).keep) / len(probe)
 
-    kept = []
-    n = drop_ns = drop_title = drop_short = drop_eo = 0
+    import collections
     NS = '{http://www.mediawiki.org/xml/export-0.11/}'
+    n = drop_title = drop_ns = 0
+    qual = collections.Counter()
+    works: dict[str, list] = collections.defaultdict(list)   # Paĝo:, by parent work
+    articles: list = []                                       # ns=0
 
     with bz2.open(dump, 'rb') as f:
         for _ev, el in ET.iterparse(f, events=('end',)):
@@ -167,29 +217,63 @@ def main() -> int:
             text = el.findtext(f'{NS}revision/{NS}text') or ''
             el.clear()
 
-            # ns=0 is the article namespace. `Paĝo:` (proofreading scans),
-            # `Indekso:`, `Kategorio:` … are scaffolding, not prose.
-            if ns != '0':
-                drop_ns += 1
-                continue
             if _EXCLUDE_TITLE.search(title):
                 drop_title += 1
-                print(f'    EXCLUDED (parallel text): {title}')
                 continue
-            body = strip_wikitext(text)
-            if len(body) < args.min_chars:
-                drop_short += 1
+
+            if ns == '104':                      # `Paĝo:` — 80.8% of all the text
+                m = _PAGO.match(title)
+                if not m:
+                    drop_ns += 1
+                    continue
+                # PROOFREADING QUALITY. level 1 is RAW OCR; annotating it would
+                # mean annotating scanner errors.
+                q = _QUALITY.search(text)
+                lvl = int(q.group(1)) if q else 0
+                qual[lvl] += 1
+                if lvl < _MIN_QUALITY:
+                    continue
+                works[m.group(1)].append((int(m.group(2)), text))
+            elif ns == '0':
+                articles.append((title, text))
+            else:
+                drop_ns += 1
+
+    kept, drop_short, drop_eo = [], 0, 0
+
+    def _emit(title: str, body: str, kind: str) -> None:
+        nonlocal drop_short, drop_eo
+        if len(body) < args.min_chars:
+            drop_short += 1
+            return
+        r = eo_rate(body)
+        if r < 0.90:
+            drop_eo += 1
+            return
+        kept.append({'title': title, 'text': body, 'esperanto_rate': round(r, 3),
+                     'source': 'vikifontaro', 'ns': kind,
+                     'licence': 'PD (work) + CC BY-SA 4.0 (transcription)',
+                     'redistributable': True})
+
+    # Reassemble each scanned work from its pages, IN ORDER, healing words that a
+    # page break severed ("esper-" / "anto").
+    for work, pages in works.items():
+        buf: list[str] = []
+        for _num, raw in sorted(pages):
+            t = _NOINCLUDE.sub('', raw)      # running heads, folio numbers
+            t = _NOINC_OPEN.sub('', t)
+            t = _INCLUDEONLY.sub('', t)
+            t = strip_wikitext(t)
+            if not t:
                 continue
-            # MEASURE THE PROSE. Do not trust that a page on the Esperanto
-            # Wikisource is in Esperanto — many are parallel or quoted texts.
-            r = eo_rate(body)
-            if r < 0.90:
-                drop_eo += 1
-                continue
-            kept.append({'title': title, 'text': body, 'esperanto_rate': round(r, 3),
-                         'source': 'vikifontaro',
-                         'licence': 'PD (work) + CC BY-SA 4.0 (transcription)',
-                         'redistributable': True})
+            if buf and _HYPHEN_BREAK.search(buf[-1]):
+                buf[-1] = _HYPHEN_BREAK.sub(r'\1', buf[-1]) + t.lstrip()
+            else:
+                buf.append(t)
+        _emit(work, '\n'.join(buf).strip(), 'pago')
+
+    for title, raw in articles:
+        _emit(title, strip_wikitext(raw), 'artikolo')
 
     out = OUT / 'vikifontaro.jsonl'
     with open(out, 'w', encoding='utf-8') as f:
@@ -197,14 +281,20 @@ def main() -> int:
             f.write(json.dumps(r, ensure_ascii=False) + '\n')
 
     chars = sum(len(r['text']) for r in kept)
-    print(f'\n  pages in dump          : {n:,}')
-    print(f'    dropped: not ns=0    : {drop_ns:,}   (Paĝo:, Indekso:, Kategorio: …)')
-    print(f'    dropped: parallel    : {drop_title:,}   (Fundamento — 5-language)')
-    print(f'    dropped: too short   : {drop_short:,}')
-    print(f'    dropped: NOT ESPERANTO: {drop_eo:,}   <- the gate that caught')
-    print('                              The Esperantist on the Gutenberg shelf')
-    print(f'\n  KEPT                   : {len(kept):,} pages')
-    print(f'  chars                  : {chars:,}  (~{chars // 6:,} words)')
+    print(f'\n  pages in dump            : {n:,}')
+    print(f'    other namespaces       : {drop_ns:,}')
+    print(f'    Fundamento (5-language): {drop_title:,}')
+    print('\n  PROOFREADING QUALITY of the Paĝo: pages (raw OCR would poison a')
+    print('  gold treebank — we are annotating text, not scanner errors):')
+    for lvl, lbl in ((4, 'validated (2nd person)'), (3, 'proofread'),
+                     (2, 'incomplete'), (1, 'RAW OCR'), (0, 'no text')):
+        mark = '  <- taken' if lvl >= _MIN_QUALITY else '  <- DROPPED'
+        print(f'    level {lvl}  {qual[lvl]:6,}  {lbl:24s}{mark}')
+    print(f'\n  scanned works reassembled: {len(works):,}')
+    print(f'    dropped: too short     : {drop_short:,}')
+    print(f'    dropped: NOT ESPERANTO : {drop_eo:,}')
+    print(f'\n  KEPT                     : {len(kept):,} texts')
+    print(f'  chars                    : {chars:,}  (~{chars // 6:,} words)')
     print(f'\n  wrote {out}')
     if not args.keep_dump:
         dump.unlink()

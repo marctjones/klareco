@@ -3149,6 +3149,47 @@ def attach_all(word_asts: list, clauses: list) -> None:
         main_verb = next((_id(c.get('verbo')) for c in clauses
                           if _id(c.get('verbo'))), None)
 
+    # ---- 0a. A CORRELATIVE BEFORE AN AGREEING NOUN IS A DETERMINER --------
+    #
+    #     direktas TIUN manifeston al ĈIUJ registaroj
+    #
+    # `tiun` and `ĉiuj` are DETERMINERS. We were treating them as nominals in
+    # their own right, and the damage fanned out in every direction:
+    #
+    #     tiun   -> became the OBJECT of `direktas`   (stealing the slot)
+    #     al     -> attached to `ĉiuj`, not `registaroj`
+    #     ĉiuj   -> attached to `manifeston`
+    #
+    # One bug, four broken relations (`det` 57, `case` 22, plus knock-ons in
+    # `nmod` and `conj`). And Esperanto hands us the answer for free: a determiner
+    # AGREES with its noun in CASE and NUMBER. `tiun manifeston` — both accusative
+    # singular. `ĉiuj registaroj` — both nominative plural. Agreement is a hard
+    # morphological signal, not a heuristic, and English does not have it.
+    #
+    # Runs FIRST so the later passes (which skip a token whose `kapo` is set)
+    # cannot claim these as objects or subjects.
+    for i, w in enumerate(word_asts, start=1):
+        if not isinstance(w, dict) or w.get('kapo') is not None:
+            continue
+        if w.get('vortspeco') not in ('korelativo', 'numero'):
+            continue
+        for j in range(i + 1, min(i + 4, len(word_asts) + 1)):
+            c = word_asts[j - 1]
+            if not isinstance(c, dict):
+                break
+            if c.get('vortspeco') in ('artikolo', 'adjektivo'):
+                continue                     # `ĉiuj GRANDAJ registaroj`
+            if c.get('vortspeco') not in ('substantivo', 'propra_nomo'):
+                break                        # not a noun -> it stands alone
+            # AGREEMENT is the test. A numeral does not inflect, so it is exempt.
+            agrees = (w.get('vortspeco') == 'numero'
+                      or (w.get('kazo') == c.get('kazo')
+                          and w.get('nombro') == c.get('nombro')))
+            if agrees:
+                w['kapo'] = c.get('id')
+                w['rolo'] = ('nummod' if w.get('vortspeco') == 'numero' else 'det')
+            break
+
     # ---- 0. POSSESSIVES CLAIM THEIR NOUN FIRST ---------------------------
     #
     # A possessive in Esperanto ALWAYS PRECEDES its noun — `mia domo`, `lia
@@ -3492,8 +3533,25 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 w['kapo'], w['rolo'] = verb, 'det'
 
         elif vs == 'prepozicio':
-            for j in range(i + 1, min(i + 6, n + 1)):
-                if _nominal(word_asts[j - 1]):
+            # A preposition attaches to the HEAD of its noun phrase, not to the
+            # first nominal-looking token after it.
+            #
+            #     al ĈIUJ registaroj      -> `al` marks `registaroj`, not `ĉiuj`
+            #
+            # `_nominal()` counts correlatives and numerals as nominals — true in
+            # isolation, false when they are DETERMINERS of the noun that follows.
+            # 22 `case` relations landed on a determiner. Pass 0a has already
+            # labelled those `det`/`nummod`, so we simply skip anything already
+            # marked as a determiner and walk on to the real noun.
+            for j in range(i + 1, min(i + 7, n + 1)):
+                c = word_asts[j - 1]
+                if not isinstance(c, dict):
+                    continue
+                if c.get('rolo') in ('det', 'nummod'):
+                    continue                 # a determiner of the noun we want
+                if c.get('vortspeco') in ('artikolo', 'adjektivo'):
+                    continue
+                if _nominal(c):
                     w['kapo'], w['rolo'] = j, _CASE_ROLE
                     break
             else:
@@ -3527,7 +3585,24 @@ def attach_all(word_asts: list, clauses: list) -> None:
                     and nxt.get('vortspeco') in ('adjektivo', 'adverbo')):
                 w['kapo'], w['rolo'] = nxt['id'], 'advmod'
             else:
-                w['kapo'], w['rolo'] = verb, 'advmod'
+                # …otherwise the NEAREST VERB, which is not always the clause's
+                # finite one:
+                #
+                #     ni deklaras ... ke ni volas FIRMVOLE PLU labori
+                #
+                # `firmvole` and `plu` modify `labori`, the INFINITIVE — but
+                # `clause_of` maps every token to its clause's FINITE verb, so we
+                # sent them to `deklaras`, several words away and in another
+                # clause. An adverb modifies the verb it stands next to.
+                # (28 advmod errors were exactly this shape: right POS, wrong verb.)
+                nearest = None
+                for j in list(range(i + 1, min(i + 5, n + 1))) + \
+                        list(range(i - 1, max(i - 5, 0), -1)):
+                    c = word_asts[j - 1]
+                    if isinstance(c, dict) and c.get('vortspeco') == 'verbo':
+                        nearest = c.get('id')
+                        break
+                w['kapo'], w['rolo'] = (nearest or verb), 'advmod'
 
         elif vs == 'adjektivo':
             # Rule 3: agrees with its head noun. Look right, then left.

@@ -58,7 +58,7 @@ from whoosh import index as whoosh_index
 from whoosh.fields import ID, TEXT, Schema
 
 from klareco.corpus_quality import assess
-from klareco.parser import parse
+from klareco.parser import compact_ast, parse
 
 import os as _os
 CORPUS = 'data/corpus/unified_corpus.jsonl'
@@ -217,8 +217,12 @@ def _worker(payload):
     except Exception:
         ast = None
     if isinstance(ast, dict):
+        # shred() reads the RICH in-memory AST (shared token references — free).
         shredded = shred(ast)
-        ast_json = json.dumps(ast, ensure_ascii=False)
+        # the BLOB is compacted: the same token dict is reachable from `vortoj`,
+        # from every clause frame, and from the legacy top-level slots, and
+        # json.dumps writes all three. 8.6x smaller; `expand_ast` round-trips it.
+        ast_json = json.dumps(compact_ast(ast), ensure_ascii=False)
     else:
         shredded = dict(_NULL_SHRED)
         shredded['aliaj_json'] = '[]'

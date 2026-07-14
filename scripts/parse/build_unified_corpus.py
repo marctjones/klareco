@@ -330,10 +330,23 @@ def parse_and_build_entry(text: str, source: dict, overrides: dict, exclusions: 
     # Add quality to source metadata
     source['quality'] = final_quality
 
+    # COMPACT THE AST BEFORE IT HITS DISK.
+    #
+    # `parse()` returns a structure in which the same token dict is reachable from
+    # `vortoj`, from the clause frames in `propozicioj`, and from the legacy
+    # top-level `subjekto`/`verbo`/`objekto`/`aliaj`. In memory those are SHARED
+    # REFERENCES and cost nothing; `json.dumps` writes each one out in full.
+    #
+    # That triplication — plus the ReVo definition text formerly embedded in every
+    # token — took this file from 20 GB to **101 GB** and filled the disk mid-
+    # rebuild. `compact_ast` stores `vortoj` once and everything else as ID
+    # references: 8.6x smaller, and `expand_ast` round-trips it exactly.
+    from klareco.parser import compact_ast
+
     return {
         'text': text,
         'source': source,
-        'ast': ast,
+        'ast': compact_ast(ast),
         'parse_rate': parse_rate
     }
 

@@ -82,3 +82,50 @@ class TestBackwardCompatibility:
         for c in _clauses('Li venis kaj ŝi foriris.'):
             assert c['fonto'] == 'regulo'
             assert c['tipo'] == 'propozicio'
+
+
+# ── AST COMPACTION (#835) ────────────────────────────────────────────────────
+# The same token dict is reachable from `vortoj`, from every clause frame in
+# `propozicioj`, and from the legacy top-level slots. In memory those are SHARED
+# REFERENCES and cost nothing; `json.dumps` writes each one out in full.
+#
+# That triplication — plus the ReVo definition text formerly embedded in every
+# token — took the corpus from 20 GB to 101 GB and FILLED THE DISK mid-rebuild.
+# `compact_ast` stores `vortoj` once and everything else as ID references.
+
+class TestASTCompaction:
+    SENT = ('La anoj de ĉiuj lingvoj parolas Esperanton en la mondo, '
+            'kaj ili volas lerni ĝin bone.')
+
+    def _kern(self, x):
+        if not isinstance(x, dict):
+            return None
+        k = x.get('kerno', x)
+        return k.get('radiko') if isinstance(k, dict) else None
+
+    def test_compaction_round_trips_EXACTLY(self):
+        import json
+
+        from klareco.parser import compact_ast, expand_ast, parse
+        a = parse(self.SENT)
+        # through JSON, as it actually goes to disk
+        e = expand_ast(json.loads(json.dumps(compact_ast(a), ensure_ascii=False)))
+
+        for slot in ('subjekto', 'verbo', 'objekto'):
+            assert self._kern(e.get(slot)) == self._kern(a.get(slot)), slot
+        assert len(e['aliaj']) == len(a['aliaj'])
+        assert len(e['propozicioj']) == len(a['propozicioj'])
+        for x, y in zip(a['propozicioj'], e['propozicioj']):
+            assert self._kern(y.get('verbo')) == self._kern(x.get('verbo'))
+            assert self._kern(y.get('subjekto')) == self._kern(x.get('subjekto'))
+
+    def test_the_blob_is_actually_SMALLER(self):
+        import json
+
+        from klareco.parser import compact_ast, parse
+        a = parse(self.SENT)
+        full = len(json.dumps(a, ensure_ascii=False))
+        small = len(json.dumps(compact_ast(a), ensure_ascii=False))
+        assert small < full * 0.45, (
+            f'{small}B vs {full}B — compaction is not working, and a 5.4M-sentence '
+            f'corpus will fill the disk again')

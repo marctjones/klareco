@@ -2000,20 +2000,33 @@ def _apply_senses(ast: dict) -> dict:
     except Exception:
         return ast
 
+    # ── DO NOT EMBED DICTIONARY TEXT IN THE AST ─────────────────────────────
+    #
+    # This used to write the full ReVo DEFINITION into every token:
+    #
+    #     senco: "Membro: ano de la Berlina Grupo; anoj de la ..."   162 bytes
+    #
+    # 162 of 436 bytes per token — 37% of the AST — and the token dicts are
+    # serialised THREE times over (`vortoj`, `propozicioj`, `aliaj`). Across 5.4M
+    # sentences that turned a 20 GB corpus into **101 GB** and filled the disk.
+    #
+    # It is also pure duplication: a sense is a property of the ROOT, it is static,
+    # and it already lives in `ontology_nodes` keyed by exactly that root. The AST
+    # is a parse of THIS sentence; it is not a place to cache a dictionary.
+    #
+    # `senco` had no consumer at all outside one test. So we record the FACT of the
+    # ambiguity — which is what the residue accounting needs (VISION.md: `fonto`
+    # None IS the residue, counted) — and NOT the text of it. Anyone who wants the
+    # definitions looks them up by `radiko`, which is right there.
     senses = onto.senses(root)
     if len(senses) < 2:
-        # a single sense is not a choice; record it for downstream use anyway
-        if senses:
-            ast['senco'] = senses[0]
-        return ast
+        return ast                 # a single sense is not a choice
 
     ast['sencoj'] = {
         'nivelo': 'senco',
         'elektita': None,          # NOTHING deterministic can choose
         'fonto': None,             # == THE RESIDUE
-        'kialo': (f'`{root}` has {len(senses)} senses in ReVo and no grammatical '
-                  f'rule distinguishes them — this is world knowledge'),
-        'opcioj': [{'difino': d} for d in senses],
+        'n_opcioj': len(senses),   # the COUNT. Look the text up by `radiko`.
     }
     return ast
 
@@ -4339,6 +4352,85 @@ def parse(text: str):
     sentence_ast["vortoj"] = word_asts
 
     return sentence_ast
+
+
+def compact_ast(ast: dict) -> dict:
+    """The AST for STORAGE. Same information, without saying it three times.
+
+    `parse()` returns a rich structure in which the SAME token dict is reachable
+    from three places — `vortoj`, the clause frames in `propozicioj`, and the
+    legacy top-level `subjekto`/`verbo`/`objekto`/`aliaj`. In memory those are
+    SHARED REFERENCES and cost nothing. `json.dumps` does not know that, and writes
+    every token out three times.
+
+        propozicioj   34% of the AST
+        vortoj        33%
+        aliaj         23%          <- 90% of the bytes, one copy of the information
+
+    Across 5.4M sentences that turned a 20 GB corpus into **101 GB** and filled the
+    disk mid-rebuild. (The other half of the bloat was `senco` — the ReVo
+    definition TEXT embedded in every token. See `_apply_senses`.)
+
+    `vortoj` is the source of truth: every token, in surface order, carrying `id`,
+    `kapo` and `rolo`. That IS the dependency tree. So everything else becomes an
+    ID reference, and the readers resolve them.
+
+    Round-trips exactly: `expand_ast(compact_ast(a))` == a.
+    """
+    def _id(node):
+        if not isinstance(node, dict):
+            return None
+        k = node.get('kerno', node)
+        return k.get('id') if isinstance(k, dict) else None
+
+    def _ids(seq):
+        return [i for i in (_id(x) for x in (seq or [])) if i is not None]
+
+    out = {k: v for k, v in ast.items()
+           if k not in ('subjekto', 'verbo', 'objekto', 'aliaj', 'propozicioj')}
+    out['subjekto_id'] = _id(ast.get('subjekto'))
+    out['verbo_id'] = _id(ast.get('verbo'))
+    out['objekto_id'] = _id(ast.get('objekto'))
+    out['aliaj_idj'] = _ids(ast.get('aliaj'))
+    out['propozicioj'] = [{
+        'rolo': c.get('rolo'),
+        'fonto': c.get('fonto'),
+        'subjekto_id': _id(c.get('subjekto')),
+        'verbo_id': _id(c.get('verbo')),
+        'objekto_id': _id(c.get('objekto')),
+        'aliaj_idj': _ids(c.get('aliaj')),
+    } for c in (ast.get('propozicioj') or [])]
+    return out
+
+
+def expand_ast(ast: dict) -> dict:
+    """Rehydrate a compact AST — resolve the ID references back to token dicts."""
+    by_id = {w['id']: w for w in (ast.get('vortoj') or [])
+             if isinstance(w, dict) and w.get('id')}
+
+    def _get(i):
+        return by_id.get(i) if i else None
+
+    def _many(ids):
+        return [by_id[i] for i in (ids or []) if i in by_id]
+
+    out = {k: v for k, v in ast.items()
+           if not k.endswith('_id') and not k.endswith('_idj')
+           and k != 'propozicioj'}
+    out['subjekto'] = _get(ast.get('subjekto_id'))
+    out['verbo'] = _get(ast.get('verbo_id'))
+    out['objekto'] = _get(ast.get('objekto_id'))
+    out['aliaj'] = _many(ast.get('aliaj_idj'))
+    out['propozicioj'] = [{
+        'tipo': 'propozicio',
+        'rolo': c.get('rolo'),
+        'fonto': c.get('fonto'),
+        'subjekto': _get(c.get('subjekto_id')),
+        'verbo': _get(c.get('verbo_id')),
+        'objekto': _get(c.get('objekto_id')),
+        'aliaj': _many(c.get('aliaj_idj')),
+    } for c in (ast.get('propozicioj') or [])]
+    return out
 
 
 def _validate_sentence_initial_adjective_agreement(word_asts: list) -> None:

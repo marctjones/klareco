@@ -58,6 +58,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import duckdb
 
+from klareco.parser import expand_ast
+
 DB = 'data/indexes/duckdb_store.db'
 
 SCHEMA = """
@@ -107,7 +109,11 @@ def main() -> int:
             if not aj:
                 continue
             try:
-                ast = json.loads(aj)
+                # The blob is COMPACT: `vortoj` holds every token once and
+                # everything else is an ID reference (the same token dict was
+                # being serialised three times, which took the corpus from 20 GB
+                # to 101 GB). expand_ast resolves the references back.
+                ast = expand_ast(json.loads(aj))
             except Exception:
                 continue
             clauses = ast.get('propozicioj')

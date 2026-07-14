@@ -18,6 +18,8 @@ It is not a learned residue. ReVo ships it, curated by lexicographers, GPL-2.0:
     133 typed entity lists · 40,230 senses
 """
 
+import json
+
 import pytest
 
 from klareco.ontology import ontology
@@ -76,16 +78,44 @@ class TestSenseLevelORNodes:
         answers it, so we do not pretend to — fonto=None, and the OR-node stands.
         """
         sc = parse_word('hundo')['sencoj']
-        assert len(sc['opcioj']) == 3
+        # The AST records the FACT of the ambiguity and its SIZE. It does NOT
+        # record the definition TEXT — see below.
+        assert sc['n_opcioj'] == 3
         assert sc['fonto'] is None, 'no rule can choose — say so'
         assert sc['elektita'] is None
         assert sc['nivelo'] == 'senco'
+
+    def test_the_AST_does_not_carry_dictionary_TEXT(self):
+        """A sense belongs to the ROOT, not to this sentence.
+
+        The AST used to embed the full ReVo definition in every token —
+        `senco: "Membro: ano de la Berlina Grupo; anoj de la ..."` — 162 of 436
+        bytes per token, and the token dicts are serialised three times over
+        (`vortoj`, `propozicioj`, `aliaj`). Across 5.4M sentences that took the
+        corpus from 20 GB to **101 GB** and filled the disk mid-rebuild.
+
+        It is also pure duplication: it is static per-root data that already lives
+        in `ontology_nodes`, keyed by exactly the `radiko` sitting next to it. An
+        AST is a parse of THIS sentence; it is not a place to cache a dictionary.
+        """
+        a = parse_word('hundo')
+        blob = json.dumps(a, ensure_ascii=False)
+        assert 'senco' not in a, 'the definition TEXT must not be in the AST'
+        assert 'hundedoj' not in blob, 'a ReVo definition leaked into the AST'
+        # …and the size claim, so this cannot silently regress:
+        assert len(blob) < 700, f'token AST is {len(blob)}B — the bloat is back'
+
+    def test_the_definitions_are_still_REACHABLE_by_root(self):
+        """Removing the text from the AST must not lose it. Look it up."""
+        a = parse_word('hundo')
+        senses = ontology().senses(a['radiko'])
+        assert len(senses) == a['sencoj']['n_opcioj'] == 3
 
     def test_a_MONOSEMOUS_word_gets_no_OR_node(self):
         """Do not pay for ambiguity you do not have."""
         a = parse_word('tablo')
         assert 'sencoj' not in a
-        assert a.get('senco')                      # but the sense IS recorded
+        assert ontology().senses(a['radiko'])       # the sense is in the ONTOLOGY
 
     def test_the_definitions_are_readable(self):
         """`<tld/>` is ReVo's placeholder for the root. Stripping it naively gave

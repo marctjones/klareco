@@ -3080,6 +3080,7 @@ def attach_all(word_asts: list, clauses: list) -> None:
     # is a genuine SCHEME difference and we adopt UD's view for comparability,
     # while `MISC` keeps our native analysis.
     predikato_of: dict[int, int] = {}       # clause verb id -> predicate id
+    kopulo_rolo: dict[int, str] = {}        # clause verb id -> 'cop' | 'aux'
     for c in clauses:
         vid = _id(c.get('verbo'))
         v = c.get('verbo')
@@ -3106,31 +3107,120 @@ def attach_all(word_asts: list, clauses: list) -> None:
             candidates += [d for d in (subj_grp.get('priskriboj') or [])
                            if isinstance(d, dict) and (d.get('id') or 0) > vid]
 
+        # RANK the candidates; do not take the first one that type-checks.
+        #
+        # `Ĉiu etna lingvo estas ligita al difinita kulturo.`
+        #
+        # The old code walked `aliaj` and took the first nominative nominal, which
+        # was `kulturo` — THE OBJECT OF THE PREPOSITION `al`. A noun inside a
+        # prepositional phrase cannot be a predicate; it is already spoken for.
+        # That one mistake made `estas` a `cop` of `kulturo`, put the head of the
+        # clause inside a PP, and scored 0.0% on `aux`.
+        #
+        # Two rules fix it, and both are deterministic:
+        #   (a) a PP-governed noun is NEVER the predicate — it has a governor
+        #   (b) a PARTICIPLE beats a plain nominal. `estas ligita` is a periphrastic
+        #       verb form: the participle carries the predication, `esti` is
+        #       auxiliary to it. Esperanto marks this morphologically (-ant-/-int-/
+        #       -ont-/-at-/-it-/-ot-), so it is free to detect.
+        best = None                          # (rank, id, is_participle)
         for x in candidates:
             if not isinstance(x, dict) or x.get('id') in (None, subj_id):
                 continue
-            if (x.get('vortspeco') in ('substantivo', 'propra_nomo', 'adjektivo')
-                    and x.get('kazo') == 'nominativo'):
-                predikato_of[vid] = x['id']
-                # it is the PREDICATE, not a modifier of the subject
-                x['kapo'], x['rolo'] = None, None
-                break
+            if x.get('vortspeco') not in ('substantivo', 'propra_nomo',
+                                          'adjektivo'):
+                continue
+            if x.get('kazo') != 'nominativo':
+                continue
+            xid = x['id']
+            if xid <= vid:                   # a predicate FOLLOWS its copula
+                continue
+            if _is_pp_governed(word_asts, xid - 1):
+                continue                     # (a) already governed by a preposition
+            is_part = bool(x.get('participo_voĉo'))
+            rank = (0 if is_part else 1, xid)   # (b) participle first, then leftmost
+            if best is None or rank < best[0]:
+                best = (rank, x, is_part)
+
+        if best is not None:
+            _, x, is_part = best
+            predikato_of[vid] = x['id']
+            # UD splits the label by what the predicate IS: a periphrastic verb
+            # form takes `aux`, a nominal/adjectival predicate takes `cop`.
+            kopulo_rolo[vid] = 'aux' if is_part else 'cop'
+            # it is the PREDICATE, not a modifier of the subject
+            x['kapo'], x['rolo'] = None, None
+
+    def _subordinate_rel(c, word_asts) -> str:
+        """A subordinate clause is not one relation — it is three.
+
+        UD splits by WHAT KIND of subordinator opens it, and `ke` is the odd one:
+
+            mi scias KE li venis     -> ccomp   a clausal OBJECT (29 in gold)
+            mi foriris ĈAR li venis  -> advcl   an adverbial modifier (41)
+
+        We were calling both `advcl` and scoring 0% on ccomp. `ke` is the single
+        complementiser in Esperanto — it introduces the content of saying,
+        knowing, believing — so this is a one-word distinction, not a lexicon.
+        """
+        rolo = c.get('rolo')
+        if rolo == 'kunordigita':
+            return 'conj'
+        if rolo == 'rilativa':
+            return 'acl'
+        if rolo == 'subordigita':
+            span = c.get('_span') or []
+            if span:
+                w = word_asts[span[0]]
+                if isinstance(w, dict) and (w.get('radiko') or '').lower() == 'ke':
+                    return 'ccomp'
+            return 'advcl'
+        return 'parataxis'
+
+    # ---- WHERE DOES A SUBORDINATE CLAUSE HANG? ---------------------------
+    # A RELATIVE clause modifies a NOUN, not the main verb:
+    #
+    #     ... el tiuj, kiuj studas fremdan lingvon, ...
+    #                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    #     gold: studas --acl--> tiuj      (the ANTECEDENT)
+    #     ours: studas --root-->          (a second sentence root!)
+    #
+    # The antecedent is the nearest nominal BEFORE the clause opener. That is
+    # deterministic and needs no lexical knowledge.
+    def _governor(c) -> tuple[int, str] | None:
+        span = c.get('_span') or []
+        if not span or c.get('rolo') != 'rilativa':
+            return None
+        start = span[0]                     # position of the `kiu`
+        for j in range(start - 1, -1, -1):
+            w = word_asts[j]
+            if not isinstance(w, dict):
+                continue
+            if w.get('vortspeco') in ('substantivo', 'propra_nomo', 'pronomo',
+                                      'korelativo'):
+                # Prago labels relative clauses plain `acl`, not `acl:relcl`.
+                return (j + 1, 'acl')
+        return None
 
     clause_of: dict[int, int] = {}          # token id -> its clause's verb id
     for c in clauses:
         vid = _id(c.get('verbo'))
         if vid is None:
             continue
+        gov = _governor(c)                  # relative clause -> its ANTECEDENT
         pred = predikato_of.get(vid)
         if pred is not None:
             # the PREDICATE heads the clause; `estas` becomes its `cop`.
-            head_id = pred
-            word_asts[pred - 1]['kapo'] = 0 if vid == main_verb else (main_verb or 0)
-            word_asts[pred - 1]['rolo'] = (
-                'root' if vid == main_verb
-                else {'kunordigita': 'conj', 'subordigita': 'advcl',
-                      'rilativa': 'acl:relcl'}.get(c.get('rolo'), 'parataxis'))
-            _set(c['verbo'], pred, 'cop')
+            if vid == main_verb:
+                word_asts[pred - 1]['kapo'], word_asts[pred - 1]['rolo'] = 0, 'root'
+            elif gov:
+                word_asts[pred - 1]['kapo'], word_asts[pred - 1]['rolo'] = gov
+            else:
+                word_asts[pred - 1]['kapo'] = main_verb or 0
+                word_asts[pred - 1]['rolo'] = {
+                    'kunordigita': 'conj', 'subordigita': 'advcl',
+                    'rilativa': 'acl'}.get(c.get('rolo'), 'parataxis')
+            _set(c['verbo'], pred, kopulo_rolo.get(vid, 'cop'))
             for slot, rolo in (('subjekto', 'nsubj'), ('objekto', 'obj')):
                 if _id(c.get(slot)) is not None:
                     _set(c[slot], pred, rolo)
@@ -3141,10 +3231,11 @@ def attach_all(word_asts: list, clauses: list) -> None:
 
         if vid == main_verb:
             _set(c['verbo'], 0, 'root')
+        elif gov:
+            _set(c['verbo'], gov[0], gov[1])     # relative -> its ANTECEDENT noun
         else:
             _set(c['verbo'], main_verb or 0,
-                 {'kunordigita': 'conj', 'subordigita': 'advcl',
-                  'rilativa': 'acl:relcl'}.get(c.get('rolo'), 'parataxis'))
+                 _subordinate_rel(c, word_asts))
 
         for slot, rolo in (('subjekto', 'nsubj'), ('objekto', 'obj')):
             grp = c.get(slot)
@@ -3210,6 +3301,73 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 i = j + 1
                 continue
             i += 1
+
+    # ---- 1c. INFINITIVES HEAD CLAUSES TOO --------------------------------
+    #
+    # `_is_finite_verb` requires a TENSE, and an infinitive has none — so an
+    # infinitive could never head a clause and every one of them fell through to
+    # the generic pass as `dep`. Gold has 70 of them and we scored 4%.
+    #
+    # An infinitive is a non-finite CLAUSE, and UD's label depends on WHAT
+    # GOVERNS it. All four cases are decidable from the surface, deterministically:
+    #
+    #     mi volas LERNI            -> xcomp  (complement of a verb)     19 in gold
+    #     la taskon LERNI           -> acl    (modifies a NOUN)           9
+    #     venis por LERNI           -> advcl  (purpose: preposition+inf)  8
+    #     voli kaj POVI             -> conj   (coordinated infinitive)   19
+    #
+    # The rule reads LEFTWARD to the nearest thing that can govern it. Note `por`
+    # + infinitive: the preposition is the giveaway for a purpose clause, and
+    # Esperanto marks it overtly.
+    _INF_PREPS = {'por', 'anstataŭ', 'krom', 'sen', 'antaŭ', 'post'}
+
+    def _is_infinitive(w) -> bool:
+        return (isinstance(w, dict) and w.get('vortspeco') == 'verbo'
+                and not w.get('tempo'))
+
+    for i, w in enumerate(word_asts, start=1):
+        if not _is_infinitive(w) or w.get('kapo') is not None:
+            continue
+        verb = clause_of.get(i, main_verb) or 0
+
+        # walk LEFT past the infinitive's own modifiers to whatever governs it
+        gov_id, gov_rel = None, None
+        for j in range(i - 1, 0, -1):
+            x = word_asts[j - 1]
+            if not isinstance(x, dict):
+                continue
+            xr = (x.get('radiko') or '').lower()
+            xvs = x.get('vortspeco')
+
+            if xvs == 'prepozicio' and xr in _INF_PREPS:
+                # `por lerni` — a PURPOSE clause. The preposition is its `mark`.
+                gov_id, gov_rel = verb, 'advcl'
+                if x.get('kapo') is None:
+                    x['kapo'], x['rolo'] = i, 'mark'
+                break
+            if xr in _COORDINATORS:
+                # `voli kaj povi` — coordinated with the nearest earlier infinitive
+                for k in range(j - 1, 0, -1):
+                    if _is_infinitive(word_asts[k - 1]):
+                        gov_id, gov_rel = k, 'conj'
+                        break
+                if gov_id:
+                    if x.get('kapo') is None:
+                        x['kapo'], x['rolo'] = i, 'cc'
+                    break
+                continue
+            if xvs in ('substantivo', 'propra_nomo'):
+                gov_id, gov_rel = x.get('id'), 'acl'      # `la taskon lerni`
+                break
+            if xvs == 'verbo' and x.get('tempo'):
+                gov_id, gov_rel = x.get('id'), 'xcomp'    # `mi volas lerni`
+                break
+            if xvs in ('artikolo', 'adjektivo', 'adverbo'):
+                continue                                   # its own modifiers
+            break
+
+        w['kapo'] = gov_id if gov_id else verb
+        w['rolo'] = gov_rel if gov_rel else 'xcomp'
 
     # ---- 2. everything else ---------------------------------------------
     for i, w in enumerate(word_asts, start=1):
@@ -3351,6 +3509,32 @@ def _opens_a_clause(w) -> bool:
             and w.get('korelativo_prefikso') == 'ki')
 
 
+def _is_coordinator(w) -> bool:
+    """Only a COORDINATOR can join two things that are not clauses.
+
+    This distinction is load-bearing. `segment_clauses` refused to open a new
+    clause until the current one had a finite verb — a guard that exists so that
+
+        Zamenhof kaj Ludoviko venis          (a coordinated SUBJECT, ONE clause)
+
+    is not cut in two at `kaj`. That guard is correct for `kaj`/`sed`/`aŭ`, which
+    routinely join mere noun phrases.
+
+    It is WRONG for everything else. `ke`, `ĉar`, `se`, `kiu` cannot join two noun
+    phrases — they can ONLY open a clause. Applying the verb guard to them meant
+    that in
+
+        ... el tiuj, kiuj studas fremdan lingvon, ekmastras ĝin
+
+    no clause opened at `kiuj`, because the antecedent `tiuj` has no verb yet. The
+    relative clause was never segmented, `studas` became the sentence ROOT, and
+    every token under it was scored wrong. That is where the multi-root sentences
+    and the 0% `acl` came from.
+    """
+    return (isinstance(w, dict)
+            and (w.get('radiko') or '').lower() in _COORDINATORS)
+
+
 def segment_clauses(word_asts: list) -> list[list[int]]:
     """Split a sentence into clause spans — one per finite verb.
 
@@ -3370,10 +3554,18 @@ def segment_clauses(word_asts: list) -> list[list[int]]:
                 and w.get('kazo') == 'nominativo')
 
     for i, w in enumerate(word_asts):
-        # (a) an explicit clause opener — but only once this clause has its verb,
-        #     or `Zamenhof kaj Ludoviko venis` (a coordinated SUBJECT, ONE clause)
-        #     would be cut in two.
-        if has_verb and _opens_a_clause(w) and cur:
+        # (a) an explicit clause opener.
+        #
+        #     The verb guard applies ONLY to COORDINATORS. `kaj`/`sed`/`aŭ` can
+        #     join two noun phrases, so `Zamenhof kaj Ludoviko venis` must not be
+        #     cut in two before the verb arrives.
+        #
+        #     But `ke`, `ĉar`, `se`, `kiu` CANNOT join noun phrases — they only
+        #     ever open a clause. Making them wait for a verb meant a relative
+        #     clause whose antecedent had none (`... el tiuj, kiuj studas ...`)
+        #     never opened at all: its verb became a second sentence ROOT.
+        opens = _opens_a_clause(w) and cur and i > 0
+        if opens and (has_verb or not _is_coordinator(w)):
             spans.append(cur)
             cur = []
             has_verb = False
@@ -3384,8 +3576,20 @@ def segment_clauses(word_asts: list) -> list[list[int]]:
         #     So the new verb IS the boundary. Its clause starts at the nearest
         #     preceding nominative nominal — its subject.
         elif has_verb and _is_finite_verb(w) and cur:
+            # The new clause starts at the nominative nominal that will be its
+            # subject — but that search MUST NOT reach back past the verb we
+            # already have. In
+            #
+            #     La homo KIU venis estas mia amiko
+            #
+            # `kiu` IS the subject of `venis`. Searching the whole of `cur` found
+            # it, split at position 0, and thereby swallowed the MAIN clause into
+            # the relative one — leaving `venis` as the sentence root. A subject
+            # for the NEW verb can only lie AFTER the OLD one.
+            last_verb = max((k for k in range(len(cur))
+                             if _is_finite_verb(word_asts[cur[k]])), default=-1)
             split = len(cur)
-            for k in range(len(cur) - 1, -1, -1):
+            for k in range(len(cur) - 1, last_verb, -1):
                 if _is_nominative_nominal(word_asts[cur[k]]):
                     split = k
                     break
@@ -3420,6 +3624,31 @@ def _clause_role(marker) -> str:
     return 'ĉefa'
 
 
+# TRIED AND REJECTED — `_rejoin_interrupted` (2026-07-14).
+#
+# A relative clause INTERRUPTS its main clause:
+#
+#     La homo | kiu venis | estas mia amiko
+#     ^^^^^^^^              ^^^^^^^^^^^^^^^
+#     one clause, cut in half by the relative clause in the middle
+#
+# Segmentation leaves `La homo` as a VERBLESS span, which build_clauses discards —
+# taking the main clause's SUBJECT with it. So `homo` belongs to no clause and
+# cannot be `nsubj` of anything. The obvious fix is to splice the front half back
+# onto the main clause.
+#
+# IT WAS IMPLEMENTED, AND IT MADE THINGS WORSE:
+#
+#     without rejoin   PRAGO  UAS_all 53.5%   LAS_all 46.6%
+#     with rejoin      PRAGO  UAS_all 52.4%   LAS_all 45.7%      -0.9 LAS
+#
+# The generic attachment pass already places that stranded noun BETTER than the
+# splice does — merging the spans changes what `parse_clause` sees and it picks a
+# worse subject/object frame. The idea is linguistically right and empirically
+# wrong, which is the whole point of the merge gate. Recording it so nobody
+# (including me) re-implements it in six months because it "obviously should help".
+
+
 def build_clauses(word_asts: list) -> list[dict]:
     """One predicate-argument frame PER CLAUSE. This is the tree."""
     out: list[dict] = []
@@ -3431,6 +3660,11 @@ def build_clauses(word_asts: list) -> list[dict]:
         frame['tipo'] = 'propozicio'
         frame['rolo'] = _clause_role(words[0] if words else None)
         frame['fonto'] = 'regulo'           # attribution (VISION.md)
+        # Where this clause STARTS, in 0-based surface positions. attach_all needs
+        # it to find a relative clause's ANTECEDENT — the noun immediately before
+        # the `kiu`. Without it, every relative clause hangs off the main verb
+        # instead of the noun it modifies.
+        frame['_span'] = list(span)
         out.append(frame)
     return out
 

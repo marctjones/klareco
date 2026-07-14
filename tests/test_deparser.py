@@ -116,18 +116,44 @@ class TestDeparsePropraVorto(unittest.TestCase):
 class TestDeparseCompoundWords(unittest.TestCase):
 
     def test_kunmetitaj_radikoj_reconstruction(self):
+        """The AST must RECORD the linking vowel — it may not be GUESSED. (#833)
+
+        This test used to assert that the deparser joins compound roots with a
+        hard-coded 'o'. That is exactly the bug: the linking vowel is OPTIONAL in
+        Esperanto. `hundodomo` has one; `mondmilito`, `jarcento`, `dufoje` and
+        `enhavas` do not. Guessing turned them into `mondomilito`, `jarocento`,
+        `duofoje`, `enohavas` — words that do not exist — and 40% of corpus
+        sentences failed to round-trip with nothing to notice.
+
+        `tigo` now carries the stem EXACTLY as it appeared. Where it is absent the
+        deparser returns the surface rather than FABRICATING a linking vowel.
+        """
         word_ast = {
             "tipo": "vorto",
             "vortspeco": "substantivo",
             "kunmetitaj_radikoj": ["libr", "vend"],
             "radiko": "vend",
             "sufiksoj": ["ist"],
+            "tigo": "librovendist",       # RECORDED, not guessed
             "nombro": "singularo",
             "kazo": "nominativo",
         }
-        result = _reconstruct_word(word_ast)
-        # 'libr' + linking 'o' + 'vend' + suffix 'ist' + POS 'o' → librovendisto
-        self.assertEqual(result, "librovendisto")
+        self.assertEqual(_reconstruct_word(word_ast), "librovendisto")
+
+    def test_a_compound_WITHOUT_a_linking_vowel(self):
+        """`mondmilito` is mond+milit with NO linking vowel. The old code emitted
+        `mondomilito`."""
+        word_ast = {
+            "tipo": "vorto",
+            "vortspeco": "substantivo",
+            "kunmetitaj_radikoj": ["mond", "milit"],
+            "radiko": "milit",
+            "sufiksoj": [],
+            "tigo": "mondmilit",
+            "nombro": "singularo",
+            "kazo": "nominativo",
+        }
+        self.assertEqual(_reconstruct_word(word_ast), "mondmilito")
 
     def test_single_root_unaffected(self):
         word_ast = {

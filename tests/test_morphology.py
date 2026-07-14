@@ -130,7 +130,10 @@ class TestTheSetIsReturned:
         """A parser that returns ONE reading where the grammar permits TWO is not
         deterministic — it is arbitrary. The set is the honest output."""
         assert is_ambiguous('papero')
-        assert len(analyze('esperanto')) == 2
+        # >= 2, not == 2: COMPOUND support licenses more readings, and that is the
+        # point — the grammar permits them, so the analyser must return them.
+        assert len(analyze('esperanto')) >= 2
+        assert analyze('esperanto')[0].radiko == 'esperant'
 
     def test_the_grammar_licenses_it_and_the_RANKER_kills_it(self):
         """`organo` IS grammatically ambiguous, because `org` sits in the

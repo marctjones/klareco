@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "dgSpecHash": "bQV4lH0h5SQ=",
+  "success": true,
+  "projectFilePath": "/Users/marc/Documents/GitHub/klareco/benchmarks/local_models/dotnet/LocalModelBench/LocalModelBench.csproj",
+  "expectedPackageFiles": [
+    "/Users/marc/.nuget/packages/communitytoolkit.highperformance/8.4.2/communitytoolkit.highperformance.8.4.2.nupkg.sha512",
+    "/Users/marc/.nuget/packages/llamasharp/0.27.0/llamasharp.0.27.0.nupkg.sha512",
+    "/Users/marc/.nuget/packages/llamasharp.backend.cpu/0.27.0/llamasharp.backend.cpu.0.27.0.nupkg.sha512",
+    "/Users/marc/.nuget/packages/microsoft.bcl.asyncinterfaces/10.0.5/microsoft.bcl.asyncinterfaces.10.0.5.nupkg.sha512",
+    "/Users/marc/.nuget/packages/microsoft.bcl.memory/10.0.5/microsoft.bcl.memory.10.0.5.nupkg.sha512",
+    "/Users/marc/.nuget/packages/microsoft.extensions.ai.abstractions/10.4.1/microsoft.extensions.ai.abstractions.10.4.1.nupkg.sha512",
+    "/Users/marc/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/10.0.5/microsoft.extensions.dependencyinjection.abstractions.10.0.5.nupkg.sha512",
+    "/Users/marc/.nuget/packages/microsoft.extensions.logging.abstractions/10.0.5/microsoft.extensions.logging.abstractions.10.0.5.nupkg.sha512",
+    "/Users/marc/.nuget/packages/system.interactive.async/7.0.0/system.interactive.async.7.0.0.nupkg.sha512",
+    "/Users/marc/.nuget/packages/system.linq.async/7.0.0/system.linq.async.7.0.0.nupkg.sha512",
+    "/Users/marc/.nuget/packages/system.numerics.tensors/10.0.5/system.numerics.tensors.10.0.5.nupkg.sha512"
+  ],
+  "logs": []
+}

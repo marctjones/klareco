@@ -1,0 +1,166 @@
+{
+  "python_mlx": [
+    {
+      "id": "qwen3_4b_instruct_2507_mlx",
+      "producer": "Qwen",
+      "region": "China",
+      "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+      "purposes": ["general_chat", "reasoning", "tool_use", "lawful_adult_creative_flexibility"]
+    },
+    {
+      "id": "qwen3_14b_mlx",
+      "producer": "Qwen",
+      "region": "China",
+      "model": "mlx-community/Qwen3-14B-4bit",
+      "purposes": ["reasoning", "long_context", "tool_use", "lawful_adult_creative_flexibility"]
+    },
+    {
+      "id": "llama32_3b_instruct_mlx",
+      "producer": "Meta",
+      "region": "US",
+      "model": "mlx-community/Llama-3.2-3B-Instruct-4bit",
+      "purposes": ["general_chat", "fast_instruct", "tool_use", "lawful_adult_creative_flexibility"]
+    },
+    {
+      "id": "smollm3_3b_mlx",
+      "producer": "Hugging Face",
+      "region": "EU/US",
+      "model": "mlx-community/SmolLM3-3B-4bit",
+      "purposes": ["fast_instruct", "tool_use"]
+    },
+    {
+      "id": "dolphin30_llama31_8b_mlx",
+      "producer": "Dolphin / Cognitive Computations",
+      "region": "US",
+      "model": "mlx-community/Dolphin3.0-Llama3.1-8B-4bit",
+      "purposes": ["roleplay", "lawful_adult_creative_flexibility", "adult_safety"]
+    }
+  ],
+  "gguf": [
+    {
+      "id": "qwen36_35b_a3b_gguf",
+      "producer": "Qwen",
+      "region": "China",
+      "path_env": "QWEN36_35B_A3B_GGUF",
+      "purposes": ["agentic_coding", "reasoning", "tool_use", "long_context"]
+    },
+    {
+      "id": "qwen3_4b_gguf",
+      "producer": "Qwen",
+      "region": "China",
+      "path_env": "QWEN3_4B_GGUF",
+      "purposes": ["general_chat", "reasoning", "tool_use"]
+    },
+    {
+      "id": "llama32_3b_instruct_gguf",
+      "producer": "Meta",
+      "region": "US",
+      "path_env": "LLAMA32_3B_GGUF",
+      "purposes": ["general_chat", "fast_instruct", "tool_use"]
+    },
+    {
+      "id": "gemma3_4b_it_gguf",
+      "producer": "Google",
+      "region": "US",
+      "path_env": "GEMMA3_4B_GGUF",
+      "purposes": ["general_chat", "reasoning"]
+    },
+    {
+      "id": "mistral_nemo_instruct_gguf",
+      "producer": "Mistral AI",
+      "region": "EU",
+      "path_env": "MISTRAL_NEMO_GGUF",
+      "purposes": ["general_chat", "long_context", "lawful_adult_creative_flexibility"]
+    },
+    {
+      "id": "mistral7_instruct_gguf",
+      "producer": "Mistral AI",
+      "region": "EU",
+      "path_env": "MISTRAL7_GGUF",
+      "purposes": ["general_chat", "fast_instruct", "lawful_adult_creative_flexibility"]
+    },
+    {
+      "id": "ministral_8b_instruct_gguf",
+      "producer": "Mistral AI",
+      "region": "EU",
+      "path_env": "MINISTRAL_8B_GGUF",
+      "purposes": ["reasoning", "long_context", "lawful_adult_creative_flexibility"]
+    }
+  ],
+  "python_diffusers": [
+    {
+      "id": "flux_schnell",
+      "producer": "Black Forest Labs",
+      "region": "EU",
+      "model": "black-forest-labs/FLUX.1-schnell",
+      "purposes": ["image_generation_speed"]
+    },
+    {
+      "id": "flux_dev",
+      "producer": "Black Forest Labs",
+      "region": "EU",
+      "model": "black-forest-labs/FLUX.1-dev",
+      "purposes": ["image_generation_quality"]
+    },
+    {
+      "id": "qwen_image",
+      "producer": "Qwen",
+      "region": "China",
+      "model": "Qwen/Qwen-Image",
+      "purposes": ["image_generation_quality", "prompt_fidelity"]
+    },
+    {
+      "id": "sd35_medium",
+      "producer": "Stability AI",
+      "region": "UK",
+      "model": "stabilityai/stable-diffusion-3.5-medium",
+      "purposes": ["image_generation_speed", "image_generation_quality"]
+    }
+  ],
+  "embeddings": [
+    {
+      "id": "embeddinggemma_300m",
+      "producer": "Google",
+      "region": "US",
+      "model": "google/embeddinggemma-300m",
+      "family": "non_chinese",
+      "purposes": ["english_retrieval", "esperanto_retrieval", "multilingual_retrieval"]
+    },
+    {
+      "id": "minilm_l6_v2",
+      "producer": "Sentence Transformers",
+      "region": "EU/US",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "family": "non_chinese",
+      "purposes": ["english_retrieval", "small_fast_retrieval"]
+    },
+    {
+      "id": "multilingual_e5_small",
+      "producer": "Microsoft / intfloat",
+      "region": "US",
+      "model": "intfloat/multilingual-e5-small",
+      "family": "non_chinese",
+      "query_prefix": "query: ",
+      "document_prefix": "passage: ",
+      "purposes": ["english_retrieval", "esperanto_retrieval", "small_fast_multilingual_retrieval"]
+    },
+    {
+      "id": "bge_small_en_v15",
+      "producer": "BAAI",
+      "region": "China",
+      "model": "BAAI/bge-small-en-v1.5",
+      "family": "chinese",
+      "query_prefix": "Represent this sentence for searching relevant passages: ",
+      "document_prefix": "",
+      "purposes": ["english_retrieval", "small_fast_retrieval"]
+    },
+    {
+      "id": "bge_m3",
+      "producer": "BAAI",
+      "region": "China",
+      "model": "BAAI/bge-m3",
+      "family": "chinese",
+      "purposes": ["english_retrieval", "esperanto_retrieval", "multilingual_retrieval"]
+    }
+  ]
+}

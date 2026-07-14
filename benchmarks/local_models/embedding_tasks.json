@@ -1,0 +1,126 @@
+{
+  "english": {
+    "documents": [
+      {
+        "id": "en_zamenhof",
+        "text": "L. L. Zamenhof published the first Esperanto textbook in 1887 under the pseudonym Doktoro Esperanto."
+      },
+      {
+        "id": "en_grammar",
+        "text": "Esperanto nouns usually end in -o, adjectives in -a, and the accusative object is marked with -n."
+      },
+      {
+        "id": "en_movement",
+        "text": "The Universal Esperanto Association was founded in 1908 and supports international use of Esperanto."
+      },
+      {
+        "id": "en_fundamento",
+        "text": "The Fundamento de Esperanto defines the core grammar and vocabulary that stabilize the language."
+      },
+      {
+        "id": "en_nonmatch",
+        "text": "The Python programming language is widely used for data analysis, machine learning, and scripting."
+      },
+      {
+        "id": "en_false_founder",
+        "text": "The first Esperanto congress was held in Boulogne-sur-Mer in 1905, bringing speakers together from many countries."
+      },
+      {
+        "id": "en_false_association",
+        "text": "The Akademio de Esperanto studies and advises on language usage, but it is distinct from the Universal Esperanto Association."
+      },
+      {
+        "id": "en_case_general",
+        "text": "Esperanto word order is flexible because grammatical endings help identify each word's role in a sentence."
+      },
+      {
+        "id": "en_book_general",
+        "text": "Many Esperanto books were translated after the language began to attract an international readership."
+      }
+    ],
+    "queries": [
+      {
+        "id": "en_q_founder",
+        "text": "Who published the first Esperanto textbook?",
+        "relevant": ["en_zamenhof"]
+      },
+      {
+        "id": "en_q_accusative",
+        "text": "How is the direct object marked in Esperanto grammar?",
+        "relevant": ["en_grammar"]
+      },
+      {
+        "id": "en_q_association",
+        "text": "Which organization founded in 1908 supports Esperanto internationally?",
+        "relevant": ["en_movement"]
+      },
+      {
+        "id": "en_q_core",
+        "text": "What document stabilizes the core grammar and vocabulary of Esperanto?",
+        "relevant": ["en_fundamento"]
+      }
+    ]
+  },
+  "esperanto": {
+    "documents": [
+      {
+        "id": "eo_zamenhof",
+        "text": "L. L. Zamenhof publikigis la unuan lernolibron de Esperanto en 1887 sub la pseŭdonimo Doktoro Esperanto."
+      },
+      {
+        "id": "eo_grammar",
+        "text": "En Esperanto substantivoj kutime finiĝas per -o, adjektivoj per -a, kaj la rekta objekto ricevas la akuzativan finaĵon -n."
+      },
+      {
+        "id": "eo_movement",
+        "text": "Universala Esperanto-Asocio fondiĝis en 1908 kaj subtenas la internacian uzadon de Esperanto."
+      },
+      {
+        "id": "eo_fundamento",
+        "text": "La Fundamento de Esperanto difinas la kernan gramatikon kaj vortprovizon kiuj stabiligas la lingvon."
+      },
+      {
+        "id": "eo_nonmatch",
+        "text": "La programlingvo Python estas ofte uzata por datum-analizo, maŝinlernado kaj aŭtomatigaj skriptoj."
+      },
+      {
+        "id": "eo_false_founder",
+        "text": "La unua Universala Kongreso de Esperanto okazis en Bulonjo-ĉe-Maro en 1905 kun partoprenantoj el multaj landoj."
+      },
+      {
+        "id": "eo_false_association",
+        "text": "La Akademio de Esperanto studas kaj konsilas pri lingvouzo, sed ĝi ne estas la sama organizaĵo kiel Universala Esperanto-Asocio."
+      },
+      {
+        "id": "eo_case_general",
+        "text": "La vortordo en Esperanto estas sufiĉe libera ĉar gramatikaj finaĵoj montras la rolon de vortoj en frazo."
+      },
+      {
+        "id": "eo_book_general",
+        "text": "Multaj libroj en Esperanto aperis post kiam la lingvo ekallogis internacian legantaron."
+      }
+    ],
+    "queries": [
+      {
+        "id": "eo_q_founder",
+        "text": "Kiu publikigis la unuan lernolibron de Esperanto?",
+        "relevant": ["eo_zamenhof"]
+      },
+      {
+        "id": "eo_q_accusative",
+        "text": "Kiel oni markas la rektan objekton en Esperanto?",
+        "relevant": ["eo_grammar"]
+      },
+      {
+        "id": "eo_q_association",
+        "text": "Kiu asocio fondiĝis en 1908 por subteni Esperanton internacie?",
+        "relevant": ["eo_movement"]
+      },
+      {
+        "id": "eo_q_core",
+        "text": "Kiu verko difinas la kernan gramatikon kaj vortprovizon de Esperanto?",
+        "relevant": ["eo_fundamento"]
+      }
+    ]
+  }
+}

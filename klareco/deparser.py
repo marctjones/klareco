@@ -67,9 +67,16 @@ def _reconstruct_word(word_ast: dict) -> str:
         return ''
 
     vortspeco = word_ast.get('vortspeco', '')
+    pv = word_ast.get('plena_vorto') or ''
+
+    # A token containing a DIGIT is not made of morphemes. `1-a` is the ordinal
+    # "unua" (1st) and the parser was giving it radiko='a' — the digit dropped
+    # entirely, so it came back out as bare `a`. Digits are surface, not structure.
+    if any(c.isdigit() for c in pv):
+        return pv
 
     if vortspeco in _USE_PLENA_VORTO:
-        return word_ast.get('plena_vorto') or word_ast.get('radiko') or ''
+        return pv or word_ast.get('radiko') or ''
 
     # Unknown tipo — fall back gracefully rather than crash
     if word_ast.get('tipo') != 'vorto':
@@ -83,19 +90,35 @@ def _reconstruct_word(word_ast: dict) -> str:
         prefiksoj = [old] if old else []
     prefix = ''.join(prefiksoj)
 
-    # Compound words: reconstruct the full compound, not just the head root.
-    #   kunmetitaj_radikoj = ['libr', 'vend']
-    #   → 'libr' + linking 'o' + 'vend' → stem 'librovend'
-    kunmetitaj = word_ast.get('kunmetitaj_radikoj') or []
-    if len(kunmetitaj) >= 2:
-        # Non-head roots each get the linking vowel 'o';
-        # the head root (last element) receives the normal morphological ending.
-        root = 'o'.join(kunmetitaj[:-1]) + 'o' + kunmetitaj[-1]
+    # THE STEM, EXACTLY AS IT APPEARED. `tigo` is written by the morphology layer
+    # and is the concatenation of the actual morphemes — including the LINKING
+    # VOWEL, which is OPTIONAL in Esperanto and which the old AST did not record.
+    #
+    # The old code GUESSED: it joined compound roots with a hard-coded 'o'.
+    #     jarcento    -> jarocento      (there is no linking vowel)
+    #     enhavas     -> enohavas
+    #     devenas     -> dedeovenas     (and it double-counted the prefix)
+    # 40% of corpus sentences failed to round-trip and nothing noticed, because
+    # there was no round-trip test.
+    tigo = word_ast.get('tigo')
+    if tigo:
+        stem = tigo
     else:
+        kunmetitaj = word_ast.get('kunmetitaj_radikoj') or []
+        if len(kunmetitaj) >= 2:
+            # WE CANNOT REBUILD THIS. The linking vowel is OPTIONAL in Esperanto
+            # (`hundodomo` has one, `dufoje` does not) and this AST did not record
+            # it — `tigo` is only written where klareco.morphology owns the word.
+            #
+            # The old code GUESSED, always inserting an `o`, and produced
+            # `duofoje`, `ĉeoesto`, `jarocento`. **Do not fabricate.** Return the
+            # surface and let the round-trip test say the morphology is
+            # incomplete here, rather than silently emitting a word that does not
+            # exist.
+            return pv or ''
         root = word_ast.get('radiko') or ''
-
-    suffixes = ''.join(word_ast.get('sufiksoj') or [])
-    stem = f'{prefix}{root}{suffixes}'
+        suffixes = ''.join(word_ast.get('sufiksoj') or [])
+        stem = f'{prefix}{root}{suffixes}'
 
     # --- Part-of-speech ending ---
     pos_ending = ''
@@ -300,16 +323,65 @@ def _deparse_frazo_body(ast: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def deparse(ast: dict) -> str:
-    """
-    Convert a morpheme-based sentence AST back into an Esperanto string.
+    """AST -> Esperanto. Reconstructs the SURFACE, in order, from `vortoj`.
 
-    Handles:
-    - All word types: content words, function words, proper nouns, correlatives
-    - Compound words via kunmetitaj_radikoj
-    - Vortgrupo with article, adjective priskriboj, and relative clause priskriboj
-    - rilata_subfrazo (relative clause) nodes anywhere in the tree
-    - Nested frazo nodes (ke-clauses stored as objekto)
-    - Sentence-type punctuation: '.' for deklaro, '?' for demando, '!' for ordono
+    WHY THIS CHANGED (#833)
+    -----------------------
+    The old deparser walked the FLAT FRAME — subjekto + priskriboj + verbo +
+    objekto + aliaj — and so had no idea what order the words came in. It
+    produced:
+
+        in : Kvankam Esperanto ne estas perfekta, ĝi funkcias bone.
+        out: Perfekta perfekta Esperanto estas ne ĝi funkcias bone.
+
+    Duplicated, reordered, and `Kvankam` silently deleted. It had 21 passing
+    tests.
+
+    The AST now carries `vortoj` — every token, in surface order, with `id`,
+    `kapo` and `rolo` (#825). So deparsing is a walk, and the ROUND TRIP becomes
+    a real test of two things at once:
+
+      1. TOKEN COMPLETENESS. If a token is missing from the AST it cannot come
+         back out. This alone would have caught `la` being ABSORBED into the
+         vortgrupo and lost — 9.1% of LAS — the moment it was introduced. We had
+         no such test, so it went unnoticed for months.
+
+      2. MORPHOLOGICAL INVERTIBILITY. `_reconstruct_word` rebuilds each surface
+         form from radiko + prefiksoj + sufiksoj + ending. If the decomposition
+         is wrong, the word comes back wrong. That is a free, corpus-wide check on
+         the morphology.
+
+    For GENERATION from a tree (VISION.md's "grammatically correct by
+    construction"), see `deparse_structural`. Note that Esperanto has FREE WORD
+    ORDER, so a structural deparse legitimately produces a different string — it
+    cannot be tested by string equality, and pretending otherwise is how the old
+    tests passed while the deparser was broken.
+    """
+    if not isinstance(ast, dict) or ast.get('tipo') != 'frazo':
+        raise ValueError("Nevalida AST-formato. Atendis tipo 'frazo'.")
+
+    vortoj = ast.get('vortoj')
+    if not vortoj:
+        return deparse_structural(ast)          # pre-#825 AST: fall back
+
+    words = [_reconstruct_word(w) for w in vortoj if isinstance(w, dict)]
+    body = ' '.join(w for w in words if w)
+    if not body:
+        return ''
+
+    punct = {'demando': '?', 'ordono': '!'}.get(ast.get('fraztipo', 'deklaro'), '.')
+    return body[0].upper() + body[1:] + punct
+
+
+def deparse_structural(ast: dict) -> str:
+    """GENERATE a sentence from the clause tree, rather than replay the surface.
+
+    This is the path VISION.md's "grammatically correct by construction" claim
+    rests on. It legitimately produces a DIFFERENT word order from the input —
+    Esperanto's word order is free, and the case endings carry the roles — so it
+    must NOT be tested by string equality against the source. Testing it that way
+    is precisely how the old deparser kept 21 tests green while emitting
+    "Perfekta perfekta Esperanto estas ne ĝi funkcias bone."
     """
     if not isinstance(ast, dict) or ast.get('tipo') != 'frazo':
         raise ValueError("Nevalida AST-formato. Atendis tipo 'frazo'.")
@@ -318,14 +390,7 @@ def deparse(ast: dict) -> str:
     if not body:
         return ''
 
-    fraztipo = ast.get('fraztipo', 'deklaro')
-    if fraztipo == 'demando':
-        punct = '?'
-    elif fraztipo == 'ordono':
-        punct = '!'
-    else:
-        punct = '.'
-
+    punct = {'demando': '?', 'ordono': '!'}.get(ast.get('fraztipo', 'deklaro'), '.')
     return body[0].upper() + body[1:] + punct
 
 

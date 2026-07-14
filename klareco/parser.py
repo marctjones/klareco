@@ -1781,6 +1781,17 @@ def _parse_word_impl(word: str) -> dict:
             had_adverbial_ending
             and (stem in DICTIONARY_ROOTS or _is_genuine_esperanto_compound(stem))
         )
+        # VERBS. The guard had no verb branch at all, so a capitalized PREFIXED
+        # verb fell through to "unknown -> proper noun":
+        #     `Enhavas` = en + hav  ->  stem `enhav` is not a whole root  ->  PROPN
+        # Bare verbs (`Venis`, `Estas`) survived because their stem IS a root, which
+        # is why this went unnoticed. Sentence-initial verbs are ordinary Esperanto.
+        had_verbal_ending = lower_word != stem and lower_word.endswith(
+            ('as', 'is', 'os', 'us', 'i', 'u'))
+        had_verbal_compound = (
+            had_verbal_ending
+            and (stem in DICTIONARY_ROOTS or _is_genuine_esperanto_compound(stem))
+        )
         # Adjectival compounds (e.g., "Multiklasa" = multi + klas + a) — same
         # idea as substantivo compounds but for -a-ending words. Stem must
         # decompose into recognized Esperanto morphemes.
@@ -1794,6 +1805,7 @@ def _parse_word_impl(word: str) -> dict:
             or had_substantivo_compound
             or had_adjectival_compound
             or had_adverbial_compound
+            or had_verbal_compound
         ):
             return categorize_unknown_word(original_word)
         # Fall through: word is capitalized + valid Esperanto morphology.
@@ -1923,6 +1935,15 @@ def _apply_morphology(ast: dict, word: str) -> dict:
     ast['radiko'] = best.radiko
     ast['prefiksoj'] = best.prefiksoj
     ast['sufiksoj'] = best.sufiksoj
+    ast['kunmetitaj_radikoj'] = best.kunmetitaj_radikoj
+
+    # THE STEM, EXACTLY AS IT APPEARS. Without this the word cannot be rebuilt:
+    # the LINKING VOWEL of a compound is optional in Esperanto (`hundodomo` has
+    # one, `mondmilito` does not), and the old AST threw it away — so the deparser
+    # GUESSED, always inserted an `o`, and turned `jarcento` into `jarocento` and
+    # `enhavas` into `enohavas`. Nothing caught it, because there was no
+    # round-trip test.
+    ast['tigo'] = ''.join(m.form for m in best.morphemes if m.kind != 'finaĵo')
 
     if len(readings) == 1:
         return ast                      # the grammar left no choice

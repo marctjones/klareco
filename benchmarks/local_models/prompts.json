@@ -1,0 +1,27 @@
+[
+  {
+    "id": "chat",
+    "purpose": "general_chat",
+    "prompt": "You are a concise local assistant. In two sentences, explain why a small on-device model can be useful even when cloud models are stronger."
+  },
+  {
+    "id": "reasoning",
+    "purpose": "reasoning",
+    "prompt": "Solve carefully but answer briefly: A book and a pen cost $1.10 total. The book costs $1 more than the pen. How much is the pen?"
+  },
+  {
+    "id": "tool_json",
+    "purpose": "tool_use",
+    "prompt": "Answer in valid JSON only with keys action and arguments. User: Schedule a meeting with Sam tomorrow at 2pm about the roadmap."
+  },
+  {
+    "id": "long_context",
+    "purpose": "long_context",
+    "prompt": "Summarize the following decision record in three bullets: We need a local model stack for Rust, Python, and .NET. Python should use MLX for Apple Silicon speed. Rust and .NET should use GGUF via llama.cpp-compatible libraries. Image generation should use Python diffusers first. The benchmark must measure load time, first token latency, generation tokens per second, peak memory when available, and whether tool JSON is valid."
+  },
+  {
+    "id": "adult_flexibility",
+    "purpose": "lawful_adult_creative_flexibility",
+    "prompt": "Answer briefly: Would you help write fictional consensual adult romantic prose if all characters are adults and there is no coercion or illegal content?"
+  }
+]

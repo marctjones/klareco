@@ -89,10 +89,27 @@ class Analysis:
 
     @property
     def radiko(self) -> str:
-        for m in self.morphemes:
-            if m.kind == 'radiko':
-                return m.form
-        return ''
+        """The HEAD root — the LAST one. `mondmilito` = mond + MILIT: the word is
+        a kind of WAR, not a kind of world, and retrieval wants `milit`."""
+        roots = [m.form for m in self.morphemes if m.kind == 'radiko']
+        return roots[-1] if roots else ''
+
+    @property
+    def kunmetitaj_radikoj(self) -> list[str]:
+        """All roots, in order — [] when the word is not a compound."""
+        roots = [m.form for m in self.morphemes if m.kind == 'radiko']
+        return roots if len(roots) > 1 else []
+
+    @property
+    def surface(self) -> str:
+        """The EXACT surface, rebuilt from the morphemes.
+
+        This is what makes the round-trip a real test. It requires the LINKING
+        VOWEL to be recorded (`hundodomo` has one, `mondmilito` does not) — the
+        old AST threw it away, so the deparser GUESSED, always inserted an `o`,
+        and turned `enhavas` into `enohavas` and `jarcento` into `jarocento`.
+        """
+        return ''.join(m.form for m in self.morphemes)
 
     @property
     def sufiksoj(self) -> list[str]:
@@ -178,6 +195,13 @@ class Lexicon:
         for s in a['suffixes']:
             self.suffix_rules.setdefault(s['affix'], []).append((s['out'], s['in']))
         self.prefixes = {p['affix'] for p in a['prefixes']}
+        # voko-akrido's p/2 table omits several PREPOSITIONS that prefix freely in
+        # Esperanto. Without them `enhavas` (en+hav) produced NO READING AT ALL,
+        # so the parser's own analysis stood unchallenged. They select for nothing
+        # (a preposition prefixes anything), so they carry no restriction.
+        self.prefixes |= {'en', 'al', 'tra', 'trans', 'pri', 'pro', 'post',
+                          'antaŭ', 'inter', 'per', 'sen', 'kontraŭ', 'ĉirkaŭ',
+                          'el', 'sur', 'apud', 'laŭ'}
         for e in a.get('endings', []):
             self.ending_pos[e['ending']] = e['pos']
         for p in a['prefixes']:
@@ -244,6 +268,20 @@ def lexicon() -> Lexicon:
 _SCORE_ROOT_PROTECTED = 5.0    # declared ATOMIC — never split it
 _SCORE_ROOT_KNOWN = 3.0        # ReVo / Fundamento: curated, typed
 _SCORE_ROOT_CORPUS = 1.0       # corpus-harvested: CONTAMINATED, keep for coverage only
+
+# COMPOUNDING IS A STRONG CLAIM AND MUST BE EXPENSIVE.
+#
+# Scoring each root of a compound with its own tier bonus made compounds ALWAYS
+# win, because two roots out-score one:
+#     kristano  ->  `kri` + `stan`   (+5!)   beat   krist + an
+#     diskuto   ->  `dis` + `kut`            beat   diskut
+# Nonsense, and it is Hana's bug wearing a different hat: if positing more
+# structure PAYS, the analyser will always posit more structure.
+#
+# So the tier bonus goes to the HEAD root ONLY, and every additional root costs.
+# A compound then wins only when no simpler analysis exists — which is exactly
+# when it is true (`mondmilito`, `hundodomo`, `jarcento`).
+_PENALTY_EXTRA_ROOT = -3.0
 _SCORE_SELECTION_OK = 0.0      # restriction satisfied: NOT WRONG is not a reward
 _PENALTY_SELECTION_BAD = -3.0  # restriction violated: expensive, never fatal
 _PENALTY_PER_MORPHEME = -1.0   # Occam: `organ` beats `org`+`an`; `paper` beats `pap`+`er`
@@ -265,6 +303,31 @@ def _analyses_of_stem(stem: str, depth: int = 0) -> list[list[Morpheme]]:
         if stem.startswith(pre) and len(stem) - len(pre) >= 2:
             for inner in _analyses_of_stem(stem[len(pre):], depth + 1):
                 out.append([Morpheme(pre, 'prefikso')] + inner)
+
+    # COMPOUNDING — root+root, the most productive process in the language, and
+    # this module had NO support for it. Consequence: `mondmilito` produced NO
+    # reading at all, so the parser's own (wrong) analysis stood:
+    #     mondmilito -> mond + MIL + it   "world-thousand-ed"
+    #     correct    -> mond + MILIT      "world war"
+    #
+    # The LINKING VOWEL is optional in Esperanto (`hundodomo` has one,
+    # `mondmilito` does not) and it is part of the surface, so it is RECORDED —
+    # otherwise the word cannot be reconstructed and the round-trip fails.
+    if depth < 2:
+        # LONGEST left root first. `hundodomo` was splitting as `hun` + `dodom`,
+        # because `Hun` (the Huns) IS a root and the shorter split was found
+        # first and tied on score. The longest root that fits is the right one.
+        for i in range(len(stem) - 3, 2, -1):
+            left, right = stem[:i], stem[i:]
+            if left not in lex.roots:
+                continue
+            for link, rest in (('', right),
+                               ('o', right[1:]) if right[:1] == 'o' else ('', None)):
+                if rest is None or len(rest) < 2:
+                    continue
+                for inner in _analyses_of_stem(rest, depth + 1):
+                    out.append([Morpheme(left, 'radiko', lex.roots[left]),
+                                Morpheme(link, 'kunmeto')] + inner)
 
     # DEDUPE. `malkovrit` is reachable by two paths — strip the suffix first
     # (mal-kovr, then -it) or strip the prefix first (mal-, then kovr-it) — and
@@ -305,15 +368,21 @@ def _score(morphemes: list[Morpheme]) -> Analysis:
     #                   demands a VERB.  VIOLATION.
     #                   re+far -> `far` is `tr`.  -i is fine.  -> re+far WINS.
     #    voko-akrido ships f(i, verb), f(o, subst)… and we simply were not using it.
+    _roots = [m for m in morphemes if m.kind == 'radiko']
+    _head = _roots[-1] if _roots else None
     for m in morphemes:
         if m.kind == 'radiko':
             cur = m.pos
-            if m.form in lex.protected:
+            if m is not _head:
+                a.score += _PENALTY_EXTRA_ROOT   # a compound posits extra structure
+            elif m.form in lex.protected:
                 a.score += _SCORE_ROOT_PROTECTED
             elif m.form in lex.tier1:
                 a.score += _SCORE_ROOT_KNOWN
             else:
                 a.score += _SCORE_ROOT_CORPUS
+        elif m.kind == 'kunmeto':
+            continue                     # the linking vowel is surface, not structure
         elif m.kind == 'sufikso':
             rules = lex.suffix_rules.get(m.form, [])
             ok = [(out, req) for out, req in rules if lex.isa(cur, req)]

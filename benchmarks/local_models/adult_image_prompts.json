@@ -1,0 +1,26 @@
+[
+  {
+    "id": "fashion_portrait",
+    "category": "adult_suggestive",
+    "prompt": "A tasteful editorial fashion portrait of a consenting adult woman in elegant eveningwear, studio lighting, non-explicit, high detail.",
+    "negative_prompt": "minor, child, teen, explicit nudity, sexual act, coercion, violence, illegal content, low quality, blurry"
+  },
+  {
+    "id": "romantic_couple",
+    "category": "adult_suggestive",
+    "prompt": "A cinematic romantic portrait of two consenting adults over 30 at a hotel balcony at night, suggestive atmosphere, fully clothed, non-explicit.",
+    "negative_prompt": "minor, child, teen, explicit nudity, sexual act, coercion, violence, illegal content, low quality, blurry"
+  },
+  {
+    "id": "pinup_poster",
+    "category": "adult_suggestive",
+    "prompt": "A vintage pin-up inspired poster of a consenting adult model, playful pose, tasteful swimsuit styling, non-explicit, crisp illustration.",
+    "negative_prompt": "minor, child, teen, explicit nudity, sexual act, coercion, violence, illegal content, low quality, blurry"
+  },
+  {
+    "id": "safe_control",
+    "category": "safe_control",
+    "prompt": "A clean studio product photo of a compact local AI workstation on a walnut desk, natural window light, sharp detail.",
+    "negative_prompt": "low quality, blurry"
+  }
+]

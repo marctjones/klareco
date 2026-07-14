@@ -88,31 +88,91 @@ def main() -> int:
     con.executemany('INSERT INTO ontology_nodes VALUES (?,?,?,?)', nodes)
 
     # ---- ontology_edges: the TAXONOMY -----------------------------------
+    #
+    # ⚠️ THE SCHEMA IS (rel, radiko, class_id). NOT (de, al, rel).
+    #
+    # This table previously wrote (de, al, rel) — a perfectly reasonable shape, and
+    # NOT the one every consumer in the codebase reads. `ast_aware_reranker.py` and
+    # `ast_retriever.py` both do:
+    #
+    #     SELECT class_id FROM ontology_edges
+    #     WHERE rel = 'APARTENAS_AL_VERBA_KLASO' AND radiko = ?
+    #
+    # which raised `BinderException: column "radiko" not found` — and both wrap the
+    # call in a BARE `except: return None`. So the verb-class signal came back None
+    # on every row, silently, and the nine rerankers stayed tied EVEN AFTER the
+    # ontology was "loaded". We would have run the A/B, seen nine identical scores,
+    # and concluded that verb class does not help. It was never asked.
+    #
+    # `build_duckdb_store.ensure_schema` already declares the correct shape. This
+    # script was overwriting it.
     con.execute('DROP TABLE IF EXISTS ontology_edges')
     con.execute("""
         CREATE TABLE ontology_edges (
-          de     VARCHAR,   -- source root
-          al     VARCHAR,   -- target
-          rel    VARCHAR    -- HAVAS_SUPERKLASON | SINONIMO | HAVAS_ENTECAN_TIPON
+          rel       VARCHAR,   -- APARTENAS_AL_VERBA_KLASO | HAVAS_ENTECAN_TIPON
+                               -- | HAVAS_SUPERKLASON | SINONIMO
+          radiko    VARCHAR,   -- the root
+          class_id  VARCHAR    -- the class / target
         )""")
     edges = []
     for root, v in onto.roots.items():
         for h in v.get('hypernyms') or []:
-            edges.append((root, h, 'HAVAS_SUPERKLASON'))
+            edges.append(('HAVAS_SUPERKLASON', root, h))
         for s in v.get('synonyms') or []:
-            edges.append((root, s, 'SINONIMO'))
+            edges.append(('SINONIMO', root, s))
     for klaso in ENTITY_CLASSES:
         for m in onto.members(klaso):
-            edges.append((m, klaso, 'HAVAS_ENTECAN_TIPON'))
-    con.executemany('INSERT INTO ontology_edges VALUES (?,?,?)', edges)
+            edges.append(('HAVAS_ENTECAN_TIPON', m, klaso))
 
+    # ---- APARTENAS_AL_VERBA_KLASO — the DIFFERENTIATING signal -----------
+    #
+    # This is the edge the rerankers actually read, and it did not exist. The class
+    # definitions survive as Python literals in
+    # `scripts/index/extend_kuzu_schema_semantic_ontology.py` (CLAUDE.md: "restoring
+    # the ontology means emitting a snapshot from those literals, not re-deriving
+    # it"). They are HAND-SEEDED AND THIN — 8 classes, 4 roots each, 32 roots total.
+    #
+    # So we expand them the one way that is not just more hand-listing: through
+    # ReVo's CURATED SYNONYM edges. If `fond` is in `kreado-26`, its ReVo synonyms
+    # are creation verbs too — that is a lexicographer's judgement, not ours.
+    #
+    # It is still thin, and the coverage number below says exactly how thin. A null
+    # result in the A/B must be read against it: a signal present on 2% of clauses
+    # cannot move a metric, and that is a fact about COVERAGE, not about whether
+    # verb class is useful.
+    VERB_CLASSES = {
+        'kreado-26':      ['fond', 'kre', 'produk', 'far'],
+        'movo-51':        ['ir', 'ven', 'kur', 'voj'],
+        'pensado-29':     ['pens', 'sci', 'kred', 'komprend'],
+        'perceptado-30':  ['vid', 'aŭd', 'sent', 'gust'],
+        'emocio-31':      ['am', 'ĝoj', 'tim', 'trist'],
+        'komunikado-37':  ['dir', 'parol', 'demand', 'respond'],
+        'vivo-48':        ['viv', 'mort', 'nask', 'kresk'],
+        'profesio-50':    ['labor', 'instru', 'kurac', 'vend'],
+    }
+    vk: dict[str, str] = {}
+    for klaso, roots in VERB_CLASSES.items():
+        for r in roots:
+            vk.setdefault(r, klaso)
+    seeded = len(vk)
+    # one hop through ReVo's curated synonyms
+    for r, klaso in list(vk.items()):
+        for s in onto.synonyms(r) or []:
+            vk.setdefault(s, klaso)
+    for r, klaso in vk.items():
+        edges.append(('APARTENAS_AL_VERBA_KLASO', r, klaso))
+
+    con.executemany('INSERT INTO ontology_edges VALUES (?,?,?)', edges)
     con.execute('CREATE INDEX idx_onodes_radiko ON ontology_nodes(radiko)')
-    con.execute('CREATE INDEX idx_oedges_de ON ontology_edges(de)')
+    con.execute('CREATE INDEX idx_oedges_radiko ON ontology_edges(radiko)')
 
     print(f'  ontology_nodes : {len(nodes):,} rows   (was 0)')
     print(f'  ontology_edges : {len(edges):,} rows   (was 0)')
     for k in ENTITY_CLASSES:
         print(f'    {k:10s} {len(onto.members(k)):5,} members')
+    print(f'\n  APARTENAS_AL_VERBA_KLASO : {len(vk)} roots in {len(VERB_CLASSES)} classes')
+    print(f'    {seeded} hand-seeded (the surviving literals)')
+    print(f'    {len(vk) - seeded} added via ReVo synonyms (curated, not hand-listed)')
 
     # ---- entity_facts ----------------------------------------------------
     # The table BiographyFormatStage reads and CRASHES on, because it does not

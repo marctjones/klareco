@@ -145,12 +145,28 @@ def main() -> None:
     print(f'  doc_count: {doc_count:,}', flush=True)
     print(f'  segments:  {n_segments}', flush=True)
 
+    # THE GATE MUST EXPECT WHAT THE INDEXER WAS ASKED TO BUILD.
+    #
+    # This compared `doc_count` against `total` — every row in the store. But the
+    # indexer DELIBERATELY EXCLUDES the R6 redirect stubs (see the junk_clause
+    # above: the store keeps them for ontology work, the index must not have them).
+    # So the gate expected a number the indexer was never going to reach, and it
+    # FAILED A PERFECTLY GOOD BUILD:
+    #
+    #     doc_count 4,629,514 != expected 4,630,679      <- off by exactly n_junk
+    #
+    # The script even PRINTS `R6 filter: excluding 1,165 stubs` twenty lines up. It
+    # knew the number and then did not subtract it. A gate that cries wolf is worse
+    # than no gate: the next person to see it will assume it is noise and force the
+    # build through, which is precisely when it will be right.
+    indexable = total - n_junk
     if args.limit:
-        expected = min(total, args.limit)
+        expected = min(indexable, args.limit)
     else:
-        expected = total
+        expected = indexable
     if doc_count != expected:
-        fails.append(f'doc_count {doc_count} != expected {expected}')
+        fails.append(f'doc_count {doc_count} != expected {expected} '
+                     f'(store {total:,} - {n_junk:,} R6 stubs)')
     if n_segments < 1:
         fails.append(f'no segments')
 

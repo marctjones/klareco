@@ -157,7 +157,17 @@ def main() -> int:
     # ---- 5. THE CHECK NO SCHEMA CAN MAKE --------------------------------
     #        Does the STORED AST agree with a FRESH parse?
     print('\n  STORED AST vs FRESH PARSE (the check no schema can make)')
-    from klareco.parser import parse
+    # ⚠️ THE BLOB IS COMPACT (#835). `compact_ast` stores `vortoj` once and makes
+    # everything else an ID reference — `subjekto_id`, not `subjekto` — because the
+    # same token dict was being serialised three times and took the corpus from
+    # 20 GB to 101 GB.
+    #
+    # This check used to read `stored['subjekto']`, a key that no longer exists. It
+    # therefore compared None against a real radiko on EVERY row and reported
+    # "29.2% agreement — the store was built with a DIFFERENT parser", which is the
+    # single scariest thing this script can say. It was the VALIDATOR that was out
+    # of date, not the store. Expand before comparing.
+    from klareco.parser import expand_ast, parse
     rows = con.execute(
         f'SELECT text, ast_json FROM sentences USING SAMPLE {args.sample} ROWS '
         f'(reservoir, 42)').fetchall()
@@ -166,7 +176,7 @@ def main() -> int:
         if not text or not aj:
             continue
         try:
-            stored = json.loads(aj)
+            stored = expand_ast(json.loads(aj))
             fresh = parse(text)
         except Exception:
             continue

@@ -87,7 +87,30 @@ il lo gli un una di che sono per con
 """.split())
 
 # `ALIDIREKTI` is the Esperanto redirect; `ALIDIREKTU` (imperative) also occurs.
-_REDIRECT_RE = re.compile(r'^\s*#?\s*(REDIRECT|ALIDIREKTI|ALIDIREKTU)\b', re.I)
+# ⚠️ NO `\b` HERE, AND THAT IS THE POINT.
+#
+# This used to end in `\b` (a word boundary), which is the obvious way to write it
+# and is WRONG for this data. The Wikipedia extractor GLUES the keyword to the
+# title when it strips the `[[...]]`:
+#
+#     RedirectKantono Apencelo Ekstera
+#     ALIDIREKTUPlena Manlibro de Esperanta Gramatiko
+#
+# `Redirect` is followed by `K` — both word characters, so there is NO boundary,
+# so the regex never fired and **5,247 redirect stubs walked straight through the
+# quality gate** into the store. The one place a word boundary looks obviously
+# correct is the one place the data does not have one.
+_REDIRECT_RE = re.compile(r'^\s*#?\s*(REDIRECT|ALIDIREKTI|ALIDIREKTU)', re.I)
+
+# Markup we could not STRIP is not prose. `strip_markup` uses matched-bracket
+# regexes, so it cannot touch UNCLOSED markup:
+#
+#     la [[Karikaturmuseum|Karikaturmusuem (karikaturmuzeo) en Krems,
+#     {{Taksonomio |nomo = |koloro = |dosiero = bristol.zoo...
+#
+# 856 rows kept their brackets and reached the store. If a bracket survives the
+# stripper, the row is a broken template, not a sentence.
+_RESIDUAL_MARKUP_RE = re.compile(r'\[\[|\]\]|\{\{|\}\}')
 
 # Markup is STRIPPED, not used to delete the row. `{{DISPLAYTITLE: …}} (19215)
 # 1993 FS29 estas asteroido …` carries a real Esperanto sentence — dropping it
@@ -196,6 +219,11 @@ def assess(text: str, *, min_eo_score: float = 0.35) -> Verdict:
     # would discard the article with the template.
     text = strip_markup(text)
     if not text or _TABLE_ROW_RE.match(text):
+        return Verdict(False, 'wiki_markup', 0.0, '')
+    # …and if a bracket SURVIVED the stripper, the markup was unclosed. That is a
+    # broken template, not a sentence. Stripping is for markup we can remove
+    # cleanly; markup we cannot remove is a reason to drop the row.
+    if _RESIDUAL_MARKUP_RE.search(text):
         return Verdict(False, 'wiki_markup', 0.0, '')
 
     score = esperanto_score(text)

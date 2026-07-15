@@ -959,6 +959,43 @@ def main() -> None:
         n_correct = sum(1 for row in rows if row.get(f'{r.name}_correct'))
         print(f'{r.name:<22s} {n_r1:>5d} {n_r5:>5d} {n_r10:>5d} '
               f'{mrr:>6.3f} {100*n_correct/max(1,len(rows)):>5.1f}%')
+
+    # ── Is any delta REAL? Paired bootstrap CI vs the BM25 baseline. ─────────
+    # Point MRRs on a small set are NOT evidence (#726). Two rerankers scored on
+    # the same questions are a PAIRED comparison: resample the QUESTIONS,
+    # recompute both MRRs, and look at the DIFFERENCE distribution. A 95% CI that
+    # straddles 0 means indistinguishable — however far apart the points look.
+    # This is the machinery that decides whether a reranker clears the gate.
+    from klareco.eval.bootstrap import paired_delta_ci
+    ranks_by_name = {r.name: [row.get(f'{r.name}_rank') for row in rows]
+                     for r in enabled}
+    BASE = 'A_bm25_baseline'
+    ci_vs_baseline: dict = {}
+    if BASE in ranks_by_name and len(rows) > 1:
+        print(f'\n  Paired bootstrap 95% CI of MRR delta vs {BASE} '
+              f'(N={len(rows)}, 10k resamples):')
+        print(f'  {"reranker":<22s} {"delta":>8s} {"95% CI":>19s}  verdict')
+        print('  ' + '-' * 62)
+        for r in enabled:
+            if r.name == BASE:
+                continue
+            d = paired_delta_ci(ranks_by_name[r.name], ranks_by_name[BASE])
+            ci_vs_baseline[r.name] = d
+            verdict = ('REAL — CI excludes 0' if d['significant']
+                       else 'inside the noise')
+            print(f'  {r.name:<22s} {d["delta"]:>+8.4f} '
+                  f'[{d["lo"]:>+7.4f},{d["hi"]:>+7.4f}]  {verdict}')
+        # The comparison the #713 A/B actually cares about: arcs vs frames.
+        if 'J_tree_aware' in ranks_by_name and 'I_clause_aware' in ranks_by_name:
+            dji = paired_delta_ci(ranks_by_name['J_tree_aware'],
+                                  ranks_by_name['I_clause_aware'])
+            ci_vs_baseline['J_tree_aware__vs__I_clause_aware'] = dji
+            verdict = ('REAL — CI excludes 0' if dji['significant']
+                       else 'INDISTINGUISHABLE')
+            print(f'\n  J_tree_aware − I_clause_aware: {dji["delta"]:>+8.4f} '
+                  f'[{dji["lo"]:>+7.4f},{dji["hi"]:>+7.4f}]  p={dji["p"]:.3f}  '
+                  f'{verdict}')
+
     # Optional LLM baseline row (no rank metrics — LLM gives a direct
     # answer, not a candidate list). Show '-' for R@K / MRR columns and
     # only the answer accuracy + latency.
@@ -1013,6 +1050,10 @@ def main() -> None:
         'top_k':            args.top_k,
         'candidate_pool':   args.candidate_pool,
         'rerankers':        per_reranker_metrics,
+        # Paired bootstrap CIs of MRR delta vs BM25 (and J-vs-I) — a reranker
+        # only clears the gate if its CI EXCLUDES 0. Without this a run reports
+        # point MRRs that a small N cannot support (#726).
+        'ci_vs_baseline':   ci_vs_baseline,
         'skipped':          skipped,
     }
     if args.output_summary:

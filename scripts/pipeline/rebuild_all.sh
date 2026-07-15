@@ -110,6 +110,12 @@ step "7b   CLAUSE TABLE + ONTOLOGY — read ast_json, NO reparse"
 python scripts/index/build_clause_table.py
 python scripts/index/load_ontology.py
 
+step "7c   DEPENDENCY ARCS — index the TREE ITSELF (#713/#836)"
+# The store DROP above takes dependency_arcs with it, and nothing else rebuilds
+# it — leaving J_tree_aware silently reading an empty table. Rebuild it here so
+# the store is internally consistent: every ast_json has its arcs indexed.
+python scripts/index/build_dependency_arcs.py --apply
+
 step "8/8  WHOOSH — BM25 over the CLEAN store"
 python scripts/index/rebuild_whoosh_from_duckdb.py
 

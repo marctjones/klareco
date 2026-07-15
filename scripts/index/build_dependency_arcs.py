@@ -93,6 +93,12 @@ def main() -> int:
     ap.add_argument('--apply', action='store_true')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--batch', type=int, default=200_000)
+    ap.add_argument('--resume', action='store_true',
+                    help='keep an existing dependency_arcs table and continue '
+                         'after the last sid present (kill-resilient). Default '
+                         'is a fresh DROP + full rebuild.')
+    ap.add_argument('--fresh', action='store_true',
+                    help='force a fresh DROP + rebuild even if a table exists')
     args = ap.parse_args()
     if not args.apply:
         args.dry_run = True
@@ -101,31 +107,53 @@ def main() -> int:
     total = con.execute('SELECT count(*) FROM sentences').fetchone()[0]
     print(f'  {total:,} sentences\n')
 
-    if not args.dry_run:
-        con.execute('DROP TABLE IF EXISTS dependency_arcs')
-        con.execute("""
+    # ── RESUME vs FRESH ─────────────────────────────────────────────────────
+    # The build kept getting killed near the end and every fresh run redoes the
+    # whole DROP+rebuild (~30 min). Keyset resume makes a kill cost nothing:
+    # continue after the last sid already indexed. Safe because each batch is one
+    # atomic INSERT — max(sid) reflects only fully-committed batches, and re-
+    # scanning a handful of trailing zero-arc sentences produces no duplicates.
+    CREATE_SQL = """
             CREATE TABLE dependency_arcs (
               sid          BIGINT,
               kapo_radiko  VARCHAR,   -- the HEAD's root
               rolo         VARCHAR,   -- the relation
               dep_radiko   VARCHAR    -- the DEPENDENT's root
-            )""")
+            )"""
+    cursor = -1  # keyset: process sids strictly greater than this
+    if not args.dry_run:
+        exists = con.execute(
+            "SELECT count(*) FROM information_schema.tables "
+            "WHERE table_name = 'dependency_arcs'").fetchone()[0]
+        if args.resume and not args.fresh and exists:
+            n_existing, max_sid = con.execute(
+                'SELECT count(*), max(sid) FROM dependency_arcs').fetchone()
+            cursor = max_sid if max_sid is not None else -1
+            print(f'  RESUME: {n_existing or 0:,} arcs already present; '
+                  f'continuing after sid {cursor:,}\n')
+        else:
+            con.execute('DROP TABLE IF EXISTS dependency_arcs')
+            con.execute(CREATE_SQL)
 
     rel_hist: collections.Counter = collections.Counter()
-    n_arcs = 0
-    offset = 0
-    limit = total if not args.dry_run else min(total, 50_000)
+    n_arcs = 0                 # arcs WRITTEN this run
+    processed = 0              # sentences PROCESSED this run
+    dry_cap = 50_000 if args.dry_run else None
 
-    while offset < limit:
-        # ⚠️ take min(batch, remaining). Fetching a full 200k batch under a 50k
-        # dry-run limit counted 200k sentences' arcs and divided by 50k — reporting
-        # 68.5 arcs/sentence for sentences that have about 17.
-        take = min(args.batch, limit - offset)
+    while True:
+        take = args.batch
+        if dry_cap is not None:
+            take = min(take, dry_cap - processed)
+            if take <= 0:
+                break
+        # keyset pagination — WHERE sid > cursor is O(log n) via the sid index,
+        # unlike OFFSET which re-scans every skipped row on a 4.6M-row table.
         rows = con.execute(
-            f'SELECT sid, ast_json FROM sentences ORDER BY sid '
-            f'LIMIT {take} OFFSET {offset}').fetchall()
+            'SELECT sid, ast_json FROM sentences WHERE sid > ? '
+            'ORDER BY sid LIMIT ?', [cursor, take]).fetchall()
         if not rows:
             break
+        cursor = rows[-1][0]
         batch = []
         for sid, aj in rows:
             if not aj:
@@ -165,11 +193,12 @@ def main() -> int:
             con.register('_arc_batch', df)
             con.execute('INSERT INTO dependency_arcs SELECT * FROM _arc_batch')
             con.unregister('_arc_batch')
-        offset += take
-        if offset % 200_000 == 0:
-            print(f'    …{offset:,} sentences, {n_arcs:,} arcs', flush=True)
+        processed += len(rows)
+        if processed % 200_000 == 0:
+            print(f'    …{processed:,} this run (sid {cursor:,}), '
+                  f'{n_arcs:,} arcs', flush=True)
 
-    seen = min(offset, limit)
+    seen = processed
     print(f'  arcs                : {n_arcs:,}')
     print(f'  arcs / sentence     : {n_arcs / max(seen, 1):.1f}\n')
     print('  RELATION HISTOGRAM — a table that is 90% `dep` carries no signal,')
@@ -182,10 +211,15 @@ def main() -> int:
         print(f'  projected full size: ~{int(n_arcs / max(seen, 1) * total):,} arcs')
         return 0
 
-    con.execute('CREATE INDEX idx_arcs_sid ON dependency_arcs(sid)')
-    con.execute('CREATE INDEX idx_arcs_head ON dependency_arcs(kapo_radiko)')
-    con.execute('CREATE INDEX idx_arcs_dep ON dependency_arcs(dep_radiko)')
-    print('\n  ✓ dependency_arcs built and indexed.')
+    con.execute('CREATE INDEX IF NOT EXISTS idx_arcs_sid ON dependency_arcs(sid)')
+    con.execute('CREATE INDEX IF NOT EXISTS idx_arcs_head ON dependency_arcs(kapo_radiko)')
+    con.execute('CREATE INDEX IF NOT EXISTS idx_arcs_dep ON dependency_arcs(dep_radiko)')
+    total_arcs, covered = con.execute(
+        'SELECT count(*), count(DISTINCT sid) FROM dependency_arcs').fetchone()
+    print(f'\n  ✓ dependency_arcs built and indexed.')
+    print(f'    total arcs in table : {total_arcs:,}  '
+          f'(this run wrote {n_arcs:,})')
+    print(f'    sentences covered   : {covered:,} / {total:,}')
     return 0
 
 

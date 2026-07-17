@@ -128,7 +128,7 @@ python -m pytest --cov=klareco                  # with coverage
 | `16RULES.MD` | Esperanto grammar specification (reference) |
 | `docs/VERSION_COMPATIBILITY.md` | Deferred v3.0 model-retraining plan (for when training resumes) |
 | `docs/QA_TEST_SET_QUALITY_STANDARD.md` | 15 rules (R1-R15) + 8 gate stages a Q&A test set must pass before it is fit to evaluate the system |
-| `docs/QA_TEST_SET_BUILD_PLAN.md` | Phase A harvest → Phase B generate → Phase C freeze for `capability_100` and `trivia_real_50` |
+| Gold Q&A pipeline | Automated OpenTDB/corpus → Claude-translate/generate → parser+coverage gates → Claude answerability judge → gold with source sids. See EPIC #840 (milestones #20–#23); scripts under `scripts/qa/`. |
 
 GitHub issues are the source of truth for in-flight work — see EPIC #713 and
 the project board.

@@ -48,28 +48,11 @@ fi
 log "STEP 3/5: Rebuilding Whoosh index..."
 python scripts/index/build_whoosh_index.py 2>&1 | tee -a "$MASTER_LOG" || log "  Whoosh build failed/already current"
 
-# Step 4: Rebuild synthetic test set with new dict coverage
-log "STEP 4/5: Rebuilding synthetic WHO test set..."
-python scripts/eval/build_synthetic_who_test_set.py \
-    --target-size 200 \
-    --output data/test_sets/synthetic_who_active_v2.jsonl 2>&1 | tee -a "$MASTER_LOG"
-log "  test set built"
-
-# Step 5: Run eval (against the fresh test set + fresh Kuzu)
-log "STEP 5/5: Running eval at top_k=100..."
-python -u scripts/eval/evaluate_extractive_qa.py \
-    --test-set data/test_sets/synthetic_who_active_v2.jsonl \
-    --top-k 100 --workers 1 \
-    --output "$EVAL_OUT" 2>&1 | tee -a "$MASTER_LOG"
-log "  eval done → $EVAL_OUT"
-
-# Compare with prior baseline
-log "COMPARING with baseline..."
-python scripts/eval/compare_eval_results.py \
-    data/eval_results/local_synth_parser_fixes_20260506_233055.json \
-    "$EVAL_OUT" \
-    --label-baseline "PRE-REPARSE" \
-    --label-new "POST-REPARSE" 2>&1 | tee -a "$MASTER_LOG"
+# Q&A test-set building + eval is DECOUPLED from the reparse. The gold QA set is a
+# STABLE benchmark (a ruler), not something to regenerate on every reparse. It is
+# built and run by the automated, LLM-judged pipeline under scripts/qa/ (EPIC #840).
+# The old parser-derived build_synthetic_who_test_set.py was removed 2026-07-17.
+log "Q&A eval is separate now: run scripts/qa/qa_eval_*.py against data/test_sets/qa_gold_v*.jsonl"
 
 log "=== POST-REPARSE PIPELINE DONE ==="
 log "Master log: $MASTER_LOG"

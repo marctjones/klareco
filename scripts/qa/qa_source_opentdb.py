@@ -62,6 +62,20 @@ _CATEGORIES = {
 }
 
 
+# Multiple-choice framing that has no standalone answer (#844). "Which of these
+# is NOT a berry?" needs the options to make sense, and no corpus sentence asserts
+# a negative — these ALWAYS fail the answerability check downstream, so drop them
+# at the source to spend translation budget only on answerable questions.
+_MC_MARKERS = ('which of the following', 'which of these', 'which one of',
+               'of the following', 'of these', ' not ', ' not?', ' except',
+               'all of the', 'none of the')
+
+
+def _is_mc_framed(en_question: str) -> bool:
+    q = ' ' + en_question.lower()
+    return any(m in q for m in _MC_MARKERS)
+
+
 def fetch_opentdb(amount: int, category: int | None = None,
                   difficulty: str | None = None) -> list[dict]:
     url = f'https://opentdb.com/api.php?amount={min(amount, 50)}&type=multiple'
@@ -73,8 +87,11 @@ def fetch_opentdb(amount: int, category: int | None = None,
         data = json.loads(r.read().decode())
     out = []
     for q in data.get('results', []):
+        enq = html.unescape(q['question'])
+        if _is_mc_framed(enq):        # drop unanswerable multiple-choice framing
+            continue
         out.append({
-            'en_question': html.unescape(q['question']),
+            'en_question': enq,
             'en_answer': html.unescape(q['correct_answer']),
             'category': q.get('category'), 'difficulty': q.get('difficulty'),
         })

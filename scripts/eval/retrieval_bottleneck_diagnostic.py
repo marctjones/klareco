@@ -93,7 +93,8 @@ def _gold_rank(searcher, qp, question: str, gold_sid: str, limit: int):
     return None
 
 
-def _report(name: str, ranks: list, max_n: int, no_gold: int, by_type: dict):
+def _report(name: str, ranks: list, max_n: int, no_gold: int, by_type: dict,
+            by_band: dict = None):
     n = len(ranks)
     print(f'\n{"=" * 66}\n  {name}   ({n} scored, {no_gold} without gold id)\n{"=" * 66}')
     if not n:
@@ -150,6 +151,16 @@ def _report(name: str, ranks: list, max_n: int, no_gold: int, by_type: dict):
             print(f'    {qt:14s} n={len(rs):<4d}  rerankable={rr:<4d} '
                   f'already-R1={a1:<4d} miss={m}')
 
+    if by_band:
+        print('\n  BY FROZEN DIFFICULTY BAND  (current recall@5 / recall@50):')
+        order = ['trivial', 'rerankable', 'deep', 'unknown']
+        for band in [b for b in order if b in by_band]:
+            rs = by_band[band]
+            r5 = sum(1 for r in rs if r is not None and r <= 5)
+            r50 = sum(1 for r in rs if r is not None and r <= 50)
+            print(f'    {band:12s} n={len(rs):<4d}  R@5={r5/max(len(rs),1):5.0%}  '
+                  f'R@50={r50/max(len(rs),1):5.0%}')
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[1])
@@ -167,6 +178,7 @@ def main() -> int:
             ranks: list = []
             no_gold = 0
             by_type: dict = collections.defaultdict(list)
+            by_band: dict = collections.defaultdict(list)
             with open(ts, encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
@@ -182,7 +194,9 @@ def main() -> int:
                     r = _gold_rank(srch, qp, question, str(gold), args.max_n)
                     ranks.append(r)
                     by_type[q.get('question_type', '?')].append(r)
-            _report(Path(ts).name, ranks, args.max_n, no_gold, dict(by_type))
+                    by_band[q.get('difficulty_band', 'unknown')].append(r)
+            _report(Path(ts).name, ranks, args.max_n, no_gold, dict(by_type),
+                    dict(by_band))
     return 0
 
 

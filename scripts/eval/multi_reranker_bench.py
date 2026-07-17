@@ -921,6 +921,9 @@ def main() -> None:
             'id':       q.get('id', f'q{q_idx}'),
             'question': question,
             'expected': expected,
+            # frozen difficulty from set construction (question-only BM25 gold rank)
+            'difficulty_band': q.get('difficulty_band', 'unknown'),
+            'bm25_gold_rank':  q.get('bm25_gold_rank'),
         }
         for r in enabled:
             res = r.rerank(question, q_ast, candidates, conn, top_k=args.top_k)
@@ -959,6 +962,32 @@ def main() -> None:
         n_correct = sum(1 for row in rows if row.get(f'{r.name}_correct'))
         print(f'{r.name:<22s} {n_r1:>5d} {n_r5:>5d} {n_r10:>5d} '
               f'{mrr:>6.3f} {100*n_correct/max(1,len(rows)):>5.1f}%')
+
+    # ── BY DIFFICULTY BAND — how each reranker does on trivial vs rerankable vs
+    #    deep questions. This is where a reranker EARNS its keep: it can only help
+    #    where the gold is not already at rank 1. Reported per band + persisted.
+    import collections as _c
+    by_band: dict = {}
+    _BAND_ORDER = ['trivial', 'rerankable', 'deep', 'unknown']
+    bands_present = [b for b in _BAND_ORDER
+                     if any(row.get('difficulty_band') == b for row in rows)]
+    for band in bands_present:
+        brows = [row for row in rows if row.get('difficulty_band') == band]
+        print(f'\n  ── difficulty = {band}  (n={len(brows)}) ──')
+        print(f'  {"reranker":<22s} {"R@1":>5s} {"R@5":>5s} {"MRR":>6s} {"ans%":>6s}')
+        by_band[band] = {}
+        for r in enabled:
+            ranks = [row.get(f'{r.name}_rank') for row in brows]
+            n1 = sum(1 for x in ranks if x == 1)
+            n5 = sum(1 for x in ranks if x is not None and x <= 5)
+            mrr = (sum(1.0 / x for x in ranks if x is not None) / len(ranks)
+                   if ranks else 0)
+            nc = sum(1 for row in brows if row.get(f'{r.name}_correct'))
+            by_band[band][r.name] = {'n': len(brows), 'recall_at_1': n1,
+                                     'recall_at_5': n5, 'mrr': round(mrr, 4),
+                                     'answer_accuracy': round(100 * nc / max(1, len(brows)), 2)}
+            print(f'  {r.name:<22s} {n1:>5d} {n5:>5d} {mrr:>6.3f} '
+                  f'{100*nc/max(1,len(brows)):>5.1f}%')
 
     # ── Is any delta REAL? Paired bootstrap CI vs the BM25 baseline. ─────────
     # Point MRRs on a small set are NOT evidence (#726). Two rerankers scored on
@@ -1050,6 +1079,9 @@ def main() -> None:
         'top_k':            args.top_k,
         'candidate_pool':   args.candidate_pool,
         'rerankers':        per_reranker_metrics,
+        # per-reranker metrics sliced by frozen difficulty band (trivial/rerankable/
+        # deep) — shows WHERE a reranker helps, tracked across improvements.
+        'by_difficulty_band': by_band,
         # Paired bootstrap CIs of MRR delta vs BM25 (and J-vs-I) — a reranker
         # only clears the gate if its CI EXCLUDES 0. Without this a run reports
         # point MRRs that a small N cannot support (#726).

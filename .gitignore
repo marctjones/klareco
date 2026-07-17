@@ -13,8 +13,12 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Data files (not in git - too large)
-data/
+# Data files (not in git - too large) — EXCEPT the QA test sets, which are
+# small and belong under version control so they can be reviewed/reproduced.
+data/*
+!data/test_sets/
+data/test_sets/*
+!data/test_sets/*.jsonl
 models/
 logs/
 results/

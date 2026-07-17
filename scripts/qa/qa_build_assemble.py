@@ -36,7 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from klareco.eval.qa_schema import validate
+from klareco.eval.qa_schema import validate, answer_verbatim
 
 
 def main() -> int:
@@ -79,6 +79,7 @@ def main() -> int:
             while uid in seen_ids:
                 uid = f'{base}-{k}'; k += 1
             seen_ids.add(uid); row['id'] = uid
+            row['answer_verbatim'] = answer_verbatim(row)
             row.setdefault('created', today)
             gold.append(row)
         print(f'  {p.name}: {n_in} rows in')

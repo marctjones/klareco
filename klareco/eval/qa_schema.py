@@ -60,13 +60,14 @@ def validate(row: Dict) -> Tuple[bool, List[str]]:
     if row.get('source') is not None and row['source'] not in _SOURCES:
         errs.append(f'source not in {sorted(_SOURCES)}: {row["source"]!r}')
 
-    # answer must appear verbatim in the source sentence (R9)
+    # NOTE: answer-verbatim-in-source is NOT a hard reject. A question the judge
+    # confirmed is answerable stays valid even if the answer is phrased differently
+    # in the sentence (spelling/translation variant, paraphrase). It is recorded as
+    # the `answer_verbatim` flag (see answer_verbatim()) so extraction scoring can
+    # treat the two cases appropriately; retrieval/reranking use every question.
     ans = (row.get('expected_answer') or '').lower()
-    src = (row.get('source_sentence_text') or '').lower()
-    if ans and src and ans not in src:
-        errs.append('expected_answer not verbatim in source_sentence_text (R9)')
 
-    # the answer must not sit inside the question (would give it away)
+    # the answer must not sit inside the QUESTION (would give it away) — hard reject.
     if ans and ans in (row.get('question') or '').lower():
         errs.append('expected_answer appears in the question')
 
@@ -79,6 +80,14 @@ def validate(row: Dict) -> Tuple[bool, List[str]]:
         errs.append(f'difficulty_band not in {sorted(_BANDS)}: {band!r}')
 
     return (not errs), errs
+
+
+def answer_verbatim(row) -> bool:
+    """Does the expected answer appear literally in the source sentence? Extraction
+    scoring can require this; retrieval/reranking do not (they only need the gold sid)."""
+    ans = (row.get('expected_answer') or '').lower()
+    src = (row.get('source_sentence_text') or '').lower()
+    return bool(ans) and ans in src
 
 
 def band_for(rank) -> str:
@@ -98,7 +107,9 @@ def _selftest():
             'source_sentence_text': 'Zamenhof verkis la libron.', 'source': 'corpus'}
     ok, e = validate(good); assert ok, e
     ok, e = validate({**good, 'question': 'Kiu verkis la libron'}); assert not ok  # no ?
-    ok, e = validate({**good, 'expected_answer': 'Kabe'}); assert not ok           # not verbatim
+    # non-verbatim answer is VALID (just flagged), not a reject:
+    ok, e = validate({**good, 'expected_answer': 'Kabe'}); assert ok, e
+    assert answer_verbatim(good) and not answer_verbatim({**good, 'expected_answer': 'Kabe'})
     ok, e = validate({**good, 'question': 'Kiu estas Zamenhof?'}); assert not ok   # answer in q
     ok, e = validate({**good, 'question_type': 'WHO'}); assert not ok              # bad type
     assert band_for(None) == 'miss' and band_for(1) == 'trivial' and band_for(10) == 'rerankable'

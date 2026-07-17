@@ -76,26 +76,55 @@ def _is_mc_framed(en_question: str) -> bool:
     return any(m in q for m in _MC_MARKERS)
 
 
+# OpenTDB rate limit: each IP may hit the API once per 5 seconds. We pace to a
+# small margin above that and back off hard on a rate-limit response_code.
+_API = 'https://opentdb.com/api.php'
+_TOKEN_API = 'https://opentdb.com/api_token.php'
+_MIN_INTERVAL = 5.5   # seconds between requests (documented minimum is 5)
+_RATE_BACKOFF = 15    # seconds to wait if the API reports response_code 5
+
+
+def _get(url: str, timeout: int = 30) -> dict:
+    with urllib.request.urlopen(url, timeout=timeout) as r:
+        return json.loads(r.read().decode())
+
+
+def request_token() -> str | None:
+    """A session token makes OpenTDB never re-serve a question until exhausted —
+    avoids duplicates when accumulating across runs."""
+    try:
+        d = _get(f'{_TOKEN_API}?command=request')
+        return d.get('token') if d.get('response_code') == 0 else None
+    except Exception:
+        return None
+
+
 def fetch_opentdb(amount: int, category: int | None = None,
-                  difficulty: str | None = None) -> list[dict]:
-    url = f'https://opentdb.com/api.php?amount={min(amount, 50)}&type=multiple'
+                  difficulty: str | None = None,
+                  token: str | None = None) -> tuple[list[dict], int]:
+    """Returns (results, response_code). Does NOT sleep — the caller paces requests.
+    response_code: 0 ok · 1 no results · 3/4 token issue · 5 rate-limited."""
+    url = f'{_API}?amount={min(amount, 50)}&type=multiple'
     if category:
         url += f'&category={category}'
     if difficulty:
         url += f'&difficulty={difficulty}'
-    with urllib.request.urlopen(url, timeout=30) as r:
-        data = json.loads(r.read().decode())
+    if token:
+        url += f'&token={token}'
+    data = _get(url)
+    code = data.get('response_code', -1)
     out = []
-    for q in data.get('results', []):
-        enq = html.unescape(q['question'])
-        if _is_mc_framed(enq):        # drop unanswerable multiple-choice framing
-            continue
-        out.append({
-            'en_question': enq,
-            'en_answer': html.unescape(q['correct_answer']),
-            'category': q.get('category'), 'difficulty': q.get('difficulty'),
-        })
-    return out
+    if code == 0:
+        for q in data.get('results', []):
+            enq = html.unescape(q['question'])
+            if _is_mc_framed(enq):    # drop unanswerable multiple-choice framing
+                continue
+            out.append({
+                'en_question': enq,
+                'en_answer': html.unescape(q['correct_answer']),
+                'category': q.get('category'), 'difficulty': q.get('difficulty'),
+            })
+    return out, code
 
 
 _TR_PROMPT = """Translate these English trivia items into natural, grammatical, PURE Esperanto.
@@ -135,18 +164,34 @@ def main() -> int:
     ap.add_argument('--out', default='data/staging/opentdb_eo.jsonl')
     args = ap.parse_args()
 
-    # fetch across categories (OpenTDB caps 50/request + rate-limits ~1/5s)
+    # fetch across categories (OpenTDB caps 50/request + rate-limits 1/5s per IP)
+    token = request_token()
     fetched, per_cat = [], max(1, args.amount // len(_CATEGORIES))
+    _last = [0.0]
+
+    def _pace():
+        dt = time.monotonic() - _last[0]
+        if dt < _MIN_INTERVAL:
+            time.sleep(_MIN_INTERVAL - dt)
+        _last[0] = time.monotonic()
+
     for cid, cname in _CATEGORIES.items():
         if len(fetched) >= args.amount:
             break
+        _pace()
         try:
-            got = fetch_opentdb(per_cat, category=cid)
+            got, code = fetch_opentdb(per_cat, category=cid, token=token)
+            if code == 5:                      # rate-limited: back off, retry once
+                print(f'  rate-limited on {cname}; backing off {_RATE_BACKOFF}s',
+                      flush=True)
+                time.sleep(_RATE_BACKOFF); _pace()
+                got, code = fetch_opentdb(per_cat, category=cid, token=token)
+            if code in (3, 4):                 # token exhausted/invalid: reset it
+                token = request_token()
             fetched.extend(got)
-            print(f'  fetched {len(got):2d} from {cname}', flush=True)
+            print(f'  fetched {len(got):2d} from {cname} (code {code})', flush=True)
         except Exception as e:
             print(f'  fetch failed for {cname}: {e}', flush=True)
-        time.sleep(5)  # respect OpenTDB rate limit
     fetched = fetched[:args.amount]
     print(f'\n  {len(fetched)} English trivia fetched\n  translating via claude CLI…')
 

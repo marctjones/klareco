@@ -156,69 +156,128 @@ def translate_batch(items: list[dict], model: str | None = None,
     return {str(v['id']): v for v in arr if isinstance(v, dict) and 'id' in v}
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[1])
-    ap.add_argument('--amount', type=int, default=30, help='total EN trivia to fetch')
-    ap.add_argument('--batch', type=int, default=10, help='items per translate call')
-    ap.add_argument('--model', default=None)
-    ap.add_argument('--out', default='data/staging/opentdb_eo.jsonl')
-    args = ap.parse_args()
+# OpenTDB has category ids 9..32. _CATEGORIES (above) is the corpus-friendly subset.
+_ALL_CATEGORY_IDS = tuple(range(9, 33))
+_FRIENDLY_IDS = frozenset(_CATEGORIES)
 
-    # fetch across categories (OpenTDB caps 50/request + rate-limits 1/5s per IP)
+
+def _pacer(min_interval=_MIN_INTERVAL):
+    last = [0.0]
+
+    def pace():
+        dt = time.monotonic() - last[0]
+        if dt < min_interval:
+            time.sleep(min_interval - dt)
+        last[0] = time.monotonic()
+    return pace
+
+
+def download_all(out_path: str, category_ids=_ALL_CATEGORY_IDS) -> list:
+    """Exhaustively pull EVERY question OpenTDB will serve, using a session token so
+    nothing repeats. MC-filtered. Rate-limit paced with backoff. Steps the request
+    amount down near a category's tail (OpenTDB returns code 1 if it can't fill the
+    full 50), so we don't miss the last few. Writes a raw EN dump; returns the rows."""
     token = request_token()
-    fetched, per_cat = [], max(1, args.amount // len(_CATEGORIES))
-    _last = [0.0]
+    pace = _pacer()
+    rows, seen = [], set()
+    for cid in category_ids:
+        for amount in (50, 10, 1):      # step down to sweep the category tail
+            while True:
+                pace()
+                try:
+                    got, code = fetch_opentdb(amount, category=cid, token=token)
+                except Exception as e:
+                    print(f'  cat {cid} error: {e}', flush=True); code, got = 1, []
+                if code == 5:                       # rate-limited
+                    print(f'  rate-limited; backoff {_RATE_BACKOFF}s', flush=True)
+                    time.sleep(_RATE_BACKOFF); continue
+                if code == 3:                       # token lost
+                    token = request_token(); continue
+                if code in (1, 4) or not got:       # exhausted at this amount
+                    break
+                new = 0
+                for it in got:
+                    it['category_id'] = cid
+                    if it['en_question'] in seen:
+                        continue
+                    seen.add(it['en_question']); rows.append(it); new += 1
+                if new:
+                    print(f'  cat {cid}: +{new}  (total {len(rows)})', flush=True)
+        # category done
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, 'w', encoding='utf-8') as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + '\n')
+    print(f'\n  ✓ downloaded {len(rows)} questions -> {out_path}')
+    return rows
 
-    def _pace():
-        dt = time.monotonic() - _last[0]
-        if dt < _MIN_INTERVAL:
-            time.sleep(_MIN_INTERVAL - dt)
-        _last[0] = time.monotonic()
 
-    for cid, cname in _CATEGORIES.items():
-        if len(fetched) >= args.amount:
-            break
-        _pace()
-        try:
-            got, code = fetch_opentdb(per_cat, category=cid, token=token)
-            if code == 5:                      # rate-limited: back off, retry once
-                print(f'  rate-limited on {cname}; backing off {_RATE_BACKOFF}s',
-                      flush=True)
-                time.sleep(_RATE_BACKOFF); _pace()
-                got, code = fetch_opentdb(per_cat, category=cid, token=token)
-            if code in (3, 4):                 # token exhausted/invalid: reset it
-                token = request_token()
-            fetched.extend(got)
-            print(f'  fetched {len(got):2d} from {cname} (code {code})', flush=True)
-        except Exception as e:
-            print(f'  fetch failed for {cname}: {e}', flush=True)
-    fetched = fetched[:args.amount]
-    print(f'\n  {len(fetched)} English trivia fetched\n  translating via claude CLI…')
-
+def translate_all(rows: list, out_path: str, batch: int, model=None) -> int:
+    """Batch-translate EN rows to Esperanto candidates (batched claude calls)."""
     out = []
-    for i in range(0, len(fetched), args.batch):
-        chunk = fetched[i:i + args.batch]
-        tr = translate_batch(chunk, model=args.model)
+    for i in range(0, len(rows), batch):
+        chunk = rows[i:i + batch]
+        tr = translate_batch(chunk, model=model)
         for k, it in enumerate(chunk):
             v = tr.get(str(k))
             if not v or not v.get('eo_question') or not v.get('eo_answer'):
                 continue
             out.append({
                 'source': 'opentdb.com', 'translator': 'claude-cli',
-                'category': it['category'], 'difficulty': it['difficulty'],
+                'category': it.get('category'), 'difficulty': it.get('difficulty'),
                 'en_question': it['en_question'], 'en_answer': it['en_answer'],
                 'eo_question': v['eo_question'].strip(),
                 'eo_answer': v['eo_answer'].strip(),
                 'question_type': 'KIU',
             })
-        print(f'  translated {min(i+args.batch,len(fetched)):>3d}/{len(fetched)}  '
+        print(f'  translated {min(i+batch,len(rows)):>4d}/{len(rows)}  '
               f'usable {len(out)}', flush=True)
-
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.out, 'w', encoding='utf-8') as f:
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, 'w', encoding='utf-8') as f:
         for r in out:
             f.write(json.dumps(r, ensure_ascii=False) + '\n')
-    print(f'\n  ✓ {len(out)} translated candidates -> {args.out}')
+    print(f'\n  ✓ {len(out)} translated candidates -> {out_path}')
+    return len(out)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[1])
+    ap.add_argument('--download-all', action='store_true',
+                    help='exhaustively pull EVERY OpenTDB question to --raw-out, then stop')
+    ap.add_argument('--raw-out', default='data/staging/opentdb_raw.jsonl',
+                    help='where --download-all writes / --from-raw reads the EN dump')
+    ap.add_argument('--from-raw', metavar='FILE',
+                    help='translate from a cached raw dump instead of fetching')
+    ap.add_argument('--friendly-only', action='store_true', default=True,
+                    help='translate only corpus-friendly categories (default)')
+    ap.add_argument('--all-categories', dest='friendly_only', action='store_false')
+    ap.add_argument('--limit', type=int, default=None, help='cap rows to translate')
+    ap.add_argument('--batch', type=int, default=15, help='items per translate call')
+    ap.add_argument('--model', default=None)
+    ap.add_argument('--out', default='data/staging/opentdb_eo.jsonl')
+    args = ap.parse_args()
+
+    if args.download_all:
+        download_all(args.raw_out)
+        print(f'  next: python scripts/qa/qa_source_opentdb.py --from-raw {args.raw_out}')
+        return 0
+
+    # get the EN rows: from a cached dump, else a one-shot exhaustive download
+    if args.from_raw:
+        rows = [json.loads(l) for l in open(args.from_raw, encoding='utf-8') if l.strip()]
+        print(f'  loaded {len(rows)} rows from {args.from_raw}')
+    else:
+        rows = download_all(args.raw_out)
+
+    if args.friendly_only:
+        rows = [r for r in rows if r.get('category_id', -1) in _FRIENDLY_IDS
+                or (r.get('category') in _CATEGORIES.values())]
+        print(f'  corpus-friendly categories only: {len(rows)} rows')
+    if args.limit:
+        rows = rows[:args.limit]
+
+    print(f'  translating {len(rows)} via claude CLI (batched, {args.batch}/call)…')
+    translate_all(rows, args.out, args.batch, model=args.model)
     print(f'  next: python scripts/qa/qa_gate.py --input {args.out}')
     return 0
 

@@ -8,7 +8,7 @@ DEPENDENCIES: duckdb, whoosh, klareco.rag.duckdb_retriever (_content_terms), cla
 STAGE: Evaluation / test-set construction
 
 Description:
-    The coverage check in build_trivia_bank.py only asks "does the answer WORD
+    The coverage check in qa_gate.py only asks "does the answer WORD
     appear in the corpus" (a LIKE count). That is necessary but NOT sufficient: a
     sentence mentioning `Frago` does not assert that a strawberry is not a berry.
     This is the strong check the user asked for — for each candidate question it:
@@ -25,7 +25,7 @@ Description:
     verified by an independent judge, with a citable source sid.
 
 Usage:
-    python scripts/eval/finalize_trivia_gold.py \
+    python scripts/qa/qa_answerability.py \
         --input data/staging/trivia_bank.jsonl \
         --out   data/test_sets/qa_gold_v1.jsonl --top-k 6
 

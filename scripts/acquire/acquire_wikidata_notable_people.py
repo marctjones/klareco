@@ -3,7 +3,7 @@
 Acquire a Wikidata notable-people name list (for trivia prioritisation).
 
 VERSION: v2.x (DuckDB era)
-COMPATIBLE WITH: build_synthetic_who_test_set.py (--notable consumer)
+COMPATIBLE WITH: (removed synthetic-who builder — the notable-people list is now available for future Wikidata-based QA generation, EPIC 840) (--notable consumer)
 DEPENDENCIES: SPARQLWrapper (already in requirements.txt)
 STAGE: Acquire
 
@@ -19,7 +19,7 @@ Description:
 
 Pipeline Position:
     Wikidata SPARQL → [THIS SCRIPT] → data/wikidata_notable_people.json
-                    → build_synthetic_who_test_set.py --notable ...
+                    → (removed synthetic-who builder — the notable-people list is now available for future Wikidata-based QA generation, EPIC 840) --notable ...
 
 Usage:
     python scripts/acquire/acquire_wikidata_notable_people.py
@@ -40,7 +40,7 @@ Quality Checks:
 
 Last Updated: 2026-05-19
 Author: Claude Code (with Marc Jones)
-See Also: scripts/eval/build_synthetic_who_test_set.py
+See Also: scripts/eval/(removed synthetic-who builder — the notable-people list is now available for future Wikidata-based QA generation, EPIC 840)
 """
 from __future__ import annotations
 

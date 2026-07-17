@@ -62,7 +62,7 @@ import duckdb
 from klareco.parser import parse
 
 
-# Same denylist used in build_synthetic_qa_test_set._COMMON_WORDS_AS_PROPER
+# Same denylist used in the removed synthetic-qa builder denylist
 _COMMON_WORDS_AS_PROPER = {
     'Kaj', 'Sed', 'Aŭ', 'Do', 'Tamen', 'Tial', 'Ke', 'Ankaŭ',
     'Anstataŭ', 'Krom', 'Malgraŭ', 'Sen', 'Por', 'Antaŭ', 'Post',

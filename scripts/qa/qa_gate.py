@@ -40,7 +40,7 @@ Pipeline Position:
                                        → audit + pipeline eval
 
 Usage:
-    python scripts/eval/build_trivia_bank.py \\
+    python scripts/qa/qa_gate.py \\
         --input  /tmp/trivia_batch_2026-05-20.jsonl \\
         --with-pipeline
 

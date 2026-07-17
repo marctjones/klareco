@@ -3,12 +3,12 @@
 The MISSING upstream: OpenTriviaDB -> Claude-translated Esperanto candidates. (#737)
 
 VERSION: v1.0
-COMPATIBLE WITH: build_trivia_bank.py (produces its --input JSONL)
+COMPATIBLE WITH: qa_gate.py (produces its --input JSONL)
 DEPENDENCIES: network (opentdb.com), the `claude` CLI (headless -p)
 STAGE: Evaluation / test-set construction
 
 Description:
-    build_trivia_bank.py was written to VALIDATE translated trivia against the
+    qa_gate.py was written to VALIDATE translated trivia against the
     parser + DuckDB store, but the step that FETCHES English trivia and TRANSLATES
     it to Esperanto never existed as a script. This is that step. It is the
     circularity-free track: the questions originate OUTSIDE the parser's frame, so
@@ -23,7 +23,7 @@ Description:
       2. TRANSLATE each {question, correct_answer} to natural Esperanto via the
          Claude CLI, rephrasing the question into a proper interrogative
          (Kiu/Kio/Kie/Kiam/Kiom…). Batched.
-      3. WRITE the candidate JSONL that build_trivia_bank.py then validates
+      3. WRITE the candidate JSONL that qa_gate.py then validates
          (parse quality + corpus coverage). Yield is expected LOW — that is the
          point: only questions the corpus can actually answer survive.
 
@@ -34,9 +34,9 @@ Description:
     remove (circularity) is worse than the bias we add (translationese).
 
 Usage:
-    python scripts/eval/build_trivia_from_opentdb.py --amount 30 --out data/staging/opentdb_eo.jsonl
+    python scripts/qa/qa_source_opentdb.py --amount 30 --out data/staging/opentdb_eo.jsonl
     # then:
-    python scripts/eval/build_trivia_bank.py --input data/staging/opentdb_eo.jsonl
+    python scripts/qa/qa_gate.py --input data/staging/opentdb_eo.jsonl
 
 Last Updated: 2026-07-17
 Related Issues: #736, #737
@@ -157,7 +157,7 @@ def main() -> int:
         for r in out:
             f.write(json.dumps(r, ensure_ascii=False) + '\n')
     print(f'\n  ✓ {len(out)} translated candidates -> {args.out}')
-    print(f'  next: python scripts/eval/build_trivia_bank.py --input {args.out}')
+    print(f'  next: python scripts/qa/qa_gate.py --input {args.out}')
     return 0
 
 

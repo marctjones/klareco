@@ -180,34 +180,35 @@ def download_all(out_path: str, category_ids=_ALL_CATEGORY_IDS) -> list:
     token = request_token()
     pace = _pacer()
     rows, seen = [], set()
-    for cid in category_ids:
-        for amount in (50, 10, 1):      # step down to sweep the category tail
-            while True:
-                pace()
-                try:
-                    got, code = fetch_opentdb(amount, category=cid, token=token)
-                except Exception as e:
-                    print(f'  cat {cid} error: {e}', flush=True); code, got = 1, []
-                if code == 5:                       # rate-limited
-                    print(f'  rate-limited; backoff {_RATE_BACKOFF}s', flush=True)
-                    time.sleep(_RATE_BACKOFF); continue
-                if code == 3:                       # token lost
-                    token = request_token(); continue
-                if code in (1, 4) or not got:       # exhausted at this amount
-                    break
-                new = 0
-                for it in got:
-                    it['category_id'] = cid
-                    if it['en_question'] in seen:
-                        continue
-                    seen.add(it['en_question']); rows.append(it); new += 1
-                if new:
-                    print(f'  cat {cid}: +{new}  (total {len(rows)})', flush=True)
-        # category done
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    # write incrementally so a kill during the ~10-min rate-limited fetch does not
+    # throw away progress (the cache is valid at any point).
     with open(out_path, 'w', encoding='utf-8') as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + '\n')
+        for cid in category_ids:
+            for amount in (50, 10, 1):      # step down to sweep the category tail
+                while True:
+                    pace()
+                    try:
+                        got, code = fetch_opentdb(amount, category=cid, token=token)
+                    except Exception as e:
+                        print(f'  cat {cid} error: {e}', flush=True); code, got = 1, []
+                    if code == 5:                       # rate-limited
+                        print(f'  rate-limited; backoff {_RATE_BACKOFF}s', flush=True)
+                        time.sleep(_RATE_BACKOFF); continue
+                    if code == 3:                       # token lost
+                        token = request_token(); continue
+                    if code in (1, 4) or not got:       # exhausted at this amount
+                        break
+                    new = 0
+                    for it in got:
+                        it['category_id'] = cid
+                        if it['en_question'] in seen:
+                            continue
+                        seen.add(it['en_question']); rows.append(it); new += 1
+                        f.write(json.dumps(it, ensure_ascii=False) + '\n')
+                    if new:
+                        f.flush()
+                        print(f'  cat {cid}: +{new}  (total {len(rows)})', flush=True)
     print(f'\n  ✓ downloaded {len(rows)} questions -> {out_path}')
     return rows
 
@@ -248,9 +249,12 @@ def main() -> int:
                     help='where --download-all writes / --from-raw reads the EN dump')
     ap.add_argument('--from-raw', metavar='FILE',
                     help='translate from a cached raw dump instead of fetching')
-    ap.add_argument('--friendly-only', action='store_true', default=True,
-                    help='translate only corpus-friendly categories (default)')
-    ap.add_argument('--all-categories', dest='friendly_only', action='store_false')
+    # Default: translate ALL categories and let the corpus-coverage + answerability
+    # gates decide empirically. (A category pre-filter was a wrong assumption —
+    # measured, the corpus has thousands of video-game/anime/cartoon sentences.)
+    ap.add_argument('--friendly-only', action='store_true', default=False,
+                    help='opt in to translate only corpus-friendly categories '
+                         '(faster/cheaper; may miss pop-culture gold the corpus has)')
     ap.add_argument('--limit', type=int, default=None, help='cap rows to translate')
     ap.add_argument('--batch', type=int, default=15, help='items per translate call')
     ap.add_argument('--model', default=None)

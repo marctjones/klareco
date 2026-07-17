@@ -50,6 +50,7 @@ import json
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -190,9 +191,14 @@ def download_all(out_path: str, category_ids=_ALL_CATEGORY_IDS) -> list:
                     pace()
                     try:
                         got, code = fetch_opentdb(amount, category=cid, token=token)
+                    except urllib.error.HTTPError as e:
+                        if e.code == 429:               # HTTP rate limit — back off, RETRY
+                            print(f'  HTTP 429; backoff {_RATE_BACKOFF}s', flush=True)
+                            time.sleep(_RATE_BACKOFF); continue
+                        print(f'  cat {cid} HTTP {e.code}', flush=True); code, got = 1, []
                     except Exception as e:
                         print(f'  cat {cid} error: {e}', flush=True); code, got = 1, []
-                    if code == 5:                       # rate-limited
+                    if code == 5:                       # API rate-limit code
                         print(f'  rate-limited; backoff {_RATE_BACKOFF}s', flush=True)
                         time.sleep(_RATE_BACKOFF); continue
                     if code == 3:                       # token lost

@@ -26,7 +26,7 @@ Description:
 
 Usage:
     python scripts/eval/finalize_trivia_gold.py \
-        --input data/test_sets/trivia_bank.jsonl \
+        --input data/staging/trivia_bank.jsonl \
         --out   data/test_sets/qa_gold_v1.jsonl --top-k 6
 
 Last Updated: 2026-07-17
@@ -84,7 +84,7 @@ def judge_answering(question: str, answer: str, cands: list, timeout: int = 120)
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[1])
-    ap.add_argument('--input', default='data/test_sets/trivia_bank.jsonl')
+    ap.add_argument('--input', default='data/staging/trivia_bank.jsonl')
     ap.add_argument('--out', default='data/test_sets/qa_gold_v1.jsonl')
     ap.add_argument('--top-k', type=int, default=6)
     ap.add_argument('--only-verdict', default='measurable',

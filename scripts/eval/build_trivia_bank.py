@@ -19,7 +19,7 @@ Description:
     "is this real trivia?" property of the source.
 
     Every input batch is appended to a persistent bank file at
-    `data/test_sets/trivia_bank.jsonl`, deduplicated by Esperanto
+    `data/staging/trivia_bank.jsonl`, deduplicated by Esperanto
     question text. So the test set grows monotonically across sessions
     instead of being regenerated each time.
 
@@ -55,7 +55,7 @@ Input JSONL format (one per line):
     }
 
 Outputs:
-    data/test_sets/trivia_bank.jsonl  — appended/deduped persistent bank
+    data/staging/trivia_bank.jsonl  — appended/deduped persistent bank
     stdout summary: per-pair verdict + aggregate counts
 
 Last Updated: 2026-05-20
@@ -75,7 +75,7 @@ import duckdb
 from klareco.parser import parse
 
 
-_BANK_PATH = Path('data/test_sets/trivia_bank.jsonl')
+_BANK_PATH = Path('data/staging/trivia_bank.jsonl')
 
 _INTERROGATIVES = {'Kio', 'Kion', 'Kiu', 'Kiun', 'Kie', 'Kien',
                    'Kiam', 'Kial', 'Kiel', 'Kiom', 'Kies', 'Kia', 'Kian'}

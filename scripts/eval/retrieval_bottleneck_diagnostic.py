@@ -68,13 +68,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from whoosh import index as whoosh_index
 from whoosh.qparser import OrGroup, QueryParser
 
+# ⚠️ MEASURE THE PRODUCTION QUERY PATH. v1.0 queried the RAW question, which
+# includes function words (la/de/estas/kiu). Classic BM25 gives those terms a
+# NEGATIVE weight (they occur in >half the corpus), so the raw question DEMOTES
+# the function-word-dense gold sentence and recall reads far lower than reality
+# (gold_trivia 38% raw vs 81% with function words stripped). The production
+# retriever strips them via `_content_terms`; the diagnostic must too, or it
+# alarms on a path production never runs. (2026-07-17)
+from klareco.rag.duckdb_retriever import _content_terms
+
 WHOOSH = 'data/indexes/whoosh_v2'
 _BUCKETS = (1, 5, 10, 20, 50, 100)
 
 
 def _gold_rank(searcher, qp, question: str, gold_sid: str, limit: int):
-    """1-based rank of the gold sid in BM25 results, or None if not in top-`limit`."""
-    hits = searcher.search(qp.parse(question), limit=limit)
+    """1-based rank of the gold sid, querying the PRODUCTION content terms."""
+    terms = _content_terms(question.lower())
+    if not terms:
+        return None
+    hits = searcher.search(qp.parse(' OR '.join(terms)), limit=limit)
     for i, h in enumerate(hits):
         if str(h['id']) == str(gold_sid):
             return i + 1

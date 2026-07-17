@@ -52,34 +52,45 @@ from klareco.rag.duckdb_retriever import _content_terms
 DB = 'data/indexes/duckdb_store.db'
 WHOOSH = 'data/indexes/whoosh_v2'
 
-_PROMPT = """You are verifying an Esperanto QA pair against real corpus sentences.
-QUESTION: {q}
-EXPECTED ANSWER: {a}
+from klareco.eval.qa_schema import band_for
 
-Below are candidate corpus sentences. Identify which one, if ANY, actually ANSWERS
-the question — i.e. the sentence itself asserts that the answer is "{a}" (not merely
-mentions the word). Use ONLY the sentence text.
+_BATCH_PROMPT = """You are verifying Esperanto QA pairs against real corpus sentences.
+For EACH item: given its QUESTION, EXPECTED ANSWER, and its own numbered CANDIDATE
+sentences, identify which candidate (if any) actually ANSWERS the question — the
+sentence itself asserts the answer (not merely mentions the word). Use only the text.
 
-CANDIDATES:
-{cands}
+Reply with ONLY a JSON array, one object per item:
+[{"id":"<id>","answering_index":<1-based int into THAT item's candidates, or 0 if none>}]
 
-Reply ONLY JSON: {{"answering_index": <1-based int, or 0 if none answers>, "reason": "..."}}"""
+ITEMS:
+"""
+
+_QWORDS = {'kiu': 'KIU', 'kiun': 'KIUN', 'kio': 'KIO', 'kion': 'KION',
+           'kie': 'KIE', 'kiam': 'KIAM', 'kiom': 'KIOM', 'kial': 'KIAL', 'kies': 'KIES'}
 
 
-def judge_answering(question: str, answer: str, cands: list, timeout: int = 120):
-    listing = '\n'.join(f'{i+1}. {t}' for i, (_sid, t) in enumerate(cands))
-    prompt = _PROMPT.format(q=question, a=answer, cands=listing)
+def _qtype(q: str) -> str:
+    return _QWORDS.get((q.split() or [''])[0].strip('¿?').lower(), 'KIU')
+
+
+def judge_answering_batch(items: list, timeout: int = 300) -> dict:
+    """items: [{'id','question','answer','cands':[(sid,text),...]}].
+    ONE claude call for the whole batch. Returns {id: answering_index}."""
+    blocks = []
+    for it in items:
+        lst = '\n'.join(f'{i+1}. {t}' for i, (_s, t) in enumerate(it['cands']))
+        blocks.append(f"--- id: {it['id']} ---\nQ: {it['question']}\n"
+                      f"A: {it['answer']}\ncandidates:\n{lst}")
+    prompt = _BATCH_PROMPT + '\n\n'.join(blocks)
     try:
         r = subprocess.run(['claude', '-p'], input=prompt, text=True,
                            capture_output=True, timeout=timeout)
-        i, j = r.stdout.find('{'), r.stdout.rfind('}')
-        v = json.loads(r.stdout[i:j + 1]) if i != -1 and j > i else {}
+        i, j = r.stdout.find('['), r.stdout.rfind(']')
+        arr = json.loads(r.stdout[i:j + 1]) if i != -1 and j > i else []
     except Exception:
-        v = {}
-    idx = v.get('answering_index')
-    if isinstance(idx, int) and 1 <= idx <= len(cands):
-        return cands[idx - 1], v.get('reason', '')
-    return None, v.get('reason', '')
+        arr = []
+    return {str(v['id']): v.get('answering_index')
+            for v in arr if isinstance(v, dict) and 'id' in v}
 
 
 def main() -> int:
@@ -87,6 +98,9 @@ def main() -> int:
     ap.add_argument('--input', default='data/staging/trivia_bank.jsonl')
     ap.add_argument('--out', default='data/test_sets/qa_gold_v1.jsonl')
     ap.add_argument('--top-k', type=int, default=6)
+    ap.add_argument('--batch', type=int, default=8, help='questions per judge call')
+    ap.add_argument('--workers', type=int, default=1,
+                    help='concurrent judge calls (each = one claude process)')
     ap.add_argument('--only-verdict', default='measurable',
                     help="process only candidates with this verdict (or 'any')")
     args = ap.parse_args()
@@ -106,9 +120,10 @@ def main() -> int:
                 continue
             if d.get('eo_question') and d.get('eo_answer'):
                 cands_in.append(d)
-    print(f'  {len(cands_in)} candidate questions to verify\n')
+    print(f'  {len(cands_in)} candidate questions to verify')
 
-    gold, no_answer = [], 0
+    # 1) retrieve candidates for every question up front (fast, no Claude)
+    items, no_answer = [], 0
     with ix.searcher() as srch:
         for d in cands_in:
             q, a = d['eo_question'], d['eo_answer']
@@ -119,21 +134,48 @@ def main() -> int:
             cands = [(int(h['id']), h['text']) for h in hits]
             if not cands:
                 no_answer += 1; continue
-            best, reason = judge_answering(q, a, cands)
-            if not best:
-                no_answer += 1
-                print(f'  ✗ {q[:55]}  (no answering sentence)', flush=True)
-                continue
-            sid, text = best
-            gold.append({
-                'id': f'gold-{sid}', 'question': q, 'question_type': 'KIU',
-                'expected_answer': a, 'expected_keywords': [a],
-                'source_sentence_id': str(sid), 'source_sentence_text': text,
-                'source': d.get('source', 'opentdb.com'),
-                'en_question': d.get('en_question'), 'category': d.get('category'),
-                'answerability_reason': reason[:200],
-            })
-            print(f'  ✓ {q[:55]}  -> sid {sid}', flush=True)
+            items.append({'id': f'q{len(items)}', 'question': q, 'answer': a,
+                          'cands': cands, 'meta': d})
+
+    # 2) BATCH the judge (many questions per claude call), optionally in parallel
+    batches = [items[i:i + args.batch] for i in range(0, len(items), args.batch)]
+    print(f'  judging {len(items)} questions in {len(batches)} batches '
+          f'(batch={args.batch}, workers={args.workers})\n')
+
+    def run_batch(b):
+        verd = judge_answering_batch(b)
+        out = []
+        for it in b:
+            idx = verd.get(it['id'])
+            if isinstance(idx, int) and 1 <= idx <= len(it['cands']):
+                out.append((it, idx))
+        return out
+
+    results = []
+    if args.workers > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            for r in ex.map(run_batch, batches):
+                results.extend(r)
+                print(f'    …{len(results)} gold', flush=True)
+    else:
+        for bi, b in enumerate(batches, 1):
+            results.extend(run_batch(b))
+            print(f'    batch {bi}/{len(batches)}  {len(results)} gold', flush=True)
+
+    gold = []
+    for it, idx in results:
+        sid, text = it['cands'][idx - 1]
+        d = it['meta']
+        gold.append({
+            'id': f'gold-{sid}', 'question': it['question'],
+            'question_type': _qtype(it['question']),
+            'expected_answer': it['answer'], 'expected_keywords': [it['answer']],
+            'source_sentence_id': str(sid), 'source_sentence_text': text,
+            'source': 'opentdb', 'bm25_gold_rank': idx, 'difficulty_band': band_for(idx),
+            'en_question': d.get('en_question'), 'category': d.get('category'),
+        })
+    no_answer += len(items) - len(results)
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, 'w', encoding='utf-8') as f:

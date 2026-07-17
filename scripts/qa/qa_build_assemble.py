@@ -48,7 +48,11 @@ def main() -> int:
     args = ap.parse_args()
 
     today = datetime.date.today().isoformat()
-    seen_sid, seen_q = set(), set()
+    # Dedup by QUESTION only — NOT by source sentence. Several distinct questions can
+    # (and should) share one rich answering sentence: "Zamenhof verkis la libron de
+    # Petro en 1887" answers who/when/whose. Keeping them is a genuine extraction-
+    # quality probe (does the system pick the RIGHT answer among several offered).
+    seen_q, seen_ids = set(), set()
     gold, invalid, dup = [], 0, 0
 
     for path in args.inputs:
@@ -65,11 +69,16 @@ def main() -> int:
             ok, errs = validate(row)
             if not ok:
                 invalid += 1; continue
-            sid = str(row['source_sentence_id'])
             qkey = row['question'].strip().lower()
-            if sid in seen_sid or qkey in seen_q:
+            if qkey in seen_q:                 # same QUESTION twice — a true duplicate
                 dup += 1; continue
-            seen_sid.add(sid); seen_q.add(qkey)
+            seen_q.add(qkey)
+            # unique id even when questions share a sentence (gold-<sid> would collide)
+            base = row.get('id') or f"gold-{row['source_sentence_id']}"
+            uid, k = base, 1
+            while uid in seen_ids:
+                uid = f'{base}-{k}'; k += 1
+            seen_ids.add(uid); row['id'] = uid
             row.setdefault('created', today)
             gold.append(row)
         print(f'  {p.name}: {n_in} rows in')

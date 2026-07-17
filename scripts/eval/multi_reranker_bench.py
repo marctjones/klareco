@@ -909,14 +909,21 @@ def main() -> None:
     print()
 
     # Per-question per-reranker results
+    # ── WALL-CLOCK per stage. The retrieval+parse step and each reranker are timed
+    #    so hotspots are measured, not felt. Reported at the end + persisted.
+    import time as _time
+    stage_s: dict = {'retrieval+parse': 0.0, 'extractor': 0.0}
     rows: list[dict] = []
+    _t_run0 = _time.perf_counter()
     for q_idx, q in enumerate(test, 1):
         question = q.get('eo_question') or q['question']
         expected = q.get('expected_keywords') or [q.get('eo_answer', '')]
         if not expected[0]:
             continue
+        _t0 = _time.perf_counter()
         candidates, q_ast = get_bm25_candidates(pipeline, question,
                                                  top_k=args.candidate_pool)
+        stage_s['retrieval+parse'] += _time.perf_counter() - _t0
         row = {
             'id':       q.get('id', f'q{q_idx}'),
             'question': question,
@@ -926,8 +933,12 @@ def main() -> None:
             'bm25_gold_rank':  q.get('bm25_gold_rank'),
         }
         for r in enabled:
+            _t0 = _time.perf_counter()
             res = r.rerank(question, q_ast, candidates, conn, top_k=args.top_k)
+            stage_s[r.name] = stage_s.get(r.name, 0.0) + _time.perf_counter() - _t0
+            _t0 = _time.perf_counter()
             final = run_extractor(question, res.ranked)
+            stage_s['extractor'] += _time.perf_counter() - _t0
             correct = any(kw.lower() in final.lower() for kw in expected)
             rank = find_first_relevant_rank(res.ranked, expected)
             row[f'{r.name}_rank'] = rank
@@ -1073,9 +1084,22 @@ def main() -> None:
             'answer_accuracy':   round(100 * n_correct / max(1, len(rows)), 2),
             'avg_latency_s':     round(sum(lats) / max(1, len(lats)), 2),
         }
+    # ── HOTSPOTS — where the wall clock actually went.
+    total_s = _time.perf_counter() - _t_run0
+    n_q = max(len(rows), 1)
+    print(f'\n  TIMING / HOTSPOTS  (total {total_s/60:.1f} min, '
+          f'{total_s/n_q:.2f} s/question):')
+    print(f'  {"stage":<22s} {"total":>8s} {"per-q":>8s} {"share":>6s}')
+    for k, v in sorted(stage_s.items(), key=lambda kv: -kv[1]):
+        print(f'  {k:<22s} {v:>7.1f}s {v/n_q*1000:>6.0f}ms {v/max(total_s,1e-9):>5.1%}')
+    acc = sum(stage_s.values())
+    print(f'  {"(untimed overhead)":<22s} {total_s-acc:>7.1f}s')
+
     run_summary = {
         'test_set':         args.test_set,
         'n_questions':      len(rows),
+        'timings_s':        {k: round(v, 1) for k, v in stage_s.items()},
+        'total_wall_s':     round(total_s, 1),
         'top_k':            args.top_k,
         'candidate_pool':   args.candidate_pool,
         'rerankers':        per_reranker_metrics,

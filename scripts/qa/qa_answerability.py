@@ -97,12 +97,19 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[1])
     ap.add_argument('--input', default='data/staging/trivia_bank.jsonl')
     ap.add_argument('--out', default='data/test_sets/qa_gold_v1.jsonl')
-    ap.add_argument('--top-k', type=int, default=6)
+    ap.add_argument('--review-out', default='data/staging/qa_needs_review.jsonl',
+                    help='questions with no answering sentence found — KEPT for revisit')
+    ap.add_argument('--judge-k', type=int, default=25,
+                    help='answer-aware candidates shown to the judge (small window; '
+                         'the answer-aware query floats the answering sentence up)')
+    ap.add_argument('--rank-k', type=int, default=200,
+                    help='question-ONLY retrieval depth used to record the TRUE '
+                         'difficulty rank (never a filter — low ranks are kept)')
     ap.add_argument('--batch', type=int, default=8, help='questions per judge call')
-    ap.add_argument('--workers', type=int, default=1,
+    ap.add_argument('--workers', type=int, default=3,
                     help='concurrent judge calls (each = one claude process)')
-    ap.add_argument('--only-verdict', default='measurable',
-                    help="process only candidates with this verdict (or 'any')")
+    ap.add_argument('--only-verdict', default='any',
+                    help="process candidates with this verdict ('any' = keep all)")
     args = ap.parse_args()
 
     con = duckdb.connect(DB, read_only=True)
@@ -120,69 +127,100 @@ def main() -> int:
                 continue
             if d.get('eo_question') and d.get('eo_answer'):
                 cands_in.append(d)
-    print(f'  {len(cands_in)} candidate questions to verify')
+    print(f'  {len(cands_in)} candidate questions to verify (KEEP ALL policy)')
 
-    # 1) retrieve candidates for every question up front (fast, no Claude)
-    items, no_answer = [], 0
+    # 1) Two retrievals per question (fast, no Claude):
+    #    - ANSWER-AWARE (question + answer terms), small window -> what the judge scans
+    #      (the answer terms float the answering sentence into this window if it exists).
+    #    - QUESTION-ONLY, deep -> a sid->rank map giving the TRUE difficulty (the rank
+    #      the retriever achieves WITHOUT knowing the answer). Never used to filter.
+    items, no_terms = [], []
     with ix.searcher() as srch:
         for d in cands_in:
             q, a = d['eo_question'], d['eo_answer']
-            terms = _content_terms(q.lower())
-            if not terms:
-                no_answer += 1; continue
-            hits = srch.search(qp.parse(' OR '.join(terms)), limit=args.top_k)
-            cands = [(int(h['id']), h['text']) for h in hits]
-            if not cands:
-                no_answer += 1; continue
+            qterms = _content_terms(q.lower())
+            if not qterms:
+                no_terms.append(d); continue
+            aa = srch.search(qp.parse(' OR '.join(qterms + _content_terms(a.lower()))),
+                             limit=args.judge_k)
+            cands = [(int(h['id']), h['text']) for h in aa]
+            qo = srch.search(qp.parse(' OR '.join(qterms)), limit=args.rank_k)
+            qo_rank = {int(h['id']): i + 1 for i, h in enumerate(qo)}
             items.append({'id': f'q{len(items)}', 'question': q, 'answer': a,
-                          'cands': cands, 'meta': d})
+                          'cands': cands, 'qo_rank': qo_rank, 'meta': d})
 
-    # 2) BATCH the judge (many questions per claude call), optionally in parallel
+    # 2) BATCH + parallel judge over the small answer-aware window
     batches = [items[i:i + args.batch] for i in range(0, len(items), args.batch)]
     print(f'  judging {len(items)} questions in {len(batches)} batches '
-          f'(batch={args.batch}, workers={args.workers})\n')
+          f'(batch={args.batch}, workers={args.workers}, judge-k={args.judge_k})\n')
 
     def run_batch(b):
         verd = judge_answering_batch(b)
-        out = []
         for it in b:
             idx = verd.get(it['id'])
-            if isinstance(idx, int) and 1 <= idx <= len(it['cands']):
-                out.append((it, idx))
-        return out
+            it['idx'] = idx if (isinstance(idx, int) and 1 <= idx <= len(it['cands'])) else None
+        return b
 
-    results = []
+    judged = []
     if args.workers > 1:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
-            for r in ex.map(run_batch, batches):
-                results.extend(r)
-                print(f'    …{len(results)} gold', flush=True)
+            for b in ex.map(run_batch, batches):
+                judged.extend(b)
+                print(f'    …{sum(1 for x in judged if x.get("idx"))} answered '
+                      f'/ {len(judged)} judged', flush=True)
     else:
         for bi, b in enumerate(batches, 1):
-            results.extend(run_batch(b))
-            print(f'    batch {bi}/{len(batches)}  {len(results)} gold', flush=True)
+            judged.extend(run_batch(b))
+            print(f'    batch {bi}/{len(batches)}', flush=True)
 
-    gold = []
-    for it, idx in results:
-        sid, text = it['cands'][idx - 1]
+    gold, review = [], []
+    for it in judged + [{'idx': None, 'cands': [], 'question': d['eo_question'],
+                         'answer': d['eo_answer'], 'meta': d} for d in no_terms]:
         d = it['meta']
-        gold.append({
-            'id': f'gold-{sid}', 'question': it['question'],
-            'question_type': _qtype(it['question']),
-            'expected_answer': it['answer'], 'expected_keywords': [it['answer']],
-            'source_sentence_id': str(sid), 'source_sentence_text': text,
-            'source': 'opentdb', 'bm25_gold_rank': idx, 'difficulty_band': band_for(idx),
-            'en_question': d.get('en_question'), 'category': d.get('category'),
-        })
-    no_answer += len(items) - len(results)
+        if it.get('idx'):                       # an answering sentence exists
+            sid, text = it['cands'][it['idx'] - 1]
+            rank = it['qo_rank'].get(sid)       # TRUE difficulty (question-only)
+            # rank is None => the answer IS in the corpus but the question-only
+            # retriever ranks it beyond top-{rank-k}: the hardest, most valuable
+            # kind (first-stage retrieval fails). Keep it, banded 'deep'.
+            band = band_for(rank) if rank else 'deep'
+            gold.append({
+                'id': f'gold-{sid}', 'question': it['question'],
+                'question_type': _qtype(it['question']),
+                'expected_answer': it['answer'], 'expected_keywords': [it['answer']],
+                'source_sentence_id': str(sid), 'source_sentence_text': text,
+                'source': 'opentdb', 'bm25_gold_rank': rank, 'difficulty_band': band,
+                'en_question': d.get('en_question'), 'category': d.get('category'),
+            })
+        else:                                    # KEEP for revisit — do not discard
+            review.append({
+                'question': it['question'], 'expected_answer': it['answer'],
+                'question_type': _qtype(it['question']),
+                'status': 'needs_review',
+                # distinguishes "retriever failed" from "answer likely not stated":
+                'gate_verdict': d.get('verdict'),
+                'source': 'opentdb', 'en_question': d.get('en_question'),
+                'category': d.get('category'),
+            })
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, 'w', encoding='utf-8') as f:
         for g in gold:
             f.write(json.dumps(g, ensure_ascii=False) + '\n')
-    print(f'\n  ✓ {len(gold)} GOLD pairs (real answering sentence + sid) -> {args.out}')
-    print(f'    dropped (no answering sentence): {no_answer}')
+    Path(args.review_out).parent.mkdir(parents=True, exist_ok=True)
+    with open(args.review_out, 'w', encoding='utf-8') as f:
+        for r in review:
+            f.write(json.dumps(r, ensure_ascii=False) + '\n')
+
+    import collections
+    bands = collections.Counter(g['difficulty_band'] for g in gold)
+    print(f'\n  ✓ {len(gold)} GOLD (answering sentence found, ANY rank) -> {args.out}')
+    print(f'    difficulty: {dict(bands)}')
+    print(f'  ⌛ {len(review)} NEEDS-REVIEW (no answering sentence found) -> {args.review_out}')
+    rev_by = collections.Counter(r['gate_verdict'] for r in review)
+    print(f'    by gate verdict: {dict(rev_by)}  '
+          f'(measurable here = retriever-fail or unstated; corpus_gap = answer word absent)')
     return 0
 
 

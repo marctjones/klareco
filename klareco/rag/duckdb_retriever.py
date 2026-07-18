@@ -29,6 +29,8 @@ from whoosh import scoring
 from whoosh.index import open_dir
 from whoosh.qparser import OrGroup, QueryParser
 
+from klareco.parser import expand_ast
+
 logger = logging.getLogger(__name__)
 
 # Esperanto question/function words dropped from the BM25 query.
@@ -216,7 +218,18 @@ class DuckDBRetriever:
         top = scored[:top_k]
         for r in top:                     # parse only what we return
             try:
-                r['ast'] = json.loads(r['ast']) if r['ast'] else None
+                ast = json.loads(r['ast']) if r['ast'] else None
+                # ⚠️ The store carries the COMPACT form (compact_ast: vortoj once,
+                # roles as *_id references). Consumers (unified_extractor, AST
+                # rerankers) read the EXPANDED shape (ast['subjekto']['kerno']...)
+                # and silently extract ZERO facts from a compact dict — that was
+                # the answer_accuracy=0.0% bug (#851). Expand here, at the single
+                # choke point where ast_json becomes a passage AST. Guarded:
+                # expand_ast is not idempotent, so only expand actual compacts.
+                if ast is not None and ('subjekto_id' in ast or 'verbo_id' in ast
+                                        or 'objekto_id' in ast):
+                    ast = expand_ast(ast)
+                r['ast'] = ast
             except Exception:
                 r['ast'] = None
         self._phase_timer.add('score', (time.time() - t0) * 1000)

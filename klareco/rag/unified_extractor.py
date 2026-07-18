@@ -274,6 +274,17 @@ class UnifiedASTExtractor:
             If mode='facts': List[Fact]
             If mode='spans': Dict with answer info (or None if no answer)
         """
+        # FAIL LOUDLY on a compact AST (#851). The store's ast_json is the compact
+        # form (roles as *_id references); this extractor reads the EXPANDED shape
+        # and would silently extract ZERO facts from a compact dict — that bug made
+        # answer_accuracy 0.0% across the board while looking like "no answer found".
+        # Callers must expand_ast() first (the retriever does, at its choke point).
+        if isinstance(ast, dict) and ('subjekto_id' in ast or 'verbo_id' in ast
+                                      or 'objekto_id' in ast):
+            raise ValueError(
+                "compact AST passed to UnifiedASTExtractor.extract() — call "
+                "klareco.parser.expand_ast() first (see #851; a compact AST "
+                "silently yields zero facts)")
         if mode == 'facts':
             return self._extract_as_facts(ast, source_sentence)
         elif mode == 'spans':

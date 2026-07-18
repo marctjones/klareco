@@ -1,0 +1,50 @@
+EVOLUO DE LA PENSO (po-etapa)
+[parse_question] 0.0ms  konf 0.00→0.10
+  + question_ast: Kie naskiĝis Zamenhof?
+  + question_type = 'kie'
+[math_tool] 0.0ms  konf 0.10→0.10
+  (nenio ŝanĝita)
+[retrieve] 0.5ms  konf 0.10→0.50
+  + passage_asts: 3 ero(j)
+   1. [sid 9] 15.000  “Zamenhof naskiĝis en Bjalistoko.”
+   2. [sid 1] 7.500  “Zamenhof kreis Esperanton en 1887.”
+[deterministic_rerank] 0.0ms  konf 0.50→0.50
+  + passage_asts: 3 ero(j)
+   1. [sid 9] 22.500  “Zamenhof naskiĝis en Bjalistoko.”
+   2. [sid 1] 7.500  “Zamenhof kreis Esperanton en 1887.”
+[extract_generate] 0.0ms  konf 0.50→0.60
+  + fact_fragments: 1 ero(j)
+  • Zamenhof —NASKIĜIS→ ?  (konf 1.00, el sid 9) [regulo]
+  + answer_segments: 1 ero(j)
+  + citations: 1 ero(j)
+[format_output] 0.0ms  konf 0.60→0.60
+  + final_text = 'Zamenhof naskiĝis en Bjalistoko. [1]  [1] Unknown — Zamenhof naskiĝis en Bjalistoko.…'
+
+══════════════════════════════════════════════════════════════
+PENSO — “Kie naskiĝis Zamenhof?”   (konfidenco 0.60)
+══════════════════════════════════════════════════════════════
+demando [regulo]  tipo=kie
+  Kie naskiĝis Zamenhof?
+──────────────────────────────────────────────────────────────
+trafoj (3)
+   1. [sid 9] 22.500  “Zamenhof naskiĝis en Bjalistoko.”
+   2. [sid 1] 7.500  “Zamenhof kreis Esperanton en 1887.”
+   3. [sid 2] 5.000  “Ludoviko Zamenhof estis pola okulisto.”
+──────────────────────────────────────────────────────────────
+faktoj (1)
+  • Zamenhof —NASKIĜIS→ ?  (konf 1.00, el sid 9) [regulo]
+──────────────────────────────────────────────────────────────
+respondaj segmentoj (1)
+  ▸ Zamenhof naskiĝis en Bjalistoko. [1] [1]
+──────────────────────────────────────────────────────────────
+citaĵoj (1)
+  [1] sid 9 (Unknown) “Zamenhof naskiĝis en Bjalistoko.”
+──────────────────────────────────────────────────────────────
+fina teksto: Zamenhof naskiĝis en Bjalistoko. [1]
+
+[1] Unknown — Zamenhof naskiĝis en Bjalistoko.…
+──────────────────────────────────────────────────────────────
+latenta tavolo (sen AST-kodigo — nur priskribo)
+  question_embedding: —
+  passage_embeddings: —
+  relevance_matrix: —

@@ -1,0 +1,33 @@
+EVOLUO DE LA PENSO (po-etapa)
+[parse_question] 0.0ms  konf 0.00→0.10
+  + question_ast: Kiom estas du plus tri?
+  + question_type = 'kiom'
+[math_tool] 0.2ms  konf 0.10→0.10
+  + final_text = '5'
+  math_tool_result = 5
+  tool_short_circuit = True
+[retrieve] (preterlasita)
+[deterministic_rerank] (preterlasita)
+[extract_generate] (preterlasita)
+[format_output] (preterlasita)
+
+══════════════════════════════════════════════════════════════
+PENSO — “Kiom estas du plus tri?”   (konfidenco 0.10)
+══════════════════════════════════════════════════════════════
+demando [regulo]  tipo=kiom
+  Kiom estas du plus tri?
+──────────────────────────────────────────────────────────────
+trafoj (0)
+──────────────────────────────────────────────────────────────
+faktoj (0)
+──────────────────────────────────────────────────────────────
+fina teksto: 5
+──────────────────────────────────────────────────────────────
+latenta tavolo (sen AST-kodigo — nur priskribo)
+  question_embedding: —
+  passage_embeddings: —
+  relevance_matrix: —
+──────────────────────────────────────────────────────────────
+flagoj
+  math_tool_result = 5
+  tool_short_circuit = True

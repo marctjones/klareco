@@ -1,0 +1,45 @@
+[
+  {
+    "stage": "parse_question",
+    "symbolic": {
+      "question_ast": "set",
+      "question_type": "set"
+    },
+    "flags": []
+  },
+  {
+    "stage": "math_tool",
+    "symbolic": {},
+    "flags": []
+  },
+  {
+    "stage": "retrieve",
+    "symbolic": {
+      "passage_asts": 3
+    },
+    "flags": []
+  },
+  {
+    "stage": "deterministic_rerank",
+    "symbolic": {
+      "passage_asts": 3
+    },
+    "flags": []
+  },
+  {
+    "stage": "extract_generate",
+    "symbolic": {
+      "fact_fragments": 1,
+      "answer_segments": 1,
+      "citations": 1
+    },
+    "flags": []
+  },
+  {
+    "stage": "format_output",
+    "symbolic": {
+      "final_text": "set"
+    },
+    "flags": []
+  }
+]

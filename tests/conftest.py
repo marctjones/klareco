@@ -47,6 +47,16 @@ _TIERS: dict[str, str] = {
     'test_wikipedia_benchmark':  'data',
     'test_index_integrity':      'data',
 
+    # --- contract: does the ORCHESTRATOR hold its stages to the contract? -----
+    # The primary suite. Runs against a tiny in-memory store (tests/contract/),
+    # so it needs no production indexes — fast and CI-safe. See DESIGN.md →
+    # "The orchestration contract".
+    'test_stage_conformance':    'contract',
+    'test_golden_trace':         'contract',
+    'test_decoder':              'contract',
+    'test_dependencies':         'contract',
+    'test_loud_failure_lint':    'contract',
+
     # --- pipeline: do the pieces work, end to end? ----------------------------
     'test_orchestrator':         'pipeline',
     'test_question_classifier':  'pipeline',

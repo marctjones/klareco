@@ -1,0 +1,36 @@
+[
+  {
+    "stage": "parse_question",
+    "symbolic": {
+      "question_ast": "set",
+      "question_type": "set"
+    },
+    "flags": []
+  },
+  {
+    "stage": "math_tool",
+    "symbolic": {
+      "final_text": "set"
+    },
+    "flags": [
+      "math_tool_result",
+      "tool_short_circuit"
+    ]
+  },
+  {
+    "stage": "retrieve",
+    "skipped": true
+  },
+  {
+    "stage": "deterministic_rerank",
+    "skipped": true
+  },
+  {
+    "stage": "extract_generate",
+    "skipped": true
+  },
+  {
+    "stage": "format_output",
+    "skipped": true
+  }
+]

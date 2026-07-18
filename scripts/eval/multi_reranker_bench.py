@@ -77,6 +77,7 @@ from klareco.orchestrator.stages.parse_question import ParseQuestionStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
 from klareco.rag.extractive_answering import ExtractiveAnswerGenerator
+from klareco.eval.answer_scoring import contains_gold, token_f1
 
 
 # =============================================================================
@@ -931,6 +932,9 @@ def main() -> None:
             # frozen difficulty from set construction (question-only BM25 gold rank)
             'difficulty_band': q.get('difficulty_band', 'unknown'),
             'bm25_gold_rank':  q.get('bm25_gold_rank'),
+            # verbatim=False answers are legitimately paraphrased in the corpus —
+            # extraction is reported SPLIT on this flag so the two modes don't blur
+            'answer_verbatim': q.get('answer_verbatim', True),
         }
         for r in enabled:
             _t0 = _time.perf_counter()
@@ -939,7 +943,13 @@ def main() -> None:
             _t0 = _time.perf_counter()
             final = run_extractor(question, res.ranked)
             stage_s['extractor'] += _time.perf_counter() - _t0
-            correct = any(kw.lower() in final.lower() for kw in expected)
+            # Variant-tolerant scoring (#852/#783): normalized containment folds
+            # supersigns/diacritics/punct (Greniĉo~Grenico, Kálmán~Kalman), and
+            # token_f1 adds the verbosity-penalized number. Raw .lower() substring
+            # was the legacy defect.
+            correct = any(contains_gold(final, kw) for kw in expected)
+            f1 = max((token_f1(final, kw) for kw in expected), default=0.0)
+            row[f'{r.name}_f1'] = round(f1, 4)
             rank = find_first_relevant_rank(res.ranked, expected)
             row[f'{r.name}_rank'] = rank
             row[f'{r.name}_correct'] = correct
@@ -973,6 +983,21 @@ def main() -> None:
         n_correct = sum(1 for row in rows if row.get(f'{r.name}_correct'))
         print(f'{r.name:<22s} {n_r1:>5d} {n_r5:>5d} {n_r10:>5d} '
               f'{mrr:>6.3f} {100*n_correct/max(1,len(rows)):>5.1f}%')
+
+    # ── EXTRACTION, split by answer_verbatim (#852). verbatim=False answers are
+    #    legitimately paraphrased in the corpus — blending them with verbatim ones
+    #    hides whether the EXTRACTOR or the phrasing is failing.
+    vb_rows = [row for row in rows if row.get('answer_verbatim')]
+    nv_rows = [row for row in rows if not row.get('answer_verbatim')]
+    if vb_rows or nv_rows:
+        print(f'\n  EXTRACTION by answer_verbatim '
+              f'(verbatim n={len(vb_rows)}, paraphrased n={len(nv_rows)}):')
+        print(f'  {"reranker":<22s} {"ans% vb":>8s} {"F1 vb":>7s} {"ans% par":>9s} {"F1 par":>7s}')
+        for r in enabled:
+            def _acc(rs): return 100*sum(1 for x in rs if x.get(f"{r.name}_correct"))/max(1,len(rs))
+            def _f1m(rs): return sum(x.get(f"{r.name}_f1",0) for x in rs)/max(1,len(rs))
+            print(f'  {r.name:<22s} {_acc(vb_rows):>7.1f}% {_f1m(vb_rows):>7.3f} '
+                  f'{_acc(nv_rows):>8.1f}% {_f1m(nv_rows):>7.3f}')
 
     # ── BY DIFFICULTY BAND — how each reranker does on trivial vs rerankable vs
     #    deep questions. This is where a reranker EARNS its keep: it can only help
@@ -1067,12 +1092,16 @@ def main() -> None:
         mrr = (sum(1.0 / x for x in ranks if x is not None) / len(ranks)
                if ranks else 0)
         n_correct = sum(1 for row in rows if row.get(f'{r.name}_correct'))
+        f1s = [row.get(f'{r.name}_f1', 0.0) for row in rows]
         per_reranker_metrics[r.name] = {
             'recall_at_1':       n_r1,
             'recall_at_5':       n_r5,
             'recall_at_10':      n_r10,
             'mrr':               round(mrr, 4),
             'answer_accuracy':   round(100 * n_correct / max(1, len(rows)), 2),
+            'token_f1':          round(sum(f1s) / max(1, len(f1s)), 4),
+            'answer_accuracy_verbatim':    round(100*sum(1 for x in vb_rows if x.get(f'{r.name}_correct'))/max(1,len(vb_rows)), 2),
+            'answer_accuracy_paraphrased': round(100*sum(1 for x in nv_rows if x.get(f'{r.name}_correct'))/max(1,len(nv_rows)), 2),
         }
     # LLM baseline (no rank metrics, just accuracy + latency)
     if llm_tag:

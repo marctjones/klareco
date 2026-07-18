@@ -1123,6 +1123,9 @@ Migrate when discussion crystallizes into:
 
 ## See Also
 
+- `PLAN.md` - **The build & implementation plan** — architecture + the sequenced
+  roadmap (Core → MVP-1 → MVP-2 → Dual-track slots) with the number that closes
+  each step. Start here for "what are we building and in what order."
 - `VISION.md` - Long-term thesis: decomposable contributions, attribution
 - `DESIGN.md` - Active architecture: orchestrator stages, schema-first foundation, deferred work
 - `README.md` - Setup and quickstart commands

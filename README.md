@@ -12,8 +12,9 @@ LLM has to learn:
 - **Learned models are deferred** until the deterministic floor is stable and
   we can measure where a small learned component actually moves a number
 
-For the long-term thesis see `VISION.md`. For the active architecture see
-`DESIGN.md`. For development conventions see `CLAUDE.md`.
+For the build & implementation plan (architecture + sequenced roadmap) see
+`PLAN.md`. For the long-term thesis see `VISION.md`. For the active architecture
+see `DESIGN.md`. For development conventions see `CLAUDE.md`.
 
 ## Current state
 

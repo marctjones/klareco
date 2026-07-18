@@ -591,9 +591,8 @@ def build_corpus(
     logger.info(f"Size: {output_file.stat().st_size / (1024**3):.2f} GB")
     logger.info("")
     logger.info("Next steps:")
-    logger.info("  1. Export to CSV: ./scripts/index/corpus_to_csv_v2.1.sh")
-    logger.info("  2. Load into Kuzu: ./scripts/index/load_csv_to_kuzu_v2.1.sh")
-    logger.info("  (or ./scripts/index/reindex_kuzu_v2.1.sh which chains both)")
+    logger.info("  1. Build the DuckDB store: python scripts/index/build_duckdb_store.py")
+    logger.info("  2. Build the Whoosh index: python scripts/index/rebuild_whoosh_from_duckdb.py")
     logger.info("")
 
     # Clean up checkpoint on success

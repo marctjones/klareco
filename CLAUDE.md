@@ -329,8 +329,7 @@ python scripts/index/build_duckdb_store.py
 
 # Build Whoosh BM25 index FROM the DuckDB store
 python scripts/index/rebuild_whoosh_from_duckdb.py
-# ⚠️ NOT build_whoosh_index.py — it `import kuzu` (line 20) and crashes;
-#    kuzu is not even installed in .venv. It is dead.
+#    (the dead Kuzu-era build_whoosh_index.py was removed 2026-07-18)
 ```
 
 ### End-to-end question answering
@@ -581,7 +580,7 @@ python scripts/my_script.py $FRESH_FLAG 2>&1 | tee "$LOG_FILE"
 | Extract all | `./scripts/extract/extract_all.sh` | Extract Wikipedia + Books |
 | Parse corpus | `./scripts/parse/parse_corpus.sh` | Build unified corpus with ASTs (parse ~15 min; the wall clock is writing the 20 GB JSONL) |
 | Build DuckDB store | `python scripts/index/build_duckdb_store.py` | Corpus → `sentences` table (AST blob + shredded columns) |
-| Build Whoosh index | `python scripts/index/build_whoosh_index.py` | Build BM25 index over the store |
+| Build Whoosh index | `python scripts/index/rebuild_whoosh_from_duckdb.py` | Build BM25 index FROM the DuckDB store |
 | Post-reparse pipeline | `./scripts/pipeline/post_reparse_pipeline.sh` | Schema + Whoosh + eval (after a reparse) |
 | Validate store | `python scripts/index/validate_duckdb_store.py` | DuckDB integrity checks |
 | Validate all | `./scripts/validate/validate_all.sh` | Run corpus integrity checks |

@@ -47,19 +47,8 @@ else
 fi
 echo ""
 
-# Validate Kuzu graph if it exists
-KUZU_DB="data/indexes/v2.1_kuzu_index_full"
-if [[ -e "$KUZU_DB" ]]; then
-    echo -e "${GREEN}Step 2: Validating Kuzu v2.1 graph...${NC}"
-    if python scripts/validate/validate_kuzu_v2.1.py; then
-        ((PASSED++))
-    else
-        ((FAILED++))
-    fi
-else
-    echo -e "${YELLOW}Step 2: Skipping Kuzu validation (no graph at $KUZU_DB)${NC}"
-fi
-echo ""
+# (Kuzu graph validation removed 2026-07-18 — Kuzu retired; the store is DuckDB.
+#  Use `python scripts/index/validate_duckdb_store.py` for store integrity.)
 
 # Summary
 echo -e "${BLUE}========================================${NC}"

@@ -110,13 +110,11 @@ if python scripts/parse/build_unified_corpus.py \
     echo "Log: $LOG_FILE"
     echo ""
     echo "Next steps:"
-    echo "  1. Export corpus to CSV:"
-    echo "     ./scripts/index/corpus_to_csv_v2.1.sh"
+    echo "  1. Build the DuckDB store:"
+    echo "     python scripts/index/build_duckdb_store.py"
     echo ""
-    echo "  2. Load into Kuzu v2.1:"
-    echo "     ./scripts/index/load_csv_to_kuzu_v2.1.sh"
-    echo ""
-    echo "  (Or run ./scripts/index/reindex_kuzu_v2.1.sh which chains both.)"
+    echo "  2. Build the Whoosh index from the store:"
+    echo "     python scripts/index/rebuild_whoosh_from_duckdb.py"
     echo ""
 
 else

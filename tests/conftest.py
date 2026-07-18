@@ -45,7 +45,6 @@ _TIERS: dict[str, str] = {
     'test_extracted_data':       'data',
     'test_fundamento_completeness': 'data',
     'test_wikipedia_benchmark':  'data',
-    'test_index_integrity':      'data',
 
     # --- contract: does the ORCHESTRATOR hold its stages to the contract? -----
     # The primary suite. Runs against a tiny in-memory store (tests/contract/),

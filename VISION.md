@@ -174,6 +174,39 @@ boundary-discovery rather than assuming its answer.
 role-annotated ASTs. This is what makes the boundary *visible*: you can see
 exactly what structure was derived by rule and what was left underdetermined.
 
+**The pipeline state is a *thought*, and it is dual-layer.** The orchestrator
+passes an immutable context between stages: a **SymbolicLayer** — everything
+expressible as Esperanto AST or AST-derived structure (the question AST,
+retrieved passage ASTs, extracted fact triples, answer segments, citations) —
+and a **LatentLayer** — dense representations with no clean AST encoding.
+Everything a module contributes must land in one of those two layers. Side
+channels — private tables, ad-hoc flags, regex over raw question text — are
+contract violations, and we have measured what they cost: on 2026-07-18 three
+subsystems were found dead in production from one privately-drifted schema,
+silently (#881).
+
+**Every capability is a dual-track slot.** A slot has a deterministic
+implementation (required — it is the floor being measured) and optionally a
+learned one, composed in one of three modes: *shadow* (runs on the same
+thoughts, output recorded but unused — measurement without shipping), *enrich*
+(fills only what the deterministic pass left underdetermined, tagged per node),
+or *replace* (earned through the merge gate). This is how "attempt it
+deterministically first" becomes an architecture instead of a slogan.
+
+**Any thought is decodable at any stage.** Because the grammar is regular and
+the core root vocabulary is small, every symbolic enrichment can be rendered
+back into readable Esperanto deterministically — the deparser for sentence
+ASTs, glossers for facts, candidates, and plans, each item tagged rule-vs-model.
+The universal thought decoder is both the observability instrument ("watch the
+AST evolve through each layer", below) and a constraint on learned components:
+they must speak thought-language — decodable symbols with attribution — never
+opaque state.
+
+**The contract is enforced, not merely documented.** Conformance tests run over
+every stage (immutability, delta discipline, decodability, attribution, loud
+failure). Optional modules run default-off until they pass the suite and carry
+a number. A contract that is not tested is a naming convention.
+
 **Attribution is built in, not post-hoc.** Each AST node tracks whether it came
 from a rule or a model. Explainability does not require zero learned parameters —
 it requires *decomposable contributions*. A prediction that is "77% deterministic

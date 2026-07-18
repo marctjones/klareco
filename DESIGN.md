@@ -79,6 +79,47 @@ number" maps the boundary as surely as a win does. Net capability change to the
 
 ---
 
+## The orchestration contract (normative)
+
+The orchestrator is the core of the project; capabilities are **optional modules
+that plug into it**. This section defines what "plug into" means. It exists
+because we measured the alternative (2026-07-18): five symbolic subsystems were
+built *around* the pipeline instead of *into* it — four were dead or silent in
+production, none had a test, and one privately-drifted SQL schema (#881) killed
+three of them without a single error surfacing.
+
+1. **Enrichments land in the thought.** Everything a stage contributes goes into
+   `SymbolicLayer` (AST-expressible) or `LatentLayer` (dense) via a
+   `ContextDelta`. `flags` keys must come from a registered enum. No private
+   side tables, no ad-hoc flags, no regex over raw question text where the AST
+   already carries the answer.
+2. **Resources are injected.** Stages receive store/index handles (a typed
+   `StoreView`); a stage never opens its own connection or defines its own
+   schema. One place defines each schema, so private drift is impossible (#885).
+3. **Failure is loud.** Every stage declares its dependencies; pipeline
+   construction preflights them and **raises**. `except Exception → empty
+   delta` is banned by a lint test (#884). A silently-degrading dependency is a
+   bug.
+4. **Every symbolic enrichment is decodable.** If the universal thought decoder
+   (#882) cannot render it as readable Esperanto, it does not merge. The decoder
+   is a test oracle, not just a debugging tool.
+5. **Every contribution is attributed.** Each added node/fragment carries
+   provenance — `regulo` (rule) or `modelo` (model) — plus the stage name. This
+   is what keeps contributions decomposable (VISION.md).
+6. **Capabilities are dual-track slots.** Deterministic implementation required;
+   learned implementation optional, in mode `shadow` (recorded, unused —
+   measurement without shipping), `enrich` (fills only what the deterministic
+   pass left underdetermined), or `replace` (earned via the merge gate) (#893).
+
+**Optional modules run default-OFF until they pass the contract suite and carry
+a number** (#888). As of 2026-07-18: math stays on (5/5 smoke, live); planner
+and biography flip off until #881 lands; dialog remains off until MVP-2.
+
+Enforced by `tests/contract/` (#883) and golden traces (#886). Sequencing:
+**Core (milestone 28) → MVP-1 single-turn QA (29) → MVP-2 dialog (30) →
+Dual-track slots (31)** — the stable environment first, optional modules
+admitted one at a time.
+
 ## Active architecture
 
 ```

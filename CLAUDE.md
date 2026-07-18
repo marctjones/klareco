@@ -90,7 +90,27 @@ research question as an implementation task is exactly how this happened.
 
 Benchmark construction rules are binding and live in
 `docs/QA_TEST_SET_QUALITY_STANDARD.md`. Active milestone:
-[#14 — Stable Base](https://github.com/marctjones/klareco/milestone/14).
+[#28 — Core: Orchestration contract](https://github.com/marctjones/klareco/milestone/28)
+(umbrella: [#14 — Stable Base](https://github.com/marctjones/klareco/milestone/14)).
+
+## THE ORCHESTRATION CONTRACT (non-negotiable)
+
+The orchestrator is the core of the project; capabilities are **optional modules
+that plug into it**. **A new capability is a stage that passes the contract test
+suite — capability code exists nowhere else.** The normative rules (enrichments
+land in the `SymbolicLayer`/`LatentLayer` thought; resources are injected, never
+privately connected; failure is loud; every enrichment is decodable and
+attributed; capabilities are dual-track deterministic+learned slots) live in
+`DESIGN.md` → "The orchestration contract".
+
+**Optional modules run default-OFF until they pass the contract suite and carry
+a number.** Measured rationale (2026-07-18): five symbolic subsystems were built
+around the pipeline instead of into it — four were dead or silent in production
+and none had a test (#881, `bench_history.jsonl`).
+
+Sequencing: **Core (ms 28) → MVP-1 single-turn QA (29) → MVP-2 dialog (30) →
+Dual-track slots (31)** — stable environment first, optional modules admitted
+one at a time.
 
 ## Schema-First Development
 
@@ -101,24 +121,24 @@ row per sentence, AST carried as an `ast_json` blob) plus a Whoosh BM25 index at
 `data/indexes/whoosh_v2`. Any doc, script, or code comment that tells you to write
 Cypher is stale — fix it when you find it.
 
-**⚠️ Ontology status: defined in code, NOT loaded at runtime.** The four layers
-below are real, but they only ever loaded into Kuzu. In the DuckDB store,
-`ontology_nodes` and `ontology_edges` are **empty** and `verb_klaso` is **0%
-populated**. So:
+**Ontology status (verified 2026-07-18): LOADED and CONSUMED — but thin.** In
+the DuckDB store, `ontology_nodes` has 12,798 rows and `ontology_edges` 13,212
+(`HAVAS_SUPERKLASON` 7,883, `SINONIMO` 2,864, `HAVAS_ENTECAN_TIPON` 2,337,
+`APARTENAS_AL_VERBA_KLASO` 128). Readable since the #713 schema fix (`28ce022`);
+`ast_aware_reranker` / `ast_retriever` query it. So:
 
-- The "always query the ontology" rule below is currently **unfollowable**, and a
-  couple of paths (e.g. `klareco/knowledge/synonyms.py`) fall back to hardcoded
-  lists. That is **acknowledged debt, not a licence to add more.**
-- The class definitions survive as Python literals in
-  `scripts/index/extend_kuzu_schema_semantic_ontology.py`. Restoring the ontology
-  means emitting a snapshot from those literals into the DuckDB tables — not
-  re-deriving it from scratch.
-- **Honest caveat:** even when loaded, the ontology is hand-seeded and thin
-  (`kreado-26` = `["fond","kre","produk","far"]`; `persono` = `["homo","vir",
-  "infan","kuracist"]`). Querying it beats hardcoding a list in Python — one
-  source of truth, one place to extend — but it is the *same kind* of knowledge,
-  just relocated. Lexical synonymy is a genuine learned residue we are currently
-  faking with a list. Don't oversell it.
+- The "always query the ontology" rule below is **followable — do it.**
+- ⚠️ Do **NOT** re-run `scripts/index/load_ontology.py`: it drops and overwrites
+  the table with a `(de, al, rel)` schema no consumer reads, and would destroy
+  the hand-fix (see commit `28ce022`). The class definitions' source of truth
+  remains `scripts/index/extend_kuzu_schema_semantic_ontology.py`.
+- **Honest caveat:** the ontology is hand-seeded and thin — 82% of nodes have
+  `klaso=NULL`, the verb layer is 8 classes / 128 roots, and the 2,864 curated
+  ReVo `SINONIMO` edges are **not yet wired into first-stage query expansion**
+  (#873). Querying it beats hardcoding a list — one source of truth — but it is
+  the *same kind* of knowledge, just relocated. Whether lexical synonymy is a
+  genuine learned residue is **unproven until #873 runs**. Don't oversell it
+  either way.
 
 ### What's in the Ontology
 
@@ -161,7 +181,7 @@ ast = parse(question)          # ~milliseconds
 #    ~50x faster and is what was actually indexed.
 ```
 
-**2. Query the ontology instead of hardcoding lists** *(blocked: see status above)*
+**2. Query the ontology instead of hardcoding lists**
 ```python
 # ❌ NEVER DO THIS:
 PERSON_WORDS = ['homo', 'vir', 'kuracist']  # Hardcoded gazetteer!
@@ -171,8 +191,8 @@ con.execute("""
     SELECT radiko FROM ontology_edges
     WHERE rel = 'HAVAS_ENTECAN_TIPON' AND class_id = 'persono'
 """).fetchall()
-# ⚠️ Returns [] today — ontology_edges is empty. If you need this, the
-#    correct move is to RESTORE the ontology, not to add another list.
+# Populated (2,337 HAVAS_ENTECAN_TIPON edges, verified 2026-07-18). If a class
+#    you need is missing, EXTEND the ontology — don't add another list.
 ```
 
 **3. Use verb classes for synonyms, not manual lists**
@@ -185,8 +205,8 @@ con.execute("""
     SELECT radiko FROM ontology_edges
     WHERE rel = 'APARTENAS_AL_VERBA_KLASO' AND class_id = 'kreado-26'
 """).fetchall()
-# The store also has a `verb_klaso` column on `sentences` for filtering —
-# ⚠️ currently 0% populated; populating it is part of the ontology restore.
+# NOTE: there is NO verb_klaso column on `sentences` (verified 2026-07-18);
+# class membership lives in ontology_edges. A denormalized column is #875.
 ```
 
 **4. Use schema slots for importance ranking, not hardcoded weights**
@@ -802,28 +822,24 @@ with deterministic-first evaluation. See `DESIGN.md` — especially its
 - Extractive QA end-to-end: retrieves and answers with citations
 - `klareco.eval` shared by local + Modal evaluators
 
-**Broken / degraded — read before trusting any number:**
-- ⚠️ Parser data lost in the June 2026 migration (`protected_roots.json`,
-  `proper_nouns_dynamic_v*.json`). `Esperanton` parses to root `esper` + suffix
-  `ant`. Fails silently.
-- ⚠️ Semantic ontology **not loaded**: `ontology_nodes`/`ontology_edges` empty,
-  `verb_klaso` 0% populated. Everything downstream of it no-ops.
-- ⚠️ `entity_facts` table missing — `BiographyFormatStage` crashes.
-- ⚠️ **All nine rerankers are tied.** Everything they *share* (BM25, phrase boost,
-  exact radiko match, tense) is alive; everything that makes any one of them
-  *different* (verb class, negation, entity-type gating) reads a dead column.
-  Identical live inputs → identical rankings. The smart reranker is written; it is
-  running on empty. Compounding this, the 17-question test set has no headroom
-  (recall@5 = 17/17). Fixing either alone proves nothing — both must land together.
+**Status lives in ONE place: `DESIGN.md` → "Current state".** This section went
+stale twice by duplicating it (the ontology-empty / entity_facts-missing /
+rerankers-tied claims formerly here were all falsified by a live-store audit on
+2026-07-18). Headline as of 2026-07-18 — verify in DESIGN.md before trusting:
 
-**Unmeasured** (landed just before the migration, never benchmarked): symbolic
-reasoning (#749, #761), planner (#771), math tool (#772), dialog (#767),
-biography/definition generators (#766, #775).
+- Parser data restored (`Esperanton`→`esperant` ✓); `proper_nouns_dynamic_v*`
+  still missing (capitalization fallback).
+- Ontology LOADED + CONSUMED but thin; `SINONIMO` unwired (#873).
+- `entity_facts` PRESENT (1,006,992 rows) but its schema DRIFTED from its
+  consumers — reasoning/planner/generation are **silently dead in production**
+  (**#881, P0**). Math (#772) is the only live symbolic module (5/5 smoke).
+- Rerankers DIFFERENTIATED on honest sets (`qa_gold_v2`, n=1345): B/H/J beat
+  BM25 (CI excludes 0); I_clause_aware is significantly worse (#860, #861).
 
-**In Progress**: restore the lost artifacts, then build a *discriminating* test
-set (#736, #737) — one where BM25 fails but the answer is still findable. Until
-that exists, reranker work cannot be measured.
-See [EPIC #713](https://github.com/marctjones/klareco/issues/713).
+**Active priority** (decided 2026-07-18): **the orchestration core FIRST** —
+enforce the thought contract, then admit optional modules to a stable
+environment one at a time. Milestones: Core (28) → MVP-1 (29) → MVP-2 (30) →
+Dual-track slots (31). See "THE ORCHESTRATION CONTRACT" above and DESIGN.md.
 
 **Deferred**: the learned stack was **pruned from the repo** (commits `b68320e`,
 `822a3eb`, `313ec3e`) — `klareco/embeddings/`, `klareco/models/`, and

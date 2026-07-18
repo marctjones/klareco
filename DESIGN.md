@@ -11,7 +11,7 @@ in this repository.
 
 ---
 
-## Current state (2026-07-12) — READ THIS FIRST
+## Current state (updated 2026-07-18) — READ THIS FIRST
 
 The code survived a laptop migration in June 2026; several **data artifacts did
 not**. The system runs end-to-end and returns cited answers, and 406 tests pass,
@@ -32,7 +32,13 @@ Two consequences that are easy to get wrong:
 together*, which is why retrieval works at all. Restoring the JSON without a
 corpus reparse would make questions parse to `esperant` while 5.4M rows still say
 `esper`, **breaking retrieval**. Restoring parser data therefore *requires* a
-reparse + store rebuild (~5–6 h). It is not a drop-in fix.
+reparse + store rebuild. It is not a drop-in fix — but it is not the multi-day
+job the old docs implied either: the parser does 7,384 sentences/sec on one core
+(measured 2026-07-14), so parsing 5.39M sentences is **~15 min**; the rebuild
+wall-clock is dominated by **I/O and indexing** (writing the ~20 GB JSONL and
+building Whoosh over 5.4M docs). The stale "~5–6 h" figure predates the Kuzu
+removal — it was `KuzuASTReconstructor` at ~17,000 ms per AST — and using it to
+justify deferring the reparse has cost us before. Do not.
 
 **2. The ontology is not lost, only unported.** The verb classes, entity types,
 thematic roles, and schema slots are Python literals in
@@ -45,6 +51,26 @@ The Kuzu → DuckDB migration is **complete in code** (no `kuzu` imports remain 
 `klareco/`) but **incomplete in data** (the ontology population step was never
 ported). Most of what looks like a modeling problem below traces back to that one
 fact.
+
+### What the merge gate has decided since 2026-07-12
+
+The gate (no capability merges without a moved benchmark number) is now being
+run in earnest against **band-sliced probe sets** carved from `rebaseline_210`
+— `trivial`, `rerankable`, `deep`, plus targeted slices `alias_variant`,
+`common_terms`, `low_overlap`. Each candidate capability is measured with a
+paired-bootstrap MRR CI on its target band and on the controls. Recent verdicts:
+
+| Candidate | Verdict | Evidence |
+|---|---|---|
+| **Alias bridge** (Wikipedia-redirect → canonical title, OR-injected into BM25) — #865 | ✅ **passed the gate**, but **not shipped to the live path** (decision 2026-07-18): +0.0226 MRR on `alias_variant` (CI [+0.0066,+0.0426], p=0.0014), zero control regression. A 224k-entry standalone JSON is the wrong *home* — aliases belong in `ontology_edges` as an `ALIASO` relation (#872). Code committed inert; the data generator (`scripts/index/build_alias_table.py`) and the measurement are kept as justification. | research-track |
+| **Structure-anchored reranking** (subject/object role match) — #866 | ❌ **oracle-negative**: a *perfect* role match lifts 0/36 in-pool golds into top-5. The question's subject is the interrogative (kiu/kio) — no content radiko to align on. Real lever is phrase-proximity / proper-noun weighting. | rejected |
+| **Whoosh OR-query pruning** for latency — #859 | ❌ **reject all pruning**: minmatch gives no speedup; top-IDF subsetting is 3.3× faster but a significant MRR loss (CI excludes 0). The OR-query width is load-bearing for recall. Corrected the premise — isolated OR-search is ~280 ms/q, not 1.7 s. | rejected |
+| **Deterministic query-variant expansion** — #855 | ✅ +1.0–1.9 pp answer accuracy. | shipped |
+
+The pattern is deliberate: most spikes end in a **decision, not a merge**. Under
+boundary-discovery that is a real result — a measured "this lever cannot move the
+number" maps the boundary as surely as a win does. Net capability change to the
+**live** pipeline this session is small by design.
 
 ---
 
@@ -538,7 +564,9 @@ Retrieval scoring is unaffected by this; extraction scoring is not.
 ### Start here
 
 1. **#807** — *one rebuild, not five.* Four fixes in #16 need a reparse; do them
-   in a single 6-hour pass, in this order: filter redirects **first** (#802),
+   in a single pass (the parse is ~15 min; the wall-clock is the ~20 GB JSONL
+   write + Whoosh rebuild — see "Current state"), in this order: filter redirects
+   **first** (#802),
    because the proper-noun dictionary rebuild (#804) mines proper nouns and
    `REDIRECT` is currently the **#1 proper-noun subject in the store**. Mine
    before you filter and you bake the pollution into the dictionary.
@@ -548,10 +576,13 @@ Retrieval scoring is unaffected by this; extraction scoring is not.
 3. **#784** — *adopt the merge gate.* It is a policy, not code. Adopt it now, even
    though it cannot be fully enforced until the ruler exists.
 
-### Stale, pending triage in #786
+### Backlog triage — done (#786, closed)
 
-Milestones **#10, #11, #12** (old model tiers) and **#13** (v2.1.0 GA — a
-Kuzu-era release) predate the migration and should be closed or rewritten.
+The pre-migration milestones — **#10, #11, #12** (old model tiers) and **#13**
+(v2.1.0 GA, a Kuzu-era release) — have all been **closed**. The backlog was
+restructured into two tracks under #786 (also closed): *build* (merge-gated,
+must move a benchmark number) vs *research* (produces a decision). The open
+milestones (#14, #16–#26) reflect that structure.
 
 ## See also
 

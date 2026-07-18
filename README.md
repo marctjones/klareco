@@ -32,6 +32,16 @@ Measurement target is retrieval-rank metrics (top-1 / top-5 / top-20 / MRR)
 plus extraction accuracy conditional on retrieval — not final-answer accuracy
 alone.
 
+**How capabilities are decided.** Nothing merges on elegance. Every candidate
+is measured against **band-sliced probe sets** carved from the frozen
+`rebaseline_210` benchmark (`trivial`, `rerankable`, `deep`, plus targeted
+slices like `alias_variant` and `common_terms`) with a paired-bootstrap MRR
+confidence interval on its target band *and* on the controls — **if the number
+did not move, it does not merge** (the merge gate; see `CLAUDE.md`). Most spikes
+end in a *decision, not a merge*: a measured "this lever cannot move the number"
+maps the deterministic boundary as surely as a win does. See `DESIGN.md` →
+"What the merge gate has decided" for the running ledger.
+
 > ⚠️ **Read `DESIGN.md` → "Current state" before trusting any number here.**
 > Several data artifacts were lost in a June 2026 laptop migration and the
 > pipeline degrades *silently* without them. Recovery is tracked in

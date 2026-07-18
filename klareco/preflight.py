@@ -222,7 +222,15 @@ def _check_duckdb(duckdb_path: Path) -> list[Finding]:
         POPULATION_CONTRACTS: list[tuple[str, str, float, str]] = [
             ("sentences", "ast_json",    0.99, "every stage that inspects structure"),
             ("sentences", "aliaj_json",  0.90, "KIE/KIAM answer-slot matching"),
-            ("sentences", "subj_radiko", 0.80, "subject-role retrieval, KIU reranking"),
+            # 0.80 -> 0.70 (2026-07-17, #858): investigated, NOT a shredding bug —
+            # 0 of 75 sampled NULL rows have a subject in their stored AST. 28.6%
+            # of corpus sentences are genuinely subjectless under the stricter
+            # clause-spine parser (fragments, biography-style openings,
+            # impersonal constructions); the old >=0.80 encoded the OLD parser's
+            # over-attribution (the rebuild epic called its 2.25M proper-noun
+            # subjects "implausible"). Clause-0 backfill closes the small
+            # sentences/clauses inconsistency (~1.5pp).
+            ("sentences", "subj_radiko", 0.70, "subject-role retrieval, KIU reranking"),
             ("clauses",   "verb_klaso",  0.01, "ast_aware_reranker's verb-class "
                                                "generalization"),
         ]

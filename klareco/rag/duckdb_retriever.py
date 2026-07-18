@@ -31,7 +31,7 @@ from whoosh.index import open_dir
 from whoosh.qparser import OrGroup, QueryParser
 
 from klareco.parser import expand_ast
-from klareco.rag.query_expansion import build_expanded_query
+from klareco.rag.query_expansion import build_expanded_query, question_anchors
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +163,47 @@ class DuckDBRetriever:
             except (KeyError, ValueError):
                 continue
         self._phase_timer.add('whoosh_query', (time.time() - t0) * 1000)
+
+        # Synthetic-rank union candidates (#870 title-union, #856 definitional).
+        # Both add sids the OR-query misses; they enter scoring at a flat
+        # synthetic rank (30) — present and competitive, but not auto-top.
+        extra_rank: Dict[int, int] = {}
+        _ur = int(os.environ.get('KLARECO_UNION_RANK', '30'))
+        # #870/#856: anchor extraction needs the FULL surface string with original
+        # casing (proper nouns are found by capitalization). `qtext` above comes
+        # from _question_text(), which walks only the top clause and drops
+        # subordinate clauses + quotes — so anchors like 'Orienton' or
+        # «Californication» vanish before they can fire. Rebuild the faithful
+        # string from `vortoj` (every token, in order, casing preserved).
+        atext = ' '.join(
+            w.get('plena_vorto', '') for w in (question_ast.get('vortoj') or [])
+        ).strip() or qtext
+        if os.environ.get('KLARECO_TITLE_UNION', '0') == '1':
+            # #870: sentences from the article NAMED by a question anchor
+            # ("...ĉefkantisto de Coldplay?" -> article 'Coldplay').
+            for a in question_anchors(atext)[:3]:
+                try:
+                    for (sid_,) in self.con.execute(
+                            "SELECT sid FROM sentences WHERE lower(article_title)"
+                            "=lower(?) LIMIT 30", [a]).fetchall():
+                        extra_rank.setdefault(int(sid_), _ur)
+                except Exception:
+                    pass
+        if os.environ.get('KLARECO_DEF_ANCHOR', '0') == '1':
+            # #856: definitional questions -> phrase-anchor '"X estas"'.
+            ql = qtext.lower()
+            if ql.startswith(('kio ', 'kion ')) or 'signifas' in ql:
+                for a in question_anchors(atext)[:2]:
+                    try:
+                        pq = self._qp.parse(f'"{a} estas"')
+                        for hit in s.search(pq, limit=30):
+                            extra_rank.setdefault(int(hit['id']), _ur)
+                    except Exception:
+                        pass
+        for sid_ in extra_rank:
+            if sid_ not in cand_ids:
+                cand_ids.append(sid_)
+
         if not cand_ids:
             return []
 
@@ -204,6 +245,9 @@ class DuckDBRetriever:
 
         # rank-position from Whoosh = base relevance signal
         rank_of = {sid: i for i, sid in enumerate(cand_ids)}
+        # union candidates score at their synthetic rank, not their append position
+        for sid_, r_ in extra_rank.items():
+            rank_of[sid_] = min(rank_of.get(sid_, r_), r_)
 
         # 3. Light question-type bias on shredded columns. Deep AST-role
         #    boosting is left to DeterministicRerankStage (it now gets a

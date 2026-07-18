@@ -139,6 +139,34 @@ def selective_variants(term: str, raw_question: str = '') -> List[str]:
     return variants(term) if rare else []
 
 
+_LEAD_FUNC = frozenset(
+    'en la kiu kiun kio kion kie kiam kiom kial kiel kiuj ĉu de al post antaŭ '
+    'dum per pri sur sub el ke kaj'.split())
+_QUOTE_RE = re.compile(r'[«"\'“]([^»"\'”]{3,60})[»"\'”]')
+_CAPRUN_RE = re.compile(
+    r'\b([A-ZĈĜĤĴŜŬ][\w\-]*(?:\s+(?:[A-Z0-9ĈĜĤĴŜŬ][\w\-]*|de|la))*)')
+
+
+def question_anchors(question: str) -> List[str]:
+    """Deterministic anchor spans (#870): quoted strings + capitalized runs, with
+    leading function words stripped even sentence-initially ('En Minecraft' ->
+    'Minecraft'). These identify the entity/title the question is ABOUT."""
+    out = [m.group(1) for m in _QUOTE_RE.finditer(question)]
+    for m in _CAPRUN_RE.finditer(question):
+        toks = m.group(1).split()
+        while toks and toks[0].lower() in _LEAD_FUNC:
+            toks.pop(0)
+        if toks:
+            out.append(' '.join(toks))
+    seen, res = set(), []
+    for a in out:
+        a = a.strip()
+        if len(a) > 2 and a.lower() not in seen:
+            seen.add(a.lower())
+            res.append(a)
+    return res
+
+
 def build_expanded_query(terms: List[str], raw_question: str = '',
                          weight: float = 0.3, cap: int = 8) -> str:
     """OR-query string: original terms at full weight + selected variants

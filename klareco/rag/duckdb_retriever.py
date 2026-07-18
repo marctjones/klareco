@@ -75,6 +75,16 @@ class DuckDBRetriever:
         # read_only so many eval workers can share the file.
         self.con = duckdb.connect(str(duckdb_path), read_only=True)
         self._phase_timer = _PhaseTimer()
+        # Cached searcher + parser. Opening a Whoosh searcher re-opens the segment
+        # files (~220 ms measured 2026-07-17 — 15% of retrieval wall clock); the
+        # index is read-only in this process, so one long-lived searcher is safe.
+        self._cached_searcher = None
+        self._qp = QueryParser('text', self.ix.schema, group=OrGroup)
+
+    def _searcher(self):
+        if self._cached_searcher is None:
+            self._cached_searcher = self.ix.searcher(weighting=scoring.BM25F())
+        return self._cached_searcher
 
     # --- question analysis -------------------------------------------------
     @staticmethod
@@ -124,16 +134,18 @@ class DuckDBRetriever:
             return []
 
         # 1. Whoosh BM25 -> candidate sids (wide net; DuckDB refines).
+        #    The searcher and parser are CACHED (see _searcher()): opening a
+        #    searcher re-opens the segment files (~220 ms measured) and the index
+        #    is read-only here, so paying that per query was pure waste.
         t0 = time.time()
         cand_ids: List[int] = []
-        with self.ix.searcher(weighting=scoring.BM25F()) as s:
-            qp = QueryParser('text', self.ix.schema, group=OrGroup)
-            q = qp.parse(' OR '.join(terms))
-            for hit in s.search(q, limit=max(top_k * 15, 300)):
-                try:
-                    cand_ids.append(int(hit['id']))
-                except (KeyError, ValueError):
-                    continue
+        s = self._searcher()
+        q = self._qp.parse(' OR '.join(terms))
+        for hit in s.search(q, limit=max(top_k * 15, 300)):
+            try:
+                cand_ids.append(int(hit['id']))
+            except (KeyError, ValueError):
+                continue
         self._phase_timer.add('whoosh_query', (time.time() - t0) * 1000)
         if not cand_ids:
             return []
@@ -189,17 +201,23 @@ class DuckDBRetriever:
                 boost += 0.5
             if q_obj and obj_r == q_obj:
                 boost += 0.5
-            try:
-                ast = json.loads(ast_json) if ast_json else None
-            except Exception:
-                ast = None
+            # NOTE: ast_json is carried RAW here and parsed only for the final
+            # top_k below. The boost reads shredded columns only, and with the
+            # wide net (top_k*15 candidates) parsing every blob meant ~15x more
+            # json.loads than we return (measured ~0.3 s/query at pool=100).
             scored.append({
                 'id': str(sid),
                 'text': text,
-                'ast': ast,
+                'ast': ast_json,          # raw; parsed after the cut
                 'score': base * boost * 10.0,
                 'source': 'duckdb',
             })
         scored.sort(key=lambda r: r['score'], reverse=True)
+        top = scored[:top_k]
+        for r in top:                     # parse only what we return
+            try:
+                r['ast'] = json.loads(r['ast']) if r['ast'] else None
+            except Exception:
+                r['ast'] = None
         self._phase_timer.add('score', (time.time() - t0) * 1000)
-        return scored[:top_k]
+        return top

@@ -159,12 +159,16 @@ class DuckDBRetriever:
         # block at file offset ~30GB (2026-05-21 incident); rebuild is
         # pending. This wrap prevents one bad block from blocking ALL
         # retrieval.
+        # ⚠️ #864: the candidate fetch reads ONLY the light shredded columns the
+        # boost needs. text + ast_json are hauled in a SECOND query for the final
+        # top_k only — fetching ast_json for all top_k*15 (=1,500) candidates
+        # moved ~3 MB of compact blobs per query to score rows we discard
+        # (measured: DuckDB dominated 82.6% of retrieval wall clock).
         t0 = time.time()
         placeholders = ','.join('?' * len(cand_ids))
         try:
             rows = self.con.execute(
-                f"SELECT sid, text, verb_radiko, subj_vortspeco, "
-                f"subj_propranoma_kat, obj_radiko, ast_json "
+                f"SELECT sid, subj_vortspeco, obj_radiko "
                 f"FROM sentences WHERE sid IN ({placeholders})",
                 cand_ids,
             ).fetchall()
@@ -176,11 +180,8 @@ class DuckDBRetriever:
             for sid in cand_ids:
                 try:
                     r = self.con.execute(
-                        "SELECT sid, text, verb_radiko, subj_vortspeco, "
-                        "subj_propranoma_kat, obj_radiko, ast_json "
-                        "FROM sentences WHERE sid = ?",
-                        [sid],
-                    ).fetchone()
+                        "SELECT sid, subj_vortspeco, obj_radiko "
+                        "FROM sentences WHERE sid = ?", [sid]).fetchone()
                     if r:
                         rows.append(r)
                 except Exception:
@@ -196,36 +197,53 @@ class DuckDBRetriever:
         t0 = time.time()
         q_obj = _kerno((question_ast.get('objekto') or {})).get('radiko')
         scored = []
-        for sid, text, verb_r, subj_vs, subj_kat, obj_r, ast_json in rows:
+        for sid, subj_vs, obj_r in rows:
             base = 1.0 / (1 + rank_of.get(sid, len(cand_ids)))
             boost = 1.0
             if qtype in ('KIU', 'KIE') and subj_vs == 'propra_nomo':
                 boost += 0.5
             if q_obj and obj_r == q_obj:
                 boost += 0.5
-            # NOTE: ast_json is carried RAW here and parsed only for the final
-            # top_k below. The boost reads shredded columns only, and with the
-            # wide net (top_k*15 candidates) parsing every blob meant ~15x more
-            # json.loads than we return (measured ~0.3 s/query at pool=100).
             scored.append({
                 'id': str(sid),
-                'text': text,
-                'ast': ast_json,          # raw; parsed after the cut
+                'text': None,             # filled for the top_k below
+                'ast': None,
                 'score': base * boost * 10.0,
                 'source': 'duckdb',
             })
         scored.sort(key=lambda r: r['score'], reverse=True)
         top = scored[:top_k]
-        for r in top:                     # parse only what we return
+
+        # Second fetch: text + ast_json for the WINNERS only (~top_k rows, not 15x).
+        top_ids = [int(r['id']) for r in top]
+        heavy: dict = {}
+        if top_ids:
+            ph = ','.join('?' * len(top_ids))
             try:
-                ast = json.loads(r['ast']) if r['ast'] else None
-                # ⚠️ The store carries the COMPACT form (compact_ast: vortoj once,
-                # roles as *_id references). Consumers (unified_extractor, AST
-                # rerankers) read the EXPANDED shape (ast['subjekto']['kerno']...)
-                # and silently extract ZERO facts from a compact dict — that was
-                # the answer_accuracy=0.0% bug (#851). Expand here, at the single
-                # choke point where ast_json becomes a passage AST. Guarded:
-                # expand_ast is not idempotent, so only expand actual compacts.
+                for sid, text, aj in self.con.execute(
+                        f"SELECT sid, text, ast_json FROM sentences "
+                        f"WHERE sid IN ({ph})", top_ids).fetchall():
+                    heavy[sid] = (text, aj)
+            except Exception as e:
+                logger.warning(f"Top-k heavy fetch failed ({e}); per-sid fallback")
+                for sid in top_ids:
+                    try:
+                        r = self.con.execute(
+                            "SELECT sid, text, ast_json FROM sentences "
+                            "WHERE sid = ?", [sid]).fetchone()
+                        if r:
+                            heavy[r[0]] = (r[1], r[2])
+                    except Exception:
+                        continue
+        for r in top:
+            text, aj = heavy.get(int(r['id']), (None, None))
+            r['text'] = text
+            try:
+                ast = json.loads(aj) if aj else None
+                # ⚠️ The store carries the COMPACT form (compact_ast). Consumers
+                # read the EXPANDED shape and silently extract ZERO facts from a
+                # compact dict — the answer_accuracy=0.0% bug (#851). Expand here,
+                # at the single choke point. Guarded: expand_ast is not idempotent.
                 if ast is not None and ('subjekto_id' in ast or 'verbo_id' in ast
                                         or 'objekto_id' in ast):
                     ast = expand_ast(ast)

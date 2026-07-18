@@ -56,10 +56,11 @@ maps the deterministic boundary as surely as a win does. See `DESIGN.md` →
 | DuckDBRetriever + AST-role matching | ✅ **the** retriever — what `factory.py` builds |
 | ExtractiveAnswerGenerator | ✅ slot-keyed extraction |
 | Eval (local + Modal cloud) | ✅ `klareco.eval` shared by both runners |
-| Proper-noun dictionary | ⚠️ **JSON missing** — parser falls back to capitalization heuristics |
-| 4-layer semantic ontology | ⚠️ **not loaded** — `ontology_nodes`/`edges` empty, `verb_klaso` 0% populated |
-| `entity_facts` table | ⚠️ **missing** — crashes `BiographyFormatStage` |
-| AST rerankers (9 variants) | ⚠️ **all tied** — they differ only in components that read dead columns |
+| Proper-noun dictionary | ⚠️ `protected_roots.json` present (`Esperanton`→`esperant` ✓); `proper_nouns_dynamic_v*` still missing → capitalization fallback |
+| 4-layer semantic ontology | ✅ **loaded + consumed** (12,798 nodes / 13,212 edges; readable since #713 fix `28ce022`) — but hand-seeded **thin** (verb layer 8 classes/128 roots; 2,864 ReVo `SINONIMO` edges not yet wired into query expansion) |
+| `verb_klaso` per-sentence column | ⚠️ **not built** — class membership lives in `ontology_edges`; denormalized column is an unbuilt convenience |
+| `entity_facts` table | ✅ **present, 1,006,992 rows** (docs previously said missing) |
+| AST rerankers | ⚠️ **differentiated on honest sets** (`qa_gold_v2` n=1345): B_phrase / H_hybrid / J_tree_aware beat BM25 (CI excludes 0); I_clause_aware worse. The old "all tied" was an artifact of an unreadable ontology schema (#713) + a circular test set. See `DESIGN.md`. |
 | `WhooshRetriever` | ❌ **dead** — `__init__` raises `NotImplementedError` |
 | Symbolic layer (inference, planner, math, dialog, generation) | ❓ **never benchmarked** — in the pipeline, effect unknown |
 | Q&A quality framework (R1-R15 + 8 gates) | ✅ `docs/QA_TEST_SET_QUALITY_STANDARD.md` |

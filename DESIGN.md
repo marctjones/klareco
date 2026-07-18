@@ -13,39 +13,44 @@ in this repository.
 
 ## Current state (updated 2026-07-18) — READ THIS FIRST
 
-The code survived a laptop migration in June 2026; several **data artifacts did
-not**. The system runs end-to-end and returns cited answers, and 406 tests pass,
-but four artifacts the code assumes exist are missing — and **they fail silently**.
-No crash, just quietly degraded output.
+The code survived a laptop migration in June 2026. **Most of the "lost artifact"
+damage the earlier drafts of this section described has since been repaired** —
+and a direct audit of the live store on 2026-07-18 found the prose here was
+badly stale. What that audit actually found:
 
-| Missing artifact | Effect |
-|---|---|
-| `data/vocabularies/protected_roots.json` | Parser over-decomposes: `Esperanton` → root `esper` + participle suffix `ant`. Causes ~10 test failures. |
-| `data/proper_nouns_dynamic_v3.json` (+ v2, legacy, static) | Proper-noun dictionary loads as `None`; parser falls back to capitalization heuristics only. |
-| `data/ontology_export/kuzu_ontology_snapshot.json` | `ontology_nodes` / `ontology_edges` are **empty**; `verb_klaso` is **0% populated**. The semantic ontology is absent at runtime. |
-| `entity_facts` table | **Crashes** `BiographyFormatStage`. Rebuildable via `scripts/index/extract_entity_facts.py`. |
+| Artifact | Doc used to say | **Verified 2026-07-18** |
+|---|---|---|
+| `data/vocabularies/protected_roots.json` | missing → `Esperanton`→`esper`+`ant` | **PRESENT.** `Esperanton` now parses to root `esperant`, `propra_nomo`. Symptom gone. |
+| `data/proper_nouns_dynamic_v3.json` (+ v2, legacy) | missing → dict loads `None` | **Still missing.** Parser falls back to capitalization + `protected_roots`; the `Esperanton` case is nonetheless correct now. |
+| `ontology_nodes` / `ontology_edges` | **empty**, ontology absent | **LOADED and CONSUMED.** 12,798 nodes / 13,212 edges; readable since the #713 schema fix (`28ce022`) — `ast_aware_reranker` / `ast_retriever` query `(rel, radiko, class_id)`. |
+| `verb_klaso` column | 0% populated | **Column does not exist** on `sentences`. But the class membership lives in `ontology_edges` (`APARTENAS_AL_VERBA_KLASO`, 8 classes / 128 roots). The per-sentence denormalized column is an unbuilt convenience, not a missing capability. |
+| `entity_facts` table | missing → crashes `BiographyFormatStage` | **PRESENT, 1,006,992 rows.** |
 
-Two consequences that are easy to get wrong:
+So the honest current picture is **restored-but-thin**, not lost:
 
-**1. The store was built *without* `protected_roots.json` too.** It contains
-`esper`, not `esperant`. Today questions and index are *consistently wrong
-together*, which is why retrieval works at all. Restoring the JSON without a
-corpus reparse would make questions parse to `esperant` while 5.4M rows still say
-`esper`, **breaking retrieval**. Restoring parser data therefore *requires* a
-reparse + store rebuild. It is not a drop-in fix — but it is not the multi-day
-job the old docs implied either: the parser does 7,384 sentences/sec on one core
-(measured 2026-07-14), so parsing 5.39M sentences is **~15 min**; the rebuild
-wall-clock is dominated by **I/O and indexing** (writing the ~20 GB JSONL and
-building Whoosh over 5.4M docs). The stale "~5–6 h" figure predates the Kuzu
-removal — it was `KuzuASTReconstructor` at ~17,000 ms per AST — and using it to
-justify deferring the reparse has cost us before. Do not.
+**1. The parser degradation is repaired for the flagged case.** `protected_roots.json`
+is back and `Esperanton` parses correctly (`esperant`, `propra_nomo`), not the
+old `esper`+`ant`. ⚠️ **Still open (unverified 2026-07-18):** whether the *store's*
+shredded radiko columns are consistent with the *current* parser — the corpus was
+parsed at some point in the past, and if the shredded columns hold `esper` while
+questions now parse to `esperant`, the radiko-join paths (not surface Whoosh,
+which is unaffected) could silently mismatch. A reparse remains the clean fix if
+that inconsistency is confirmed. On reparse cost, note: the parser does 7,384
+sentences/sec on one core (measured 2026-07-14), so parsing 5.39M sentences is
+**~15 min**; the wall-clock is **I/O + indexing** (writing the ~20 GB JSONL and
+building Whoosh). The stale "~5–6 h" figure was `KuzuASTReconstructor` at
+~17,000 ms per AST — do not use it to defer a reparse.
 
-**2. The ontology is not lost, only unported.** The verb classes, entity types,
-thematic roles, and schema slots are Python literals in
-`scripts/index/extend_kuzu_schema_semantic_ontology.py`. They were only ever
-loaded into Kuzu. The DuckDB path expects a snapshot JSON exported *from Kuzu* —
-and Kuzu is gone. The fix is to emit the snapshot directly from the class
-definitions in code.
+**2. The ontology is loaded, consumed — and hand-seeded thin.** The verb/entity
+classes came from the Python literals in
+`scripts/index/extend_kuzu_schema_semantic_ontology.py` (do **not** re-run
+`load_ontology.py` — commit `28ce022` shows it *drops and overwrites* the table
+with a `(de, al, rel)` schema no consumer reads, and the live tables carry a
+hand-fix it would destroy). Thinness is real: 82% of nodes have `klaso=NULL`, the
+verb-class layer is 8 classes / 128 roots, and there are **2,864 curated ReVo
+`SINONIMO` edges that are NOT wired into first-stage query expansion** (the live
+`#855` expander is morphology-only). That last gap is the open lever against the
+synonym residue — see the merge-gate ledger below.
 
 The Kuzu → DuckDB migration is **complete in code** (no `kuzu` imports remain in
 `klareco/`) but **incomplete in data** (the ontology population step was never

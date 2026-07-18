@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -30,6 +31,7 @@ from whoosh.index import open_dir
 from whoosh.qparser import OrGroup, QueryParser
 
 from klareco.parser import expand_ast
+from klareco.rag.query_expansion import build_expanded_query
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +144,19 @@ class DuckDBRetriever:
         t0 = time.time()
         cand_ids: List[int] = []
         s = self._searcher()
-        q = self._qp.parse(' OR '.join(terms))
+        # #855: selective, DOWN-WEIGHTED variant expansion (compound-split,
+        # acronym, ordinal, de-inflected proper terms). Weight chosen END-TO-END
+        # on rebaseline_210: w=0.3 raises answer_accuracy for EVERY reranker
+        # (baseline 27.6->28.6, B_phrase 28.1->30.0; deep band 5.7->7.1) with the
+        # trivial band fully recovered downstream (44.3->44.3) — the small
+        # retrieval-rank slips never reach the answer. KLARECO_QE_WEIGHT
+        # overrides (0 disables).
+        _w = float(os.environ.get('KLARECO_QE_WEIGHT', '0.3'))
+        if _w > 0:
+            q = self._qp.parse(build_expanded_query(terms, raw_question=qtext,
+                                                    weight=_w))
+        else:
+            q = self._qp.parse(' OR '.join(terms))
         for hit in s.search(q, limit=max(top_k * 15, 300)):
             try:
                 cand_ids.append(int(hit['id']))

@@ -962,6 +962,16 @@ def main() -> None:
             row[f'{llm_tag}_correct'] = llm_correct
             row[f'{llm_tag}_latency_s'] = round(llm_lat, 3)
         rows.append(row)
+        # STREAM each row to disk as it completes (#853 lesson): a killed run keeps
+        # everything scored so far, and running metrics can be read live from the
+        # file while the bench is still going.
+        if args.output_jsonl:
+            if q_idx == 1 or not getattr(main, '_stream_started', False):
+                Path(args.output_jsonl).parent.mkdir(parents=True, exist_ok=True)
+                open(args.output_jsonl, 'w').close()
+                main._stream_started = True
+            with open(args.output_jsonl, 'a') as _f:
+                _f.write(json.dumps(row, ensure_ascii=False) + '\n')
         marks = ' '.join(
             ('✓' if row.get(f'{r.name}_correct') else '·') for r in enabled
         )
@@ -1075,11 +1085,8 @@ def main() -> None:
               f'{"-":>6s} {100*n_correct/n:>5.1f}%   (LLM avg_lat={avg_lat:.1f}s)')
 
     if args.output_jsonl:
-        Path(args.output_jsonl).parent.mkdir(parents=True, exist_ok=True)
-        with open(args.output_jsonl, 'w') as f:
-            for row in rows:
-                f.write(json.dumps(row, ensure_ascii=False) + '\n')
-        print(f'\nPer-question JSONL: {args.output_jsonl}')
+        # already streamed row-by-row during the run
+        print(f'\nPer-question JSONL (streamed live): {args.output_jsonl}')
 
     # Emit a per-run summary that perf_history.py can ingest with `append`.
     # Captures: which assets were active, per-reranker metrics, test set, sample size.

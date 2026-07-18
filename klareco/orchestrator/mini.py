@@ -34,11 +34,13 @@ def build_mini_pipeline(whoosh_dir: Path | str,
                         top_k: int = 10) -> Orchestrator:
     """A real Orchestrator over a tiny store — the contract-suite target.
 
-    Stage list mirrors build_default_pipeline (default-on modules only):
+    A contract-COVERAGE pipeline (not a mirror of the shipping default):
       parse → math → retrieve → deterministic_rerank → ast_aware_rerank
       → extract → format
-    (ast_aware_rerank rejoined the covered spine once #895 removed its dead
-    verb_klaso SELECT; it runs against the mini store's empty ontology_edges.)
+    It includes ast_aware_rerank so the contract suite still covers it even
+    though it was DEMOTED from build_default_pipeline (#895: it hurts the number
+    on rebaseline_210). A demoted stage must still honor the contract — that is
+    exactly what this harness verifies.
     """
     models = ModelRegistry()
     retriever = DuckDBRetriever(whoosh_index_dir=Path(whoosh_dir),

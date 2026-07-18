@@ -16,7 +16,6 @@ from klareco.orchestrator.stage import ModelRegistry
 from klareco.orchestrator.stages.parse_question import ParseQuestionStage
 from klareco.orchestrator.stages.retrieve import RetrieveStage
 from klareco.orchestrator.stages.deterministic_rerank import DeterministicRerankStage
-from klareco.orchestrator.stages.ast_aware_rerank import ASTAwareRerankStage
 from klareco.orchestrator.stages.rerank import RerankStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
@@ -114,11 +113,14 @@ def build_default_pipeline(
     stages.extend([
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
         DeterministicRerankStage(),
-        # AST-aware structural reranker (#741 Stage 3). Beats
-        # B_phrase_query on R@1, R@5, MRR, and answer accuracy on
-        # capability_candidates_v1. Drops in between
-        # DeterministicRerank and the (still-stub) neural RerankStage.
-        ASTAwareRerankStage(duckdb_path=str(duckdb_path)),
+        # AST-aware structural reranker (#741) — DEMOTED from the default
+        # pipeline 2026-07-18 (#895). Its old "beats B_phrase_query on
+        # capability_candidates_v1" claim was on a likely-circular set; once the
+        # dead verb_klaso SELECT was fixed so it actually RAN, a rebaseline_210
+        # A/B showed it HURTS: MRR 0.3619 -> 0.3446 (R@1 -4, R@5 -3, R@20 ±0 —
+        # it only reorders, and reorders worse). "Ship what wins, drop what
+        # hurts" (#26). The stage still passes the contract suite and is
+        # available for Reranker-v2 work; it just does not ship on by default.
         RerankStage(models=models),
         ExtractAndGenerateStage(generator=generator),
     ])

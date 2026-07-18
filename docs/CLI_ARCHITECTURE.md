@@ -125,24 +125,26 @@ not merge (contract rule 4).
 
 ## Release checklist — what "third-party ready" requires
 
-Concrete gaps between today and a shippable CLI (each should be an issue):
+**v0 shipped (2026-07-18):** the CLI was refactored into a tidy registry-based
+package (`klareco/cli/`, one module per command group, `register()` + int exit
+codes + `--json`). The design is done; several items below are now ✅.
 
-1. **Console entry point** — add `console_scripts` so `pip install` yields a
-   `klareco` command; today only `python -m klareco` works.
-2. **Fix `query` defaults** — it still defaults to `data/indexes/whoosh` and a
-   retired Kuzu path; should be `whoosh_v2` with no Kuzu. (`explain` is already
-   correct.)
-3. **`klareco data` command group** — promote the `scripts/*.sh` data pipeline
-   to first-class subcommands (§1) so setup does not require reading shell.
-4. **`klareco doctor` / `inspect store`** — surface preflight + live status as
-   commands (§0, §3), backed by the executable-status work (#887).
-5. **Prune dead `scripts/index/*_kuzu_*.sh`** — Kuzu is retired; these mislead a
-   new user (companion to the code removal in `chore/remove-dead-kuzu-code`).
-6. **Stable, documented exit codes + `--json` output** on every command, so the
-   CLI is scriptable by third parties.
+1. ✅ **Console entry point** — `pyproject.toml` `[project.scripts]` → `klareco`
+   after `pip install -e .` (still runnable as `python -m klareco`).
+2. ✅ **`query` defaults fixed** — now `whoosh_v2`, no Kuzu (matches `explain`).
+3. ✅ **`klareco data` command group** — every setup stage is a discoverable
+   subcommand; previews the canonical long-running command by default, `--run`
+   executes (respects the long-running-scripts policy).
+4. ✅ **`klareco doctor` / `inspect store` / `inspect ast`** — preflight + live
+   store status as commands (feeds the executable-status work #887).
+5. 🎯 **Prune dead `scripts/index/*_kuzu_*.sh`** — Kuzu retired (companion to the
+   `chore/remove-dead-kuzu-code` branch). *Still open.*
+6. 🔶 **Stable exit codes + `--json`** — exit-code contract in `cli/_base.py`
+   (OK/ERROR/USAGE/PLANNED/DEGRADED); `--json` on the read commands. Remaining:
+   `--json` coverage on every command + a documented exit-code table. *(#898)*
 
-This file is the target. Keep it honest: when a 🎯 or 🔶 ships as ✅, update the
-row in the same PR.
+Tracking: #898. This file is the target — when a 🎯/🔶 ships as ✅, flip the row
+in the same PR.
 
 See also: `README.md` (quickstart), `DESIGN.md` (architecture + contract),
 `CLAUDE.md` (conventions), `docs/VERSION_COMPATIBILITY.md` (script versioning).

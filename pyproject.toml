@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "klareco"
+version = "2.2.0"
+description = "Klareco — Esperanto AI: deterministic-first AST orchestration, learned only for the measured residue"
+readme = "README.md"
+requires-python = ">=3.10"
+# Runtime deps are pinned in requirements.txt; keep this minimal so
+# `pip install -e .` gives the `klareco` command without re-solving the world.
+dependencies = []
+
+[project.scripts]
+# The console entry point: `pip install -e .` -> `klareco <command>`
+# (equivalent to `python -m klareco <command>`). See docs/CLI_ARCHITECTURE.md.
+klareco = "klareco.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["klareco*"]

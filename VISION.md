@@ -99,11 +99,16 @@ wrong with that:
 - It is currently being invoked to excuse an F1 of **27.6%** (UD-Prago, measured
   2026-07-13: precision 18.2%, recall 57.1%, 36 false positives against 8 true
   positives). **You do not get to call a problem unsolvable while your solution
-  is that bad** — and ours is bad for a mundane reason: the proper-noun
-  dictionary is *missing* (#804), the ontology is *empty* (#777), and 569,743
-  Wikipedia article titles are not even *in* the store (#803). A 27.6% F1 with a
-  missing dictionary is a property of the **implementation**, not of the
-  **problem**.
+  is that bad** — and ours is bad for a mundane reason: much of the deterministic
+  scaffolding was degraded or unmeasured. (Update 2026-07-18: a live-store audit
+  found some of these already repaired — `protected_roots.json` is back
+  (`Esperanton`→`esperant`), the ontology is **loaded and consumed**, not empty
+  (12,798 nodes / 13,212 edges), and `entity_facts` is present. Still open: the
+  `proper_nouns_dynamic_v*` dictionary (#804) and whether all Wikipedia article
+  titles are in the store (#803). The F1 above has **not been re-measured** since
+  those repairs.) A 27.6% F1 measured against a degraded scaffold is a property of
+  the **implementation**, not the **problem** — re-measure before concluding
+  anything.
 - As written, the claim is **unfalsifiable**: "a token where morphology, position
   and context give *no* signal" defines the residue as whatever is left over. The
   honest question is not *"does an irreducible core exist?"* — trivially it does,
@@ -122,13 +127,23 @@ irreducible, and be able to name exactly which token classes defeat every rule.
 favourite example.** A hypothesis must not become a load-bearing assumption
 merely because it is written down in the vision.
 
-**Lexical synonymy (confirmed residue, currently faked).** Deciding that `fond-`,
-`kre-`, `starig-`, and `establ-` denote the same relation *in a given context* is
-not derivable from morphology. We currently approximate this with a hand-seeded
-verb-class ontology, which is a lookup table pretending to be knowledge: its
-coverage is thin, and it cannot generalize to a root nobody enumerated. The
-honest description is that this is a learned problem we are currently solving
-with a list.
+**Lexical synonymy (⚠️ CLAIMED residue — NOT yet earned, see #873).** Deciding
+that `fond-`, `kre-`, `starig-`, and `establ-` denote the same relation *in a
+given context* is plausibly not derivable from morphology. We approximate it with
+a hand-seeded verb-class ontology — a lookup table pretending to be knowledge:
+thin coverage, no generalization to an unenumerated root.
+
+**But this document was calling it *"confirmed"* while never running the one
+deterministic method that most directly targets it.** The store already holds
+**2,864 curated ReVo `SINONIMO` edges**, and they are **not wired into first-stage
+retrieval** — the live query expander (#855) is morphology-only. So the
+deterministic ceiling for synonymy has never been measured. #873 runs that test:
+OR-expand the 147-question synonym residue with ReVo synonyms and measure. Until
+it does, this is a *claim*, not a residue — and note that the residue's own
+headline example, "posedis" ⇄ "vendas" (*own* vs *sell*), **is not synonymy at
+all** but a converse/world-knowledge relation, which no synonym table would bridge
+(#874). This is the exact error the proper-noun entry above warns about, committed
+here: a hypothesis made load-bearing because it was written down.
 
 **Word-sense disambiguation (suspected residue).** Which sense of a root is in
 play depends on context in ways the AST records but does not resolve.

@@ -24,6 +24,13 @@
     "skipped": true
   },
   {
+    "stage": "ast_aware_rerank",
+    "symbolic": {
+      "passage_asts": 2
+    },
+    "flags": []
+  },
+  {
     "stage": "extract_generate",
     "symbolic": {
       "fact_fragments": 2,

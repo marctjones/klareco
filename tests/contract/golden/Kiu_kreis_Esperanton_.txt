@@ -4,7 +4,7 @@ EVOLUO DE LA PENSO (po-etapa)
   + question_type = 'kiu'
 [math_tool] 0.0ms  konf 0.10→0.10
   (nenio ŝanĝita)
-[retrieve] 0.8ms  konf 0.10→0.50
+[retrieve] 0.6ms  konf 0.10→0.50
   + passage_asts: 3 ero(j)
    1. [sid 1] 20.000  “Zamenhof kreis Esperanton en 1887.”
    2. [sid 3] 7.500  “Esperanto estas internacia planlingvo.”
@@ -12,25 +12,29 @@ EVOLUO DE LA PENSO (po-etapa)
   + passage_asts: 3 ero(j)
    1. [sid 1] 30.000  “Zamenhof kreis Esperanton en 1887.”
    2. [sid 3] 11.250  “Esperanto estas internacia planlingvo.”
-[extract_generate] 0.0ms  konf 0.50→0.70
+[ast_aware_rerank] 0.2ms  konf 0.50→0.60
+  + passage_asts: 3 ero(j)
+   1. [sid 1] 0.000  “Zamenhof kreis Esperanton en 1887.”
+   2. [sid 3] 0.000  “Esperanto estas internacia planlingvo.”
+[extract_generate] 0.0ms  konf 0.60→0.80
   + fact_fragments: 2 ero(j)
   • esperant —KREIS→ aganto=Zamenhof  (konf 1.00, el sid 1) [regulo]
   • esperant —ESTAS→ tipo=planlingv  (konf 1.00, el sid 3) [regulo]
   + answer_segments: 1 ero(j)
   + citations: 2 ero(j)
-[format_output] 0.0ms  konf 0.70→0.70
+[format_output] 0.0ms  konf 0.80→0.80
   + final_text = 'Zamenhof kreis Esperanton en 1887. [1] Ankaŭ, esperanto estas internacia planlingvo. [2] …'
 
 ══════════════════════════════════════════════════════════════
-PENSO — “Kiu kreis Esperanton?”   (konfidenco 0.70)
+PENSO — “Kiu kreis Esperanton?”   (konfidenco 0.80)
 ══════════════════════════════════════════════════════════════
 demando [regulo]  tipo=kiu
   Kiu kreis Esperanton?
 ──────────────────────────────────────────────────────────────
 trafoj (3)
-   1. [sid 1] 30.000  “Zamenhof kreis Esperanton en 1887.”
-   2. [sid 3] 11.250  “Esperanto estas internacia planlingvo.”
-   3. [sid 5] 7.500  “Kalocsay verkis multajn poemojn en Esperanto.”
+   1. [sid 1] 0.000  “Zamenhof kreis Esperanton en 1887.”
+   2. [sid 3] 0.000  “Esperanto estas internacia planlingvo.”
+   3. [sid 5] 0.000  “Kalocsay verkis multajn poemojn en Esperanto.”
 ──────────────────────────────────────────────────────────────
 faktoj (2)
   • esperant —KREIS→ aganto=Zamenhof  (konf 1.00, el sid 1) [regulo]

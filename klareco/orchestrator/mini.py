@@ -22,6 +22,7 @@ from klareco.orchestrator.stages.parse_question import ParseQuestionStage
 from klareco.orchestrator.stages.math_tool import MathToolStage
 from klareco.orchestrator.stages.retrieve import RetrieveStage
 from klareco.orchestrator.stages.deterministic_rerank import DeterministicRerankStage
+from klareco.orchestrator.stages.ast_aware_rerank import ASTAwareRerankStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
 from klareco.rag.duckdb_retriever import DuckDBRetriever
@@ -34,10 +35,10 @@ def build_mini_pipeline(whoosh_dir: Path | str,
     """A real Orchestrator over a tiny store — the contract-suite target.
 
     Stage list mirrors build_default_pipeline (default-on modules only):
-      parse → math → retrieve → deterministic_rerank → extract → format
-    ast_aware_rerank is intentionally omitted here (it queries verb_klaso /
-    ontology, tracked by #895/#875); the golden-trace suite covers the
-    deterministic-QA spine that MVP-1 is built on.
+      parse → math → retrieve → deterministic_rerank → ast_aware_rerank
+      → extract → format
+    (ast_aware_rerank rejoined the covered spine once #895 removed its dead
+    verb_klaso SELECT; it runs against the mini store's empty ontology_edges.)
     """
     models = ModelRegistry()
     retriever = DuckDBRetriever(whoosh_index_dir=Path(whoosh_dir),
@@ -47,6 +48,7 @@ def build_mini_pipeline(whoosh_dir: Path | str,
         MathToolStage(),
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
         DeterministicRerankStage(),
+        ASTAwareRerankStage(duckdb_path=str(duckdb_path)),
         ExtractAndGenerateStage(generator=ExtractiveAnswerGenerator()),
         FormatOutputStage(),
     ]

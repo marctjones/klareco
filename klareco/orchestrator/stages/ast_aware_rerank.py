@@ -36,9 +36,16 @@ logger = logging.getLogger(__name__)
 
 
 # Mirrors `ASTAwareRanker._COLS_*` in scripts/eval/multi_reranker_bench.py
+# NOTE (#895): verb_klaso and verb_negated are NOT columns on `sentences` — they
+# were in this SELECT and raised BinderException on EVERY question, silently
+# swallowed (the reranker fell back to prior order, contributing nothing). The
+# scorer reads both via c.get() (None-safe): the candidate-side verb-class match
+# stays inert until the per-sentence verb_klaso column is built (#875); the
+# question-side verb class already comes from the ontology. Drift here is now
+# LOUD via REQUIRES (see the class) + the contract suite.
 _COLS_CORE = ('sid', 'text', 'subj_radiko', 'subj_vortspeco',
               'subj_propranoma_kat', 'subj_kazo',
-              'verb_radiko', 'verb_tempo', 'verb_klaso', 'verb_negated',
+              'verb_radiko', 'verb_tempo',
               'obj_radiko', 'obj_kazo', 'aliaj_json')
 _COLS_STAGE2 = ('aliaj_has_loko', 'aliaj_has_jaro', 'aliaj_has_kvant')
 

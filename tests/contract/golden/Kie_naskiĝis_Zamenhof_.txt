@@ -12,24 +12,28 @@ EVOLUO DE LA PENSO (po-etapa)
   + passage_asts: 3 ero(j)
    1. [sid 9] 22.500  “Zamenhof naskiĝis en Bjalistoko.”
    2. [sid 1] 7.500  “Zamenhof kreis Esperanton en 1887.”
-[extract_generate] 0.0ms  konf 0.50→0.60
+[ast_aware_rerank] 0.2ms  konf 0.50→0.60
+  + passage_asts: 3 ero(j)
+   1. [sid 9] 0.687  “Zamenhof naskiĝis en Bjalistoko.”
+   2. [sid 1] 0.000  “Zamenhof kreis Esperanton en 1887.”
+[extract_generate] 0.0ms  konf 0.60→0.70
   + fact_fragments: 1 ero(j)
   • Zamenhof —NASKIĜIS→ ?  (konf 1.00, el sid 9) [regulo]
   + answer_segments: 1 ero(j)
   + citations: 1 ero(j)
-[format_output] 0.0ms  konf 0.60→0.60
+[format_output] 0.0ms  konf 0.70→0.70
   + final_text = 'Zamenhof naskiĝis en Bjalistoko. [1]  [1] Unknown — Zamenhof naskiĝis en Bjalistoko.…'
 
 ══════════════════════════════════════════════════════════════
-PENSO — “Kie naskiĝis Zamenhof?”   (konfidenco 0.60)
+PENSO — “Kie naskiĝis Zamenhof?”   (konfidenco 0.70)
 ══════════════════════════════════════════════════════════════
 demando [regulo]  tipo=kie
   Kie naskiĝis Zamenhof?
 ──────────────────────────────────────────────────────────────
 trafoj (3)
-   1. [sid 9] 22.500  “Zamenhof naskiĝis en Bjalistoko.”
-   2. [sid 1] 7.500  “Zamenhof kreis Esperanton en 1887.”
-   3. [sid 2] 5.000  “Ludoviko Zamenhof estis pola okulisto.”
+   1. [sid 9] 0.687  “Zamenhof naskiĝis en Bjalistoko.”
+   2. [sid 1] 0.000  “Zamenhof kreis Esperanton en 1887.”
+   3. [sid 2] 0.000  “Ludoviko Zamenhof estis pola okulisto.”
 ──────────────────────────────────────────────────────────────
 faktoj (1)
   • Zamenhof —NASKIĜIS→ ?  (konf 1.00, el sid 9) [regulo]

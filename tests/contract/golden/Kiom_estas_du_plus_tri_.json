@@ -26,6 +26,10 @@
     "skipped": true
   },
   {
+    "stage": "ast_aware_rerank",
+    "skipped": true
+  },
+  {
     "stage": "extract_generate",
     "skipped": true
   },

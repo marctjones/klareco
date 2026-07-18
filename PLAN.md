@@ -142,11 +142,12 @@ one at a time. Each phase closes on a number.
   learned component either clears the gate in `replace`/`enrich` or is parked
   research-track with its residue characterized.
 
-### Phase 4+ — admit the rest, one at a time  ·  🎯
-Planner (#771/#747), generation (#766/#775), symbolic reasoning (#749/#761),
-richer math — each **migrated onto the contract → gold set → merge gate**.
-CLI hardening for third-party release (#898) lands here (the deterministic core
-stabilizes first).
+### Phase 4+ — admit the rest, one at a time  ·  milestone #32  ·  🎯
+Planner (#771), generation (#766/#775), symbolic reasoning (#747/#749/#761),
+richer math — each **migrated onto the contract → gold set → merge gate**, and
+each currently blocked by the `entity_facts` schema drift (#881, unblocked in
+Phase 1). CLI hardening for third-party release (#898) lands here (the
+deterministic core stabilizes first).
 
 ### Feeder tracks (support the phases, run in parallel)
 - **Measurement ruler** — Gold Q&A v1/v2/v3 (#20–#23; epic #840) + Deep Band

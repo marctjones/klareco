@@ -27,6 +27,8 @@ from typing import Optional
 
 import duckdb
 
+from klareco.knowledge.entity_facts import SLOTS
+
 logger = logging.getLogger(__name__)
 
 DB = 'data/indexes/duckdb_store.db'
@@ -55,15 +57,16 @@ def _best_fact_for_slot(entity_radiko: str, slot: str,
     then confidence DESC.
     """
     conn = conn or _conn()
-    rows = conn.execute("""
+    # #881: read through the slot-schema adapter over the live triple table.
+    rows = conn.execute(f"""
         WITH cnt AS (
           SELECT value_radiko, COUNT(*) AS n
-          FROM entity_facts
-          WHERE entity_radiko = ? AND slot = ?
+          FROM {SLOTS} ef0
+          WHERE ef0.entity_radiko = ? AND ef0.slot = ?
           GROUP BY value_radiko
         )
         SELECT ef.value, ef.value_radiko, ef.source_sid, s.text, ef.confidence
-        FROM entity_facts ef
+        FROM {SLOTS} ef
         JOIN sentences s ON s.sid = ef.source_sid
         JOIN cnt c ON c.value_radiko = ef.value_radiko
         WHERE ef.entity_radiko = ? AND ef.slot = ?
@@ -81,9 +84,9 @@ def _reverse_lookup_one(slot: str, target_value_radiko: str,
                          conn=None) -> Optional[dict]:
     """Reverse: which entity has (entity, slot, target)? Best match only."""
     conn = conn or _conn()
-    rows = conn.execute("""
+    rows = conn.execute(f"""
         SELECT ef.entity_radiko, ef.source_sid, s.text, ef.confidence
-        FROM entity_facts ef
+        FROM {SLOTS} ef
         JOIN sentences s ON s.sid = ef.source_sid
         WHERE ef.slot = ? AND ef.value_radiko = ?
         ORDER BY ef.confidence DESC, ef.source_sid
@@ -115,10 +118,10 @@ def _surface_form(entity_radiko: str, conn=None) -> str:
 def _entity_is_person(entity_radiko: str, conn=None) -> bool:
     """Heuristic: does this entity have person-like facts?"""
     conn = conn or _conn()
-    n = conn.execute("""
-        SELECT COUNT(*) FROM entity_facts
-        WHERE entity_radiko = ?
-          AND slot IN ('birth_year','birth_place','death_year','profession')
+    n = conn.execute(f"""
+        SELECT COUNT(*) FROM {SLOTS} ef
+        WHERE ef.entity_radiko = ?
+          AND ef.slot IN ('birth_year','birth_place','death_year','profession')
     """, [entity_radiko.lower()]).fetchone()[0]
     return n > 0
 
@@ -228,9 +231,9 @@ def biography(entity_radiko: str, conn=None) -> str:
         'definition':   _best_fact_for_slot(entity_radiko, 'definition', conn),
     }
     # Reverse lookup: what did this entity found?
-    founded = conn.execute("""
+    founded = conn.execute(f"""
         SELECT ef.entity_radiko, ef.source_sid, s.text, ef.confidence
-        FROM entity_facts ef
+        FROM {SLOTS} ef
         JOIN sentences s ON s.sid = ef.source_sid
         WHERE ef.slot = 'founder' AND ef.value_radiko = ?
         ORDER BY ef.confidence DESC, ef.source_sid

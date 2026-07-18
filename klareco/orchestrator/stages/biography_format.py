@@ -53,15 +53,16 @@ def _extract_entity_from_question(question: str) -> Optional[tuple[str, str]]:
 class BiographyFormatStage(PipelineStage):
     name = 'biography_format'
 
-    # Loud-failure contract (#884): the exact columns klareco.generation
-    # queries. The live entity_facts table uses the TRIPLE schema
-    # (entito/rilato/valoro) — until #881 lands, constructing this stage
-    # against it MUST raise at build time, not silently no-op per question.
+    # Loud-failure contract (#884). As of #881 generation reads entity_facts
+    # through the SLOTS adapter over the live TRIPLE schema, so the real
+    # requirement is the triple columns. (Stays default-off — the facts are too
+    # thin/noisy to generate a biography, tracked by #745 — but if enabled it
+    # now passes preflight and degrades gracefully ("Mi ne havas faktojn…")
+    # instead of crashing.)
     REQUIRES = (
         TableDependency('entity_facts',
-                        columns=('entity_radiko', 'slot', 'value',
-                                 'value_radiko', 'source_sid', 'confidence'),
-                        issue='#881'),
+                        columns=('sid', 'entito', 'rilato', 'valoro'),
+                        issue='#745'),
     )
 
     def should_skip(self, ctx: QueryContext) -> bool:

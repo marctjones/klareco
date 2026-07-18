@@ -25,15 +25,15 @@ logger = logging.getLogger(__name__)
 class PlannerStage(PipelineStage):
     name = 'planner'
 
-    # Loud-failure contract (#884): the exact columns klareco.planning.execute
-    # queries. The live store's entity_facts uses the TRIPLE schema
-    # (entito/rilato/valoro) — until #881 lands, constructing this stage
-    # against it MUST raise at build time, not silently no-op per question.
+    # Loud-failure contract (#884). As of #881 the planner reads entity_facts
+    # through the SLOTS adapter over the live TRIPLE schema, so the real
+    # requirement is the triple columns. (The stage stays default-off — the
+    # facts are too thin/noisy to answer, tracked by #745 — but if enabled it
+    # now passes preflight and runs gracefully instead of crashing.)
     REQUIRES = (
         TableDependency('entity_facts',
-                        columns=('entity_radiko', 'slot', 'value',
-                                 'value_radiko', 'confidence'),
-                        issue='#881'),
+                        columns=('sid', 'entito', 'rilato', 'valoro'),
+                        issue='#745'),
     )
 
     def __init__(self, duckdb_path: str | Path = 'data/indexes/duckdb_store.db'):

@@ -40,6 +40,8 @@ from typing import Any, Optional
 
 import duckdb
 
+from klareco.knowledge.entity_facts import SLOTS
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,9 +80,9 @@ class Plan:
 
 def _act_find_entity_by_slot(conn, slot: str, value_radiko: str) -> list[str]:
     """Reverse fact lookup: which entities have (slot, value)?"""
-    rows = conn.execute("""
+    rows = conn.execute(f"""
         SELECT entity_radiko, MAX(confidence)
-        FROM entity_facts
+        FROM {SLOTS} ef
         WHERE slot = ? AND value_radiko = ?
         GROUP BY entity_radiko
         ORDER BY MAX(confidence) DESC
@@ -94,17 +96,17 @@ def _act_lookup_slot(conn, entity_radiko: str, slot: str) -> list[str]:
     rows = conn.execute("""
         WITH cnt AS (
           SELECT value_radiko, COUNT(*) AS n
-          FROM entity_facts
-          WHERE entity_radiko = ? AND slot = ?
+          FROM {SLOTS} ef0
+          WHERE ef0.entity_radiko = ? AND ef0.slot = ?
           GROUP BY value_radiko
         )
         SELECT ef.value, c.n
-        FROM entity_facts ef
+        FROM {SLOTS} ef
         JOIN cnt c ON c.value_radiko = ef.value_radiko
         WHERE ef.entity_radiko = ? AND ef.slot = ?
         ORDER BY c.n DESC, ef.confidence DESC
         LIMIT 5
-    """, [entity_radiko, slot, entity_radiko, slot]).fetchall()
+    """.format(SLOTS=SLOTS), [entity_radiko, slot, entity_radiko, slot]).fetchall()
     # Dedup by value
     seen, out = set(), []
     for v, _ in rows:

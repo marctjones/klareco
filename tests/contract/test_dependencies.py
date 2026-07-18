@@ -95,13 +95,18 @@ def test_stages_without_requires_need_no_db(tmp_path):
     preflight_stages([stage], duckdb_path=tmp_path / 'nonexistent.db')
 
 
-def test_planner_and_biography_declare_the_881_drift():
-    """The two known offenders must DECLARE the schema their code queries."""
+def test_planner_and_biography_declare_the_live_triple_schema():
+    """Post-#881: both read entity_facts through the SLOTS adapter over the live
+    TRIPLE table, so they must DECLARE the triple columns that actually exist —
+    not the old slot columns (that was the drift). Preflight then passes and the
+    stages degrade gracefully; the remaining fact-quality gap is #745."""
     from klareco.orchestrator.stages.planner import PlannerStage
     from klareco.orchestrator.stages.biography_format import BiographyFormatStage
     for cls in (PlannerStage, BiographyFormatStage):
         deps = {d.table: d for d in cls.REQUIRES
                 if isinstance(d, TableDependency)}
         assert 'entity_facts' in deps, f'{cls.__name__} must declare entity_facts'
-        assert deps['entity_facts'].issue == '#881'
-        assert 'entity_radiko' in deps['entity_facts'].columns
+        cols = deps['entity_facts'].columns
+        # the real, existing triple columns — NOT the old slot columns
+        assert {'sid', 'entito', 'rilato', 'valoro'} <= set(cols), cols
+        assert 'entity_radiko' not in cols, 'slot-schema drift must not reappear'

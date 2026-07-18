@@ -25,6 +25,8 @@ from typing import Callable, Optional
 
 import duckdb
 
+from klareco.knowledge.entity_facts import SLOTS
+
 logger = logging.getLogger(__name__)
 
 
@@ -207,10 +209,10 @@ def _load_facts_index(conn) -> dict:
     value = list of (value, value_radiko, source_sid, confidence) tuples
     sorted by confidence DESC then sid."""
     idx: dict = {}
-    rows = conn.execute("""
+    rows = conn.execute(f"""
         SELECT entity_radiko, slot, value, value_radiko,
                source_sid, confidence
-        FROM entity_facts
+        FROM {SLOTS} ef
         ORDER BY entity_radiko, slot, confidence DESC, source_sid
     """).fetchall()
     for er, slot, val, val_r, sid, conf in rows:
@@ -251,7 +253,12 @@ def apply_rules(conn, rules: Optional[list[Rule]] = None,
         return {'derived_total': 0, 'per_rule': per_rule,
                 'elapsed_s': time.time() - t0}
 
-    # Clear previously-inferred rows so re-runs are idempotent
+    # ⚠️ #881: the WRITE-BACK path below still assumes the old SLOT schema
+    # (pattern_name, entity_radiko, ...) — the live table is the TRIPLE schema
+    # and has no `pattern_name` column, so this DELETE/INSERT would raise. The
+    # READ path is adapted (via SLOTS); persisting inferred facts is deferred
+    # until facts flow as FactFragments (MVP-1) or the triple extractor gains a
+    # provenance column. apply_rules(dry_run=True) is the supported mode today.
     conn.execute("DELETE FROM entity_facts "
                   "WHERE pattern_name LIKE 'inferred:%'")
 

@@ -84,6 +84,21 @@ class DuckDBRetriever:
         # index is read-only in this process, so one long-lived searcher is safe.
         self._cached_searcher = None
         self._qp = QueryParser('text', self.ix.schema, group=OrGroup)
+        # #865 alias bridge (env-gated). alias_variant questions name an entity
+        # under one surface form ('Spirited Away') while the gold uses another
+        # ('La vojaĝo de Ĉihiro'); the Wikipedia-redirect table maps alias ->
+        # canonical so the BM25 query can reach the gold. Loaded once; fail-loud
+        # if requested but absent (a silently-degrading dependency is a bug).
+        self._alias: Dict[str, str] = {}
+        if os.environ.get('KLARECO_ALIAS_BRIDGE', '0') == '1':
+            ap = Path('data/indexes/alias_table.json')
+            if not ap.exists():
+                raise FileNotFoundError(
+                    f"KLARECO_ALIAS_BRIDGE=1 but {ap} is missing — build it with "
+                    "scripts/index/build_alias_table.py")
+            with open(ap, encoding='utf-8') as fh:
+                self._alias = json.load(fh)
+            logger.info("Alias bridge loaded: %d aliases", len(self._alias))
 
     def _searcher(self):
         if self._cached_searcher is None:
@@ -137,6 +152,14 @@ class DuckDBRetriever:
         if not terms:
             return []
 
+        # Faithful surface string for anchor extraction: every token in order,
+        # original casing (proper nouns are found by capitalization). `qtext`
+        # from _question_text() walks only the top clause and drops subordinate
+        # clauses + quotes, so anchors like 'Orienton'/«Californication» vanish.
+        atext = ' '.join(
+            w.get('plena_vorto', '') for w in (question_ast.get('vortoj') or [])
+        ).strip() or qtext
+
         # 1. Whoosh BM25 -> candidate sids (wide net; DuckDB refines).
         #    The searcher and parser are CACHED (see _searcher()): opening a
         #    searcher re-opens the segment files (~220 ms measured) and the index
@@ -153,10 +176,21 @@ class DuckDBRetriever:
         # overrides (0 disables).
         _w = float(os.environ.get('KLARECO_QE_WEIGHT', '0.3'))
         if _w > 0:
-            q = self._qp.parse(build_expanded_query(terms, raw_question=qtext,
-                                                    weight=_w))
+            qstr = build_expanded_query(terms, raw_question=qtext, weight=_w)
         else:
-            q = self._qp.parse(' OR '.join(terms))
+            qstr = ' OR '.join(terms)
+        # #865 alias bridge: if a question anchor is a known Wikipedia-redirect
+        # alias, OR-in its canonical title as a full-weight phrase. This adds a
+        # real content term the gold sentence uses (measured: bridged golds reach
+        # top-5), NOT a synthetic-rank injection like #870. Gated OFF by default.
+        if self._alias:
+            seen = {t.lower() for t in terms}
+            for a in question_anchors(atext)[:4]:
+                canon = self._alias.get(a.lower())
+                if canon and canon.lower() not in seen:
+                    seen.add(canon.lower())
+                    qstr += f' OR "{canon}"'
+        q = self._qp.parse(qstr)
         for hit in s.search(q, limit=max(top_k * 15, 300)):
             try:
                 cand_ids.append(int(hit['id']))
@@ -169,15 +203,6 @@ class DuckDBRetriever:
         # synthetic rank (30) — present and competitive, but not auto-top.
         extra_rank: Dict[int, int] = {}
         _ur = int(os.environ.get('KLARECO_UNION_RANK', '30'))
-        # #870/#856: anchor extraction needs the FULL surface string with original
-        # casing (proper nouns are found by capitalization). `qtext` above comes
-        # from _question_text(), which walks only the top clause and drops
-        # subordinate clauses + quotes — so anchors like 'Orienton' or
-        # «Californication» vanish before they can fire. Rebuild the faithful
-        # string from `vortoj` (every token, in order, casing preserved).
-        atext = ' '.join(
-            w.get('plena_vorto', '') for w in (question_ast.get('vortoj') or [])
-        ).strip() or qtext
         if os.environ.get('KLARECO_TITLE_UNION', '0') == '1':
             # #870: sentences from the article NAMED by a question anchor
             # ("...ĉefkantisto de Coldplay?" -> article 'Coldplay').

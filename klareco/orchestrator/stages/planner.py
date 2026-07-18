@@ -15,6 +15,7 @@ from typing import Optional
 import duckdb
 
 from klareco.orchestrator.context import QueryContext, ContextDelta
+from klareco.orchestrator.dependencies import TableDependency
 from klareco.orchestrator.stage import PipelineStage
 from klareco.planning import decompose, execute
 
@@ -23,6 +24,17 @@ logger = logging.getLogger(__name__)
 
 class PlannerStage(PipelineStage):
     name = 'planner'
+
+    # Loud-failure contract (#884): the exact columns klareco.planning.execute
+    # queries. The live store's entity_facts uses the TRIPLE schema
+    # (entito/rilato/valoro) — until #881 lands, constructing this stage
+    # against it MUST raise at build time, not silently no-op per question.
+    REQUIRES = (
+        TableDependency('entity_facts',
+                        columns=('entity_radiko', 'slot', 'value',
+                                 'value_radiko', 'confidence'),
+                        issue='#881'),
+    )
 
     def __init__(self, duckdb_path: str | Path = 'data/indexes/duckdb_store.db'):
         self.duckdb_path = str(duckdb_path)
@@ -62,6 +74,5 @@ class PlannerStage(PipelineStage):
                    'planner_trace': result.get('trace', [])},
         )
 
-    def on_failure(self, ctx: QueryContext, exc: Exception) -> ContextDelta:
-        logger.warning(f'[planner] failed ({exc}); falling through')
-        return ContextDelta()
+    # on_failure deliberately NOT overridden (#884): this stage is default-off
+    # until #881 lands; when explicitly enabled, a failure must be LOUD.

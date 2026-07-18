@@ -52,8 +52,19 @@ class PipelineStage(ABC):
                     orchestrator propagates the error.  Override to return a
                     safe fallback delta (e.g. empty ContextDelta()) for
                     graceful degradation when a neural model crashes.
+                    ⚠ Loud-failure contract (#884): an override that swallows
+                    must be waived in tests/contract/test_loud_failure_lint.py
+                    with an issue reference, and the orchestrator stamps a
+                    `stage_failed:<name>` flag on every recovered failure so
+                    it is never invisible in the thought.
+
+    REQUIRES        Declared runtime dependencies (see
+                    klareco.orchestrator.dependencies) — the tables/columns/
+                    artifacts run() actually touches. Checked LOUDLY at
+                    pipeline construction by preflight_stages() (#884).
     """
     name: str = 'unnamed'
+    REQUIRES: tuple = ()
 
     @abstractmethod
     def run(self, ctx: QueryContext) -> ContextDelta: ...

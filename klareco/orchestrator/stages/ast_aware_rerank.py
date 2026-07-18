@@ -28,6 +28,7 @@ import duckdb
 from klareco.orchestrator.context import (
     ContextDelta, ParsedPassage, QueryContext, StageMetrics,
 )
+from klareco.orchestrator.dependencies import TableDependency
 from klareco.orchestrator.stage import PipelineStage
 from klareco.rag.ast_aware_reranker import ASTAwareScorer
 
@@ -46,6 +47,16 @@ class ASTAwareRerankStage(PipelineStage):
     """Reorder the BM25 candidate pool by AST-aware structural score."""
 
     name = 'ast_aware_rerank'
+
+    # Loud-failure contract (#884): what this stage's SQL actually reads —
+    # shredded columns on sentences, plus ontology_edges for the verb-class
+    # signal (readable since the #713 schema fix, 28ce022).
+    REQUIRES = (
+        TableDependency('sentences', issue='#835'),
+        TableDependency('ontology_edges',
+                        columns=('rel', 'radiko', 'class_id'),
+                        issue='#837'),
+    )
 
     def __init__(self, duckdb_path: str = 'data/indexes/duckdb_store.db'):
         self.duckdb_path = duckdb_path

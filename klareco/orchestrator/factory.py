@@ -24,6 +24,7 @@ from klareco.orchestrator.stages.dialog import DialogStage
 from klareco.orchestrator.stages.math_tool import MathToolStage
 from klareco.orchestrator.stages.planner import PlannerStage
 from klareco.orchestrator.stages.biography_format import BiographyFormatStage
+from klareco.orchestrator.dependencies import preflight_stages
 from klareco.rag.extractive_answering import ExtractiveAnswerGenerator
 from klareco.rag.duckdb_retriever import DuckDBRetriever
 from klareco.preflight import preflight
@@ -38,8 +39,13 @@ def build_default_pipeline(
     kuzu_db_path: Path | str | None = None,  # deprecated alias, ignored
     enable_dialog: bool = False,
     enable_math_tool: bool = True,
-    enable_planner: bool = True,
-    enable_biography: bool = True,
+    # Default-OFF (#888): planner and biography are silently dead against the
+    # live entity_facts schema (#881 — BinderException swallowed per question,
+    # probed 2026-07-18). Re-enabling is EARNED: contract suite green + a
+    # number that moved. Enabling them explicitly triggers a LOUD
+    # stage-dependency preflight failure until #881 lands.
+    enable_planner: bool = False,
+    enable_biography: bool = False,
     allow_degraded: Optional[bool] = None,
 ) -> Orchestrator:
     """
@@ -90,9 +96,9 @@ def build_default_pipeline(
     # Build the stage list. Order matters:
     #   parse → dialog (resolve pronouns) → math/planner (short-circuit)
     #   → retrieve → reranks → extract → biography format → format_output
-    # Each new stage is opt-in via factory flags; existing callers see
-    # the same pipeline as before with no surprises (math/planner/
-    # biography default-on because they only fire on matching inputs).
+    # Optional modules are opt-in via factory flags and run default-OFF
+    # until they pass the contract suite and carry a number (#888;
+    # DESIGN.md → "The orchestration contract"). Math is on: 5/5 smoke, live.
     stages: list = [ParseQuestionStage()]
     if enable_dialog:
         # DialogStage is OFF by default because it holds per-conversation
@@ -122,5 +128,13 @@ def build_default_pipeline(
         # from klareco.generation. No-op when the question doesn't match.
         stages.append(BiographyFormatStage())
     stages.append(FormatOutputStage())
+
+    # Stage-level dependency preflight (#884): each stage declares the exact
+    # tables/columns/artifacts its run() queries (PipelineStage.REQUIRES);
+    # construction fails LOUDLY — itemized, with issue numbers — if the live
+    # environment can't satisfy them. This is what turns an #881-class schema
+    # drift from a silent per-question no-op into a build-time crash.
+    preflight_stages(stages, duckdb_path=duckdb_path,
+                     allow_degraded=allow_degraded)
 
     return Orchestrator(stages=stages, models=models, debug=debug)

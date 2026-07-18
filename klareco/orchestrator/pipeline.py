@@ -90,6 +90,13 @@ class Orchestrator:
                 except Exception:
                     logger.exception(f"[{stage.name}] unrecoverable failure")
                     raise
+                # Loud-failure contract (#884): a stage may degrade gracefully,
+                # but a recovered failure may NOT be invisible in the thought.
+                # The flag makes it show up in the trace, the decoder, and any
+                # downstream consumer. This is what would have surfaced #881.
+                delta.flags.setdefault(
+                    f'stage_failed:{stage.name}',
+                    f'{type(exc).__name__}: {exc}')
             elapsed_ms = (time.perf_counter() - t0) * 1000
 
             if self.debug:

@@ -81,6 +81,32 @@ def cmd_query(args):
         sys.exit(1)
 
 
+def cmd_explain(args):
+    """Answer a question and print the decoded thought at every stage (#882)."""
+    from klareco.orchestrator import build_default_pipeline
+    from klareco.orchestrator.decoder import decode_result
+
+    whoosh_dir = args.whoosh_dir or "data/indexes/whoosh_v2"
+    try:
+        pipeline = build_default_pipeline(
+            whoosh_index_dir=whoosh_dir,
+            top_k=args.top_k,
+        )
+    except Exception as e:
+        print(f"ERROR initializing pipeline: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.text:
+        question = args.text
+    else:
+        print("Enter question in Esperanto:")
+        question = input().strip()
+
+    result = pipeline.answer(question)
+    print(decode_result(result, per_stage=not args.final_only,
+                        max_passages=args.max_passages))
+
+
 def cmd_translate(args):
     """Translate text to/from Esperanto."""
     from klareco.translator import TranslationService
@@ -257,6 +283,21 @@ POC Goals:
     parser_query.add_argument('--top-k', type=int, default=10, help='Passages to retrieve (default: 10)')
     parser_query.add_argument('-v', '--verbose', action='store_true', help='Show pipeline trace')
     parser_query.set_defaults(func=cmd_query)
+
+    # --- explain command (#882: universal thought decoder) ---
+    parser_explain = subparsers.add_parser(
+        'explain',
+        help='Answer a question and print the decoded thought at every stage')
+    parser_explain.add_argument('text', nargs='?', help='Question in Esperanto')
+    parser_explain.add_argument('--whoosh-dir',
+                                help='Path to Whoosh index (default: data/indexes/whoosh_v2)')
+    parser_explain.add_argument('--top-k', type=int, default=20,
+                                help='Passages to retrieve (default: 20)')
+    parser_explain.add_argument('--max-passages', type=int, default=5,
+                                help='Passages to render per thought (default: 5)')
+    parser_explain.add_argument('--final-only', action='store_true',
+                                help='Skip per-stage evolution; print only the final thought')
+    parser_explain.set_defaults(func=cmd_explain)
 
     # --- translate command ---
     parser_translate = subparsers.add_parser('translate', help='Translate text to/from Esperanto')

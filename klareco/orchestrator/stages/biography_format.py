@@ -15,6 +15,7 @@ import re
 from typing import Optional
 
 from klareco.orchestrator.context import QueryContext, ContextDelta
+from klareco.orchestrator.dependencies import TableDependency
 from klareco.orchestrator.stage import PipelineStage
 from klareco.generation import biography, define
 
@@ -51,6 +52,17 @@ def _extract_entity_from_question(question: str) -> Optional[tuple[str, str]]:
 
 class BiographyFormatStage(PipelineStage):
     name = 'biography_format'
+
+    # Loud-failure contract (#884): the exact columns klareco.generation
+    # queries. The live entity_facts table uses the TRIPLE schema
+    # (entito/rilato/valoro) — until #881 lands, constructing this stage
+    # against it MUST raise at build time, not silently no-op per question.
+    REQUIRES = (
+        TableDependency('entity_facts',
+                        columns=('entity_radiko', 'slot', 'value',
+                                 'value_radiko', 'source_sid', 'confidence'),
+                        issue='#881'),
+    )
 
     def should_skip(self, ctx: QueryContext) -> bool:
         # Short-circuited by a tool? Skip.
@@ -104,6 +116,6 @@ class BiographyFormatStage(PipelineStage):
                    'biography_intent': intent},
         )
 
-    def on_failure(self, ctx: QueryContext, exc: Exception) -> ContextDelta:
-        logger.warning(f'[biography_format] failed ({exc}); keeping extractor output')
-        return ContextDelta()
+    # on_failure deliberately NOT overridden (#884): this stage is default-off
+    # until #881 lands; when explicitly enabled, a failure must be LOUD.
+    # (The old override swallowed the BinderException that hid #881 for weeks.)

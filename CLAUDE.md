@@ -902,18 +902,29 @@ For each stage implementation:
 
 ### Running Tests
 
+**The PRIMARY suite is `pytest -m contract`** — it tests the ORCHESTRATOR and
+holds every stage to the contract (immutability, delta discipline, decodability,
+attribution, no silent failures), end-to-end over a tiny in-memory store built
+from the production parser/shred/schema. It needs **no production indexes**,
+runs in **<1 s**, and is the inner loop. A new capability is a stage that passes
+it (see `tests/contract/`, DESIGN.md → "The orchestration contract").
+
 ```bash
-# All tests
+# THE primary suite — orchestrator conformance + golden traces (no data needed)
+python -m pytest -m contract
+
+# Regenerate the golden traces after an INTENDED behavior change
+KLARECO_UPDATE_GOLDEN=1 python -m pytest tests/contract/test_golden_trace.py
+
+# Everything CI-safe (no 49 GB indexes)
+python -m pytest -m "contract or unit"
+
+# The merge gate (needs the live store/indexes)
+python -m pytest -m "perf or accuracy"
+
+# All tests / coverage
 python -m pytest
-
-# With coverage
 python -m pytest --cov=klareco --cov-report=html
-
-# Code tests only (fast)
-python -m pytest tests/test_parser.py tests/test_deparser.py -v
-
-# Model quality tests (requires trained models)
-python -m pytest tests/test_model_quality.py -v
 
 # Skip slow tests
 python -m pytest -m "not slow"

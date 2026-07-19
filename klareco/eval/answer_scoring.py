@@ -75,6 +75,63 @@ _EO_FOLD = str.maketrans({
 _PUNCT_RE = re.compile(r"[^\w\s]", flags=re.UNICODE)
 _WS_RE = re.compile(r"\s+")
 
+# --- Esperanto number-word folding (#899) --------------------------------
+# The gold answer and the source often express a number differently — gold
+# "16" vs source "dek ses", "6" vs "ses". Fold recognized number-word runs to
+# their digit value so they match. Diacritics are already stripped upstream
+# (naŭ -> nau), so the maps use the folded forms. Covers 0-999, the range that
+# accounts for essentially all trivia numeric answers.
+_ONES = {"nul": 0, "unu": 1, "du": 2, "tri": 3, "kvar": 4, "kvin": 5,
+         "ses": 6, "sep": 7, "ok": 8, "nau": 9}
+
+
+def _word_value(tok: str):
+    """Value of a single Esperanto number token (cardinal or ordinal), or None."""
+    t = tok[:-1] if tok.endswith("a") and tok not in _ONES else tok  # ordinal -a
+    if t in _ONES:
+        return _ONES[t]
+    if t == "dek":
+        return 10
+    if t == "cent":
+        return 100
+    if t == "mil":
+        return 1000
+    # compound tens: dudek..naudek ; compound hundreds: ducent..naucent
+    if t.endswith("dek") and t[:-3] in _ONES:
+        return _ONES[t[:-3]] * 10
+    if t.endswith("cent") and t[:-4] in _ONES:
+        return _ONES[t[:-4]] * 100
+    return None
+
+
+def _fold_number_run(vals: list) -> int:
+    """Sum an Esperanto number run: e.g. [100,20,3]->123, [10,6]->16."""
+    total = h = 0
+    for v in vals:
+        if v >= 100:
+            h += v; total += v
+        elif v >= 10:
+            total += v
+        else:
+            total += v
+    return total
+
+
+def _fold_numbers(text: str) -> str:
+    """Replace maximal runs of number-words with their digit value."""
+    words = text.split()
+    out, i = [], 0
+    while i < len(words):
+        v = _word_value(words[i])
+        if v is None:
+            out.append(words[i]); i += 1
+            continue
+        run = []
+        while i < len(words) and _word_value(words[i]) is not None:
+            run.append(_word_value(words[i])); i += 1
+        out.append(str(_fold_number_run(run)))
+    return " ".join(out)
+
 
 def normalize(text: str) -> str:
     """Fold to the canonical form used for all answer comparison.
@@ -91,7 +148,9 @@ def normalize(text: str) -> str:
     t = "".join(c for c in unicodedata.normalize("NFD", t)
                 if not unicodedata.combining(c))
     t = _PUNCT_RE.sub(" ", t)
-    return _WS_RE.sub(" ", t).strip()
+    t = _WS_RE.sub(" ", t).strip()
+    # #899: fold Esperanto number-words to digits so "16" and "dek ses" match.
+    return _fold_numbers(t)
 
 
 def tokens(text: str) -> list[str]:

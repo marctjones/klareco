@@ -133,3 +133,26 @@ class TestAggregate:
         agg = aggregate_extraction(rows)
         assert agg["em_given_retrieved"] is None
         assert "upstream" in agg["note"]
+
+
+class TestEsperantoNumberFolding:
+    """#899: digit <-> Esperanto number-word equivalence in scoring."""
+
+    def test_digit_matches_number_word(self):
+        assert exact_match("16", "dek ses")
+        assert exact_match("6", "ses")
+        assert exact_match("dudek tri", "23")
+        assert exact_match("cent dudek tri", "123")
+
+    def test_ordinals_and_diacritics(self):
+        assert exact_match("naŭ", "9")
+        assert exact_match("8", "ok")
+
+    def test_non_numbers_unaffected(self):
+        # a number word inside a phrase folds, the rest is untouched
+        assert normalize("Zamenhof") == "zamenhof"
+        assert normalize("la tri musketeroj") == "la 3 musketeroj"
+
+    def test_token_f1_credits_number_word_answer(self):
+        # gold '16', system says 'dek ses' — should get full credit now
+        assert token_f1("dek ses", "16") == 1.0

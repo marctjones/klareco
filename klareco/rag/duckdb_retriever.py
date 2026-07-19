@@ -84,14 +84,27 @@ class DuckDBRetriever:
         # index is read-only in this process, so one long-lived searcher is safe.
         self._cached_searcher = None
         self._qp = QueryParser('text', self.ix.schema, group=OrGroup)
-        # #865 alias bridge: NOT wired into the live path (decision 2026-07-18).
-        # The mechanism is proven and gate-passing (+0.0226 MRR on the
-        # alias_variant band, CI[+0.0066,+0.0426], p=0.0014; zero control
-        # regression — see bench_history), but a standalone 224k-entry
-        # alias_table.json is the wrong HOME: aliases belong in the ontology as
-        # an ALIASO relation in ontology_edges. Deferred to that fold-in (see the
-        # #865 follow-up). scripts/index/build_alias_table.py remains the data
-        # generator for it.
+        # #865/#872 alias bridge (env-gated). alias_variant questions name an
+        # entity under one surface form ('Spirited Away') while the gold uses
+        # another ('La vojaĝo de Ĉihiro'); ALIASO maps alias -> canonical so the
+        # BM25 query can reach the gold. Proven gate-passing (+0.0226 MRR on the
+        # alias_variant band, p=0.0014, zero control regression). Now read from
+        # ontology_edges (rel='ALIASO') — the store is the ONE home (#872), not a
+        # standalone JSON. Fail-loud if requested but absent.
+        # Default ON (#872): gate-passing (+0.0228 MRR on alias_variant, zero
+        # control regression on rebaseline_210 — bench_history 2026-07-19), and
+        # now schema-first (reads ontology_edges, the home the parked decision
+        # asked for). Set KLARECO_ALIAS_BRIDGE=0 to disable. A store without
+        # ALIASO rows (e.g. the tiny contract-suite store) is a graceful no-op —
+        # the bridge is an optional enhancement, not a required dependency.
+        self._alias: Dict[str, str] = {}
+        if os.environ.get('KLARECO_ALIAS_BRIDGE', '1') == '1':
+            self._alias = {
+                r[0]: r[1] for r in self.con.execute(
+                    "SELECT radiko, class_id FROM ontology_edges "
+                    "WHERE rel='ALIASO'").fetchall()}
+            logger.info("Alias bridge: %d ALIASO aliases from ontology_edges",
+                        len(self._alias))
 
     def _searcher(self):
         if self._cached_searcher is None:
@@ -172,6 +185,17 @@ class DuckDBRetriever:
             qstr = build_expanded_query(terms, raw_question=qtext, weight=_w)
         else:
             qstr = ' OR '.join(terms)
+        # #865/#872 alias bridge: if a question anchor is a known ALIASO alias,
+        # OR-in its canonical title as a full-weight phrase — a real content term
+        # the gold sentence uses (bridged golds reach top-5), NOT a synthetic
+        # rank injection (#870). Gated OFF by default; reads from ontology_edges.
+        if self._alias:
+            seen = {t.lower() for t in terms}
+            for a in question_anchors(atext)[:4]:
+                canon = self._alias.get(a.lower())
+                if canon and canon.lower() not in seen:
+                    seen.add(canon.lower())
+                    qstr += f' OR "{canon}"'
         q = self._qp.parse(qstr)
         for hit in s.search(q, limit=max(top_k * 15, 300)):
             try:

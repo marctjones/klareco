@@ -54,9 +54,10 @@ def load(path):
     return [json.loads(l) for l in open(path) if l.strip()]
 
 
-def audit(rows, con, show=12):
+def audit(rows, con, show=12, dump_path=None):
     n = len(rows)
     flags = collections.defaultdict(list)
+    dumped = collections.defaultdict(list)
     # resolve all sids in one query
     sids = [str(r.get('source_sentence_id')) for r in rows if r.get('source_sentence_id') is not None]
     store_text = {}
@@ -97,12 +98,18 @@ def audit(rows, con, show=12):
             supported = any(any(st.startswith(t) or t.startswith(t2) or t in st
                                 for st in nsrc.split() for t2 in [t])
                             for t in ans_toks)
+            rec = {'id': r.get('id'), 'sid': sid, 'question': q,
+                   'expected_answer': ans, 'source_sentence_text': src,
+                   'en_question': r.get('en_question', ''),
+                   'band': r.get('difficulty_band')}
             if not ans_toks or not supported:
                 c['C4a_hard_no_answer_token'] += 1
                 flags['C4a'].append(f"ans={ans!r} NONE in [{sid}] {src[:55]!r}")
+                dumped['C4a'].append(rec)
             else:
                 c['C4b_form_mismatch'] += 1
                 flags['C4b'].append(f"ans={ans!r} ~partial [{sid}] {src[:45]!r}")
+                dumped['C4b'].append(rec)
             # C5 flag honesty
             if verb is True:
                 c['C5_verbatim_flag_wrong'] += 1
@@ -143,6 +150,13 @@ def audit(rows, con, show=12):
             for x in flags[code][:show]:
                 print(f"       {x}")
 
+    if dump_path:
+        Path(dump_path).write_text(json.dumps(
+            {'C4a_hard': dumped['C4a'], 'C4b_soft': dumped['C4b']},
+            ensure_ascii=False, indent=2))
+        print(f"\n  dumped {len(dumped['C4a'])} C4a-hard + {len(dumped['C4b'])} "
+              f"C4b-soft flagged pairs to {dump_path}")
+
     # exit code
     req_fail = c['C1_no_sid'] + c['C6_no_answer']
     verb_n = sum(1 for r in rows if r.get('answer_verbatim') is True)
@@ -159,11 +173,12 @@ def main():
     ap.add_argument('--test-set', required=True)
     ap.add_argument('--duckdb-path', default='data/indexes/duckdb_store.db')
     ap.add_argument('--show', type=int, default=12)
+    ap.add_argument('--dump', help='write flagged C4a/C4b pairs to this JSON path')
     a = ap.parse_args()
     rows = load(a.test_set)
     con = duckdb.connect(a.duckdb_path, read_only=True)
     print(f"Auditing {a.test_set}")
-    sys.exit(audit(rows, con, show=a.show))
+    sys.exit(audit(rows, con, show=a.show, dump_path=a.dump))
 
 
 if __name__ == '__main__':

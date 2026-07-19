@@ -2261,6 +2261,45 @@ SUBORDINATING_CONJUNCTIONS = {
 }
 
 
+# Words that are BOTH a preposition and a subordinating conjunction. As a
+# preposition they head a fronted PP ("Post la milito, …", "Dum la vojaĝo …")
+# that must not be mistaken for a clause. See _is_fronted_pp_not_clause (#871).
+_DUAL_USE_PREP_CONJ = frozenset({"post", "antaŭ", "dum", "por", "malgraŭ"})
+# Words that, right after a dual-use word, mark a genuine subordinate clause.
+_EXPLICIT_SUBORDINATORS = frozenset({"ke", "ol", "se"})
+
+
+def _is_fronted_pp_not_clause(word_asts: list, i: int) -> bool:
+    """A dual-use word at index i: is it a PREPOSITION (fronted PP), not a
+    subordinating conjunction? (#871)
+
+    Conjunction (returns False) iff it introduces a real clause:
+      - an explicit subordinator (ke/ol/se) or a ki-correlative follows, OR
+      - a finite verb sits before the next comma (a delimited fronted clause,
+        e.g. "Dum ŝi legis, li dormis").
+    Otherwise it heads a fronted PP ("Post la milito, homoj revenis") → True.
+    """
+    nxt = None
+    for j in range(i + 1, len(word_asts)):
+        if isinstance(word_asts[j], dict) and word_asts[j].get("vortspeco") != "interpunkcio":
+            nxt = word_asts[j]
+            break
+    if nxt is None:
+        return True
+    if _is_ki_correlative(nxt) or (nxt.get("radiko", "").lower() in _EXPLICIT_SUBORDINATORS):
+        return False
+    comma_j = next((j for j in range(i + 1, len(word_asts))
+                    if isinstance(word_asts[j], dict)
+                    and word_asts[j].get("plena_vorto") == ","), None)
+    if comma_j is not None and any(
+            isinstance(word_asts[j], dict)
+            and word_asts[j].get("vortspeco") == "verbo"
+            and word_asts[j].get("tempo")
+            for j in range(i + 1, comma_j)):
+        return False
+    return True
+
+
 # =============================================================================
 # RELATIVE CLAUSE HANDLING
 # =============================================================================
@@ -4328,6 +4367,16 @@ def parse(text: str):
                     continue
             # Relative clauses are handled by relative_spans — skip here
             if i in relative_span_set:
+                continue
+            # #871: DUAL-USE word (post/antaŭ/dum/por/malgraŭ) is BOTH a
+            # preposition and a subordinating conjunction. As a PREPOSITION it
+            # heads a fronted PP ("Post la milito, homoj revenis") which must NOT
+            # be treated as a clause start — doing so marked the whole main clause
+            # `in_subordinate` and nulled subjekto+verbo (182k store sentences,
+            # ~4% of the corpus, lost their subject). Only a real clause (an
+            # explicit subordinator follows, or a finite verb sits before the next
+            # comma) is a subordinate start.
+            if radiko in _DUAL_USE_PREP_CONJ and _is_fronted_pp_not_clause(word_asts, i):
                 continue
             other_subordinate_starts.append(i)
 

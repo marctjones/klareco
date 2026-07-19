@@ -24,6 +24,7 @@ from klareco.orchestrator.stages.math_tool import MathToolStage
 from klareco.orchestrator.stages.planner import PlannerStage
 from klareco.orchestrator.stages.biography_format import BiographyFormatStage
 from klareco.orchestrator.dependencies import preflight_stages
+from klareco.orchestrator.store_view import StoreView
 from klareco.rag.extractive_answering import ExtractiveAnswerGenerator
 from klareco.rag.duckdb_retriever import DuckDBRetriever
 from klareco.preflight import preflight
@@ -91,6 +92,8 @@ def build_default_pipeline(
         duckdb_path=duckdb_path,
     )
     generator = ExtractiveAnswerGenerator()
+    # #885: ONE StoreView, injected into every stage that reads the store.
+    store = StoreView(duckdb_path)
 
     # Build the stage list. Order matters:
     #   parse → dialog (resolve pronouns) → math/planner (short-circuit)
@@ -109,7 +112,7 @@ def build_default_pipeline(
         stages.append(MathToolStage())
     if enable_planner:
         # PlannerStage: decomposes nested questions. No-op on simple ones.
-        stages.append(PlannerStage(duckdb_path=str(duckdb_path)))
+        stages.append(PlannerStage(store=store))
     stages.extend([
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
         DeterministicRerankStage(),

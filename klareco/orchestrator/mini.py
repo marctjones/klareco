@@ -27,6 +27,7 @@ from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
 from klareco.rag.duckdb_retriever import DuckDBRetriever
 from klareco.rag.extractive_answering import ExtractiveAnswerGenerator
+from klareco.orchestrator.store_view import StoreView
 
 
 def build_mini_pipeline(whoosh_dir: Path | str,
@@ -45,12 +46,13 @@ def build_mini_pipeline(whoosh_dir: Path | str,
     models = ModelRegistry()
     retriever = DuckDBRetriever(whoosh_index_dir=Path(whoosh_dir),
                                 duckdb_path=Path(duckdb_path))
+    store = StoreView(duckdb_path)
     stages = [
         ParseQuestionStage(),
         MathToolStage(),
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
         DeterministicRerankStage(),
-        ASTAwareRerankStage(duckdb_path=str(duckdb_path)),
+        ASTAwareRerankStage(store=store),
         ExtractAndGenerateStage(generator=ExtractiveAnswerGenerator()),
         FormatOutputStage(),
     ]

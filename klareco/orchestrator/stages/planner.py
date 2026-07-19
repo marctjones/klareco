@@ -12,11 +12,11 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-import duckdb
 
 from klareco.orchestrator.context import QueryContext, ContextDelta
 from klareco.orchestrator.dependencies import TableDependency
 from klareco.orchestrator.stage import PipelineStage
+from klareco.orchestrator.store_view import StoreView
 from klareco.planning import decompose, execute
 
 logger = logging.getLogger(__name__)
@@ -36,15 +36,12 @@ class PlannerStage(PipelineStage):
                         issue='#745'),
     )
 
-    def __init__(self, duckdb_path: str | Path = 'data/indexes/duckdb_store.db'):
-        self.duckdb_path = str(duckdb_path)
-        self._conn: Optional[duckdb.DuckDBPyConnection] = None
+    def __init__(self, store):
+        # #885: receive the shared StoreView; never open a private connection.
+        self.store = StoreView.coerce(store)
 
     def _get_conn(self):
-        if self._conn is None:
-            self._conn = duckdb.connect(self.duckdb_path, read_only=True)
-            self._conn.execute("SET memory_limit = '1GB'")
-        return self._conn
+        return self.store.connection
 
     def should_skip(self, ctx: QueryContext) -> bool:
         return (bool(ctx.flag('tool_short_circuit'))

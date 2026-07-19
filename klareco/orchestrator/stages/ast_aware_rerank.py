@@ -23,12 +23,11 @@ import logging
 import time
 from typing import Optional
 
-import duckdb
-
 from klareco.orchestrator.context import (
     ContextDelta, ParsedPassage, QueryContext, StageMetrics,
 )
 from klareco.orchestrator.dependencies import TableDependency
+from klareco.orchestrator.store_view import StoreView
 from klareco.orchestrator.stage import PipelineStage
 from klareco.rag.ast_aware_reranker import ASTAwareScorer
 
@@ -65,17 +64,16 @@ class ASTAwareRerankStage(PipelineStage):
                         issue='#837'),
     )
 
-    def __init__(self, duckdb_path: str = 'data/indexes/duckdb_store.db'):
-        self.duckdb_path = duckdb_path
-        self._conn: Optional[duckdb.DuckDBPyConnection] = None
+    def __init__(self, store):
+        # #885: receive the shared StoreView; never open a private connection.
+        self.store = StoreView.coerce(store)
+        self._conn = None
         self._scorer: Optional[ASTAwareScorer] = None
         self._stage2_available: Optional[bool] = None
 
     def _ensure(self) -> None:
         if self._conn is None:
-            self._conn = duckdb.connect(self.duckdb_path, read_only=True)
-            self._conn.execute("SET memory_limit = '2GB'")
-            self._conn.execute("SET threads = 4")
+            self._conn = self.store.connection
             self._scorer = ASTAwareScorer(self._conn)
             try:
                 self._conn.execute(

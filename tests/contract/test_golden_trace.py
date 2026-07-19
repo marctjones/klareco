@@ -78,7 +78,7 @@ def test_stage_order_is_stable(mini_pipeline):
     order = [e.stage_name for e in result.trace]
     assert order == [
         "parse_question", "math_tool", "retrieve",
-        "deterministic_rerank", "ast_aware_rerank",
+        "deterministic_rerank", "proper_noun_rerank", "ast_aware_rerank",
         "extract_generate", "format_output",
     ], order
 

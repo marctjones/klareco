@@ -16,6 +16,7 @@ from klareco.orchestrator.stage import ModelRegistry
 from klareco.orchestrator.stages.parse_question import ParseQuestionStage
 from klareco.orchestrator.stages.retrieve import RetrieveStage
 from klareco.orchestrator.stages.deterministic_rerank import DeterministicRerankStage
+from klareco.orchestrator.stages.proper_noun_rerank import ProperNounRerankStage
 from klareco.orchestrator.stages.rerank import RerankStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
@@ -116,6 +117,10 @@ def build_default_pipeline(
     stages.extend([
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
         DeterministicRerankStage(),
+        # Proper-noun boost (#877): gate-passing on rebaseline_500 (MRR +0.0135,
+        # CI excludes 0), zero regression. Promotes candidates sharing the
+        # question's discriminating proper noun. Pure reorder, no store access.
+        ProperNounRerankStage(),
         # AST-aware structural reranker (#741) — DEMOTED from the default
         # pipeline 2026-07-18 (#895). Its old "beats B_phrase_query on
         # capability_candidates_v1" claim was on a likely-circular set; once the

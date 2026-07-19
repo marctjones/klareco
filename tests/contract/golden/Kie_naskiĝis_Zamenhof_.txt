@@ -4,7 +4,7 @@ EVOLUO DE LA PENSO (po-etapa)
   + question_type = 'kie'
 [math_tool] 0.0ms  konf 0.10→0.10
   (nenio ŝanĝita)
-[retrieve] 0.5ms  konf 0.10→0.50
+[retrieve] 0.6ms  konf 0.10→0.50
   + passage_asts: 3 ero(j)
    1. [sid 9] 15.000  “Zamenhof naskiĝis en Bjalistoko.”
    2. [sid 1] 7.500  “Zamenhof kreis Esperanton en 1887.”
@@ -12,7 +12,11 @@ EVOLUO DE LA PENSO (po-etapa)
   + passage_asts: 3 ero(j)
    1. [sid 9] 22.500  “Zamenhof naskiĝis en Bjalistoko.”
    2. [sid 1] 7.500  “Zamenhof kreis Esperanton en 1887.”
-[ast_aware_rerank] 0.2ms  konf 0.50→0.60
+[proper_noun_rerank] 0.0ms  konf 0.50→0.50
+  + passage_asts: 3 ero(j)
+   1. [sid 9] 22.500  “Zamenhof naskiĝis en Bjalistoko.”
+   2. [sid 1] 7.500  “Zamenhof kreis Esperanton en 1887.”
+[ast_aware_rerank] 0.5ms  konf 0.50→0.60
   + passage_asts: 3 ero(j)
    1. [sid 9] 0.687  “Zamenhof naskiĝis en Bjalistoko.”
    2. [sid 1] 0.000  “Zamenhof kreis Esperanton en 1887.”

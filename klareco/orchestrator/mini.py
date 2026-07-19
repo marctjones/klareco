@@ -22,6 +22,7 @@ from klareco.orchestrator.stages.parse_question import ParseQuestionStage
 from klareco.orchestrator.stages.math_tool import MathToolStage
 from klareco.orchestrator.stages.retrieve import RetrieveStage
 from klareco.orchestrator.stages.deterministic_rerank import DeterministicRerankStage
+from klareco.orchestrator.stages.proper_noun_rerank import ProperNounRerankStage
 from klareco.orchestrator.stages.ast_aware_rerank import ASTAwareRerankStage
 from klareco.orchestrator.stages.extract_generate import ExtractAndGenerateStage
 from klareco.orchestrator.stages.format_output import FormatOutputStage
@@ -52,6 +53,7 @@ def build_mini_pipeline(whoosh_dir: Path | str,
         MathToolStage(),
         RetrieveStage(retriever=retriever, models=models, top_k=top_k),
         DeterministicRerankStage(),
+        ProperNounRerankStage(),
         ASTAwareRerankStage(store=store),
         ExtractAndGenerateStage(generator=ExtractiveAnswerGenerator()),
         FormatOutputStage(),

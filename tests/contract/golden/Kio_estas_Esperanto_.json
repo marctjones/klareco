@@ -24,6 +24,13 @@
     "skipped": true
   },
   {
+    "stage": "proper_noun_rerank",
+    "symbolic": {
+      "passage_asts": 2
+    },
+    "flags": []
+  },
+  {
     "stage": "ast_aware_rerank",
     "symbolic": {
       "passage_asts": 2

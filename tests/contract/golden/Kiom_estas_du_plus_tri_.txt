@@ -8,6 +8,7 @@ EVOLUO DE LA PENSO (po-etapa)
   tool_short_circuit = True
 [retrieve] (preterlasita)
 [deterministic_rerank] (preterlasita)
+[proper_noun_rerank] (preterlasita)
 [ast_aware_rerank] (preterlasita)
 [extract_generate] (preterlasita)
 [format_output] (preterlasita)

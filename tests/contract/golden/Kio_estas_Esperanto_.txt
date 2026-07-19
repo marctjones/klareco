@@ -4,11 +4,15 @@ EVOLUO DE LA PENSO (po-etapa)
   + question_type = 'kio'
 [math_tool] 0.0ms  konf 0.10→0.10
   (nenio ŝanĝita)
-[retrieve] 0.5ms  konf 0.10→0.50
+[retrieve] 0.4ms  konf 0.10→0.50
   + passage_asts: 2 ero(j)
    1. [sid 3] 10.000  “Esperanto estas internacia planlingvo.”
    2. [sid 5] 5.000  “Kalocsay verkis multajn poemojn en Esperanto.”
 [deterministic_rerank] (preterlasita)
+[proper_noun_rerank] 0.0ms  konf 0.50→0.50
+  + passage_asts: 2 ero(j)
+   1. [sid 3] 10.000  “Esperanto estas internacia planlingvo.”
+   2. [sid 5] 5.000  “Kalocsay verkis multajn poemojn en Esperanto.”
 [ast_aware_rerank] 0.2ms  konf 0.50→0.60
   + passage_asts: 2 ero(j)
    1. [sid 3] 0.724  “Esperanto estas internacia planlingvo.”

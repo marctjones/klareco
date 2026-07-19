@@ -21,7 +21,6 @@ Discourse Relations (RST):
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
 from enum import Enum
-import random
 
 from klareco.rag.unified_extractor import Fact, RelationType
 
@@ -179,11 +178,14 @@ class DiscoursePlanner:
             if relation == DiscourseRelation.NONE:
                 markers.append(None)  # No marker for no relation
             else:
-                # Choose random marker from options
+                # #896: DETERMINISTIC marker choice — vary by position so
+                # consecutive relations don't repeat a connective, but the
+                # output is reproducible (the pipeline is deterministic by
+                # construction; an RNG here broke run-to-run reproducibility of
+                # evals for zero semantic gain).
                 marker_options = DISCOURSE_MARKERS[relation]
                 if marker_options:
-                    marker = random.choice(marker_options)
-                    markers.append(marker)
+                    markers.append(marker_options[i % len(marker_options)])
                 else:
                     markers.append(None)
 

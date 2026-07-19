@@ -100,9 +100,14 @@ REAL_PREFIXED_WORDS = [
     ('ekdormi', 'ek', 'dorm'),
     ('ekbrili', 'ek', 'bril'),
 
-    # dis- (scatter/apart)
+    # dis- (scatter/apart) — only words with a real LEXICAL root after dis-.
+    # NOTE: 'disigi' was removed here — it is dis(ROOT)+ig+i ("to make apart"),
+    # not dis(prefix)+root. 'dis' is a genuine Esperanto root (cf. 'disa'
+    # =scattered, 'diseco'=separateness), and 'ig' is a suffix, never a root.
+    # The parser correctly gives radiko='dis' for disigi/disiĝi/diseco, which is
+    # also MORE retrieval-discriminating than promoting the generic causative
+    # 'ig' to root. See test_dis_as_root_affix_as_root below. (parser #871 track)
     ('dissendi', 'dis', 'send'),
-    ('disigi', 'dis', 'ig'),
     ('disdoni', 'dis', 'don'),
     ('disŝiri', 'dis', 'ŝir'),
 
@@ -434,6 +439,27 @@ class TestParserRealPrefixes(unittest.TestCase):
                                  f"Expected prefix '{expected_prefix}' in {word}")
                 except ValueError as e:
                     self.fail(f"Failed to parse '{word}': {e}")
+
+    def test_dis_as_root_affix_as_root(self):
+        """'dis' is dis- as a ROOT, not a prefix, when no lexical root follows.
+
+        disigi = dis(root)+ig+i, diseco = dis(root)+ec+o. 'ig'/'iĝ'/'ec' are
+        suffixes and can never be roots, so promoting dis- to a prefix here has
+        no valid root to attach to. Keeping radiko='dis' is both linguistically
+        correct (cf. 'disa'=scattered) and more retrieval-discriminating than a
+        bare '-ig'. Pins the behavior the removed REAL_PREFIXED_WORDS row got
+        wrong. (parser #871 track)
+        """
+        for word, suf in [('disigi', 'ig'), ('disiĝi', 'iĝ'),
+                          ('diseco', 'ec'), ('disa', None)]:
+            with self.subTest(word=word):
+                ast = parse_word(word)
+                self.assertEqual(ast['radiko'], 'dis',
+                                 f"{word}: expected radiko='dis' (affix-as-root)")
+                self.assertEqual(ast['prefiksoj'], [],
+                                 f"{word}: 'dis' is the root here, not a prefix")
+                if suf is not None:
+                    self.assertIn(suf, ast['sufiksoj'], f"{word}: expected -{suf}")
 
     def test_mis_prefix_extraction(self):
         """Words with mis- prefix should be decomposed."""

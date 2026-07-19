@@ -17,13 +17,17 @@ be held or improved, never traded away for a guess.
   Kiam              → a temporal adjunct (a year / number, or 'en <jaro>').
   Kiom              → a number / quantity.
 
-STATUS (#869, measured 2026-07-18): NOT wired into the default pipeline. On the
-qa_gold_v2 verbatim stratum it raises token_f1 (0.0148 -> 0.0336, +2.3x) but
-still costs contains_gold (0.312 -> 0.244, -0.069) — it fires on ~26% of
-questions and, among those, drops the gold when it sits outside the predicted
-role. That fails #869's hard 'ans% must not regress' constraint, so this stays a
-building block. The remaining gap is a per-question FITNESS GATE (span only when
-it is contains-safe) and better retrieval@1 — see #869.
+STATUS (#869, measured 2026-07-18/19): NOT wired into the default pipeline —
+BLOCKED on retrieval@1, not a tuning problem. Three gate variants on the
+qa_gold_v2 verbatim stratum, contains_gold regression vs fire-rate:
+  - aggressive cascade  (fire ~all): token_f1 +0.034, contains -0.200
+  - conservative role   (fire 26%):  token_f1 +0.019, contains -0.069
+  - strict proper-noun  (fire 7%):   token_f1 +0.0055, contains -0.019
+The regression asymptotes toward 0 only as the fire-rate does — it NEVER reaches
+contains-neutral. Property of the problem: recall@1 is ~28%, so whenever the top
+passage isn't the gold, extracting its span can only hurt; no gate fixes that
+without the gold at rank-1. So this ships once retrieval@1 improves (deep-band
+recall #25 / reranker #26 incl. the #877 proper-noun boost), NOT before.
 """
 from __future__ import annotations
 

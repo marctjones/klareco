@@ -128,8 +128,11 @@ def audit(rows, con, show=12, dump_path=None):
     line('C2', 'gold sid resolves in store', c['C2_sid_unresolved'])
     line('C3', 'source-text matches store', c['C3_text_drift'])
     line('C4', 'answer appears in source (R9)', c['C4_answer_not_in_source'], required=True)
-    print(f"  C4a   └ HARD (no answer token in source — likely mislabeled): "
+    print(f"  C4a   └ HARD (no answer token in source — CANDIDATE mislabel): "
           f"{c['C4a_hard_no_answer_token']} ({c['C4a_hard_no_answer_token']/n:.1%})")
+    print(f"        ⚠ C4a is a cheap token PROXY — it over-flags abbreviations "
+          f"(AK->AK-47), Cyrillic, dates, notation. LLM-verify before acting "
+          f"(#879: 5/8 flags were false positives).")
     print(f"  C4b   └ SOFT (answer supported, inflection/spelling/partial): "
           f"{c['C4b_form_mismatch']} ({c['C4b_form_mismatch']/n:.1%})")
     line('C6', 'answer non-empty', c['C6_no_answer'], required=True)

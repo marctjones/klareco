@@ -50,7 +50,7 @@ maps the deterministic boundary as surely as a win does. See `DESIGN.md` →
 
 | Component | Status |
 |-----------|--------|
-| 16-rule parser + deparser | ✅ UD-Prago: 80.3% POS strict, 93.3% scheme-adjusted |
+| 16-rule parser + deparser | ✅ UD gold (Prago/Cairo-held-out): POS 81/80% strict, subj-role F1 69/93%, LAS 62/66% — regression-guarded in `pytest -m accuracy` |
 | DuckDB store + shredded AST columns | ✅ 5.39M sentences, `ast_json` blob (Kuzu retired 2026-05) |
 | Whoosh BM25 index | ✅ live |
 | Orchestrator pipeline | ✅ active spine; immutable context, phase-level timing |

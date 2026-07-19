@@ -96,7 +96,9 @@ class TestAnswerIsNominal:
         adjectival morphology."""
         ok, why = check_answer_is_nominal({"gold_answer_span": "Britaj"})
         assert not ok
-        assert "adjectival plural" in why
+        # rejected specifically for being adjectival (wording: "... is an
+        # ADJECTIVE, not a nominal ...") — match on the morphology, not exact text
+        assert "adjective" in why.lower()
 
     def test_adverb_answer_is_rejected(self):
         ok, _ = check_answer_is_nominal({"gold_answer_span": "rapide"})

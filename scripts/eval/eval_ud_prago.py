@@ -147,21 +147,27 @@ def pos_matches(ud_upos: str, klareco_vortspeco: str) -> bool:
     return expected == klareco_vortspeco
 
 
-def main() -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument('--conllu',
-                   default='data/external/ud_esperanto_prago/eo_prago-ud-test.conllu')
-    p.add_argument('--limit', type=int, default=None)
-    p.add_argument('--show-mismatches', type=int, default=0,
-                   help='Print N sample POS mismatches for inspection')
-    args = p.parse_args()
+# Known annotation-scheme differences (defensible on both sides, not parser
+# bugs). Esperanto possessives are adjectival in form (nia/nian); correlatives
+# are a finer Esperanto category than UD DET/PRON; participles are adjectival;
+# ĉi/plu-type particles vs ADV.
+SCHEME_DIFFS = {
+    ('PRON', 'adjektivo'), ('PRON', 'korelativo'),
+    ('DET', 'korelativo'), ('DET', 'adjektivo'),
+    ('VERB', 'adjektivo'), ('ADV', 'partiklo'),
+    ('ADV', 'korelativo'), ('SCONJ', 'konjunkcio'),
+    ('AUX', 'verbo'),
+}
 
-    conllu = Path(args.conllu)
-    if not conllu.exists():
-        print(f'CoNLL-U file not found: {conllu}', file=sys.stderr)
-        return 1
 
-    # Counters
+def evaluate(conllu: Path, limit: int | None = None,
+             show_mismatches: int = 0) -> dict:
+    """Run the parser over a UD CoNLL-U file and return POS/lemma/PROPN metrics.
+
+    Importable single source of truth (used by main() here and by the pytest
+    regression guard tests/test_parser_ud_accuracy.py). Returns raw counts plus
+    derived rates so callers can assert on floors without re-deriving.
+    """
     sentences = 0
     parse_errors = 0
     total_tokens = 0
@@ -173,12 +179,12 @@ def main() -> int:
     sample_mismatches: list[tuple[str, str, str, str]] = []
 
     for sent_idx, (text, ud_tokens) in enumerate(iter_sentences(conllu)):
-        if args.limit and sent_idx >= args.limit:
+        if limit and sent_idx >= limit:
             break
         sentences += 1
         try:
             ast = parse(text)
-        except Exception as e:
+        except Exception:
             parse_errors += 1
             continue
         klareco_words = flatten_words(ast)
@@ -206,7 +212,7 @@ def main() -> int:
                 pos_correct += 1
             else:
                 upos_confusion[(ud_tok.upos, klareco_tok.get('vortspeco', '?'))] += 1
-                if len(sample_mismatches) < args.show_mismatches:
+                if len(sample_mismatches) < show_mismatches:
                     sample_mismatches.append((
                         ud_tok.word, ud_tok.upos,
                         klareco_tok.get('vortspeco', '?'),
@@ -227,26 +233,62 @@ def main() -> int:
             elif is_propn_ud and not is_propn_kl:
                 propn_fn += 1
 
+    scheme_diff_count = sum(n for (u, k), n in upos_confusion.items()
+                            if (u, k) in SCHEME_DIFFS)
+    adjusted_correct = pos_correct + scheme_diff_count
+    al = max(aligned_tokens, 1)
+    propn_p = propn_tp / max(propn_tp + propn_fp, 1)
+    propn_r = propn_tp / max(propn_tp + propn_fn, 1)
+    return {
+        'sentences': sentences, 'parse_errors': parse_errors,
+        'total_tokens': total_tokens, 'aligned_tokens': aligned_tokens,
+        'pos_correct': pos_correct, 'lemma_correct': lemma_correct,
+        'adjusted_correct': adjusted_correct,
+        'scheme_diff_count': scheme_diff_count,
+        'propn_tp': propn_tp, 'propn_fp': propn_fp, 'propn_fn': propn_fn,
+        'upos_confusion': upos_confusion, 'sample_mismatches': sample_mismatches,
+        # derived rates (fractions in [0,1])
+        'pos_strict': pos_correct / al,
+        'pos_adjusted': adjusted_correct / al,
+        'lemma_rate': lemma_correct / al,
+        'align_rate': aligned_tokens / max(total_tokens, 1),
+        'propn_p': propn_p, 'propn_r': propn_r,
+        'propn_f1': 2 * propn_p * propn_r / max(propn_p + propn_r, 1e-9),
+    }
+
+
+def main() -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument('--conllu',
+                   default='data/external/ud_esperanto_prago/eo_prago-ud-test.conllu')
+    p.add_argument('--limit', type=int, default=None)
+    p.add_argument('--show-mismatches', type=int, default=0,
+                   help='Print N sample POS mismatches for inspection')
+    args = p.parse_args()
+
+    conllu = Path(args.conllu)
+    if not conllu.exists():
+        print(f'CoNLL-U file not found: {conllu}', file=sys.stderr)
+        return 1
+
+    r = evaluate(conllu, limit=args.limit, show_mismatches=args.show_mismatches)
+    sentences = r['sentences']
+    parse_errors = r['parse_errors']
+    total_tokens = r['total_tokens']
+    aligned_tokens = r['aligned_tokens']
+    pos_correct = r['pos_correct']
+    lemma_correct = r['lemma_correct']
+    adjusted_correct = r['adjusted_correct']
+    scheme_diff_count = r['scheme_diff_count']
+    propn_tp, propn_fp, propn_fn = r['propn_tp'], r['propn_fp'], r['propn_fn']
+    upos_confusion = r['upos_confusion']
+    sample_mismatches = r['sample_mismatches']
+
     print(f'Sentences:           {sentences}')
     print(f'Parse errors:        {parse_errors}')
     print(f'UD content tokens:   {total_tokens}')
     print(f'Aligned tokens:      {aligned_tokens}  ({aligned_tokens/max(total_tokens,1)*100:.1f}%)')
     print()
-    # Known annotation-scheme differences (defensible on both sides, not
-    # parser bugs). Esperanto possessives are adjectival in form (nia/nian);
-    # correlatives are a finer Esperanto category than UD DET/PRON;
-    # participles are adjectival; ĉi/plu-type particles vs ADV.
-    SCHEME_DIFFS = {
-        ('PRON', 'adjektivo'), ('PRON', 'korelativo'),
-        ('DET', 'korelativo'), ('DET', 'adjektivo'),
-        ('VERB', 'adjektivo'), ('ADV', 'partiklo'),
-        ('ADV', 'korelativo'), ('SCONJ', 'konjunkcio'),
-        ('AUX', 'verbo'),
-    }
-    scheme_diff_count = sum(n for (u, k), n in upos_confusion.items()
-                            if (u, k) in SCHEME_DIFFS)
-    adjusted_correct = pos_correct + scheme_diff_count
-
     print(f'POS accuracy (strict):   {pos_correct}/{aligned_tokens}  '
           f'({pos_correct/max(aligned_tokens,1)*100:.1f}%)')
     print(f'POS accuracy (scheme-adjusted): {adjusted_correct}/{aligned_tokens}  '

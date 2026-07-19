@@ -64,6 +64,9 @@ _TIERS: dict[str, str] = {
     # --- perf / accuracy: regression against a recorded baseline --------------
     'test_perf_baseline':        'perf',
     'test_accuracy_baseline':    'accuracy',
+    # parser quality vs. the UD gold treebanks — needs NO store (fixtures under
+    # tests/fixtures/ud/), so it also runs in fast CI. See the file's docstring.
+    'test_parser_ud_accuracy':   'accuracy',
 
     # --- unit: code correctness, offline ------------------------------------
     'test_parser':               'unit',

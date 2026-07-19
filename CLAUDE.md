@@ -815,7 +815,13 @@ with deterministic-first evaluation. See `DESIGN.md` — especially its
 **"Current state"** section — for the full picture.
 
 **Working**:
-- 16-rule parser + deparser (UD-Prago: 80.3% POS strict, 93.3% scheme-adjusted)
+- 16-rule parser + deparser. Measured on the UD Esperanto gold treebanks
+  (Prago in-corpus / Cairo **held-out**): POS strict 81.3% / 80.3%, scheme-adj
+  94.7% / 95.9%; **subject-role F1 68.7% / 93.0%** (the field retrieval keys on);
+  dependency LAS 62.3% / 66.4%. Regression-guarded in `pytest -m accuracy`
+  (`tests/test_parser_ud_accuracy.py`, no store needed — fixtures under
+  `tests/fixtures/ud/`). Caveat: 131+20 gold sentences are a good ceiling +
+  regression ruler but too small to detect targeted incremental wins (#726).
 - DuckDB store: 5.39M sentences, `ast_json` blob + shredded AST columns
 - Whoosh BM25 index with AST-role matching
 - Extractive QA end-to-end: retrieves and answers with citations

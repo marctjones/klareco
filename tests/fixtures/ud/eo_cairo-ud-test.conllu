@@ -1,0 +1,277 @@
+# sent_id = 1
+# parallel_id = cairo/1
+# text = La knabino skribis leteron al sia amiko.
+# text_en = The girl wrote a letter to her friend.
+1	La	la	DET	_	Definite=Def|PronType=Art	2	det	_	_
+2	knabino	knabino	NOUN	_	Case=Nom|Number=Sing	3	nsubj	_	_
+3	skribis	skribi	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+4	leteron	letero	NOUN	_	Case=Acc|Number=Sing	3	obj	_	_
+5	al	al	ADP	_	_	7	case	_	_
+6	sia	si	PRON	_	Case=Nom|Number=Sing|Number[psor]=Sing|Person=3|Poss=Yes|PronType=Prs|Reflex=Yes	7	nmod:poss	_	_
+7	amiko	amimo	NOUN	_	Case=Nom|Number=Sing	4	nmod	_	SpaceAfter=No
+8	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 2
+# parallel_id = cairo/2
+# text = Mi pensas, ke pluvas.
+# text_en = I think that it is raining.
+1	Mi	mi	PRON	_	Case=Nom|Number=Sing|Person=1|PronType=Prs	2	nsubj	_	_
+2	pensas	pensi	VERB	_	Mood=Ind|Tense=Pres|VerbForm=Fin	0	root	_	SpaceAfter=No
+3	,	,	PUNCT	_	_	2	punct	_	_
+4	ke	ke	SCONJ	_	_	5	mark	_	_
+5	pluvas	pluvi	VERB	_	Mood=Ind|Tense=Pres|VerbForm=Fin	2	ccomp	_	SpaceAfter=No
+6	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = 3
+# parallel_id = cairo/3
+# text = Li provis ĉesi fumi kaj trinki.
+# text_en = He tried to stop smoking and drinking.
+1	Li	li	PRON	_	Case=Nom|Gender=Masc|Number=Sing|Person=3|PronType=Prs	2	nsubj	_	_
+2	provis	provi	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+3	ĉesi	ĉesi	VERB	_	VerbForm=Inf	2	xcomp	_	_
+4	fumi	fumi	VERB	_	VerbForm=Inf	3	xcomp	_	_
+5	kaj	_	CCONJ	_	_	6	cc	_	_
+6	trinki	trinki	VERB	_	VerbForm=Inf	4	conj	_	SpaceAfter=No
+7	.	_	PUNCT	_	_	2	punct	_	_
+
+# sent_id = 4
+# parallel_id = cairo/4
+# text = Ĉu vi volas iri?
+# text_en = Do you want to go?
+1	Ĉu	ĉu	PART	_	_	3	advmod	_	_
+2	vi	vi	PRON	_	Case=Nom|Number=Sing|Person=2|PronType=Prs	3	nsubj	_	_
+3	volas	voli	VERB	_	Mood=Ind|Tense=Pres|VerbForm=Fin	0	root	_	_
+4	iri	iri	VERB	_	VerbForm=Inf	3	xcomp	_	SpaceAfter=No
+5	?	?	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 5
+# parallel_id = cairo/5
+# text = Sam, malfermu la fenestron!
+# text_en = Sam, open the window!
+1	Sam	Sam	PROPN	_	_	3	vocative	_	SpaceAfter=No
+2	,	,	PUNCT	_	_	1	punct	_	_
+3	malfermu	malfermi	VERB	_	Mood=Imp|VerbForm=Fin	0	root	_	_
+4	la	la	DET	_	Definite=Def|PronType=Art	5	det	_	_
+5	fenestron	fenestro	NOUN	_	Case=Acc|Number=Sing	3	obj	_	SpaceAfter=No
+6	!	!	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 6
+# parallel_id = cairo/6
+# text = Ŝi igis sian edzon lavi la aŭton.
+# text_en = She made her husband wash the car.
+1	Ŝi	ŝi	PRON	_	Case=Nom|Gender=Fem|Number=Sing|Person=3|PronType=Prs	2	nsubj	_	_
+2	igis	igi	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+3	sian	si	PRON	_	Case=Acc|Number=Sing|Number[psor]=Sing|Person=3|Poss=Yes|PronType=Prs|Reflex=Yes	4	nmod:poss	_	_
+4	edzon	edzo	NOUN	_	Case=Acc|Number=Sing	2	obj	_	_
+5	lavi	lavi	VERB	_	VerbForm=Inf	4	xcomp	_	_
+6	la	la	DET	_	Definite=Def|PronType=Art	7	det	_	_
+7	aŭton	aŭto	NOUN	_	Case=Acc|Number=Sing	5	obj	_	SpaceAfter=No
+8	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = 7
+# parallel_id = cairo/7
+# text = La najbaro de Petro ruĝe farbis la barilon.
+# text_en = Peter's neighbor painted the fence red.
+1	La	la	DET	_	Definite=Def|PronType=Art	2	det	_	_
+2	najbaro	najbaro	NOUN	_	Case=Nom|Number=Sing	6	nsubj	_	_
+3	de	de	ADP	_	_	4	case	_	_
+4	Petro	Petro	PROPN	_	Case=Nom|Number=Sing	2	nmod	_	_
+5	ruĝe	ruĝe	ADV	_	_	6	advmod	_	_
+6	farbis	farbi	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+7	la	la	DET	_	Definite=Def|PronType=Art	8	det	_	_
+8	barilon	barilo	NOUN	_	Case=Acc|Number=Sing	6	obj	_	SpaceAfter=No
+9	.	.	PUNCT	_	_	6	punct	_	_
+
+# sent_id = 8
+# parallel_id = cairo/8
+# text = Mia patro estas pli moda ol via.
+# text_en = My dad is cooler than yours.
+1	Mia	mi	PRON	_	Case=Nom|Number=Sing|Number[psor]=Sing|Person=1|Poss=Yes|PronType=Prs	2	nmod:poss	_	_
+2	patro	patro	NOUN	_	Case=Nom|Number=Sing	5	nsubj	_	_
+3	estas	esti	AUX	_	Mood=Ind|Tense=Pres|VerbForm=Fin	5	cop	_	_
+4	pli	pli	ADV	_	_	5	advmod	_	_
+5	moda	moda	ADJ	_	Case=Nom|Number=Sing	0	root	_	_
+6	ol	ol	ADV	_	_	7	case	_	_
+7	via	vi	PRON	_	Case=Nom|Number=Sing|Number[psor]=Sing|Person=2|Poss=Yes|PronType=Prs	5	nmod	_	SpaceAfter=No
+8	.	.	PUNCT	_	_	5	punct	_	_
+
+# sent_id = 9
+# parallel_id = cairo/9
+# text = Maria gajnis bronzon, Petro arĝenton, kaj Jane oron.
+# text_en = Mary won bronze, Peter silver, and Jane gold.
+1	Maria	Maria	PROPN	_	Case=Nom|Number=Sing	2	nsubj	_	_
+2	gajnis	gajni	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+3	bronzon	bronzo	NOUN	_	Case=Acc|Number=Sing	2	obj	_	SpaceAfter=No
+4	,	,	PUNCT	_	_	5	punct	_	_
+5	Petro	Petro	PROPN	_	Case=Nom|Number=Sing	2	conj	_	_
+6	arĝenton	arĝento	NOUN	_	Case=Acc|Number=Sing	5	orphan	_	SpaceAfter=No
+7	,	,	PUNCT	_	_	9	punct	_	_
+8	kaj	kaj	CCONJ	_	_	9	cc	_	_
+9	Jane	Jane	PROPN	_	Case=Nom|Number=Sing	2	conj	_	_
+10	oron	oro	NOUN	_	Case=Acc|Number=Sing	9	orphan	_	SpaceAfter=No
+11	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = 10
+# parallel_id = cairo/10
+# text = Ĉu Iguazu estas granda aŭ malgranda lando?
+# text_en = Is Iguazu a big or a small country?
+1	Ĉu	ĉu	PART	_	_	7	advmod	_	_
+2	Iguazu	Iguazu	PROPN	_	Case=Nom|Number=Sing	7	nsubj	_	_
+3	estas	esti	AUX	_	Mood=Ind|Tense=Pres|VerbForm=Fin	7	cop	_	_
+4	granda	granda	ADJ	_	Case=Nom|Degree=Pos|Number=Sing	7	amod	_	_
+5	aŭ	aŭ	CCONJ	_	_	6	cc	_	_
+6	malgranda	malgranda	ADJ	_	Case=Nom|Degree=Pos|Number=Sing	4	conj	_	_
+7	lando	lando	NOUN	_	_	0	root	_	SpaceAfter=No
+8	?	?	PUNCT	_	_	7	punct	_	_
+
+# sent_id = 11
+# parallel_id = cairo/11
+# text = Nek Peter Smith nek Mary Brown povus esti elektitaj.
+# text_en = Neither Peter Smith nor Mary Brown could be selected.
+1	Nek	nek	CCONJ	_	_	2	cc	_	_
+2	Peter	Peter	PROPN	_	_	7	nsubj:pass	_	_
+3	Smith	Smith	PROPN	_	_	2	appos	_	_
+4	nek	nek	CCONJ	_	_	5	cc	_	_
+5	Mary	Mary	PROPN	_	_	2	conj	_	_
+6	Brown	Brown	PROPN	_	_	5	appos	_	_
+7	povus	povi	VERB	_	Mood=Sub|VerbForm=Fin	0	root	_	_
+8	esti	esti	AUX	_	VerbForm=Inf	9	aux:pass	_	_
+9	elektitaj	elekti	VERB	_	Case=Nom|Number=Plur|Tense=Past|VerbForm=Part|Voice=Pass	7	xcomp	_	SpaceAfter=No
+10	.	.	PUNCT	_	_	7	punct	_	_
+
+# sent_id = 12
+# parallel_id = cairo/12
+# text = Ili ne havas ideon, kiu skribis ĝin.
+# text_en = They have no idea who wrote it.
+1	Ili	il	PRON	_	Case=Nom|Number=Plur|Person=3|PronType=Prs	3	nsubj	_	_
+2	ne	ne	ADV	_	_	3	advmod	_	_
+3	havas	havi	VERB	_	Mood=Ind|Tense=Pres|VerbForm=Fin	0	root	_	_
+4	ideon	ideo	NOUN	_	Case=Acc|Number=Sing	3	obj	_	SpaceAfter=No
+5	,	,	PUNCT	_	_	4	punct	_	_
+6	kiu	kiu	PRON	_	Case=Nom|Number=Sing|PronType=Rel	7	nsubj	_	_
+7	skribis	skribi	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	4	acl:relcl	_	_
+8	ĝin	ĝi	PRON	_	Case=Acc|Number=Sing|PronType=Dem	7	obj	_	SpaceAfter=No
+9	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 13
+# parallel_id = cairo/13
+# text = Kion vi rigardas?
+# text_en = What are you looking at?
+1	Kion	kio	PRON	_	Case=Acc|Number=Sing|PronType=Int	3	obj	_	_
+2	vi	vi	PRON	_	Case=Nom|Number=Sing|PronType=Prs	3	nsubj	_	_
+3	rigardas	rigardi	VERB	_	Mood=Ind|Tense=Pres|VerbForm=Fin	0	root	_	SpaceAfter=No
+4	?	?	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 14
+# parallel_id = cairo/14
+# text = Kiam vi pensas, ke vi povas veni?
+# text_en = When do you think you can come?
+1	Kiam	kiam	ADV	_	_	3	advmod	_	_
+2	vi	vi	PRON	_	Case=Nom|Number=Sing|PronType=Prs	3	nsubj	_	_
+3	pensas	pensi	VERB	_	Mood=Ind|Tense=Pres|VerbForm=Fin	0	root	_	SpaceAfter=No
+4	,	,	PUNCT	_	_	3	punct	_	_
+5	ke	ke	SCONJ	_	_	7	mark	_	_
+6	vi	vi	PRON	_	Case=Nom|Number=Sing|PronType=Prs	7	nsubj	_	_
+7	povas	povi	VERB	_	Mood=Ind|Tense=Pres|VerbForm=Fin	3	ccomp	_	_
+8	veni	veni	VERB	_	VerbForm=Inf	7	xcomp	_	SpaceAfter=No
+9	?	?	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 15
+# parallel_id = cairo/15
+# text = Li aĉetis aŭton sed lia frato nur biciklon.
+# text_en = He bought a car but his brother just a bike.
+1	Li	li	PRON	_	Case=Nom|Gender=Masc|Number=Sing|PronType=Prs	2	nsubj	_	_
+2	aĉetis	aĉeti	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+3	aŭton	aŭto	NOUN	_	Case=Acc|Number=Sing	2	obj	_	_
+4	sed	sed	SCONJ	_	_	6	mark	_	_
+5	lia	li	PRON	_	Case=Nom|Number=Sing|Number[psor]=Sing|Person=3|Poss=Yes|PronType=Prs	6	nmod:poss	_	_
+6	frato	frato	NOUN	_	Case=Nom|Number=Sing	2	conj	_	_
+7	nur	nur	ADV	_	_	8	advmod	_	_
+8	biciklon	biciklo	NOUN	_	Case=Acc|Number=Sing	6	orphan	_	SpaceAfter=No
+9	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = 16
+# parallel_id = cairo/16
+# text = Petro kaj Maria brakumis unu la alian kaj poste forlasis la ĉambron.
+# text_en = Peter and Mary hugged each other and then left the room.
+1	Petro	Petro	PROPN	_	Case=Nom|Number=Sing	4	nsubj	_	_
+2	kaj	kaj	CCONJ	_	_	3	cc	_	_
+3	Maria	Maria	PROPN	_	Case=Nom|Number=Sing	1	conj	_	_
+4	brakumis	brakumi	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+5	unu	unu	NUM	_	_	4	obj	_	_
+6	la	la	DET	_	Definite=Def|PronType=Art	7	det	_	_
+7	alian	alia	ADJ	_	Case=Acc|Degree=Pos|Number=Sing	5	compound	_	_
+8	kaj	kaj	CCONJ	_	_	10	cc	_	_
+9	poste	poste	ADV	_	_	10	advmod	_	_
+10	forlasis	forlasi	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	4	conj	_	_
+11	la	la	DET	_	Definite=Def|PronType=Art	12	det	_	_
+12	ĉambron	ĉambron	NOUN	_	Case=Acc|Number=Sing	10	obj	_	SpaceAfter=No
+13	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = 17
+# parallel_id = cairo/17
+# text = Ŝi devus esti faranta sian hararon sed ial ŝi ne farus tiun tagon.
+# text_en = She should have been doing her hair but for some reason she wouldn't that day.
+1	Ŝi	ŝi	PRON	_	Case=Nom|Gender=Fem|Number=Sing|Person=3|PronType=Prs	2	nsubj	_	_
+2	devus	devi	VERB	_	Mood=Sub|VerbForm=Fin	0	root	_	_
+3	esti	esti	AUX	_	VerbForm=Inf	4	aux	_	_
+4	faranta	faranta	VERB	_	Mood=Ind|Number=Sing|Tense=Pres|VerbForm=Part|Voice=Act	2	xcomp	_	_
+5	sian	si	PRON	_	Case=Acc|Number=Sing|Number[psor]=Sing|Person=3|Poss=Yes|PronType=Prs	6	nmod:poss	_	_
+6	hararon	hararo	NOUN	_	Case=Acc|Number=Sing	4	obj	_	_
+7	sed	sed	SCONJ	_	_	11	mark	_	_
+8	ial	ial	ADV	_	_	11	advmod	_	_
+9	ŝi	ŝi	PRON	_	Case=Nom|Gender=Fem|Number=Sing|PronType=Prs	11	nsubj	_	_
+10	ne	ne	ADV	_	_	11	advmod	_	_
+11	farus	fari	VERB	_	Mood=Sub|VerbForm=Fin	4	advcl	_	_
+12	tiun	tiu	DET	_	Case=Acc|Number=Sing|PronType=Dem	13	det	_	_
+13	tagon	tago	NOUN	_	Case=Acc|Number=Sing	11	obj	_	SpaceAfter=No
+14	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = 18
+# parallel_id = cairo/18
+# text = Mi ne povis daŭrigi, ĉar li kuris tro rapide.
+# text_en = I wasn't able to keep up, because he ran too fast.
+1	Mi	mi	PRON	_	Case=Nom|Number=Sing|Person=1|PronType=Prs	3	nsubj	_	_
+2	ne	ne	ADV	_	_	3	advmod	_	_
+3	povis	povi	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+4	daŭrigi	daŭrigi	VERB	_	VerbForm=Inf	3	xcomp	_	SpaceAfter=No
+5	,	,	PUNCT	_	_	4	punct	_	_
+6	ĉar	ĉar	SCONJ	_	_	8	mark	_	_
+7	li	li	PRON	_	Case=Nom|Gender=Masc|Number=Sing|Person=3|PronType=Prs	8	nsubj	_	_
+8	kuris	kuri	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	3	advcl	_	_
+9	tro	tro	ADV	_	_	10	advmod	_	_
+10	rapide	rapide	ADV	_	_	8	advmod	_	SpaceAfter=No
+11	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 19
+# parallel_id = cairo/19
+# text = Ĉi tiu letero estas de Petro kaj ĝi estis transdonita hieraŭ.
+# text_en = This letter is from Peter and it was delivered yesterday.
+1	Ĉi	ĉi	PART	_	_	2	advmod	_	_
+2	tiu	tiu	DET	_	Case=Nom|Number=Sing|PronType=Dem	3	det	_	_
+3	letero	letero	NOUN	_	Case=Nom|Number=Sing	6	nsubj	_	_
+4	estas	esti	AUX	_	Mood=Ind|Tense=Pres|VerbForm=Fin	6	aux	_	_
+5	de	de	ADP	_	_	6	case	_	_
+6	Petro	Petro	PROPN	_	Case=Nom|Number=Sing	0	root	_	_
+7	kaj	kaj	CCONJ	_	_	10	cc	_	_
+8	ĝi	ĝi	PRON	_	Case=Nom|Number=Sing|Person=3|PronType=Dem	10	nsubj:pass	_	_
+9	estis	esti	AUX	_	Mood=Ind|Tense=Past|VerbForm=Fin	10	aux:pass	_	_
+10	transdonita	transdoni	VERB	_	Case=Nom|Number=Sing|Tense=Past|VerbForm=Part|Voice=Pass	6	parataxis	_	_
+11	hieraŭ	hieraŭ	ADV	_	_	10	advmod	_	SpaceAfter=No
+12	.	.	PUNCT	_	_	6	punct	_	_
+
+# sent_id = 20
+# parallel_id = cairo/20
+# text = Ŝi kreskis en Parizo, la ĉefurbo de Francio.
+# text_en = She grew up in Paris, the capital of France.
+1	Ŝi	ŝi	PRON	_	Case=Nom|Gender=Fem|Number=Sing|PronType=Prs	2	nsubj	_	_
+2	kreskis	kreski	VERB	_	Mood=Ind|Tense=Past|VerbForm=Fin	0	root	_	_
+3	en	en	ADP	_	_	4	case	_	_
+4	Parizo	Parizo	PROPN	_	Case=Nom|Number=Sing	2	nmod	_	SpaceAfter=No
+5	,	,	PUNCT	_	_	4	punct	_	_
+6	la	la	DET	_	Definite=Def|PronType=Art	7	det	_	_
+7	ĉefurbo	ĉefurbo	NOUN	_	Case=Nom|Number=Sing	4	appos	_	_
+8	de	de	ADP	_	_	9	case	_	_
+9	Francio	Francio	NOUN	_	Case=Nom|Number=Sing	7	nmod	_	SpaceAfter=No
+10	.	.	PUNCT	_	_	2	punct	_	_
+

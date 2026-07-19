@@ -341,10 +341,26 @@ a test set in it. This is the blocker (#736, #737).
 
 ## Parser quality: deterministic ceiling vs model territory
 
-UD_Esperanto-Prago (131 gold sentences, `scripts/eval/eval_ud_prago.py`) is the
-only trustworthy parser ruler — independent of the Q&A stack. Current: POS strict
-**80.3%**, scheme-adjusted **93.3%** (the delta is UD-vs-Esperanto scheme choices,
-not errors).
+The UD Esperanto gold treebanks (Prago 131 sentences in-corpus; Cairo 20
+sentences **held-out**) are the only trustworthy parser ruler — independent of
+the Q&A stack, linguist-curated (CC-BY-SA 4.0). Three evaluators measure three
+layers of AST quality (all re-baselined 2026-07-19, `bench_history.jsonl`):
+
+| layer | script | Prago | Cairo (held-out) |
+|-------|--------|-------|------------------|
+| POS strict / scheme-adj | `eval_ud_prago.py` | 81.3% / 94.7% | 80.3% / 95.9% |
+| **subject-role F1** (retrieval reads this) | `eval_ud_roles.py` | **68.7%** | **93.0%** |
+| object-role F1 | " | 76.0% | 88.0% |
+| dependency UAS / LAS (the parse TREE) | `eval_conllu.py` | 69.5% / 62.3% | 73.8% / 66.4% |
+
+All three are wired into the suite as **regression floors** —
+`pytest -m accuracy` runs `tests/test_parser_ud_accuracy.py` (no store needed;
+fixtures under `tests/fixtures/ud/`), so any parser change that drops a metric
+below baseline fails loudly. **Caveat (#726):** 131+20 sentences are a good
+*ceiling* and *regression* ruler but too few to *detect* targeted incremental
+wins — #871 (a real 182k-corpus-sentence subject-recovery fix) is invisible
+here; its evidence is the corpus-recovery proxy. The scheme-adjusted delta below
+is UD-vs-Esperanto scheme choices, not errors.
 
 **Not errors — UD-vs-Esperanto scheme differences** (do not "fix"; already
 credited by the scheme-adjusted score): `PRON→adjektivo` (66; Esperanto

@@ -50,18 +50,17 @@ badly stale. What that audit actually found:
 
 So the honest current picture is **restored-but-thin**, not lost:
 
-**1. The parser degradation is repaired for the flagged case.** `protected_roots.json`
-is back and `Esperanton` parses correctly (`esperant`, `propra_nomo`), not the
-old `esper`+`ant`. ⚠️ **Still open (unverified 2026-07-18):** whether the *store's*
-shredded radiko columns are consistent with the *current* parser — the corpus was
-parsed at some point in the past, and if the shredded columns hold `esper` while
-questions now parse to `esperant`, the radiko-join paths (not surface Whoosh,
-which is unaffected) could silently mismatch. A reparse remains the clean fix if
-that inconsistency is confirmed. On reparse cost, note: the parser does 7,384
-sentences/sec on one core (measured 2026-07-14), so parsing 5.39M sentences is
-**~15 min**; the wall-clock is **I/O + indexing** (writing the ~20 GB JSONL and
-building Whoosh). The stale "~5–6 h" figure was `KuzuASTReconstructor` at
-~17,000 ms per AST — do not use it to defer a reparse.
+**1. The parser degradation is repaired, and the store agrees with the parser
+(VERIFIED 2026-07-19, #878).** `protected_roots.json` is back and `Esperanton`
+parses correctly (`esperant`, not the old `esper`+`ant`). The store was built
+*with* the fixed parser: it holds `esperant` dominantly (subj_radiko 3,898 vs
+`esper` 244; obj 3,452 vs 181), and a 200-sentence re-parse consistency check
+matched the shredded `radiko` columns **213/213 (100%)** against a fresh parse.
+So there is **no `esper`/`esperant` drift** — the radiko-join retrieval paths are
+sound and **no reparse is needed** on this axis. (If a future parser change does
+require a reparse, note the cost: 7,384 sentences/sec ≈ **~15 min** to parse
+5.39M; the wall-clock is I/O + indexing, not the parse. The stale "~5–6 h" figure
+was `KuzuASTReconstructor` — do not use it to defer a reparse.)
 
 **2. The ontology is loaded, consumed — and hand-seeded thin.** The verb/entity
 classes came from the Python literals in

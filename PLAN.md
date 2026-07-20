@@ -61,9 +61,14 @@ text ──▶ Parser (16 rules) ──▶ AST ══▶  ORCHESTRATOR  ══�
   readable Esperanto, tagged `[regulo]`/`[modelo]`. Possible *because* the grammar
   is regular and the root base small; it is the observability tool **and** the
   test oracle (if it can't be decoded, it doesn't merge).
-- **Data substrate:** DuckDB store (~4.6M sentences: `ast_json` blob + shredded
-  columns + provenance) → Whoosh BM25 index → hand-seeded semantic ontology.
+- **Data substrate:** DuckDB store (4,624,110 sentences: `ast_json` blob +
+  shredded columns + provenance, plus `clauses` 6.95M and `dependency_arcs`
+  68.9M) → Whoosh BM25 index → hand-seeded semantic ontology (237,739 edges).
   Built by a fixed pipeline: acquire → clean → extract → parse → index.
+  ⚠️ **The parser emits three parallel views** — `vortoj` (the UD dependency
+  tree, its own declared source of truth), `propozicioj` (clause list), and a
+  legacy flat frame. The store shreds the *legacy* one, and production reads a
+  lossy expansion of it. Correcting that is Phase 0.5 (#901).
 - **Models are deferred by design.** The learned stack is pruned from HEAD; it
   re-enters only through the shadow harness, targeted at a *characterized*
   residue.
@@ -112,12 +117,53 @@ one at a time. Each phase closes on a number.
   decoder renders every stage on the golden traces. *(both true today for the
   default spine; extends to all stages once #895 lands)*
 
-### Phase 1 — MVP-1: single-turn QA, honest/loud/measured  ·  milestone #29  ·  🎯 next
+### Phase 0.5 — Substrate: the rich AST must reach retrieval  ·  milestone #33  ·  🎯 **NEW, now the critical path**
+*Goal: connect three sound components that are not connected. Added 2026-07-20
+after a full trace of the production path; epic **#901**.*
+
+The 2026-07-14 rebuild succeeded — and a trace found its richest outputs are read
+by nothing. `clauses` (6.95M rows) and `dependency_arcs` (68.9M) have **zero
+production readers**; the whole default pipeline touches five columns
+(`sentences(sid, subj_vortspeco, obj_radiko, text, ast_json)`) plus
+`ontology_edges(ALIASO)`. The store is not under-informative — it is
+**mis-projected**.
+
+- 🎯 **#905 (P0)** — the retriever swallows schema errors on the hot path
+  (`BinderException` → `_NO_ANSWER`, no `stage_failed` flag) and preflight
+  validates columns the hot path never reads. Same class as #881, on the path
+  that always runs.
+- 🎯 **#902 (P0)** — `compact_ast`/`expand_ast` is lossy despite a docstring and
+  a test named for an exact round-trip: `vortoj` survives byte-exact, every
+  modifier list and nested clause is destroyed. **Decides what `ast_json` should
+  hold**, so it precedes any rebuild.
+- 🎯 **#903 → #904 (P0)** — the legacy flat frame *mixes clauses* and is what the
+  store shreds. One design question: is the queryable unit the sentence or the
+  clause? Measured cost of today's answer: **261,372 sentences** whose subject is
+  invisible to the column production filters on; 2,263,488 clause subjects
+  (40.9%) reachable only via `clauses`.
+- 🎯 **#906 / #907 (P1)** — vocabulary reconciliation: the entity-type gate tests
+  for `persono` against a column that only ever holds `propranomo` (**disjoint
+  sets** — the gate has never fired), and `clauses.verb_klaso` holds POS tags,
+  not semantic classes.
+- 🎯 **#807** — the reparse, **folded into this phase rather than run ahead of
+  it.** Built and rehearsed, but #871 moved *zero* UD accuracy metrics and
+  touches ~4% of the corpus; running it into the current schema banks a small win
+  and reproduces every misalignment above. One rebuild, carrying both.
+- **Exit:** a stage reads clause-level structure through the injected
+  `StoreView`, declaring `REQUIRES`; hot-path schema drift **raises**; and the
+  change carries a paired-CI before/after. ⚠️ **Gated by milestone #23** — the
+  discriminating stratum is what makes any of this provable (#736/#778).
+
+### Phase 1 — MVP-1: single-turn QA, honest/loud/measured  ·  milestone #29  ·  🎯
 *Goal: the smallest QA system that actually works, on the enforced contract.*
-- 🎯 **#881 (P0)** — reconnect facts as `FactFragment`s over the drifted
-  `entity_facts` schema; unblocks reasoning/planner/generation in one move.
-- 🎯 **#895** — trim the dead `verb_klaso` SELECT so `ast_aware_rerank` stops
-  silently failing (then fold it into the contract suite).
+- 🎯 **#909 (P0)** — `entity_facts` has **two competing schemas** (`load_ontology.py`
+  writes a triple form; `extract_entity_facts.py` targets a slot form) and two
+  production readers were never converted — one swallows the resulting
+  `BinderException` and returns `[]`. Supersedes the mechanism in #881; pick one
+  schema, one writer, then rebuild and bench the revived path on its own number.
+- ✅ **#895** — `ast_aware_rerank` demoted out of the pipeline (MRR 0.3619 →
+  0.3446). Reviving it means fixing the substrate first (#906/#907/#904), not
+  re-tuning the reranker.
 - 🎯 **#869** — span extraction: `token_f1` is 0.014 (the worst number in the
   system) — return the span, not the passage.
 - 🎯 **#896** — remove `random.choice` from the discourse planner (determinism).
@@ -159,21 +205,35 @@ deterministic core stabilizes first).
 
 ---
 
-## 5. Where we are (2026-07-18)
+## 5. Where we are (2026-07-20)
 
 - **Foundation, not features.** Phase 0 is most of the way done; almost nothing
   "new" shipped recently by design — the effort proved the old capabilities were
   mostly dead/unmeasured and built the machinery so that can't recur.
-- **Working & measured:** 16-rule parser (UD-Prago 80.3% POS), DuckDB store +
-  Whoosh, retrieval (recall@200 = 100% trivial/rerankable, 36% deep), rerankers
-  differentiated on honest sets, math tool live, the contract suite + decoder +
-  CLI v0.
+- **The data problem is solved; a wiring problem replaced it.** The rebuild
+  milestone closed 2026-07-20 (#835/#836/#837/#838), along with #802/#803/#818/
+  #821/#823/#777. The corpus is honest: 0 redirect stubs, 0 markup, 0 English,
+  provenance 100%, ontology loaded *and consumed* (the `ALIASO` bridge shipped
+  the first net-positive deterministic live-path win, #872). **But a trace of
+  the production path found the rebuild's richest outputs are read by nothing**
+  — 76M rows across `clauses` and `dependency_arcs` with zero production
+  readers. That is Phase 0.5 (#901).
+- **Working & measured:** 16-rule parser, now regression-guarded against the UD
+  gold treebanks (`pytest -m accuracy`, #900); DuckDB store + Whoosh; retrieval
+  (recall@200 = 100% trivial/rerankable, 36% deep); the `rebaseline_500` ruler
+  with paired-bootstrap CIs, which already converted a borderline result into a
+  gate pass (#877); math tool live; contract suite + decoder + CLI v0.
 - **The honest weak points:** end-to-end `token_f1 = 0.014` (returns passages,
-  not spans); the fact-consuming symbolic layer is silently dead against a
-  drifted schema (#881); the "lexical synonymy residue" is *claimed but untested*
-  (#873).
-- **Immediate next step:** Phase 1 — **#881** then **#895/#869**. That converts
-  four "0"s into measured numbers and gives MVP-1 its first honest baseline.
+  not spans, #869); the fact-consuming symbolic layer is dead against **two**
+  competing `entity_facts` schemas (#909); the reranker's discriminating inputs
+  are absent or vocabulary-mismatched, and the reranker built on them was
+  measured worse than BM25 and demoted (#895); the "lexical synonymy residue" is
+  *claimed but untested* (#873).
+- **Immediate next step:** Phase 0.5 — **#905** (loud failure on the live path)
+  and **#902** (decide what `ast_json` holds), then the shape decision
+  **#903 → #904**. Run milestone **#23** (reranker-discrimination stratum) in
+  parallel: without it, none of Phase 0.5 can clear the merge gate, and it would
+  land unmeasured exactly as the 25 capabilities of 2026-05-26 did.
 
 Known-degraded specifics and the "read this before trusting a number" caveats
 live in `DESIGN.md` → "Current state".

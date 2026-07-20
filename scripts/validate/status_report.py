@@ -37,6 +37,13 @@ from pathlib import Path
 import duckdb
 
 ROOT = Path(__file__).resolve().parents[2]
+# Without this, `python scripts/validate/status_report.py` puts scripts/validate
+# on sys.path[0] and `import klareco` fails — which the canary below then
+# reported as a ⚠️ warning row reading "ERROR: No module named 'klareco'".
+# An executable-status tool that renders its own breakage as a status finding is
+# worse than no tool: it is the silent degradation this file exists to prevent.
+sys.path.insert(0, str(ROOT))
+
 DB = ROOT / 'data' / 'indexes' / 'duckdb_store.db'
 WH = ROOT / 'data' / 'indexes' / 'whoosh_v2'
 
@@ -103,17 +110,20 @@ def collect() -> dict:
     d['protected_roots_present'] = (art / 'vocabularies' / 'protected_roots.json').exists()
     d['proper_nouns_v3_present'] = (art / 'proper_nouns_dynamic_v3.json').exists()
 
-    # Parser sanity: the canary that was wrong for a month
+    # Parser sanity: the canary that was wrong for a month.
+    #
+    # An ImportError here is NOT a status finding — it means this tool cannot
+    # run, and reporting it in the table would publish a ⚠️ that looks like a
+    # parser regression. Fail loudly instead; only a genuine parse failure is
+    # reportable.
+    from klareco.parser import parse
     try:
-        from klareco.parser import parse
         ast = parse("Zamenhof kreis Esperanton.")
-        for w in ast.get('objekto', {}).get('kerno', {}) or {}:
-            pass
         obj = (ast.get('objekto') or {}).get('kerno') or {}
         d['esperanton_radiko'] = obj.get('radiko')
         d['esperanton_ok'] = obj.get('radiko') == 'esperant'
     except Exception as e:
-        d['esperanton_radiko'] = f'ERROR: {e}'
+        d['esperanton_radiko'] = f'PARSE FAILED: {e}'
         d['esperanton_ok'] = False
     return d
 

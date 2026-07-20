@@ -121,17 +121,26 @@ row per sentence, AST carried as an `ast_json` blob) plus a Whoosh BM25 index at
 `data/indexes/whoosh_v2`. Any doc, script, or code comment that tells you to write
 Cypher is stale — fix it when you find it.
 
-**Ontology status (verified 2026-07-18): LOADED and CONSUMED — but thin.** In
-the DuckDB store, `ontology_nodes` has 12,798 rows and `ontology_edges` 13,212
-(`HAVAS_SUPERKLASON` 7,883, `SINONIMO` 2,864, `HAVAS_ENTECAN_TIPON` 2,337,
-`APARTENAS_AL_VERBA_KLASO` 128). Readable since the #713 schema fix (`28ce022`);
-`ast_aware_reranker` / `ast_retriever` query it. So:
+**Ontology status (verified 2026-07-20): LOADED and CONSUMED — but thin.** In
+the DuckDB store, `ontology_nodes` has 12,798 rows and `ontology_edges`
+**237,739** (`ALIASO` 224,527, `HAVAS_SUPERKLASON` 7,883, `SINONIMO` 2,864,
+`HAVAS_ENTECAN_TIPON` 2,337, `APARTENAS_AL_VERBA_KLASO` 128). `DuckDBRetriever`
+loads the `ALIASO` bridge at construction (default-on, #872) and
+`ast_aware_reranker` / `ast_retriever` query the rest. So:
 
 - The "always query the ontology" rule below is **followable — do it.**
-- ⚠️ Do **NOT** re-run `scripts/index/load_ontology.py`: it drops and overwrites
-  the table with a `(de, al, rel)` schema no consumer reads, and would destroy
-  the hand-fix (see commit `28ce022`). The class definitions' source of truth
-  remains `scripts/index/extend_kuzu_schema_semantic_ontology.py`.
+- ⚠️ Do **NOT** re-run `scripts/index/load_ontology.py` — but **not for the
+  reason previously given here.** The old note claimed it writes a `(de, al,
+  rel)` schema no consumer reads; that is obsolete (it now creates the correct
+  `(rel, radiko, class_id)`, fixed at the source). The real reason is that it
+  `DROP TABLE`s and rebuilds from `onto.roots` only, which would **destroy all
+  224,527 `ALIASO` edges** — those are written by a *separate* loader,
+  `scripts/index/load_aliaso_edges.py`. The class definitions' source of truth
+  remains `scripts/index/extend_kuzu_schema_semantic_ontology.py`. See #910.
+- ⚠️ `build_duckdb_store.py` declares `ontology_nodes(label, node_json)` — 2
+  columns — against a live 4-column `(radiko, klaso, fako, n_sencoj)` table.
+  Because it uses `CREATE TABLE IF NOT EXISTS`, running it against an existing
+  store fails on insert. Build aside and copy the ontology across (#910).
 - **Honest caveat:** the ontology is hand-seeded and thin — 82% of nodes have
   `klaso=NULL`, the verb layer is 8 classes / 128 roots, and the 2,864 curated
   ReVo `SINONIMO` edges are **not yet wired into first-stage query expansion**

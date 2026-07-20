@@ -114,6 +114,20 @@ def shred(ast: dict) -> dict:
         'subj_kazo': s.get('kazo'),
         'verb_radiko': v.get('radiko'),
         'verb_tempo': v.get('tempo'),
+        # #881: the negation flag CONSUMERS ALREADY READ but the store never
+        # had. `entity_fact_patterns` guards every pattern with
+        # `if row.get('verb_negated'): return` — without the column that guard
+        # never fires, so "X ne fondis Y" would be extracted as the fact that X
+        # founded Y. `ast_aware_reranker` likewise treats it as a hard filter.
+        #
+        # The parser emits `negita: True` on the verb node and OMITS the key
+        # when the verb is not negated — so absence means False, not unknown.
+        # Coerced to a real bool here rather than passed through as None:
+        # `.get()` returning None on every row is exactly how this function
+        # shipped `subj_propranoma_kat` and `success_rate` as silent constants
+        # (see the comments below). The build asserts a real True/False
+        # distribution before it finishes.
+        'verb_negated': bool(v.get('negita', False)) if v else None,
         'obj_radiko': o.get('radiko'),
         'obj_kazo': o.get('kazo'),
         'aliaj_json': json.dumps(aliaj, ensure_ascii=False),
@@ -145,6 +159,7 @@ def ensure_schema(con):
             subj_radiko VARCHAR, subj_vortspeco VARCHAR,
             subj_propranoma_kat VARCHAR, subj_kazo VARCHAR,
             verb_radiko VARCHAR, verb_tempo VARCHAR,
+            verb_negated BOOLEAN,
             obj_radiko VARCHAR, obj_kazo VARCHAR,
             aliaj_json VARCHAR, success_rate DOUBLE,
             ast_json VARCHAR,
@@ -205,7 +220,7 @@ def open_whoosh(fresh: bool):
 
 _NULL_SHRED = {k: None for k in (
     'subj_radiko', 'subj_vortspeco', 'subj_propranoma_kat', 'subj_kazo',
-    'verb_radiko', 'verb_tempo', 'obj_radiko', 'obj_kazo')}
+    'verb_radiko', 'verb_tempo', 'verb_negated', 'obj_radiko', 'obj_kazo')}
 
 
 def _worker(payload):
@@ -351,7 +366,8 @@ def main() -> int:
         con.execute(
             "INSERT INTO sentences SELECT sid, text, subj_radiko, "
             "subj_vortspeco, subj_propranoma_kat, subj_kazo, verb_radiko, "
-            "verb_tempo, obj_radiko, obj_kazo, aliaj_json, success_rate, "
+            "verb_tempo, verb_negated, obj_radiko, obj_kazo, aliaj_json, "
+            "success_rate, "
             "ast_json, "
             "source_name, source_type, article_title, article_id, "
             "section, quality FROM df")
@@ -425,6 +441,27 @@ def main() -> int:
     else:
         log.warning("QUALITY GATE rejected NOTHING — that is suspicious. "
                     "Is klareco.corpus_quality wired in?")
+
+    # SHRED SANITY: a shredded column that is constant across every row carries
+    # zero information — and this function has shipped that bug TWICE
+    # (subj_propranoma_kat NULL everywhere, success_rate 0.0 everywhere), both
+    # times via a silent `.get()` on a key the parser does not emit. Both were
+    # found months later by a live-store audit. Assert the distribution here
+    # instead, where it is cheap and loud.
+    n_neg, n_notneg = con.execute(
+        "SELECT count(*) FILTER (WHERE verb_negated), "
+        "       count(*) FILTER (WHERE NOT verb_negated) FROM sentences"
+    ).fetchone()
+    log.info("verb_negated: %d negated / %d not-negated (%.3f%% negated)",
+             n_neg, n_notneg, 100.0 * n_neg / max(n_neg + n_notneg, 1))
+    if cnt and (n_neg == 0 or n_notneg == 0):
+        log.error("verb_negated is CONSTANT across all %d rows — the parser "
+                  "field name almost certainly changed (expected `negita` on "
+                  "the verb node). Consumers (entity_fact_patterns, "
+                  "ast_aware_reranker) read this; a constant column silently "
+                  "disables their negation handling. Failing loudly.", cnt)
+        con.close()
+        return 2
 
     log.info("DONE: %d sentences in %.0f s -> %s",
              cnt, time.time() - t0, outputs)

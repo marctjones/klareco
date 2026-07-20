@@ -73,10 +73,25 @@ from klareco.rag.entity_fact_patterns import (
 
 DB = 'data/indexes/duckdb_store.db'
 
+# #881: this tuple must name ONLY columns that `sentences` actually has AND
+# that a pattern actually reads. It listed `verb_klaso`, which `sentences` has
+# never had (class membership lives in ontology_edges / clauses — a
+# denormalized column is #875) and which no pattern reads. Because the tuple is
+# interpolated straight into a SELECT, that one dead name made the whole
+# extractor raise BinderException against the live store — it could not run at
+# all, which is why the 1,006,992 entity_facts rows are legacy output of an
+# older schema. Verified 2026-07-20: exit 1 on the production store.
+#
+# `verb_negated` stays — every pattern guards on it (`if row.get('verb_negated'):
+# return`), so without it the extractor would learn "X ne fondis Y" as the fact
+# that X founded Y. It is shredded by build_duckdb_store.py as of the #807
+# reparse; against an older store this SELECT will fail loudly, which is
+# correct — extracting facts with the negation guard silently disabled is worse
+# than not extracting them.
 _COLS = (
     'sid', 'text',
     'subj_radiko', 'subj_vortspeco', 'subj_propranoma_kat', 'subj_kazo',
-    'verb_radiko', 'verb_tempo', 'verb_klaso', 'verb_negated',
+    'verb_radiko', 'verb_tempo', 'verb_negated',
     'obj_radiko', 'obj_kazo',
     'aliaj_json',
 )

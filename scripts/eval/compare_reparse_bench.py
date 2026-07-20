@@ -167,13 +167,44 @@ def main() -> int:
             'acc_significant': acc_ci['significant'],
         }
 
-    floor = results.get('A_bm25_baseline')
-    if floor:
-        verdict = ('MOVED (CI excludes 0)' if floor['mrr_significant']
+    # ATTRIBUTION, not one headline number.
+    #
+    # The naive choice was A_bm25_baseline as "the deterministic floor". That is
+    # WRONG for this change: A reads no store features at all (pure BM25 over
+    # `text`), while #871's win is RECOVERED SUBJECTS. Headlining A would report
+    # "the reparse did nothing" while the subject signal sat unread in another
+    # row. Verified 2026-07-20 by inspecting what each reranker actually queries:
+    #
+    #   A_bm25_baseline  no store features  -> isolates the #823 corpus-hygiene
+    #                                          effect (junk rows leave the pool)
+    #   I_clause_aware   clauses.subj/verb/obj_radiko, NO negation
+    #                                       -> CLEAN #871 signal (AST refresh only)
+    #   G_ast_aware      subj_radiko AND verb_negated
+    #   H_hybrid         (same, via ast_aware)
+    #                                       -> CONFOUNDED: the reparse also adds
+    #                                          the verb_negated column, which
+    #                                          ACTIVATES a negation hard-filter
+    #                                          that is inert today (column
+    #                                          missing -> guard never fires).
+    #                                          Two changes, one row.
+    ATTRIBUTION = [
+        ('I_clause_aware', 'CLEAN #871 signal — reads clause subjects, not negation'),
+        ('A_bm25_baseline', '#823 hygiene only — reads no store features'),
+        ('G_ast_aware', 'CONFOUNDED — subject recovery + newly-active negation filter'),
+        ('H_hybrid', 'CONFOUNDED — same as G, via ast_aware'),
+    ]
+    print('\n=== ATTRIBUTION ===')
+    for name, note in ATTRIBUTION:
+        r = results.get(name)
+        if not r:
+            continue
+        verdict = ('MOVED (CI excludes 0)' if r['mrr_significant']
                    else 'did not move (CI includes 0)')
-        print(f'\nDETERMINISTIC FLOOR (A_bm25_baseline): '
-              f"MRR {floor['mrr_before']} -> {floor['mrr_after']} "
-              f"({floor['mrr_delta']:+}) — {verdict}")
+        print(f"  {name:<18} MRR {r['mrr_before']:.4f} -> {r['mrr_after']:.4f} "
+              f"({r['mrr_delta']:+.4f})  {verdict}")
+        print(f"  {'':<18} {note}")
+    print('\n  The #807 merge-gate number is the I_clause_aware row: it is the '
+          'only\n  reranker whose delta is attributable to the AST refresh alone.')
 
     if args.append_history:
         entry = {

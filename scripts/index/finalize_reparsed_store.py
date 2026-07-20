@@ -184,9 +184,33 @@ def verify(con) -> None:
         gate(f'{table}', ln == nn and nn > 0, f'live={ln:,} new={nn:,}')
 
     tables = {t[0] for t in con.execute('SHOW TABLES').fetchall()}
-    for table in ('clauses', 'dependency_arcs', 'entity_facts'):
+    for table in ('clauses', 'dependency_arcs'):
         n = _count(con, table) if table in tables else 0
         gate(f'{table} present', n > 0, f'{n:,} rows')
+
+    # entity_facts is NOT a gate: the #807 pass deliberately does not rebuild it
+    # (see reparse_store_807.sh stage 7 — reviving that answer path is #881 and
+    # needs its own number). preflight treats it as required=False. Reported,
+    # not gated, so its absence is visible rather than silent.
+    n_ef = _count(con, 'entity_facts') if 'entity_facts' in tables else 0
+    print(f'  [INFO] entity_facts: {n_ef:,} rows '
+          f'(not rebuilt by design — #881 owns this; preflight: required=False)')
+
+    # verb_negated must exist and vary — consumers read it (entity_fact_patterns
+    # guards every pattern on it; ast_aware_reranker hard-filters on it).
+    cols = {r[0] for r in con.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'sentences'").fetchall()}
+    if 'verb_negated' not in cols:
+        gate('verb_negated column', False, 'MISSING from sentences')
+    else:
+        n_true, n_false = con.execute(
+            "SELECT count(*) FILTER (WHERE verb_negated), "
+            "       count(*) FILTER (WHERE NOT verb_negated) FROM sentences"
+        ).fetchone()
+        gate('verb_negated distribution', n_true > 0 and n_false > 0,
+             f'{n_true:,} negated / {n_false:,} not — a constant column would '
+             f'silently disable every negation guard')
 
     if 'clauses' in tables:
         tot = _count(con, 'clauses')

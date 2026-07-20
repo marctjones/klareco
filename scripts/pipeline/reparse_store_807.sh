@@ -145,13 +145,28 @@ if ! done_stage dep_arcs; then
     mark_stage dep_arcs
 fi
 
-# --- 7 entity_facts -----------------------------------------------------
-if ! done_stage entity_facts; then
-    log "STAGE 7/11 entity_facts: re-extract from new store"
-    python scripts/index/extract_entity_facts.py \
-        --duckdb-path "$SIDE_DB" --apply --fresh
-    mark_stage entity_facts
-fi
+# --- 7 entity_facts: DELIBERATELY NOT REBUILT HERE ----------------------
+# Rehearsed 2026-07-20 and cut on purpose. Two reasons:
+#
+#  1. It cannot run as-is. `extract_entity_facts.py` SELECTed `verb_klaso`, a
+#     column `sentences` has never had, so it raises BinderException against
+#     the LIVE store too (exit 1, verified). The 1,006,992 rows in production
+#     are legacy output of an older schema — this is #881, not something the
+#     reparse introduced. The dead column is now removed from its SELECT, so
+#     it WILL run against the reparsed store.
+#
+#  2. Running it anyway would smuggle a capability change into #807's number.
+#     entity_facts feeds an answer path that factory.py currently swallows
+#     per-question (#881); reviving it can change rebaseline_500 answers
+#     (biography/WHO). That deserves its own before/after under #881 — it must
+#     not ride on the AST-refresh attribution. entity_facts is dead in the
+#     BEFORE state too, so leaving it stale changes nothing either way.
+#
+# klareco.preflight treats entity_facts as required=False, so its absence is
+# the same degraded-but-declared state as today. Rebuild it under #881:
+#     python scripts/index/extract_entity_facts.py \
+#         --duckdb-path data/indexes/duckdb_store.db --apply --fresh
+log "STAGE 7/11 entity_facts: SKIPPED by design — deferred to #881 (see comment)"
 
 # --- 8 verify -----------------------------------------------------------
 if ! done_stage verify; then

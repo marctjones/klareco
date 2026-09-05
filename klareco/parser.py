@@ -3779,7 +3779,20 @@ def attach_all(word_asts: list, clauses: list) -> None:
                     continue
                 if c.get('rolo') in ('det', 'nummod'):
                     continue                 # a determiner of the noun we want
-                if c.get('vortspeco') in ('artikolo', 'adjektivo'):
+                if c.get('vortspeco') == 'adjektivo':
+                    # An inflected adjective can stand substantivally when a
+                    # clause marker follows (`de aliaj ke ili ...`).  In that
+                    # construction it is the PP's nominal head, not an
+                    # adjective modifying a later noun.
+                    nxt = word_asts[j] if j < n else None
+                    if (isinstance(nxt, dict)
+                            and nxt.get('vortspeco') == 'konjunkcio'
+                            and (nxt.get('radiko') or '').lower()
+                            in _SUBORDINATORS):
+                        w['kapo'], w['rolo'] = j, _CASE_ROLE
+                        break
+                    continue
+                if c.get('vortspeco') == 'artikolo':
                     continue
                 if _nominal(c):
                     w['kapo'], w['rolo'] = j, _CASE_ROLE
@@ -3842,6 +3855,19 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 w['kapo'], w['rolo'] = (nearest or verb), 'advmod'
 
         elif vs == 'adjektivo':
+            # A case-marked adjective before a subordinator can be a
+            # substantivized nominal (`de aliaj ke ...`).  Preserve the PP
+            # relation instead of forcing it through adjective agreement.
+            prev = word_asts[i - 2] if i >= 2 else None
+            nxt = word_asts[i] if i < n else None
+            if (isinstance(prev, dict)
+                    and (prev.get('vortspeco') == 'prepozicio'
+                         or prev.get('comparison_marker'))
+                    and isinstance(nxt, dict)
+                    and nxt.get('vortspeco') == 'konjunkcio'
+                    and (nxt.get('radiko') or '').lower() in _SUBORDINATORS):
+                w['kapo'], w['rolo'] = verb, 'obl'
+                continue
             # Rule 3: agrees with its head noun. Look right, then left.
             hit = None
             for j in (list(range(i + 1, min(i + 5, n + 1)))

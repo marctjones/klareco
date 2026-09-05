@@ -125,6 +125,13 @@ def test_correlative_determiner_can_cross_ajn_particle():
     assert words["per"]["kapo"] == words["lingvo"]["id"]
 
 
+def test_preposition_can_govern_substantivized_adjective_before_clause_marker():
+    ast = parse("Li postulas de aliaj ke ili venu.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["de"]["kapo"] == words["aliaj"]["id"]
+    assert words["aliaj"]["rolo"] == "obl"
+
+
 
 
 def test_attachment_alternatives_use_final_surface_ids():

@@ -179,8 +179,7 @@ def ensure_schema(con):
 def load_ontology(con):
     p = Path(ONTOLOGY_SNAPSHOT)
     if not p.exists():
-        log.warning("ontology snapshot %s missing — skipping", p)
-        return
+        raise FileNotFoundError(f'Required ontology snapshot is missing: {p}')
     snap = json.loads(p.read_text())
     con.execute("DELETE FROM ontology_nodes")
     con.execute("DELETE FROM ontology_edges")
@@ -229,20 +228,10 @@ def _worker(payload):
     sid, text, prov = payload
     try:
         ast = parse(text)
-    except Exception:
-        ast = None
-    if isinstance(ast, dict):
-        # shred() reads the RICH in-memory AST (shared token references — free).
-        shredded = shred(ast)
-        # the BLOB is compacted: the same token dict is reachable from `vortoj`,
-        # from every clause frame, and from the legacy top-level slots, and
-        # json.dumps writes all three. 8.6x smaller; `expand_ast` round-trips it.
-        ast_json = json.dumps(compact_ast(ast), ensure_ascii=False)
-    else:
-        shredded = dict(_NULL_SHRED)
-        shredded['aliaj_json'] = '[]'
-        shredded['success_rate'] = 0.0
-        ast_json = None
+    except Exception as exc:
+        raise ValueError(f'Cannot build AST for sentence {sid}: {exc}') from exc
+    shredded = shred(ast)
+    ast_json = json.dumps(compact_ast(ast), ensure_ascii=False)
     return {'sid': sid, 'text': text, 'ast_json': ast_json,
             **shredded, **prov}
 

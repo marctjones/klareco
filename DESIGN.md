@@ -13,6 +13,17 @@ in this repository.
 
 ## Current state — READ THIS FIRST
 
+**2026-09-05 parser update:** deterministic parser changes now score Prago
+LAS 64.8968% and Cairo 75.1678%, with no previously correct attachment lost
+on those fixtures. Predicate-bearing clause and main-sentence views are now
+dependency-derived and preserved through versioned storage and immutable contexts.
+The production store has **not** been rebuilt: full-corpus preflight identifies
+21 document-sized rows requiring source repair. The new annotation pilot is
+unreviewed. See [the seven-step execution report](docs/PARSER_SEVEN_STEP_RESULTS.md)
+for measurements, downstream limits, and the remaining promotion gates. The
+historical store-consistency claims below do not apply to the new parser.
+
+
 The facts below are **generated from the live store** by
 `scripts/validate/status_report.py` (#887) — a doc claim that can be a query IS a
 query, because this section went stale four times in one day. Regenerate with

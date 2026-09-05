@@ -1,5 +1,8 @@
 # Parser measurement and AST storage
 
+Current execution status and remaining gates are recorded in
+[PARSER_SEVEN_STEP_RESULTS.md](PARSER_SEVEN_STEP_RESULTS.md).
+
 The parser is deterministic. Judge changes against independently annotated
 syntax, preserve the complete result, and report improvements separately from
 downstream QA. No model is part of this workflow.
@@ -93,10 +96,11 @@ recovered by resolving token IDs. Old software does not understand v2 blobs:
 deploy updated readers before producing a v2 corpus. Retain the old store until
 the replacement is validated. The current production store has not been rebuilt.
 
-This format preserves the parser's current representations; it does **not** yet
-make the flat frame, clause frames, and dependencies consistent. The authoritative
-projection decision (#903/#904), full graph validation, and per-rule annotation
-remain separate work. Token-table validity is not syntactic correctness.
+Storage v2 now carries syntax graph v1. For predicate-bearing clauses, clause
+and main-sentence frames are derived from dependencies. Storage boundaries check
+dependency cycles, roots, clause membership, parents, and argument consistency.
+Verbless fragments retain a legacy heuristic flat view; they have no asserted
+predicate frame. Structural validity is not linguistic correctness.
 
 ## Snapshot isolation
 
@@ -104,8 +108,10 @@ remain separate work. Token-table validity is not syntactic correctness.
 within that returned graph while isolating callers from one another. The cache
 controls remain available. Storage encoding/decoding also isolates its inputs.
 This costs copying time; reports include a warm-word-cache, cold-sentence-cache
-latency measurement. The pipeline's nested context dictionaries are still mutable;
-this change does not claim to enforce deep context immutability.
+latency measurement. Pipeline ASTs and JSON flags are now recursively read-only, owned snapshots.
+`deepcopy()` explicitly produces an editable copy. Numeric latent arrays have
+immutable byte-backed storage. These guarantees cover the documented JSON and
+numeric-array fields, not arbitrary custom Python objects.
 
 A paired local timing check (ten alternating runs, 151 UD sentences, sentence
 cache cold and word caches warm) measured median total parsing time of 104.6 ms
@@ -115,7 +121,7 @@ blobs total 1,335,304 bytes versus 1,205,600 previously, about 10.8% more, while
 remaining about 42.6% of expanded JSON size. Full-corpus time and size are not
 yet measured.
 
-## September 2026 first cycle
+## Historical September 2026 first cycle
 
 Local evidence is in `data/perf/parser_cycle/` and `data/perf/bench_history.jsonl`.
 The predicate-head fix follows an attributive adjective's nominal head in a
@@ -134,3 +140,86 @@ These are small-treebank results, not a corpus-wide accuracy claim. POS and
 subject/object frame metrics are reported separately. Generalization requires
 the independent annotation work above; QA benefit requires consumers of the
 corrected structure.
+
+## Canonical syntax and source text
+
+`vortoj` is the token registry. `kapo`/`rolo` are the attachment authority.
+`propozicioj` contains dependency-derived predicate frames, including nonfinite
+complements. Each frame carries `predikato`, `token_ids`,
+`parent_predicate_id`, direct `argumentoj`, and a derivation version.
+`phrases` contains nominal groups. Legacy relative-clause wrappers are derived
+from the same dependencies; canonical extraction avoids extracting them twice.
+
+The main clause supplies the top-level subject, verb, object, other dependents,
+and negation fields. Tokens in embedded clauses do not supply the main clause's
+arguments. The compatibility `verbo` may be a copula while `predikato` identifies
+the actual dependency head. Missing shared arguments are not invented.
+
+`syntax.version` is 1. Multiple roots are explicitly marked as a forest; tokens
+outside predicate frames are listed in `unassigned_token_ids`. Empty alternatives
+with `alternatives_status: not_enumerated` do **not** mean there is no ambiguity.
+Version and frame derivation identify the construction method; fine-grained
+per-token rule explanations are not yet implemented.
+
+`source.original` retains the input verbatim. `source.normalized` retains the
+normalized text before tokenizer protection markers. Tokens carry character
+spans in both strings and the normalized `surface_form`. Length-changing
+normalization and casing are mapped explicitly; offsets are characters, not
+bytes. Spans over normalized replacements refer to the corresponding original
+range. An unaligned span is null, never a fabricated offset.
+
+The sentence parser rejects inputs over 10,000 characters before expensive
+analysis. This is a resource bound, not a linguistic claim about maximum sentence
+length. Segment document-sized source records before passing them to this API.
+
+## Reviewed annotation export
+
+```bash
+python scripts/eval/validate_parser_annotations.py \
+  data/test_sets/parser_pilot_v1/development.jsonl \
+  --output data/test_sets/parser_gold_development_v1
+```
+
+Export refuses unreviewed rows, matching annotator/reviewer identities, changed
+source text, invalid or cyclic dependencies, incomplete token coverage, missing
+POS/relations, and mixed splits. It freezes source/gold hashes and document
+membership and refuses overwrite. This validates review records and structure;
+it does not authenticate reviewer identities or independently judge Esperanto.
+The current pilot is unreviewed and is expected to fail this gate.
+
+## Rebuild safely and measure both parser revisions
+
+```bash
+python scripts/eval/compare_parser_revision.py --baseline-ref 46e85d1 \
+  --output data/perf/parser_comparison
+python scripts/index/reparse_store.py \
+  --output data/perf/parser_sample.db
+python scripts/index/reparse_store.py --limit 0 \
+  --output data/indexes/parser_candidate.db
+```
+
+The default sample is 10,000 rows selected by a fixed hash of sentence ID without
+consulting parser success. The builder preserves IDs, text, and provenance;
+rebuilds ASTs, sentence columns, clauses, token edges, and dependency arcs; and
+copies the ontology with its actual schema. The existing `verb_klaso` convention
+remains POS/transitivity codes from the typed lexicon, not semantic classes.
+The manifest records source statistics, code/vocabulary hashes, row counts, and
+completion status. Every serialized AST is compared with its fresh parse.
+
+Oversized input blocks before any candidate rows are written. Parse failures
+stop the build and record offending IDs. Output paths cannot overwrite previous
+candidates or manifests. A failed candidate is diagnostic evidence, not a release.
+There is no automatic promotion, and source files are opened read-only.
+
+Entity facts are not rebuilt by this tool. `validated_candidate` means the
+storage checks passed; it does not mean production promotion or complete pipeline
+validation. Sampling also does not establish corpus-wide accuracy. The full
+production store remains unchanged until its source and promotion gates pass.
+
+The QA comparison tool supports a fixed-candidate experiment and
+`--live-candidates`. The latter selects candidates using each parser's question
+AST against the unchanged production shredded columns, then reparses selected
+passages. It is still not a full rebuilt-store comparison. Retain that distinction
+when citing results. `recheck_parser_qa.py` can prove input AST equality and rerun
+affected questions after a narrowly scoped parser repair; reused timings remain
+those of the original run.

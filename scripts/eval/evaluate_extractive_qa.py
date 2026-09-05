@@ -3,8 +3,8 @@
 Evaluate Klareco Extractive QA on a Test Set.
 
 VERSION: v2.1
-COMPATIBLE WITH: v2.1 Kuzu DB, orchestrator pipeline (klareco.orchestrator)
-DEPENDENCIES: Whoosh index, Kuzu DB
+COMPATIBLE WITH: DuckDB store, orchestrator pipeline (klareco.orchestrator)
+DEPENDENCIES: Whoosh index, DuckDB store
 STAGE: Evaluation
 
 Reports three metric families:
@@ -50,17 +50,17 @@ from klareco.eval import evaluate_question, summarize, print_summary
 
 # Per-worker pipeline holder for multiprocessing mode. Each worker process
 # builds its own pipeline once on init; subsequent tasks reuse it. The
-# pipeline isn't picklable (Whoosh/Kuzu file handles), hence the initializer.
+# pipeline isn't picklable (Whoosh/DuckDB file handles), hence the initializer.
 _WORKER_PIPELINE = None
 
 
-def _init_worker(whoosh_dir: str, kuzu_path: str, top_k: int) -> None:
+def _init_worker(whoosh_dir: str, duckdb_path: str, top_k: int) -> None:
     global _WORKER_PIPELINE
     logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
     logging.getLogger('klareco').setLevel(logging.ERROR)
     _WORKER_PIPELINE = build_default_pipeline(
         whoosh_index_dir=whoosh_dir,
-        kuzu_db_path=kuzu_path,
+        duckdb_path=duckdb_path,
         top_k=top_k,
     )
 
@@ -72,12 +72,12 @@ def _eval_in_worker(entry: dict) -> dict:
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--test-set', default='data/test_sets/qa_test_set_50.jsonl',
+    parser.add_argument('--test-set', default='data/test_sets/rebaseline_500.jsonl',
                         help='Path to JSONL test set (default: %(default)s)')
-    parser.add_argument('--whoosh-dir', default='data/indexes/whoosh_fts',
+    parser.add_argument('--whoosh-dir', default='data/indexes/whoosh_v2',
                         help='Whoosh index directory')
-    parser.add_argument('--kuzu-path', default='data/indexes/v2.1_kuzu_index_full',
-                        help='Kuzu DB path')
+    parser.add_argument('--duckdb-path', default='data/indexes/duckdb_store.db',
+                        help='DuckDB store path')
     parser.add_argument('--top-k', type=int, default=10,
                         help='Passages to retrieve per question (default: 10)')
     parser.add_argument('--limit', type=int, default=None,
@@ -113,10 +113,10 @@ def main():
 
     if n_workers == 1:
         print(f"Building pipeline (Whoosh={args.whoosh_dir}, "
-              f"Kuzu={args.kuzu_path}, top_k={args.top_k})...")
+              f"DuckDB={args.duckdb_path}, top_k={args.top_k})...")
         pipeline = build_default_pipeline(
             whoosh_index_dir=args.whoosh_dir,
-            kuzu_db_path=args.kuzu_path,
+            duckdb_path=args.duckdb_path,
             top_k=args.top_k,
         )
         print(f"\nEvaluating {len(entries)} questions (serial)...")
@@ -148,13 +148,13 @@ def main():
     else:
         from concurrent.futures import ProcessPoolExecutor
         print(f"\nEvaluating {len(entries)} questions across {n_workers} workers "
-              f"(each opens its own Whoosh+Kuzu connection)...")
+              f"(each opens its own Whoosh+DuckDB connection)...")
         print('-' * 70)
         results = []
         with ProcessPoolExecutor(
             max_workers=n_workers,
             initializer=_init_worker,
-            initargs=(args.whoosh_dir, args.kuzu_path, args.top_k),
+            initargs=(args.whoosh_dir, args.duckdb_path, args.top_k),
         ) as pool:
             for i, r in enumerate(pool.map(_eval_in_worker, entries), 1):
                 results.append(r)

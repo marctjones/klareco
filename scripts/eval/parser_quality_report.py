@@ -48,7 +48,8 @@ def report() -> dict:
     }
     files = [ROOT / 'klareco/parser.py', ROOT / 'klareco/morphology.py',
              ROOT / 'klareco/conllu.py', Path(__file__),
-             Path(eval_conllu.__file__)]
+             Path(eval_conllu.__file__), Path(eval_ud_prago.__file__),
+             Path(eval_ud_roles.__file__), ROOT / "klareco/syntax_graph.py"]
     files += sorted((ROOT / 'data/vocabularies').glob('*.json'))
     storage = ROOT / 'klareco/ast_storage.py'
     if storage.exists():  # Optional code module, not a parser data dependency.
@@ -65,10 +66,16 @@ def report() -> dict:
         exact = 0
         raw_bytes = compact_bytes = 0
         latencies = []
+        storage_failures = []
         for text in texts:
             parse.cache_clear()
             start = perf_counter()
-            ast = parse(text)
+            try:
+                ast = parse(text)
+            except Exception as exc:
+                storage_failures.append({'text': text, 'error': str(exc)})
+                latencies.append((perf_counter() - start) * 1000)
+                continue
             latencies.append((perf_counter() - start) * 1000)
             raw = json.dumps(ast, ensure_ascii=False)
             packed = json.dumps(compact_ast(ast), ensure_ascii=False)
@@ -85,7 +92,8 @@ def report() -> dict:
             'errors_by_symptom': dict(Counter(
                 e for t in tokens for e in t['errors']).most_common()),
             'storage': {'exact': exact, 'sentences': len(texts),
-                        'raw_bytes': raw_bytes, 'compact_bytes': compact_bytes},
+                        'raw_bytes': raw_bytes, 'compact_bytes': compact_bytes,
+                        'parse_failures': storage_failures},
             'parse_latency_ms': {'median': sorted(latencies)[len(latencies)//2],
                                  'total': sum(latencies),
                                  'method': 'sentence cache cleared; word cache warm'},

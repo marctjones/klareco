@@ -3807,9 +3807,16 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 # HEAD is the PREDICATE under a copula — `ĉar li estas granda`
                 # heads on `granda`, not on `estas`. Attaching to the verb was
                 # wrong wherever the clause was copular.
+                # A relative clause may intervene before the predicate opened
+                # by this marker (`por ke la personoj, kiuj havas ..., sciu`).
+                # Relative predicates are already labelled `acl` by the
+                # clause-spine pass; skip them so the marker scopes over the
+                # governing finite predicate instead of the first verb seen.
                 nxt = next((word_asts[j - 1].get('id')
                             for j in range(i + 1, n + 1)
-                            if _is_finite_verb(word_asts[j - 1])), verb)
+                            if (_is_finite_verb(word_asts[j - 1])
+                                and word_asts[j - 1].get('rolo')
+                                not in ('acl', 'relcl'))), verb)
                 nxt = predikato_of.get(nxt, nxt)
                 w['kapo'], w['rolo'] = nxt or verb, 'mark'
             else:

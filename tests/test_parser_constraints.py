@@ -132,6 +132,15 @@ def test_preposition_can_govern_substantivized_adjective_before_clause_marker():
     assert words["aliaj"]["rolo"] == "obl"
 
 
+def test_clause_marker_skips_intervening_relative_predicate():
+    ast = parse(
+        "Por ke la personoj, kiuj havas la samajn principojn, sciu la veron."
+    )
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["ke"]["kapo"] == words["sciu"]["id"]
+    assert words["havas"]["rolo"] == "acl"
+
+
 
 
 def test_attachment_alternatives_use_final_surface_ids():

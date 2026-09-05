@@ -185,6 +185,21 @@ def refine_dependencies(tokens: list[dict]) -> list[AttachmentChange]:
                         [left["id"], word["id"], right["id"]],
                     )
 
+        if (
+            word.get("radiko") == "por"
+            and word.get("vortspeco") == "prepozicio"
+            and index + 1 < len(tokens)
+            and tokens[index + 1].get("radiko") == "ke"
+            and tokens[index + 1].get("kapo", 0)
+        ):
+            attach(
+                word,
+                tokens[index + 1]["kapo"],
+                "mark",
+                "por-ke-clause-marker-v1",
+                [word["id"], tokens[index + 1]["id"], tokens[index + 1]["kapo"]],
+            )
+
         root = word.get("radiko")
         if root not in ("ĉi", "ajn") or word.get("vortspeco") != "partiklo":
             continue

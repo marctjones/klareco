@@ -105,6 +105,17 @@ def test_infinitive_attachment_crosses_intervening_particles():
     assert words["labori"]["kapo"] == words["intencon"]["id"]
 
 
+def test_por_ke_is_a_clause_marker():
+    ast = parse("Por ke ili venu, mi preparas la ĉambron.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["Por"]["rolo"] == "mark"
+    assert words["Por"]["kapo"] == words["venu"]["id"]
+    assert any(
+        change["rule"] == "por-ke-clause-marker-v1"
+        for change in ast["attachment_trace"]
+    )
+
+
 
 
 def test_attachment_alternatives_use_final_surface_ids():

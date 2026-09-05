@@ -34,6 +34,8 @@ from typing import Dict, List, Optional, Any, Tuple, Set, Union
 from enum import Enum
 import logging
 
+from klareco.ast_storage import is_compact_ast
+
 # Import parser for multi-document extraction
 from klareco.parser import parse
 
@@ -279,8 +281,7 @@ class UnifiedASTExtractor:
         # and would silently extract ZERO facts from a compact dict — that bug made
         # answer_accuracy 0.0% across the board while looking like "no answer found".
         # Callers must expand_ast() first (the retriever does, at its choke point).
-        if isinstance(ast, dict) and ('subjekto_id' in ast or 'verbo_id' in ast
-                                      or 'objekto_id' in ast):
+        if isinstance(ast, dict) and is_compact_ast(ast):
             raise ValueError(
                 "compact AST passed to UnifiedASTExtractor.extract() — call "
                 "klareco.parser.expand_ast() first (see #851; a compact AST "
@@ -3069,4 +3070,3 @@ class UnifiedASTExtractor:
         proximity_score = 1.0 / (1 + avg_distance)
 
         return proximity_score
-

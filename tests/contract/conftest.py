@@ -52,7 +52,7 @@ def mini_store(tmp_path_factory):
     from whoosh import index as whoosh_index
     from whoosh.fields import ID, TEXT, Schema
 
-    from klareco.parser import parse
+    from klareco.parser import compact_ast, parse
     from scripts.index.build_duckdb_store import ensure_schema, shred
 
     # Column order matching ensure_schema() in build_duckdb_store.py.
@@ -76,7 +76,8 @@ def mini_store(tmp_path_factory):
         ast = parse(text)
         row = shred(ast)
         row.update({
-            "sid": sid, "text": text, "ast_json": json.dumps(ast, ensure_ascii=False),
+            "sid": sid, "text": text,
+            "ast_json": json.dumps(compact_ast(ast), ensure_ascii=False),
             "source_name": source, "source_type": source,
             "article_title": title, "article_id": str(sid),
             "section": "", "quality": "ok",

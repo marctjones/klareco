@@ -1,5 +1,20 @@
 # Klareco Version Compatibility Matrix
 
+## Active parser tooling (2026-09-05)
+
+The entries below apply to the current DuckDB implementation; the older model
+version matrix that follows is historical planning material.
+
+| Component | Compatibility |
+|---|---|
+| `klareco.ast_storage` | Writes version-2 lossless AST envelopes; reads v2, unversioned lossy legacy blobs, and expanded ASTs |
+| `scripts/eval/parser_quality_report.py` v1.0 | Committed UD Prago/Cairo fixtures and local parser vocabularies; no database or model |
+| `scripts/eval/build_parser_pilot.py` v1.0 | DuckDB `sentences(sid,text,source_name,article_title)`; produces unreviewed annotation queues |
+
+Updated retriever and extractor readers are required before deploying v2 blobs.
+See [PARSER_QUALITY.md](PARSER_QUALITY.md) for the storage contract, independent
+annotation process, and measurement commands.
+
 > **Status (2026-05): This document describes the deferred v3.0 model-retraining
 > plan.** Current work is the AST-native orchestrator + deterministic-first
 > evaluation effort — see `DESIGN.md` for the active architecture. The v2.1

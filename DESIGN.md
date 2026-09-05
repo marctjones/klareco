@@ -89,6 +89,16 @@ lossy on expand. This is now the central problem, tracked as **#901** and
 detailed under "The store" below. It is a wiring problem, not a missing-artifact
 problem, and it changes what the next rebuild should be for.
 
+**Parser/storage update (2026-09-05; production store unchanged).** The new
+version-2 serializer preserves complete AST structure: 151/151 UD sentences
+round-trip exactly, up from 45/151, with a separate 160-sentence development
+sample also passing through the production writer. Existing store blobs remain
+legacy and lossy; reading them now records `_legacy_compact_lossy`. A copular
+predicate-head correction improves all-token LAS from 62.2788% to 62.5000% on
+Prago and 66.4429% to 69.1275% on Cairo, without coverage loss. This does not
+resolve the flat-frame/clause projection mismatch or wire the rich tables into
+retrieval. See `docs/PARSER_QUALITY.md` for evidence and remaining work.
+
 ### What the merge gate has decided since 2026-07-12
 
 The gate (no capability merges without a moved benchmark number) is now being
@@ -283,11 +293,14 @@ Three findings from a 2026-07-20 trace, each now an issue under #901:
    venis hieraŭ ne estas mia frato, sed li konas ŝin"* the flat frame reports
    subject `vir`, object `ŝi` — the object belongs to the *coordinate* clause,
    while the main clause's own object is `None` (#903).
-2. **`compact_ast`/`expand_ast` is lossy**, despite a docstring and a test named
+2. **Legacy `compact_ast`/`expand_ast` was lossy**, despite a docstring and a test named
    for an exact round-trip. `vortoj` survives byte-exact; every `priskriboj`
    list, `vortgrupo` wrapper and nested clause is destroyed. For *"Mi scias ke vi
    venos"* the object — a whole embedded clause — comes back `None`. The test
-   compares head radikoj and list lengths only, so CI never saw it (#902).
+   compared head radikoj and list lengths only, so CI never saw it (#902).
+   The v2 writer now preserves these structures and the test asserts full value
+   equality. The existing corpus has not been migrated; legacy expansion cannot
+   restore information its writer omitted.
 3. **The rich tables are dark.** `clauses` (6.95M) and `dependency_arcs` (68.9M)
    have **zero production readers**. Production reads five columns —
    `sentences(sid, subj_vortspeco, obj_radiko, text, ast_json)` — plus

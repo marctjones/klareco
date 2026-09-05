@@ -30,7 +30,7 @@ from whoosh import scoring
 from whoosh.index import open_dir
 from whoosh.qparser import OrGroup, QueryParser
 
-from klareco.parser import expand_ast
+from klareco.ast_storage import expand_ast, is_compact_ast
 from klareco.rag.query_expansion import build_expanded_query, question_anchors
 
 logger = logging.getLogger(__name__)
@@ -327,17 +327,13 @@ class DuckDBRetriever:
         for r in top:
             text, aj = heavy.get(int(r['id']), (None, None))
             r['text'] = text
-            try:
-                ast = json.loads(aj) if aj else None
-                # ⚠️ The store carries the COMPACT form (compact_ast). Consumers
-                # read the EXPANDED shape and silently extract ZERO facts from a
-                # compact dict — the answer_accuracy=0.0% bug (#851). Expand here,
-                # at the single choke point. Guarded: expand_ast is not idempotent.
-                if ast is not None and ('subjekto_id' in ast or 'verbo_id' in ast
-                                        or 'objekto_id' in ast):
-                    ast = expand_ast(ast)
-                r['ast'] = ast
-            except Exception:
-                r['ast'] = None
+            if aj is None:
+                raise ValueError(f"Sentence {r['id']} has no stored AST")
+            ast = json.loads(aj)
+            if not isinstance(ast, dict):
+                raise ValueError(f"Sentence {r['id']} has an invalid stored AST")
+            # Decode both supported formats; corruption must reach stage failure
+            # reporting rather than masquerading as an unanswerable question.
+            r['ast'] = expand_ast(ast) if is_compact_ast(ast) else ast
         self._phase_timer.add('score', (time.time() - t0) * 1000)
         return top

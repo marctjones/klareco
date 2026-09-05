@@ -6,7 +6,10 @@ analysis to produce a detailed, Esperanto-native Abstract Syntax Tree (AST)."""
 import re
 import json
 from functools import lru_cache
+from copy import deepcopy
 from pathlib import Path
+
+from klareco.ast_storage import compact_ast, expand_ast
 
 # Dictionary roots — the language's own vocabulary. This is the artifact the
 # parser's NEGATIVE DETECTION rests on: "capitalised AND the root is not a known
@@ -3384,6 +3387,34 @@ def attach_all(word_asts: list, clauses: list) -> None:
             candidates += [d for d in (subj_grp.get('priskriboj') or [])
                            if isinstance(d, dict) and (d.get('id') or 0) > vid]
 
+        # Agreement has already attached attributive adjectives. Follow that
+        # head inside this clause: in `estas granda konstruaĵo`, the predicate
+        # is the noun phrase, not `granda`. A PP noun cannot take its place.
+        attributive_ids = set()
+        for candidate in list(candidates):
+            if not isinstance(candidate, dict) or candidate.get('rolo') != 'amod':
+                continue
+            if candidate.get('participo_voĉo'):
+                continue  # A periphrastic verb retains its participial head.
+            head_id = candidate.get('kapo')
+            candidate_id = candidate.get('id')
+            if not head_id or head_id <= max(vid, candidate_id) or head_id == subj_id:
+                continue
+            # The legacy segmenter splits coordinated adjectives at `kaj/aŭ`.
+            # Permit that phrase continuation, but never cross another nominal,
+            # preposition, or predicate to borrow its head.
+            between = word_asts[candidate_id:head_id - 1]
+            if any(w.get('vortspeco') not in ('adjektivo', 'adverbo', 'artikolo')
+                   and (w.get('radiko') or '').lower() not in _COORDINATORS
+                   for w in between):
+                continue
+            head = word_asts[head_id - 1]
+            if (head.get('vortspeco') in ('substantivo', 'propra_nomo')
+                    and head.get('kazo') == 'nominativo'
+                    and not _is_pp_governed(word_asts, head_id - 1)):
+                candidates.append(head)
+                attributive_ids.add(candidate.get('id'))
+
         # RANK the candidates; do not take the first one that type-checks.
         #
         # `Ĉiu etna lingvo estas ligita al difinita kulturo.`
@@ -3403,6 +3434,8 @@ def attach_all(word_asts: list, clauses: list) -> None:
         best = None                          # (rank, id, is_participle)
         for x in candidates:
             if not isinstance(x, dict) or x.get('id') in (None, subj_id):
+                continue
+            if x['id'] in attributive_ids:
                 continue
             if x.get('vortspeco') not in ('substantivo', 'propra_nomo',
                                           'adjektivo'):
@@ -4011,8 +4044,13 @@ def build_clauses(word_asts: list) -> list[dict]:
     return out
 
 
+def parse(text: str) -> dict:
+    """Return a private AST snapshot; callers cannot mutate the cached parse."""
+    return deepcopy(_parse_cached(text))
+
+
 @lru_cache(maxsize=10000)
-def parse(text: str):
+def _parse_cached(text: str):
     """
     Parses an Esperanto sentence and returns a structured, morpheme-based AST.
 
@@ -4623,6 +4661,10 @@ def parse(text: str):
     return sentence_ast
 
 
+parse.cache_clear = _parse_cached.cache_clear
+parse.cache_info = _parse_cached.cache_info
+
+
 # ---------------------------------------------------------------------------
 # PUNCTUATION IS NOT TYPOGRAPHY. IT IS SYNTAX.
 #
@@ -4730,85 +4772,6 @@ def weave_punctuation(word_asts: list, surface: list) -> list:
         w['kapo'], w['rolo'] = (nxt or prv or root), 'punct'
 
     return merged
-
-
-def compact_ast(ast: dict) -> dict:
-    """The AST for STORAGE. Same information, without saying it three times.
-
-    `parse()` returns a rich structure in which the SAME token dict is reachable
-    from three places — `vortoj`, the clause frames in `propozicioj`, and the
-    legacy top-level `subjekto`/`verbo`/`objekto`/`aliaj`. In memory those are
-    SHARED REFERENCES and cost nothing. `json.dumps` does not know that, and writes
-    every token out three times.
-
-        propozicioj   34% of the AST
-        vortoj        33%
-        aliaj         23%          <- 90% of the bytes, one copy of the information
-
-    Across 5.4M sentences that turned a 20 GB corpus into **101 GB** and filled the
-    disk mid-rebuild. (The other half of the bloat was `senco` — the ReVo
-    definition TEXT embedded in every token. See `_apply_senses`.)
-
-    `vortoj` is the source of truth: every token, in surface order, carrying `id`,
-    `kapo` and `rolo`. That IS the dependency tree. So everything else becomes an
-    ID reference, and the readers resolve them.
-
-    Round-trips exactly: `expand_ast(compact_ast(a))` == a.
-    """
-    def _id(node):
-        if not isinstance(node, dict):
-            return None
-        k = node.get('kerno', node)
-        return k.get('id') if isinstance(k, dict) else None
-
-    def _ids(seq):
-        return [i for i in (_id(x) for x in (seq or [])) if i is not None]
-
-    out = {k: v for k, v in ast.items()
-           if k not in ('subjekto', 'verbo', 'objekto', 'aliaj', 'propozicioj')}
-    out['subjekto_id'] = _id(ast.get('subjekto'))
-    out['verbo_id'] = _id(ast.get('verbo'))
-    out['objekto_id'] = _id(ast.get('objekto'))
-    out['aliaj_idj'] = _ids(ast.get('aliaj'))
-    out['propozicioj'] = [{
-        'rolo': c.get('rolo'),
-        'fonto': c.get('fonto'),
-        'subjekto_id': _id(c.get('subjekto')),
-        'verbo_id': _id(c.get('verbo')),
-        'objekto_id': _id(c.get('objekto')),
-        'aliaj_idj': _ids(c.get('aliaj')),
-    } for c in (ast.get('propozicioj') or [])]
-    return out
-
-
-def expand_ast(ast: dict) -> dict:
-    """Rehydrate a compact AST — resolve the ID references back to token dicts."""
-    by_id = {w['id']: w for w in (ast.get('vortoj') or [])
-             if isinstance(w, dict) and w.get('id')}
-
-    def _get(i):
-        return by_id.get(i) if i else None
-
-    def _many(ids):
-        return [by_id[i] for i in (ids or []) if i in by_id]
-
-    out = {k: v for k, v in ast.items()
-           if not k.endswith('_id') and not k.endswith('_idj')
-           and k != 'propozicioj'}
-    out['subjekto'] = _get(ast.get('subjekto_id'))
-    out['verbo'] = _get(ast.get('verbo_id'))
-    out['objekto'] = _get(ast.get('objekto_id'))
-    out['aliaj'] = _many(ast.get('aliaj_idj'))
-    out['propozicioj'] = [{
-        'tipo': 'propozicio',
-        'rolo': c.get('rolo'),
-        'fonto': c.get('fonto'),
-        'subjekto': _get(c.get('subjekto_id')),
-        'verbo': _get(c.get('verbo_id')),
-        'objekto': _get(c.get('objekto_id')),
-        'aliaj': _many(c.get('aliaj_idj')),
-    } for c in (ast.get('propozicioj') or [])]
-    return out
 
 
 def _validate_sentence_initial_adjective_agreement(word_asts: list) -> None:

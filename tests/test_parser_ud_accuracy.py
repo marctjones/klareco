@@ -155,6 +155,13 @@ def test_dependency_uas_las_floor(tb):
         f"{tb}: LAS {r['las']:.4f} < floor {b['las']}")
 
 
+@pytest.mark.parametrize('tb,correct', [('prago', 1695), ('cairo', 103)])
+def test_predicate_fix_labeled_attachment_count(tb, correct):
+    """Protect the measured gain without the older half-point tolerance."""
+    result = _dep(tb)
+    assert round(result['las_all'] * result['gold_tokens']) >= correct
+
+
 # --- per-sentence AST quality: the parser must not CRASH on gold text --------
 @pytest.mark.parametrize("tb", TREEBANKS)
 def test_no_parse_crashes_and_well_formed_ast(tb):

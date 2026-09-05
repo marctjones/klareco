@@ -111,13 +111,7 @@ class TestASTCompaction:
         # through JSON, as it actually goes to disk
         e = expand_ast(json.loads(json.dumps(compact_ast(a), ensure_ascii=False)))
 
-        for slot in ('subjekto', 'verbo', 'objekto'):
-            assert self._kern(e.get(slot)) == self._kern(a.get(slot)), slot
-        assert len(e['aliaj']) == len(a['aliaj'])
-        assert len(e['propozicioj']) == len(a['propozicioj'])
-        for x, y in zip(a['propozicioj'], e['propozicioj']):
-            assert self._kern(y.get('verbo')) == self._kern(x.get('verbo'))
-            assert self._kern(y.get('subjekto')) == self._kern(x.get('subjekto'))
+        assert e == a
 
     def test_the_blob_is_actually_SMALLER(self):
         import json

@@ -66,7 +66,7 @@ def build_default_pipeline(
     Parameters
     ----------
     whoosh_index_dir : path to the Whoosh FTS index directory
-    kuzu_db_path     : path to the Kuzu graph database
+    duckdb_path      : path to the DuckDB store
     top_k            : number of passages to retrieve
     models           : optional pre-loaded ModelRegistry (neural models)
     debug            : enable delta field validation on every stage call

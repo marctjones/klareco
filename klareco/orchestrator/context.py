@@ -3,20 +3,11 @@ Immutable state dataclasses for the Klareco orchestration pipeline.
 
 Immutability contract
 ---------------------
-- QueryContext, SymbolicLayer, LatentLayer are frozen dataclasses.
-  Their fields cannot be reassigned after construction.
-- Numpy arrays placed in LatentLayer are locked writeable=False by
-  QueryContext.apply(), preventing in-place mutation.
-- flags is a MappingProxyType: a read-only view of a dict.
-- ContextDelta is NOT frozen — it is a transient builder consumed
-  immediately by the orchestrator and never stored after apply().
-
-Copy-on-write semantics
------------------------
-dataclasses.replace() performs a shallow copy: unchanged fields share
-the same object references.  Stages that do not touch passage_asts, for
-example, incur zero cost for those arrays.  Only the fields named in the
-delta are "written" (replaced with new objects).
+Symbolic ASTs and flags are owned, recursively read-only JSON snapshots.
+Unchanged immutable values can be shared across stages. deepcopy() explicitly
+produces an editable JSON copy. Latent numeric arrays own immutable byte-backed
+storage; a caller cannot change a prior context by mutating an input array.
+ContextDelta remains a mutable builder and is not itself a snapshot.
 """
 from __future__ import annotations
 
@@ -24,6 +15,7 @@ import dataclasses
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Optional
+from klareco.immutable import freeze
 
 try:
     import numpy as np
@@ -38,7 +30,7 @@ except ImportError:
 
 @dataclass(frozen=True)
 class ParsedPassage:
-    """A retrieved corpus sentence together with its pre-built AST from Kuzu."""
+    """A retrieved corpus sentence together with its pre-built AST from DuckDB."""
     sentence_id: str
     text: str
     ast: Optional[dict]
@@ -46,14 +38,17 @@ class ParsedPassage:
     source_doc: str
     source_type: str
 
+    def __post_init__(self):
+        object.__setattr__(self, 'ast', freeze(self.ast))
+
 
 @dataclass(frozen=True)
 class FactFragment:
     """
     A semantic fact extracted from a passage, encoded as an AST-native triple.
 
-    arguments is a tuple of (role, value) pairs rather than a dict so the
-    object remains hashable and structurally immutable.
+    arguments is a tuple of (role, value) pairs. Nested JSON values are
+    frozen at construction, as is the optional AST node.
     """
     relation: str
     entity: str
@@ -62,12 +57,19 @@ class FactFragment:
     source_passage_id: str
     ast_node: Optional[dict] = None
 
+    def __post_init__(self):
+        object.__setattr__(self, 'ast_node', freeze(self.ast_node))
+        object.__setattr__(self, 'arguments', freeze(tuple(self.arguments)) if self.arguments is not None else None)
+
 
 @dataclass(frozen=True)
 class Segment:
     """One sentence of the generated answer, with its citation ids."""
     text: str
     citation_ids: tuple = ()   # ("1", "2", …)
+
+    def __post_init__(self):
+        object.__setattr__(self, 'citation_ids', tuple(self.citation_ids))
 
 
 @dataclass(frozen=True)
@@ -98,17 +100,28 @@ class SymbolicLayer:
     citations: tuple = ()             # tuple[CitationRecord]
     final_text: str = ''
 
+    def __post_init__(self):
+        for name in ('question_ast', 'passage_asts', 'fact_fragments', 'answer_segments', 'citations'):
+            value = getattr(self, name)
+            if name != 'question_ast':
+                value = tuple(value)
+            object.__setattr__(self, name, freeze(value))
+
 
 @dataclass(frozen=True)
 class LatentLayer:
     """
     Dense matrix representations with no clean Esperanto AST encoding.
-    Arrays stored here are locked writeable=False by QueryContext.apply().
+    Numeric arrays are copied into immutable byte-backed storage at construction.
     """
     question_embedding: Optional[Any] = None   # np.ndarray | None
     passage_embeddings: tuple = ()             # tuple[np.ndarray]
     relevance_matrix: Optional[Any] = None     # np.ndarray | None
     stage_attention: tuple = ()               # tuple[(stage_name, np.ndarray)]
+
+    def __post_init__(self):
+        for item in dataclasses.fields(self):
+            object.__setattr__(self, item.name, _snapshot_latent(getattr(self, item.name)))
 
 
 # ---------------------------------------------------------------------------
@@ -174,12 +187,15 @@ class QueryContext:
         default_factory=lambda: MappingProxyType({})
     )
 
+    def __post_init__(self):
+        object.__setattr__(self, 'flags', MappingProxyType(freeze(dict(self.flags))))
+
     def apply(self, delta: ContextDelta) -> QueryContext:
         """
         Return a new QueryContext with delta applied.
 
         Unchanged layers share their object references from self.
-        New numpy arrays in delta.latent are locked writeable=False.
+        New arrays are copied into immutable storage without mutating the delta.
         """
         new_symbolic = (
             dataclasses.replace(self.symbolic, **delta.symbolic)
@@ -188,7 +204,6 @@ class QueryContext:
 
         new_latent = self.latent
         if delta.latent:
-            _lock_arrays(delta.latent)
             new_latent = dataclasses.replace(self.latent, **delta.latent)
 
         new_confidence = (
@@ -216,14 +231,17 @@ class QueryContext:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _lock_arrays(latent_updates: dict) -> None:
-    """Mark all numpy arrays in a latent delta dict as non-writeable."""
-    if not _NUMPY:
-        return
-    for val in latent_updates.values():
-        if isinstance(val, np.ndarray):
-            val.flags.writeable = False
-        elif isinstance(val, tuple):
-            for item in val:
-                if isinstance(item, np.ndarray):
-                    item.flags.writeable = False
+def _snapshot_latent(value):
+    if _NUMPY and isinstance(value, np.ndarray):
+        if value.dtype.hasobject:
+            raise TypeError('Latent arrays must have a numeric, non-object dtype')
+        owner = value
+        while isinstance(owner, np.ndarray) and owner.base is not None:
+            owner = owner.base
+        if isinstance(owner, bytes) and not value.flags.writeable:
+            return value
+        return np.frombuffer(value.tobytes(), dtype=value.dtype).reshape(value.shape)
+    if isinstance(value, (list, tuple)):
+        result = tuple(_snapshot_latent(item) for item in value)
+        return value if isinstance(value, tuple) and all(a is b for a, b in zip(value, result)) else result
+    return value

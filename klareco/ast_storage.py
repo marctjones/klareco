@@ -7,6 +7,7 @@ nodes and token overrides remain explicit; a head ID is not a whole phrase.
 from __future__ import annotations
 
 from copy import deepcopy
+from .syntax_graph import validate_ast
 
 FORMAT_VERSION = 2
 _REFERENCE = '$token'
@@ -33,6 +34,7 @@ def compact_ast(ast: dict) -> dict:
     """Encode a JSON-compatible expanded AST without discarding annotations."""
     if is_compact_ast(ast):
         raise ValueError('AST is already compact; expand it before encoding')
+    validate_ast(ast)
     tokens = ast['vortoj']
     table = _token_table(tokens)
 
@@ -61,6 +63,7 @@ def expand_ast(ast: dict) -> dict:
     limitation and survives any later re-encoding.
     """
     if not is_compact_ast(ast):
+        validate_ast(ast)
         return deepcopy(ast)
     version = ast.get('_ast_format', 1)
     if type(version) is not int or version not in (1, FORMAT_VERSION):
@@ -92,6 +95,7 @@ def expand_ast(ast: dict) -> dict:
             raise ValueError('Invalid AST structure payload')
         result = decode(ast['structure'])
         result['vortoj'] = tokens
+        validate_ast(result)
         return result
 
     def frame(value):

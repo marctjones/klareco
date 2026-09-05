@@ -8,7 +8,7 @@ produces, and `subj_radiko` (which DuckDBRetriever and every reranker key on) is
 literally the parser's subject slot. For months parser correctness was asserted
 only by hand-written unit examples ("parser is deterministic so it must be
 right"). The Universal Dependencies Esperanto treebanks (Prago in-corpus, Cairo
-HELD-OUT) are the only EXTERNAL, linguist-curated ground truth we have. This
+regression fixtures) are the only EXTERNAL, linguist-curated ground truth we have. This
 test wires them into the suite as FLOORS so any change that degrades parse
 quality — POS tagging, subject/object role labelling, or dependency attachment
 (UAS/LAS) — fails loudly instead of silently.
@@ -65,7 +65,7 @@ BASELINE = {
         "subj_f1": 0.687, "subj_recall": 0.683, "obj_f1": 0.760,
         "uas": 0.695, "las": 0.623,
     },
-    "cairo": {  # HELD-OUT — the honest generalization ruler
+    "cairo": {  # Regression set: its errors have informed parser development
         "pos_strict": 0.803, "pos_adjusted": 0.959,
         "subj_f1": 0.930, "subj_recall": 0.909, "obj_f1": 0.880,
         "uas": 0.738, "las": 0.664,
@@ -155,8 +155,8 @@ def test_dependency_uas_las_floor(tb):
         f"{tb}: LAS {r['las']:.4f} < floor {b['las']}")
 
 
-@pytest.mark.parametrize('tb,correct', [('prago', 1695), ('cairo', 103)])
-def test_predicate_fix_labeled_attachment_count(tb, correct):
+@pytest.mark.parametrize('tb,correct', [('prago', 1760), ('cairo', 112)])
+def test_parser_labeled_attachment_count(tb, correct):
     """Protect the measured gain without the older half-point tolerance."""
     result = _dep(tb)
     assert round(result['las_all'] * result['gold_tokens']) >= correct

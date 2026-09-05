@@ -114,6 +114,8 @@ def iter_sentences(path: Path) -> Iterator[tuple[str, list[UDToken]]]:
 
 def flatten_words(ast: dict) -> list[dict]:
     """Flatten klareco AST → list of word dicts in surface order."""
+    if isinstance(ast, dict) and 'vortoj' in ast:
+        return [w for w in ast['vortoj'] if w.get('tipo') == 'vorto']
     out: list[dict] = []
     def walk(node):
         if not isinstance(node, dict):

@@ -315,6 +315,18 @@ class UnifiedASTExtractor:
         if not ast or not isinstance(ast, dict):
             return facts
 
+        if ast.get('syntax', {}).get('version') == 1:
+            # Canonical clauses keep each predicate with its own arguments.
+            # Legacy recursive wrappers are compatibility projections of these
+            # same clauses and must not be extracted a second time.
+            for clause in ast.get('propozicioj', []):
+                frame = dict(clause, tipo='frazo')
+                fact = self._extract_fact_from_frazo(frame, source_sentence)
+                if fact:
+                    facts.append(fact)
+                facts.extend(self._extract_from_participial_nouns(frame, source_sentence))
+            return facts
+
         if ast.get('tipo') == 'frazo':
             # 1. Extract from main verb clause
             fact = self._extract_fact_from_frazo(ast, source_sentence)

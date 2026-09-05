@@ -1,7 +1,7 @@
 """
 RetrieveStage: question AST → ranked passages with pre-built ASTs.
 
-Wraps WhooshRetriever.retrieve_with_ast_roles(), which already handles
+Wraps DuckDBRetriever.retrieve_with_ast_roles(), which already handles
 question-type routing internally.  The stage converts raw dicts from the
 retriever into immutable ParsedPassage objects and populates both the
 symbolic layer (passage_asts) and latent layer (passage_embeddings,
@@ -18,7 +18,7 @@ from klareco.orchestrator.context import (
 from klareco.orchestrator.stage import PipelineStage, ModelRegistry
 
 if TYPE_CHECKING:
-    from klareco.rag.whoosh_retriever import WhooshRetriever
+    from klareco.rag.duckdb_retriever import DuckDBRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class RetrieveStage(PipelineStage):
 
     def __init__(
         self,
-        retriever: WhooshRetriever,
+        retriever: DuckDBRetriever,
         models: ModelRegistry,
         top_k: int = 20,
     ):

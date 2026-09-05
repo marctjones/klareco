@@ -2676,6 +2676,9 @@ def _is_pp_governed(word_asts: list, i: int) -> bool:
     Look back past articles and adjectives — they are inside the phrase.
     """
     for j in range(i - 1, max(i - 5, -1), -1):
+        if any(mark in (',', ';', '.', '!', '?')
+               for mark in word_asts[j + 1].get('punctuation_before', [])):
+            return False
         w = word_asts[j]
         if not isinstance(w, dict):
             return False
@@ -3344,6 +3347,8 @@ def attach_all(word_asts: list, clauses: list) -> None:
             c = word_asts[j - 1]
             if not isinstance(c, dict):
                 continue
+            if c.get('punctuation_before'):
+                break
             if c.get('vortspeco') == 'adjektivo':
                 continue                     # `mia GRANDA domo`
             if _nominal(c):
@@ -3392,7 +3397,9 @@ def attach_all(word_asts: list, clauses: list) -> None:
         # is the noun phrase, not `granda`. A PP noun cannot take its place.
         attributive_ids = set()
         for candidate in list(candidates):
-            if not isinstance(candidate, dict) or candidate.get('rolo') != 'amod':
+            if not isinstance(candidate, dict):
+                continue
+            if candidate.get('rolo') != 'amod' and not _is_possessive(candidate):
                 continue
             if candidate.get('participo_voĉo'):
                 continue  # A periphrastic verb retains its participial head.
@@ -3502,8 +3509,29 @@ def attach_all(word_asts: list, clauses: list) -> None:
         if not span or c.get('rolo') != 'rilativa':
             return None
         start = span[0]                     # position of the `kiu`
+        opener = word_asts[start]
+        import unicodedata
+        def quote(mark):
+            return mark in ('\"', "'") or unicodedata.category(mark) in ('Pi', 'Pf')
+        if (any(quote(mark) for mark in opener.get('punctuation_before', []))
+                and any(quote(mark) for mark in opener.get('punctuation_after', []))):
+            return None
+
+        member_ids = {word_asts[i]['id'] for i in span}
         for j in range(start - 1, -1, -1):
+            if any(mark in ('.', '!', '?', ';')
+                   for mark in word_asts[j + 1].get('punctuation_before', [])):
+                break
             w = word_asts[j]
+            # A modifier whose head lies inside this clause cannot also be
+            # its antecedent: that would make the clause depend on itself.
+            ancestor = w.get('kapo')
+            visited = set()
+            while ancestor and ancestor not in visited and ancestor not in member_ids:
+                visited.add(ancestor)
+                ancestor = word_asts[ancestor - 1].get('kapo')
+            if ancestor in member_ids:
+                continue
             if not isinstance(w, dict):
                 continue
             if w.get('vortspeco') in ('substantivo', 'propra_nomo', 'pronomo',
@@ -3511,6 +3539,22 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 # Prago labels relative clauses plain `acl`, not `acl:relcl`.
                 return (j + 1, 'acl')
         return None
+
+    def clause_parent(c):
+        span = c.get('_span') or []
+        if span and word_asts[span[0]].get('radiko') == 'ke':
+            previous = [w for w in word_asts[:span[0]] if _is_finite_verb(w)]
+            if previous and not any(mark in ('.', ';', '!', '?')
+                                    for w in word_asts[previous[-1]['id']:span[0] + 1]
+                                    for mark in w.get('punctuation_before', [])):
+                return predikato_of.get(previous[-1]['id'], previous[-1]['id'])
+        if span and c.get('rolo') == 'kunordigita':
+            previous = [w for w in word_asts[:span[0]] if _is_finite_verb(w)]
+            # Coordination inside a fronted subordinate clause remains there;
+            # its containing main predicate has not occurred yet.
+            if previous and main_verb and previous[-1]['id'] < main_verb:
+                return predikato_of.get(previous[-1]['id'], previous[-1]['id'])
+        return predikato_of.get(main_verb, main_verb) or 0
 
     clause_of: dict[int, int] = {}          # token id -> its clause's verb id
     for c in clauses:
@@ -3526,7 +3570,7 @@ def attach_all(word_asts: list, clauses: list) -> None:
             elif gov:
                 word_asts[pred - 1]['kapo'], word_asts[pred - 1]['rolo'] = gov
             else:
-                word_asts[pred - 1]['kapo'] = main_verb or 0
+                word_asts[pred - 1]['kapo'] = clause_parent(c)
                 word_asts[pred - 1]['rolo'] = {
                     'kunordigita': 'conj', 'subordigita': 'advcl',
                     'rilativa': 'acl'}.get(c.get('rolo'), 'parataxis')
@@ -3544,7 +3588,7 @@ def attach_all(word_asts: list, clauses: list) -> None:
         elif gov:
             _set(c['verbo'], gov[0], gov[1])     # relative -> its ANTECEDENT noun
         else:
-            _set(c['verbo'], main_verb or 0,
+            _set(c['verbo'], clause_parent(c),
                  _subordinate_rel(c, word_asts))
 
         for slot, rolo in (('subjekto', 'nsubj'), ('objekto', 'obj')):
@@ -3634,7 +3678,7 @@ def attach_all(word_asts: list, clauses: list) -> None:
 
     def _is_infinitive(w) -> bool:
         return (isinstance(w, dict) and w.get('vortspeco') == 'verbo'
-                and not w.get('tempo'))
+                and w.get('modo') == 'infinitivo')
 
     for i, w in enumerate(word_asts, start=1):
         if not _is_infinitive(w) or w.get('kapo') is not None:
@@ -3670,7 +3714,7 @@ def attach_all(word_asts: list, clauses: list) -> None:
             if xvs in ('substantivo', 'propra_nomo'):
                 gov_id, gov_rel = x.get('id'), 'acl'      # `la taskon lerni`
                 break
-            if xvs == 'verbo' and x.get('tempo'):
+            if xvs == 'verbo':
                 gov_id, gov_rel = x.get('id'), 'xcomp'    # `mi volas lerni`
                 break
             if xvs in ('artikolo', 'adjektivo', 'adverbo'):
@@ -3869,7 +3913,8 @@ _COORDINATORS = frozenset({'kaj', 'sed', 'aŭ', 'nek', 'tamen'})
 
 def _is_finite_verb(w) -> bool:
     return (isinstance(w, dict) and w.get('vortspeco') == 'verbo'
-            and bool(w.get('tempo')))
+            and (bool(w.get('tempo'))
+                 or w.get('modo') in ('kondicionalo', 'imperativo')))
 
 
 def _opens_a_clause(w) -> bool:
@@ -3964,8 +4009,11 @@ def segment_clauses(word_asts: list) -> list[list[int]]:
             last_verb = max((k for k in range(len(cur))
                              if _is_finite_verb(word_asts[cur[k]])), default=-1)
             split = len(cur)
-            for k in range(len(cur) - 1, last_verb, -1):
-                if _is_nominative_nominal(word_asts[cur[k]]):
+            closes_relative = (_clause_role(word_asts[cur[0]]) == 'rilativa'
+                               and ',' in w.get('punctuation_before', []))
+            for k in (() if closes_relative else range(len(cur) - 1, last_verb, -1)):
+                if (_is_nominative_nominal(word_asts[cur[k]])
+                        and not _is_pp_governed(word_asts, cur[k])):
                     split = k
                     break
             if split < len(cur):
@@ -4027,13 +4075,40 @@ def _clause_role(marker) -> str:
 def build_clauses(word_asts: list) -> list[dict]:
     """One predicate-argument frame PER CLAUSE. This is the tree."""
     out: list[dict] = []
-    for span in segment_clauses(word_asts):
+    spans = segment_clauses(word_asts)
+    interrupted_subject = None
+    for span_index, span in enumerate(spans):
         words = [word_asts[i] for i in span]
         if not any(_is_finite_verb(w) for w in words):
+            # Retain a nominative antecedent before an interrupting relative
+            # clause. Do not splice spans: that previously changed all role
+            # assignments and regressed LAS. Only the stranded subject is needed.
+            if (span_index + 1 < len(spans)
+                    and _clause_role(word_asts[spans[span_index + 1][0]]) == 'rilativa'
+                    and not any(w.get('vortspeco') == 'prepozicio' for w in words)):
+                nominal = next((w for w in words
+                                if w.get('vortspeco') in ('substantivo', 'propra_nomo', 'pronomo')
+                                and w.get('kazo') == 'nominativo'), None)
+                if nominal is not None:
+                    interrupted_subject = {'tipo': 'vortgrupo', 'kerno': nominal,
+                                           'priskriboj': [w for w in words
+                                                         if w.get('vortspeco') == 'adjektivo']}
             continue                        # verbless fragment: no frame to build
         frame = parse_clause(words)
         frame['tipo'] = 'propozicio'
         frame['rolo'] = _clause_role(words[0] if words else None)
+        if interrupted_subject is not None and frame['rolo'] == 'ĉefa':
+            verb_index = next(i for i, w in enumerate(words) if _is_finite_verb(w))
+            # An explicit subject before the resumed predicate takes precedence.
+            if not any(_nominal(w) and w.get('kazo') == 'nominativo'
+                       and not _is_pp_governed(word_asts, span[i])
+                       for i, w in enumerate(words[:verb_index])):
+                old = frame.get('subjekto')
+                if old:
+                    frame['aliaj'].append(old.get('kerno', old))
+                    frame['aliaj'].extend(old.get('priskriboj', []))
+                frame['subjekto'] = interrupted_subject
+            interrupted_subject = None
         frame['fonto'] = 'regulo'           # attribution (VISION.md)
         # Where this clause STARTS, in 0-based surface positions. attach_all needs
         # it to find a relative clause's ANTECEDENT — the noun immediately before
@@ -4044,8 +4119,15 @@ def build_clauses(word_asts: list) -> list[dict]:
     return out
 
 
+MAX_SENTENCE_CHARACTERS = 10_000
+
+
 def parse(text: str) -> dict:
     """Return a private AST snapshot; callers cannot mutate the cached parse."""
+    if len(text) > MAX_SENTENCE_CHARACTERS:
+        raise ValueError(
+            f'Sentence parser input exceeds {MAX_SENTENCE_CHARACTERS} characters; '
+            'segment document text into sentences before parsing')
     return deepcopy(_parse_cached(text))
 
 
@@ -4057,7 +4139,9 @@ def _parse_cached(text: str):
     NOTE: Cached with LRU cache (10K entries) for performance.
     """
     # Preprocess: normalize punctuation
+    original_text = text
     text = preprocess_text(text)
+    normalized_text = text
 
     # Simple tokenizer: split by space, remove all punctuation EXCEPT:
     # - Apostrophes for elision (l', hund')
@@ -4644,6 +4728,18 @@ def _parse_cached(text: str):
     # stay put and still describe the MAIN clause, so every existing consumer
     # (DuckDBRetriever, the rerankers, the shredded columns) keeps working
     # unchanged while new consumers can walk the tree.
+    pending_marks = []
+    content_index = 0
+    for surface, is_punctuation in surface_tokens:
+        if is_punctuation:
+            pending_marks.append(surface)
+            if content_index:
+                word_asts[content_index - 1].setdefault('punctuation_after', []).append(surface)
+        else:
+            word_asts[content_index]['punctuation_before'] = pending_marks
+            pending_marks = []
+            content_index += 1
+
     sentence_ast["propozicioj"] = build_clauses(word_asts)
 
     # Every token now gets a HEAD and a ROLE. `aliaj` stops being a junk drawer,
@@ -4658,7 +4754,8 @@ def _parse_cached(text: str):
     # free.
     sentence_ast["vortoj"] = weave_punctuation(word_asts, surface_tokens)
 
-    return sentence_ast
+    from .syntax_graph import project
+    return project(sentence_ast, original_text, normalized_text)
 
 
 parse.cache_clear = _parse_cached.cache_clear

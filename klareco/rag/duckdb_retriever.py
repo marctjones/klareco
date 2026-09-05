@@ -114,6 +114,13 @@ class DuckDBRetriever:
     # --- question analysis -------------------------------------------------
     @staticmethod
     def _question_type(question_ast: Dict) -> str:
+        if question_ast.get('syntax', {}).get('version') == 1:
+            from klareco.syntax_graph import main_clause_tokens
+            for word in main_clause_tokens(question_ast):
+                root = word.get('radiko', '')
+                if root.startswith('ki') and word.get('vortspeco') == 'korelativo':
+                    return root.upper()
+            return 'UNKNOWN'
         subj = question_ast.get('subjekto') or {}
         k = _kerno(subj)
         if k.get('vortspeco') == 'korelativo':
@@ -127,6 +134,8 @@ class DuckDBRetriever:
 
     @staticmethod
     def _question_text(question_ast: Dict) -> str:
+        if question_ast.get('syntax', {}).get('version') == 1:
+            return question_ast['source']['normalized']
         words = []
 
         def walk(n):

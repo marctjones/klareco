@@ -141,6 +141,13 @@ def test_clause_marker_skips_intervening_relative_predicate():
     assert words["havas"]["rolo"] == "acl"
 
 
+def test_correlative_upos_follows_dependency_role():
+    subject = ast_to_conllu(parse("Kiu venis."))
+    determiner = ast_to_conllu(parse("Ĉiu lingvo venas."))
+    assert "\tKiu\tkiu\tPRON\t" in subject
+    assert "\tĈiu\tĉiu\tDET\t" in determiner
+
+
 
 
 def test_attachment_alternatives_use_final_surface_ids():

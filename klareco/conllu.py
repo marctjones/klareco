@@ -54,7 +54,15 @@ _SCONJ = {"ke", "ĉar", "se", "kvankam", "dum", "ĝis", "apenaŭ", "kvazaŭ", "o
 def upos(w: dict) -> str:
     vs = w.get("vortspeco")
     if vs == "korelativo":
-        return _KORELATIVO_UPOS.get(w.get("korelativo_sufikso") or "", "PRON")
+        suffix = w.get("korelativo_sufikso") or ""
+        # The suffix table gives the default UD projection, but -u/-a/-es
+        # forms are DET only when they modify a nominal (`ĉiu lingvo`).  Once
+        # dependency analysis has assigned a nominal role (`kiu` as nsubj,
+        # `kies` as nmod), the same forms are pronouns.  Use the selected role
+        # rather than surface morphology alone so POS reflects syntax.
+        if suffix in ("u", "a", "es") and w.get("rolo") not in ("det", "amod"):
+            return "PRON"
+        return _KORELATIVO_UPOS.get(suffix, "PRON")
     if vs == "konjunkcio" and (w.get("radiko") or "").lower() in _SCONJ:
         return "SCONJ"
     if vs == "verbo" and (w.get("radiko") or "").lower() in _COPULA_ROOTS:

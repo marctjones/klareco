@@ -155,7 +155,7 @@ def test_dependency_uas_las_floor(tb):
         f"{tb}: LAS {r['las']:.4f} < floor {b['las']}")
 
 
-@pytest.mark.parametrize('tb,correct', [('prago', 1760), ('cairo', 112)])
+@pytest.mark.parametrize('tb,correct', [('prago', 1873), ('cairo', 118)])
 def test_parser_labeled_attachment_count(tb, correct):
     """Protect the measured gain without the older half-point tolerance."""
     result = _dep(tb)

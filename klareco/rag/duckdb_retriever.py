@@ -114,7 +114,7 @@ class DuckDBRetriever:
     # --- question analysis -------------------------------------------------
     @staticmethod
     def _question_type(question_ast: Dict) -> str:
-        if question_ast.get('syntax', {}).get('version') == 1:
+        if question_ast.get('syntax', {}).get('version') in (1, 2):
             from klareco.syntax_graph import main_clause_tokens
             for word in main_clause_tokens(question_ast):
                 root = word.get('radiko', '')
@@ -134,7 +134,7 @@ class DuckDBRetriever:
 
     @staticmethod
     def _question_text(question_ast: Dict) -> str:
-        if question_ast.get('syntax', {}).get('version') == 1:
+        if question_ast.get('syntax', {}).get('version') in (1, 2):
             return question_ast['source']['normalized']
         words = []
 

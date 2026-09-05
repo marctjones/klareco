@@ -8,8 +8,14 @@ version matrix that follows is historical planning material.
 | Component | Compatibility |
 |---|---|
 | `klareco.ast_storage` | Writes version-2 lossless AST envelopes; reads v2, unversioned lossy legacy blobs, and expanded ASTs |
-| `scripts/eval/parser_quality_report.py` v1.0 | Committed UD Prago/Cairo fixtures and local parser vocabularies; no database or model |
+| `klareco.syntax_graph` | Writes syntax v2; validates v1/v2 with explicit version-specific contracts |
+| `klareco.ast_annotations` | Stand-off layer v1, original-source targets, optional tokenization/dependency bindings |
+| `klareco.conllu.ast_to_conllu` | Existing expanded dependency graphs; strict single-tree gate or explicit diagnostic forest |
+| `scripts/eval/parser_quality_report.py` v1.1 | Committed UD Prago/Cairo fixtures and local parser/lexical artifacts; no database or model |
+| `scripts/eval/compare_parser_revision.py` v2.0 | Complete historical package isolated from working code; shared frozen evaluators and lexical artifacts |
 | `scripts/eval/build_parser_pilot.py` v1.0 | DuckDB `sentences(sid,text,source_name,article_title)`; produces unreviewed annotation queues |
+| `scripts/eval/validate_parser_annotations.py` v1.1 | Independently reviewed pilot rows; emits CoNLL-U and source-bound annotation layers |
+| `scripts/index/reparse_store.py` v1.1 | Separate DuckDB candidate with storage v2 and syntax v2; never promotes source data |
 
 Updated retriever and extractor readers are required before deploying v2 blobs.
 See [PARSER_QUALITY.md](PARSER_QUALITY.md) for the storage contract, independent

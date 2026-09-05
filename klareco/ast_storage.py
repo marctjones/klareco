@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from .syntax_graph import validate_ast
+from .ast_annotations import validate_json, validate_layers
 
 FORMAT_VERSION = 2
 _REFERENCE = '$token'
@@ -34,7 +35,9 @@ def compact_ast(ast: dict) -> dict:
     """Encode a JSON-compatible expanded AST without discarding annotations."""
     if is_compact_ast(ast):
         raise ValueError('AST is already compact; expand it before encoding')
+    validate_json(ast)
     validate_ast(ast)
+    validate_layers(ast)
     tokens = ast['vortoj']
     table = _token_table(tokens)
 
@@ -62,8 +65,10 @@ def expand_ast(ast: dict) -> dict:
     wrappers or embedded clauses: `_legacy_compact_lossy` records that permanent
     limitation and survives any later re-encoding.
     """
+    validate_json(ast)
     if not is_compact_ast(ast):
         validate_ast(ast)
+        validate_layers(ast)
         return deepcopy(ast)
     version = ast.get('_ast_format', 1)
     if type(version) is not int or version not in (1, FORMAT_VERSION):
@@ -96,6 +101,7 @@ def expand_ast(ast: dict) -> dict:
         result = decode(ast['structure'])
         result['vortoj'] = tokens
         validate_ast(result)
+        validate_layers(result)
         return result
 
     def frame(value):

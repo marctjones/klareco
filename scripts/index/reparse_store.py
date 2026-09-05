@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 """Reparse a deterministic sample or a complete store into a separate database.
 
+VERSION: v1.1
+COMPATIBLE WITH: DuckDB sentence store, AST storage v2, syntax graph v2
+DEPENDENCIES: DuckDB, pandas, parser lexicons; no models
+STAGE: Data
+Pipeline Position: read-only source store -> isolated candidate -> validation gates
+Inputs: source DuckDB; parser and lexical artifacts
+Outputs: separate DuckDB candidate and provenance/status manifest
+Quality Checks: input bounds, source identity, full AST round-trips, loud failures
+Last Updated: 2026-09-05
+
 Preserves source sentence IDs and provenance, so the existing text-only Whoosh
 index remains compatible. Never promotes or modifies the input store. Failure
 leaves an explicitly incomplete artifact for diagnosis, not a usable release.
 """
+# CHANGELOG: 2026-09-05: Include syntax v2 and lexical dependency hashes in rebuild provenance.
 
 from __future__ import annotations
 import argparse
@@ -114,11 +125,17 @@ def main():
             for p in [
                 ROOT / "klareco/parser.py",
                 ROOT / "klareco/syntax_graph.py",
+                ROOT / "klareco/syntax_rules.py",
+                ROOT / "klareco/ast_annotations.py",
                 ROOT / "klareco/ast_storage.py",
                 ROOT / "klareco/morphology.py",
+                ROOT / "klareco/ontology.py",
                 ROOT / "scripts/index/build_duckdb_store.py",
                 Path(__file__),
                 *sorted((ROOT / "data/vocabularies").glob("*.json")),
+                *(ROOT / 'data/raw/eo/dictionaries' / name for name in (
+                    'revo_typed_roots.json', 'revo_name_roots.json',
+                    'affix_table.json', 'revo_ontology.json')),
             ]
         },
         "promotion": "never automatic",

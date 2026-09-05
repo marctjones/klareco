@@ -1,23 +1,42 @@
 #!/usr/bin/env python3
 """Validate independently reviewed parser annotations and freeze a gold export.
 
+VERSION: v1.1
+COMPATIBLE WITH: parser pilot v1, annotation layers v1, plain-token CoNLL-U
+DEPENDENCIES: standard library; annotation contracts; no parser, model, or database
+STAGE: Evaluation
+Pipeline Position: human review records -> validated CoNLL-U and stand-off layers
+Inputs: reviewed pilot JSONL
+Outputs: frozen gold.conllu, annotations.jsonl, and hash manifest
+Quality Checks: independent review record, token coverage, valid dependency tree
+Last Updated: 2026-09-05
+
 Input is a pilot JSONL, never parser predictions. This checks structure and
 review records, not the truth of a human linguistic judgment.
 """
+
+# CHANGELOG: 2026-09-05: Export source-bound gold annotation layers without invoking the parser.
 
 import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from klareco.ast_annotations import annotation_basis, validate_json, validate_layers
 
 
 def validate(row):
     if row.get("annotation_status") != "reviewed":
         raise ValueError(f"{row.get('id')}: annotation is not reviewed")
     if (
-        not row.get("annotator")
-        or not row.get("reviewer")
-        or row["annotator"] == row["reviewer"]
+        not isinstance(row.get("annotator"), str)
+        or not row["annotator"].strip()
+        or not isinstance(row.get("reviewer"), str)
+        or not row["reviewer"].strip()
+        or row["annotator"].strip().casefold() == row["reviewer"].strip().casefold()
     ):
         raise ValueError("Distinct annotator and reviewer identities are required")
     text = row["text"]
@@ -62,6 +81,71 @@ def validate(row):
     return conllu.strip() + "\n\n"
 
 
+def annotation_layer(row):
+    """Gold token IDs remain in their own layer; targets use original text spans.
+
+    This works even when a future parser chooses different token boundaries.
+    The supplied human labels are never aligned against parser predictions.
+    """
+    conllu = validate(row)
+    text = row["text"]
+    positions = [i for i, char in enumerate(text) if not char.isspace()]
+    cursor = 0
+    records = []
+    columns = (
+        "id",
+        "form",
+        "lemma",
+        "upos",
+        "xpos",
+        "feats",
+        "head",
+        "deprel",
+        "deps",
+        "misc",
+    )
+    for line in conllu.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        length = len("".join(fields[1].split()))
+        if not length:
+            raise ValueError("Gold token cannot be whitespace only")
+        span = [positions[cursor], positions[cursor + length - 1] + 1]
+        cursor += length
+        records.append(
+            {
+                "id": "token:" + fields[0],
+                "target": {"kind": "span", "spans": [span]},
+                "value": dict(zip(columns, fields)),
+            }
+        )
+    ast = {"vortoj": [], "source": {"original": text, "normalized": text}}
+    layer = {
+        "version": 1,
+        "id": "gold:" + str(row["id"]),
+        "schema": "urn:klareco:gold-conllu:1",
+        "status": "reviewed",
+        "producer": {
+            "name": row["annotator"],
+            "version": "parser-pilot-v1",
+            "method": "human",
+            "artifacts": {"gold_conllu": hashlib.sha256(conllu.encode()).hexdigest()},
+        },
+        "basis": annotation_basis(ast, tokens=False),
+        "annotations": records,
+        "review": {
+            "annotator": row["annotator"],
+            "reviewer": row["reviewer"],
+            "notes": row["review_notes"],
+        },
+    }
+    ast["annotation_layers"] = [layer]
+    validate_json(ast)
+    validate_layers(ast)
+    return layer
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path)
@@ -77,11 +161,21 @@ def main():
     if len({row["split"] for row in rows}) != 1:
         raise ValueError("Export development and heldout separately")
     content = "".join(validate(row) for row in rows)
+    annotations = "".join(
+        json.dumps(
+            {"id": row["id"], "text": row["text"], "layer": annotation_layer(row)},
+            ensure_ascii=False,
+        )
+        + "\n"
+        for row in rows
+    )
     args.output.mkdir(parents=True)
     (args.output / "gold.conllu").write_text(content)
+    (args.output / "annotations.jsonl").write_text(annotations, encoding="utf-8")
     manifest = {
         "source_sha256": hashlib.sha256(args.input.read_bytes()).hexdigest(),
         "gold_sha256": hashlib.sha256(content.encode()).hexdigest(),
+        "annotations_sha256": hashlib.sha256(annotations.encode()).hexdigest(),
         "sentences": len(rows),
         "split": rows[0]["split"],
         "documents": sorted({(r["source_name"], r["document_title"]) for r in rows}),

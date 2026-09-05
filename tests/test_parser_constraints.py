@@ -1,0 +1,200 @@
+"""Grammar constraints tested beyond the benchmark sentences that revealed them."""
+
+from dataclasses import FrozenInstanceError
+import json
+from unittest.mock import patch
+
+import pytest
+
+from klareco.conllu import ast_to_conllu, to_conllu
+from klareco.morphology import analyze, best
+from klareco.parser import compact_ast, expand_ast, parse, parse_word
+
+
+@pytest.mark.parametrize("particle", ["malpli", "malplej", "maltro"])
+def test_mal_preserves_the_class_of_uninflected_particles(particle):
+    word = parse_word(particle)
+    assert word["vortspeco"] == "partiklo"
+    assert word["prefiksoj"] == ["mal"]
+    assert word["radiko"] == particle[3:]
+
+
+@pytest.mark.parametrize(
+    "adverb", ["Kiam", "Kie", "Kial", "Kiel", "Tiam", "Tie", "Nenial"]
+)
+def test_adverbial_correlatives_do_not_occupy_the_subject_slot(adverb):
+    ast = parse(f"{adverb} la knabino legas la libron?")
+    assert ast["subjekto"]["kerno"]["plena_vorto"] == "knabino"
+    assert ast["objekto"]["kerno"]["radiko"] == "libr"
+    assert ast["vortoj"][0]["rolo"] == "advmod"
+
+
+@pytest.mark.parametrize(
+    "text,form",
+    [
+        ("Mi vidas ĉi tiun hundon.", "ĉi"),
+        ("Mi vidas tiun ĉi hundon.", "ĉi"),
+        ("Mi vidas iun ajn hundon.", "ajn"),
+    ],
+)
+def test_correlative_particles_attach_to_the_correlative(text, form):
+    ast = parse(text)
+    word = next(w for w in ast["vortoj"] if w["plena_vorto"] == form)
+    head = ast["vortoj"][word["kapo"] - 1]
+    assert head["vortspeco"] == "korelativo"
+    assert word["rolo"] == "advmod"
+    assert any(t["rule"] == "correlative-particle-v1" for t in ast["attachment_trace"])
+
+
+def test_comparison_phrase_does_not_steal_subject_of_following_clause():
+    ast = parse("La knabino, kiel la knabo, estas rapida.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert ast["subjekto"]["kerno"] is words["knabino"]
+    assert words["kiel"]["comparison_marker"]
+    assert words["knabo"]["rolo"] not in ("nsubj", "obj")
+    question = parse("Kiel la knabo kuras?")
+    assert question["subjekto"]["kerno"]["radiko"] == "knab"
+    assert not question["vortoj"][0].get("comparison_marker")
+
+
+def test_adverbs_modify_predicates_and_adjective_coordination_survives_projection():
+    ast = parse("La domoj grandaj kaj malgrandaj ne estas novaj.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["malgrandaj"]["rolo"] == "conj"
+    assert words["malgrandaj"]["kapo"] == words["grandaj"]["id"]
+    assert words["ne"]["kapo"] == words["novaj"]["id"]
+
+
+def test_attachment_alternatives_use_final_surface_ids():
+    ast = parse("Hieraŭ, mi vidis la viron en la domo.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    candidate = next(
+        c
+        for c in ast["syntax"]["attachment_candidates"]
+        if c["token_id"] == words["domo"]["id"]
+    )
+    assert {c["head_id"] for c in candidate["options"]} == {
+        words["viron"]["id"],
+        words["vidis"]["id"],
+    }
+    assert {c["kapo"] for c in words["domo"]["alligo_opcioj"]} == {
+        words["viron"]["id"],
+        words["vidis"]["id"],
+    }
+    assert expand_ast(json.loads(json.dumps(compact_ast(ast)))) == ast
+
+
+def test_lost_alternatives_or_false_completeness_are_rejected():
+    text = "Hieraŭ, mi vidis la viron en la domo."
+    ast = parse(text)
+    ast["syntax"]["attachment_candidates"] = []
+    with pytest.raises(ValueError, match="omitted token alternatives"):
+        compact_ast(ast)
+    ast = parse(text)
+    ast["syntax"]["trace_coverage"] = "complete"
+    with pytest.raises(ValueError, match="coverage"):
+        compact_ast(ast)
+
+
+def test_morphology_candidates_preserve_each_complete_surface_and_cannot_poison_cache():
+    for form in ["filino", "hundodomo", "mondmilito", "esperanto"]:
+        word = parse_word(form)
+        for option in word.get("alternativoj", {}).get("opcioj", []):
+            assert (
+                "".join(m["form"] for m in option["morfemoj"])
+                == option["surface"]
+                == form
+            )
+        reading = best(form)
+        with pytest.raises(FrozenInstanceError):
+            reading.score = 999
+        assert isinstance(reading.morphemes, tuple)
+        assert reading is analyze(form)[0]
+    alt = parse_word("filino")["alternativoj"]
+    assert alt["aplikita"] == 0 and alt["elektita"] is None
+
+
+def test_missing_morphology_and_ontology_artifacts_are_not_swallowed():
+    with patch(
+        "klareco.morphology.analyze", side_effect=FileNotFoundError("typed roots")
+    ):
+        with pytest.raises(FileNotFoundError, match="typed roots"):
+            parse_word("hundino")
+        parse.cache_clear()
+        with pytest.raises(FileNotFoundError, match="typed roots"):
+            parse("La hundino venis.")
+    with patch("klareco.ontology.ontology", side_effect=FileNotFoundError("ontology")):
+        with pytest.raises(FileNotFoundError, match="ontology"):
+            parse_word("hundo")
+
+
+@pytest.mark.parametrize("version", [True, 2, "1"])
+def test_unsupported_morphology_versions_cannot_bypass_validation(version):
+    ast = parse("La filino venis.")
+    ast["vortoj"][1]["alternativoj"]["version"] = version
+    with pytest.raises(ValueError, match="Unsupported morphology candidate version"):
+        compact_ast(ast)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("completeness", "complete"),
+        ("selection_status", "certain"),
+        ("selection_policy", "unknown"),
+    ],
+)
+def test_morphology_cannot_claim_unrecorded_certainty(field, value):
+    ast = parse("La filino venis.")
+    ast["vortoj"][1]["alternativoj"][field] = value
+    with pytest.raises(ValueError, match="selection metadata"):
+        compact_ast(ast)
+
+
+def test_conllu_is_a_pure_export_and_records_spacing_and_mood():
+    ast = parse("Venu, mia amiko!")
+    with patch("klareco.conllu.parse", side_effect=AssertionError("must not reparse")):
+        text = ast_to_conllu(ast, strict=True)
+    rows = [
+        line.split("\t")
+        for line in text.splitlines()
+        if line and not line.startswith("#")
+    ]
+    assert [(int(r[6]), r[7]) for r in rows] == [
+        (w["kapo"], w["rolo"]) for w in ast["vortoj"]
+    ]
+    assert "Mood=Imp" in rows[0][5] and "VerbForm=Fin" in rows[0][5]
+    assert "SpaceAfter=No" in rows[0][9]
+    assert text.endswith("\n\n")
+
+
+def test_fragment_roots_are_canonical_and_forests_are_explicit():
+    ast = parse("Mia granda domo")
+    root = next(w for w in ast["vortoj"] if w["kapo"] == 0)
+    assert root["rolo"] == "root"
+    assert ast["propozicioj"] == []
+    assert "# parse_status = forest" in to_conllu("Mi, ho.")
+    with pytest.raises(ValueError, match="one complete tree"):
+        to_conllu("Mi, ho.", strict=True)
+
+
+@pytest.mark.parametrize(
+    "corruption", ["argument", "predicate", "phrase", "trace", "span", "candidate"]
+)
+def test_corrupt_derived_graph_fields_cannot_be_stored(corruption):
+    ast = parse("Hieraŭ, mi ne estas la patro en la domo.")
+    if corruption == "argument":
+        ast["propozicioj"][0]["argumentoj"]["nsubj"] = []
+    elif corruption == "predicate":
+        ast["propozicioj"] = []
+    elif corruption == "phrase":
+        ast["phrases"][0]["token_ids"] = []
+    elif corruption == "trace":
+        ast["attachment_trace"][-1]["after"]["head_id"] = 99
+    elif corruption == "span":
+        ast["vortoj"][0]["normalized_span"] = [0, 999]
+    else:
+        ast = parse("Hieraŭ, mi vidis la viron en la domo.")
+        ast["syntax"]["attachment_candidates"][0]["options"][0]["head_id"] = 99
+    with pytest.raises(ValueError):
+        compact_ast(ast)

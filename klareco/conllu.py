@@ -1,38 +1,8 @@
-"""Emit CoNLL-U — the format nobody has ever emitted for Esperanto.
+"""Serialize the selected dependency graph as CoNLL-U.
 
-Oya, *UD Treebanks for Esperanto as a Natural Language* (UDW/SyntaxFest 2025):
-
-    "automatic parsing was not conducted because **the parsers for Esperanto
-     available at present do not yield parse output in the format of CoNLL-U**."
-
-and he closes by calling for exactly this:
-
-    "We need to ... **develop an Esperanto UD parser and evaluate its
-     performance** with a UD-annotated gold-standard Esperanto texts."
-
-**No parsing result on the Esperanto UD treebanks has ever been published.** Not
-by Stanza, not by UDPipe, not by Trankit — none of them ships an Esperanto model,
-because the free gold data is 3,343 tokens, far below their training threshold.
-
-So emitting CoNLL-U does three things at once:
-  1. it gives us LAS/UAS as a NATIVE metric, instead of the bespoke
-     subject/object F1 we invented;
-  2. it lets us be compared against any UD parser on equal terms;
-  3. it makes klareco the first published Esperanto UD parsing result.
-
-WHERE THE SCHEME DIFFERS, AND WHY WE DO NOT PRETEND OTHERWISE
-------------------------------------------------------------
-About 90% of our POS "errors" against UD are annotation-scheme mismatches, not
-parsing failures, and we map them honestly rather than quietly:
-
-    Esperanto possessives (`mia`, `ĝia`) ARE adjectives — mi + a. UD says DET.
-    `estas` is not a separate AUX class in Esperanto. UD says AUX.
-    Participles (`farita`) ARE adjectival. UD says VERB.
-    The correlatives are ONE closed table; UD splits them across PRON/DET/ADV.
-
-We emit the UD tag so the numbers are comparable, and `MISC` carries our native
-analysis (`Vortspeco=`, `Radiko=`) so nothing is lost. The scheme-adjusted score
-stays reported alongside the strict one.
+Native word classes remain in MISC; UPOS is an explicit scheme projection.
+The serializer never repairs heads or chooses a different root. A forest can be
+exported for diagnostics, or rejected by the strict single-tree export gate.
 """
 
 from __future__ import annotations
@@ -43,131 +13,182 @@ from klareco.parser import parse
 _UPOS = {
     # Punctuation is SYNTAX, not typography: UD gold has 454 PUNCT tokens and
     # every one of them carries a HEAD. We used to delete them at tokenization.
-    'interpunkcio': 'PUNCT',
-    'substantivo': 'NOUN',
-    'propra_nomo': 'PROPN',
-    'verbo': 'VERB',
-    'adjektivo': 'ADJ',
-    'adverbo': 'ADV',
-    'pronomo': 'PRON',
-    'prepozicio': 'ADP',
-    'konjunkcio': 'CCONJ',
-    'artikolo': 'DET',
-    'numero': 'NUM',
-    'partiklo': 'PART',
-    'interjekcio': 'INTJ',
-    'nekonata': 'X',
-    'fremda_vorto': 'X',
+    "interpunkcio": "PUNCT",
+    "substantivo": "NOUN",
+    "propra_nomo": "PROPN",
+    "verbo": "VERB",
+    "adjektivo": "ADJ",
+    "adverbo": "ADV",
+    "pronomo": "PRON",
+    "prepozicio": "ADP",
+    "konjunkcio": "CCONJ",
+    "artikolo": "DET",
+    "numero": "NUM",
+    "partiklo": "PART",
+    "interjekcio": "INTJ",
+    "nekonata": "X",
+    "fremda_vorto": "X",
 }
 
 # UD splits the correlative table across three tags by its SUFFIX. Esperanto does
 # not — it is one paradigm — but we emit UD's view so the score is comparable.
 _KORELATIVO_UPOS = {
-    'u': 'DET',     # kiu, tiu, ĉiu  — "which individual"
-    'a': 'DET',     # kia, tia       — "of which kind"
-    'o': 'PRON',    # kio, tio       — "which thing"
-    'e': 'ADV',     # kie, tie       — "where"
-    'am': 'ADV',    # kiam, tiam     — "when"
-    'al': 'ADV',    # kial, tial     — "why"
-    'el': 'ADV',    # kiel, tiel     — "how"
-    'om': 'ADV',    # kiom, tiom     — "how much"
-    'es': 'DET',    # kies, ties     — "whose"
+    "u": "DET",  # kiu, tiu, ĉiu  — "which individual"
+    "a": "DET",  # kia, tia       — "of which kind"
+    "o": "PRON",  # kio, tio       — "which thing"
+    "e": "ADV",  # kie, tie       — "where"
+    "am": "ADV",  # kiam, tiam     — "when"
+    "al": "ADV",  # kial, tial     — "why"
+    "el": "ADV",  # kiel, tiel     — "how"
+    "om": "ADV",  # kiom, tiom     — "how much"
+    "es": "DET",  # kies, ties     — "whose"
 }
 
 # `estas` is a copula in UD, not a full verb.
-_COPULA_ROOTS = {'est'}
+_COPULA_ROOTS = {"est"}
 
 # Subordinating vs coordinating — UD splits these; Esperanto's `konjunkcio` does not.
-_SCONJ = {'ke', 'ĉar', 'se', 'kvankam', 'dum', 'ĝis', 'apenaŭ', 'kvazaŭ', 'ol'}
+_SCONJ = {"ke", "ĉar", "se", "kvankam", "dum", "ĝis", "apenaŭ", "kvazaŭ", "ol"}
 
 
 def upos(w: dict) -> str:
-    vs = w.get('vortspeco')
-    if vs == 'korelativo':
-        return _KORELATIVO_UPOS.get(w.get('korelativo_sufikso') or '', 'PRON')
-    if vs == 'konjunkcio' and (w.get('radiko') or '').lower() in _SCONJ:
-        return 'SCONJ'
-    if vs == 'verbo' and (w.get('radiko') or '').lower() in _COPULA_ROOTS:
-        return 'AUX'
-    return _UPOS.get(vs, 'X')
+    vs = w.get("vortspeco")
+    if vs == "korelativo":
+        return _KORELATIVO_UPOS.get(w.get("korelativo_sufikso") or "", "PRON")
+    if vs == "konjunkcio" and (w.get("radiko") or "").lower() in _SCONJ:
+        return "SCONJ"
+    if vs == "verbo" and (w.get("radiko") or "").lower() in _COPULA_ROOTS:
+        return "AUX"
+    return _UPOS.get(vs, "X")
 
 
 # Only NOMINALS inflect for case and number. The parser fills `kazo`/`nombro` on
 # every node with a default, so emitting them unconditionally puts
 # `Case=Nom|Number=Sing` on a VERB — which is not wrong so much as meaningless,
 # and UD would count it against us.
-_NOMINAL = {'substantivo', 'propra_nomo', 'adjektivo', 'pronomo', 'korelativo',
-            'numero', 'artikolo'}
+_NOMINAL = {
+    "substantivo",
+    "propra_nomo",
+    "adjektivo",
+    "pronomo",
+    "korelativo",
+    "numero",
+    "artikolo",
+}
 
 
 def feats(w: dict) -> str:
     """Esperanto marks case, number and tense ON THE SURFACE. This is free —
     English parsers spend real effort recovering what `-n` and `-j` just say."""
     f = []
-    if w.get('vortspeco') in _NOMINAL:
-        if w.get('kazo') == 'akuzativo':
-            f.append('Case=Acc')
-        elif w.get('kazo') == 'nominativo':
-            f.append('Case=Nom')
-        if w.get('nombro') == 'pluralo':
-            f.append('Number=Plur')
-        elif w.get('nombro') == 'singularo':
-            f.append('Number=Sing')
-    if w.get('vortspeco') == 'verbo':
-        t = {'prezenco': 'Tense=Pres', 'preterito': 'Tense=Past',
-             'futuro': 'Tense=Fut'}.get(w.get('tempo') or '')
+    if w.get("vortspeco") in _NOMINAL:
+        if w.get("kazo") == "akuzativo":
+            f.append("Case=Acc")
+        elif w.get("kazo") == "nominativo":
+            f.append("Case=Nom")
+        if w.get("nombro") == "pluralo":
+            f.append("Number=Plur")
+        elif w.get("nombro") == "singularo":
+            f.append("Number=Sing")
+    if w.get("vortspeco") == "verbo":
+        t = {
+            "prezenco": "Tense=Pres",
+            "preterito": "Tense=Past",
+            "futuro": "Tense=Fut",
+        }.get(w.get("tempo") or "")
         if t:
             f.append(t)
-    return '|'.join(sorted(f)) or '_'
+        mood = {"infinitivo": None, "kondicionalo": "Cnd", "imperativo": "Imp"}.get(
+            w.get("modo")
+        )
+        if w.get("modo") == "infinitivo":
+            f.append("VerbForm=Inf")
+        elif t or mood:
+            f.extend(["VerbForm=Fin", f'Mood={mood or "Ind"}'])
+    return "|".join(sorted(f)) or "_"
 
 
 def _kern(node):
     if not isinstance(node, dict):
         return None
-    return node.get('kerno', node)
+    return node.get("kerno", node)
 
 
-def to_conllu(text: str, sent_id: str = '1') -> str:
-    """Parse a sentence and emit it as CoNLL-U.
+def ast_to_conllu(ast: dict, sent_id: str = "1", *, strict: bool = False) -> str:
+    """Export an existing expanded AST without reparsing or changing its analysis.
 
-    HEAD/DEPREL come from the CLAUSE TREE (`propozicioj`) — one predicate-argument
-    frame per finite verb. That is why the tree had to land first: a flat record
-    with one subject slot cannot produce a dependency tree for a sentence with two
-    clauses, which is 35.8% of them.
+    Strict mode requires a single complete dependency tree. Diagnostic mode keeps
+    forests explicit; multiple-root output is not a valid UD gold tree.
     """
-    ast = parse(text)
+    from .syntax_graph import validate_ast, validate_tokens
 
-    # PURE SERIALIZER. The parser now assigns `id`, `kapo` (head) and `rolo`
-    # (relation) to every token — see `attach_all` in klareco/parser.py. This
-    # function no longer computes any attachment of its own.
-    #
-    # It used to. That was wrong: the AST and the emitted dependencies could
-    # disagree and nothing would catch it. If a relation is missing here, the
-    # BUG IS IN THE AST, which is where it should be visible.
-    ordered = [w for w in (ast.get('vortoj') or []) if isinstance(w, dict)]
-    if not ordered:
-        return f'# sent_id = {sent_id}\n# text = {text}\n'
+    validate_ast(ast)
+    ordered = ast.get("vortoj", [])
+    roots = validate_tokens(ordered)
+    if (
+        not isinstance(sent_id, str)
+        or not sent_id
+        or any(c in sent_id for c in "\r\n\t")
+    ):
+        raise ValueError("CoNLL-U sentence id must be a single nonempty field")
+    if [w["id"] for w in ordered] != list(range(1, len(ordered) + 1)):
+        raise ValueError("CoNLL-U export requires contiguous surface token IDs")
+    if any((w["kapo"] == 0) != (w["rolo"] == "root") for w in ordered):
+        raise ValueError("CoNLL-U root relation disagrees with the AST head")
+    if strict and (
+        len(roots) != 1 or any(w.get("normalized_span") is None for w in ordered)
+    ):
+        raise ValueError(
+            "Strict CoNLL-U export requires one complete tree with aligned spans"
+        )
 
-    head = {w['id']: (w.get('kapo') if w.get('kapo') is not None else 0)
-            for w in ordered}
-    rel = {w['id']: (w.get('rolo') or 'dep') for w in ordered}
-    main = next((i for i, r in rel.items() if r == 'root'), None)
-    if main is None and ordered:
-        main = ordered[0]['id']
-        head[main], rel[main] = 0, 'root'
+    def field(value):
+        value = str(value)
+        if any(c in value for c in "\r\n\t"):
+            raise ValueError("CoNLL-U field contains a line break or tab")
+        return value or "_"
 
-    lines = [f'# sent_id = {sent_id}', f'# text = {text}']
-    for i, w in enumerate(ordered, start=1):
-        lines.append('\t'.join([
-            str(i),
-            w.get('plena_vorto') or '_',
-            (w.get('radiko') or '_'),
-            upos(w),
-            '_',
-            feats(w),
-            str(head.get(i, main or 0)),
-            rel.get(i, 'dep'),
-            '_',
-            f"Vortspeco={w.get('vortspeco')}",
-        ]))
-    return '\n'.join(lines) + '\n'
+    source = ast.get("source", {})
+    text = source.get("normalized", " ".join(w["plena_vorto"] for w in ordered))
+    # A CoNLL-U comment is one line; offsets still refer to the stored source.
+    comment_text = text.replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
+    status = "tree" if len(roots) == 1 else "forest" if roots else "empty"
+    lines = [
+        f"# sent_id = {sent_id}",
+        f"# text = {comment_text}",
+        f"# parse_status = {status}",
+    ]
+    for index, word in enumerate(ordered):
+        misc = [f"Vortspeco={field(word.get('vortspeco', '_'))}"]
+        span = word.get("normalized_span")
+        if span is not None:
+            misc.extend([f"StartChar={span[0]}", f"EndChar={span[1]}"])
+            following = (
+                ordered[index + 1].get("normalized_span")
+                if index + 1 < len(ordered)
+                else None
+            )
+            if following is not None and span[1] == following[0]:
+                misc.append("SpaceAfter=No")
+        lines.append(
+            "\t".join(
+                [
+                    str(word["id"]),
+                    field(word.get("surface_form", word["plena_vorto"])),
+                    field(word.get("radiko") or "_"),
+                    upos(word),
+                    "_",
+                    feats(word),
+                    str(word["kapo"]),
+                    field(word["rolo"]),
+                    "_",
+                    "|".join(sorted(misc)),
+                ]
+            )
+        )
+    return "\n".join(lines) + "\n\n"
+
+
+def to_conllu(text: str, sent_id: str = "1", *, strict: bool = False) -> str:
+    """Parse once, then serialize exactly the selected dependency graph."""
+    return ast_to_conllu(parse(text), sent_id, strict=strict)

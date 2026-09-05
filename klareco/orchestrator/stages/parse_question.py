@@ -74,7 +74,7 @@ def _classify_from_ast(ast: dict) -> str:
     Checks subjekto first (Kiu fondis…?), then objekto (…kiun mi vidas?),
     then aliaj (for adverbial ki-words like kie/kiam).
     """
-    if ast.get('syntax', {}).get('version') == 1:
+    if ast.get('syntax', {}).get('version') in (1, 2):
         from klareco.syntax_graph import main_clause_tokens
         for word in main_clause_tokens(ast):
             kind = _CORRELATIVE_TO_TYPE.get(word.get('radiko', '').upper())

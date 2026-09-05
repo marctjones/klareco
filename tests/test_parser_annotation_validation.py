@@ -1,6 +1,6 @@
 import hashlib
 import pytest
-from scripts.eval.validate_parser_annotations import validate
+from scripts.eval.validate_parser_annotations import annotation_layer, validate
 
 
 def row():
@@ -42,4 +42,29 @@ def test_gold_cycles_rejected():
     record = row()
     record["gold_conllu"] = record["gold_conllu"].replace("2\tnsubj", "1\tnsubj")
     with pytest.raises(ValueError, match="Cycle"):
+        validate(record)
+
+
+def test_gold_layer_uses_source_spans_without_parsing_or_relabeling():
+    from unittest.mock import patch
+    from klareco.ast_annotations import with_annotation_layer
+    from klareco.parser import parse
+
+    record = row()
+    ast = parse(record["text"])
+    with patch(
+        "klareco.parser.parse", side_effect=AssertionError("Gold must be independent")
+    ):
+        layer = annotation_layer(record)
+    assert set(layer["basis"]) == {"source_sha256"}
+    assert layer["annotations"][0]["target"] == {"kind": "span", "spans": [[0, 2]]}
+    enriched = with_annotation_layer(ast, layer)
+    assert enriched["vortoj"] == ast["vortoj"]
+    assert layer["annotations"][0]["value"]["head"] == "2"
+
+
+def test_reviewer_case_and_whitespace_cannot_bypass_independence_check():
+    record = row()
+    record["reviewer"] = " A "
+    with pytest.raises(ValueError, match="Distinct"):
         validate(record)

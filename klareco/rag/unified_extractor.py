@@ -315,7 +315,7 @@ class UnifiedASTExtractor:
         if not ast or not isinstance(ast, dict):
             return facts
 
-        if ast.get('syntax', {}).get('version') == 1:
+        if ast.get('syntax', {}).get('version') in (1, 2):
             # Canonical clauses keep each predicate with its own arguments.
             # Legacy recursive wrappers are compatibility projections of these
             # same clauses and must not be extracted a second time.

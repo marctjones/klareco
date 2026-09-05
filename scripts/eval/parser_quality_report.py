@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reproducible parser baseline and token error inventory.
 
-VERSION: v1.0
+VERSION: v1.1
 COMPATIBLE WITH: klareco.parser, committed UD Prago/Cairo fixtures
 DEPENDENCIES: project parser lexicons; no models or production database
 STAGE: Evaluation
@@ -14,6 +14,7 @@ Quality Checks: fixed gold denominator; separate treebanks; no punctuation scori
 Last Updated: 2026-09-05
 Related Issues: #832, #902
 """
+# CHANGELOG: 2026-09-05: Hash the syntax/annotation modules and actual lexical artifacts.
 from __future__ import annotations
 
 import argparse
@@ -49,8 +50,14 @@ def report() -> dict:
     files = [ROOT / 'klareco/parser.py', ROOT / 'klareco/morphology.py',
              ROOT / 'klareco/conllu.py', Path(__file__),
              Path(eval_conllu.__file__), Path(eval_ud_prago.__file__),
-             Path(eval_ud_roles.__file__), ROOT / "klareco/syntax_graph.py"]
+             Path(eval_ud_roles.__file__), ROOT / "klareco/syntax_graph.py",
+             ROOT / 'klareco/syntax_rules.py', ROOT / 'klareco/ast_annotations.py',
+             ROOT / 'klareco/ontology.py']
     files += sorted((ROOT / 'data/vocabularies').glob('*.json'))
+    files += [ROOT / 'data/raw/eo/dictionaries' / name for name in (
+        'revo_typed_roots.json', 'revo_name_roots.json', 'affix_table.json',
+        'revo_ontology.json',
+    )]
     storage = ROOT / 'klareco/ast_storage.py'
     if storage.exists():  # Optional code module, not a parser data dependency.
         files.append(storage)

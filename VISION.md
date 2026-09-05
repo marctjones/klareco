@@ -68,12 +68,12 @@ the ending states the part of speech, case, number, and tense. Its correlative
 system is a closed, regular table. Its accusative case marks grammatical role
 explicitly, so the role of a constituent need not be inferred from word order.
 
-This means that when a deterministic method fails on Esperanto, we learn
-something real. The failure cannot be blamed on morphological irregularity or on
-syntactic ambiguity that a better parser would have resolved — because in
-Esperanto those ambiguities largely do not exist. **Esperanto lets us isolate the
-residue.** A failure here is evidence that the problem is genuinely not
-rule-shaped.
+Regular morphology gives us strong constraints, but does not remove ambiguity
+in attachment, coordination, lexical analysis, or discourse. A parser failure
+can still be an implementation defect, a missing lexical resource, or an
+annotation-scheme mismatch. We must investigate and measure those explanations
+before calling it an irreducible residue. See `docs/PARSER_DESIGN.md` for the
+current parser contracts, research, and evaluation limits.
 
 If a capability *can* be done deterministically in Esperanto but not in English,
 that is also a finding — it tells us the obstacle was linguistic irregularity,

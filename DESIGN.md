@@ -13,15 +13,17 @@ in this repository.
 
 ## Current state — READ THIS FIRST
 
-**2026-09-05 parser update:** deterministic parser changes now score Prago
-LAS 64.8968% and Cairo 75.1678%, with no previously correct attachment lost
-on those fixtures. Predicate-bearing clause and main-sentence views are now
-dependency-derived and preserved through versioned storage and immutable contexts.
-The production store has **not** been rebuilt: full-corpus preflight identifies
-21 document-sized rows requiring source repair. The new annotation pilot is
-unreviewed. See [the seven-step execution report](docs/PARSER_SEVEN_STEP_RESULTS.md)
-for measurements, downstream limits, and the remaining promotion gates. The
-historical store-consistency claims below do not apply to the new parser.
+**2026-09-05 parser/annotation update:** current deterministic parsing scores
+Prago LAS **69.0634%** and Cairo **79.1946%** on the frozen 131/20-sentence
+regression fixtures, compared with 64.8968% / 75.1678% at `1b68033`.
+Prago gains 115 correct attachments and loses 2; Cairo gains 6 and loses none.
+Coverage remains 99.8894% / 100%. Syntax v2 and versioned stand-off annotations
+preserve source bindings, candidate structures, and dependency-derived views.
+See [the active plan](docs/PARSER_DESIGN.md) and
+[execution results](docs/PARSER_SEVEN_STEP_RESULTS.md).
+The production store has **not** been rebuilt: 21 oversized rows require source
+repair, and the independent 200-sentence annotation pilot remains unreviewed.
+Historical store-consistency and QA claims below do not describe this revision.
 
 
 The facts below are **generated from the live store** by
@@ -100,7 +102,7 @@ lossy on expand. This is now the central problem, tracked as **#901** and
 detailed under "The store" below. It is a wiring problem, not a missing-artifact
 problem, and it changes what the next rebuild should be for.
 
-**Parser/storage update (2026-09-05; production store unchanged).** The new
+**Earlier parser/storage cycle (2026-09-05; historical measurements).** The new
 version-2 serializer preserves complete AST structure: 151/151 UD sentences
 round-trip exactly, up from 45/151, with a separate 160-sentence development
 sample also passing through the production writer. Existing store blobs remain
@@ -473,50 +475,37 @@ questions that are **hard but possible**: answerable, but not by lexical overlap
 alone. That band is where reranking can be measured, and we do not currently have
 a test set in it. This is the blocker (#736, #737).
 
-## Parser quality: deterministic ceiling vs model territory
+## Parser quality and characterized limits
 
-The UD Esperanto gold treebanks (Prago 131 sentences in-corpus; Cairo 20
-sentences **held-out**) are the only trustworthy parser ruler — independent of
-the Q&A stack, linguist-curated (CC-BY-SA 4.0). Three evaluators measure three
-layers of AST quality (all re-baselined 2026-07-19, `bench_history.jsonl`):
+The current frozen regression ruler is UD-Prago (131 sentences) and UD-Cairo
+(20 sentences). Both have informed development. The common-evaluator comparison
+against `1b68033` is in `data/perf/parser_research/`; counts exclude punctuation
+and retain missing tokens in the denominator.
 
-| layer | script | Prago | Cairo (held-out) |
-|-------|--------|-------|------------------|
-| POS strict / scheme-adj | `eval_ud_prago.py` | 81.3% / 94.7% | 80.3% / 95.9% |
-| **subject-role F1** (retrieval reads this) | `eval_ud_roles.py` | **68.7%** | **93.0%** |
-| object-role F1 | " | 76.0% | 88.0% |
-| dependency UAS / LAS (the parse TREE) | `eval_conllu.py` | 69.5% / 62.3% | 73.8% / 66.4% |
+| Layer | Prago | Cairo |
+|---|---:|---:|
+| Native POS strict / scheme-adjusted | 82.80% / 95.09% | 81.88% / 96.64% |
+| Subject-role F1 | 86.10% | 97.78% |
+| Object-role F1 | 80.53% | 92.31% |
+| Dependency UAS / LAS, all gold tokens | 75.85% / 69.06% | 85.23% / 79.19% |
+| Coverage | 99.8894% | 100% |
 
-All three are wired into the suite as **regression floors** —
-`pytest -m accuracy` runs `tests/test_parser_ud_accuracy.py` (no store needed;
-fixtures under `tests/fixtures/ud/`), so any parser change that drops a metric
-below baseline fails loudly. **Caveat (#726):** 131+20 sentences are a good
-*ceiling* and *regression* ruler but too few to *detect* targeted incremental
-wins — #871 (a real 182k-corpus-sentence subject-recovery fix) is invisible
-here; its evidence is the corpus-recovery proxy. The scheme-adjusted delta below
-is UD-vs-Esperanto scheme choices, not errors.
+The tests protect exact correct-attachment floors of 1,873 / 118 and retain
+separate POS and role checks. The latest package comparison gains 115 and loses
+2 attachments on Prago; Cairo gains 6 and loses none. This is measurable progress
+on small regression sets, not a generalization guarantee.
 
-**Not errors — UD-vs-Esperanto scheme differences** (do not "fix"; already
-credited by the scheme-adjusted score): `PRON→adjektivo` (66; Esperanto
-possessives take adjectival agreement), `DET/PRON/ADV→korelativo` (52; the
-correlative table), `ADV→partiklo` (29), `VERB→adjektivo/adverbo` (27; participles
-are verbal adjectives/adverbs).
+Correlative role constraints, comparison phrases, local adjective coordination,
+and particle/copy consistency are implementation improvements. The remaining
+errors include PP attachments, coordination, clause boundaries, and lexical or
+annotation-scheme differences. None is declared irreducible simply because the
+current parser gets it wrong. The independent annotation pilot remains unreviewed;
+its source-bound export tooling does not substitute for human judgment.
 
-**Deterministically fixable — real wins:**
-1. Closed-class primitives missing from the inventory: `-aŭ` adverbs/preps
-   (almenaŭ, anstataŭ, …) and `ol` → currently `*→nekonata` (~16 tokens).
-2. Roman-numeral recognition (II., III., IV.) → currently `NUM→verbo` (~6 tokens).
-3. Single-letter initials ("L." in "D-ro L. L. Zamenhof") → kill the bogus
-   `ekzemplo` fallback (~11 tokens).
-4. Title-Case common nouns governed by `la` or inside «» wrongly promoted to
-   `propra_nomo` — gate the promotion on those positions.
-
-**Cannot be done deterministically — needs a learned model.** The irreducible
-residue of `NOUN↔propra_nomo`: a capitalized token where morphology, position, and
-function-word context give *no* signal. Esperanto has no morphological proper-noun
-marker, so disambiguation requires distributional or world knowledge. This is the
-principled boundary where deterministic processing stops — and, per `VISION.md`,
-exactly the kind of finding this project exists to produce.
+The active contracts, primary-source research, and further work are in
+[the parser and annotation plan](docs/PARSER_DESIGN.md). Production data still
+contains earlier parses; current parser accuracy does not establish the quality
+of the old indexed structures or imply a new end-to-end QA result.
 
 ## The semantic ontology (intended source of truth, currently absent)
 
@@ -633,39 +622,27 @@ Esperanto treebanks:
 python scripts/eval/eval_conllu.py     # LAS / UAS / UPOS / coverage
 ```
 
-Three things must be reported **every time**, and none of them is optional:
+Report Prago and Cairo separately, their frozen fixture hashes and sentence/token
+counts, coverage, strict and scheme-adjusted POS, LAS over **all gold tokens**,
+and explicit gained/lost attachments. Parse failures and missing alignment count
+against the fixed gold denominator. Subject/object F1 is supplementary evidence.
 
-1. **Prago and Cairo separately.** Prago is the *Prago Manifesto* /
-   *Homaranismo* — texts almost certainly **in our own corpus** — so anything
-   corpus-derived (`capitalization_ratio`, the root lexicon) may have memorised
-   its tokens. **Cairo is the honest ruler.**
+The committed fixtures contain 131 Prago and 20 Cairo sentences: 2,712 and 149
+scored non-punctuation tokens respectively. Both sets have informed development;
+neither is an untouched generalization test. Corpus-derived lexical resources
+may overlap their vocabulary. A separately reviewed, document-disjoint benchmark
+is still required before claiming broad coverage of Esperanto.
 
-2. **Coverage.** A parser that silently skips tokens looks excellent. Coverage
-   was **84.6%** on Cairo before #825 and is now 100%; on Prago it is 89.5%. The
-   number is part of the result, not a footnote.
+EspGram's published performance motivates investment in deterministic parsing.
+It uses a different corpus, annotation scheme, and development procedure, so its
+score is not a directly comparable LAS result or a proven deterministic ceiling.
+See [the parser research and design](docs/PARSER_DESIGN.md) for primary sources.
 
-3. **Strict AND scheme-adjusted, never merged.** About 90% of our POS
-   disagreements with UD are annotation-scheme mismatches, not errors —
-   Esperanto possessives *are* adjectives (`mi`+`a`), `estas` is not a separate
-   AUX class, participles *are* adjectival, and the correlatives are one closed
-   paradigm that UD splits across PRON/DET/ADV.
-
-**And say the ruler's size out loud, every time.** There are **3,343 tokens** of
-free gold Esperanto UD in existence. Cairo is **177**. Every accuracy claim we
-make today is a claim about 3.3k tokens, and the 52k-token Arbobanko is paywalled
-at €1,500 (ELRA-W0129). That is the real bottleneck, and it is #820.
-
-For reference — and to keep us honest about how far there is to go:
-
-| | LAS / syntactic accuracy |
-|---|---|
-| **klareco** (held-out Cairo) | **57.0%** |
-| **EspGram** (Bick, Constraint Grammar, *published*) | **96.5%** |
-| Biaffine neural parser, English PTB (for scale) | 94.1 |
-
-**The ~40-point gap to EspGram requires no machine learning.** It is attachment,
-lexical coverage, and the residual scheme differences. Do not reach for a model to
-fix a lexicon.
+A capability change must record before/after evidence in the append-only ledger.
+Use `compare_parser_revision.py` for a complete historical package comparison,
+not a historical `parser.py` running with current projection code. Source and
+lexical hashes, changed consumers, regressions, and measured costs belong in the
+result. New annotation/data contracts do not by themselves prove better syntax.
 
 ## The benchmark contract
 

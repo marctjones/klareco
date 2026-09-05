@@ -1,5 +1,83 @@
 # Seven-step parser execution — 2026-09-05
 
+## Latest cycle: grammar, ASTs, and independent annotations
+
+The current plan is [PARSER_DESIGN.md](PARSER_DESIGN.md), including primary
+research, data contracts, and acceptance gates for all seven workstreams.
+This cycle compares the complete historical package at `1b68033` with the
+new implementation using the same frozen evaluator and lexical artifacts.
+Reports are in `data/perf/parser_research/release_comparison/`; per-token
+gains and regressions are in `attachment_changes.json`. Code, vocabulary,
+and fixture hashes identify both arms. Before/after records are appended to
+`data/perf/bench_history.jsonl` with committed-code attribution.
+
+| Metric | Before | After |
+|---|---:|---:|
+| Prago LAS, all 2,712 non-punctuation tokens | 64.8968% (1,760 correct) | 69.0634% (1,873 correct) |
+| Cairo LAS, all 149 non-punctuation tokens | 75.1678% (112 correct) | 79.1946% (118 correct) |
+| Prago UAS | 72.6401% | 75.8481% |
+| Cairo UAS | 83.8926% | 85.2349% |
+| Prago subject / object F1 | 0.7354 / 0.7876 | 0.8610 / 0.8053 |
+| Cairo subject / object F1 | 0.9362 / 0.9231 | 0.9778 / 0.9231 |
+| Complete storage round-trips | 151/151 | 151/151 |
+
+Coverage remains 99.8894% / 100%, with no parser crashes. Prago gains 115
+correct attachments and loses 2; Cairo gains 6 and loses none. Strict native
+POS scores are unchanged. Both fixtures have informed development; these are
+small regression results, not a new independently held-out accuracy claim.
+No downstream QA improvement is claimed for this revision.
+
+The grammar changes stop adverbial correlatives from occupying noun slots,
+distinguish delimited comparison phrases from finite clauses, preserve the
+class of productive `mal-` degree particles, attach `ĉi`/`ajn` to correlatives,
+and repair copular adverbs and local adjective coordination. The two lost
+attachments expose existing scope weaknesses: Prago sentence 79's coordinated
+PP noun `komunumojn` becomes an object, and sentence 103's `lingvon` after an
+inserted participial phrase becomes an oblique. These remain recorded errors;
+the implementation contains no sentence-specific repairs.
+
+The data contract now preserves ordered morphology candidates, applied-reading
+status, final-ID PP alternatives, and before/after traces for the refinement
+rules. Syntax v2 validates predicate/argument/phrase views against the selected
+dependencies. Versioned annotation layers bind typed targets to source text and,
+where appropriate, tokenization and dependencies. Reviewed gold is exported as
+original-span annotations and CoNLL-U without reparsing it. Storage rejects
+invalid graph references, stale layers, unsupported versions, and values JSON
+would lose or coerce. Syntax v1 remains readable. Full syntactic alternatives
+and complete traces of the older attachment passes are still future work.
+
+The final contract/unit/accuracy run reports **760 passed**, 5 skipped,
+1 expected failure, and 2 pre-existing failures from unattributed July benchmark
+records. Those records have not been rewritten. See
+`data/perf/parser_research/checks_release.txt`. Checks ran on Python 3.14;
+changed files also pass Python 3.10 grammar checks, and the new annotation types
+avoid Python 3.11-only imports. A Python 3.10 runtime was not available locally.
+
+The isolated 10,000-row rebuild is
+`data/perf/parser_research/release_candidate10000.db`, with its source and code
+hash manifest. All 10,000 ASTs round-trip exactly and preserve sentence IDs,
+source text, and provenance, with zero source-identity mismatches. The candidate
+occupies about 291 MiB. This is a storage check on a deterministic sample, not
+gold syntactic evaluation or a complete production database.
+
+The richer records have a measured cost. Across the 151 fixture sentences,
+compact JSON grows from 1,955,238 to 2,886,590 bytes (**47.6%**). Ten alternating
+runs with isolated packages, warm word caches, and a cleared sentence cache
+measure median parsing totals of 187.2 ms before and 225.1 ms after (**20.3%**
+more, or 0.25 ms per sentence). Compact/JSON/expand/equality checks grow from
+125.2 to 328.2 ms (**162.3%** more). These are local elapsed-time measurements,
+not CPU-only measurements or a throughput guarantee; pipeline snapshots are
+excluded. The reproducibility script and results are
+`data/perf/parser_research/paired_timing.py` and `paired_timing_final.json`.
+
+Production promotion remains gated by the 21 oversized source records,
+independent review of the 200-sentence pilot, full derived-table and entity-fact
+rebuilds, index consistency, downstream QA, and acceptable resource costs. The
+production store is unchanged. The sections below describe the preceding cycle
+and retain its original measurements and limits.
+
+## Previous cycle: clause and storage integration
+
 The parser remains deterministic. The engineering work has progressed through
 all seven workstreams; independent gold annotation and full-store promotion have
 not passed their gates. This is not a claim that all Esperanto syntax is solved.

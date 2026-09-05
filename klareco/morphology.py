@@ -1,62 +1,16 @@
-"""Enumerate every licensed segmentation — then RANK them by selectional restrictions.
+"""Enumerate and rank morphology candidates using lexical types and affix rules.
 
-This is the architecture the literature converged on and we did not have:
-
-    **The symbolic analyser enumerates the licensed readings.
-     A separate stage ranks them.**
-
-A finite-state analyser emits EVERY accepting path, unranked — there is no
-preference operator in lexc/twolc/lttoolbox, and longest-match is a heuristic
-(94.4%), not the mechanism. Our parser instead returned ONE reading and discarded
-the rest *silently*, which is how `Esperanton` -> `esper+ant` happened. It did not
-fail; it committed.
-
-Measured on our own corpus: **32.0% of running-text tokens have 2+ licensed
-segmentations** (independently replicating Guinard 2016). Every one of them is
-grammatical.
-
-WHAT RANKS THEM
----------------
-Hana (1998) diagnosed the problem and named the fix:
-
-    `papero` -> `pap`+`er` ("element of a pope") *"could be prevented by
-    prohibiting assigning the affix `er` to countable nouns. However, the
-    classification of roots is very time consuming."*
-
-That is a SEMANTIC SUBCATEGORIZATION fact — the class of the root. It is not in
-the grammar and cannot be. **voko-akrido (GPL-3.0) has it**, and we now ship it:
-
-    r(hund, best, *).       hund is ANIMATE
-    r(patr, parc, *).       patr is KINSHIP
-    r(kuir, tr,   *).       kuir is a TRANSITIVE VERB
-
-    s(in,  _,     best).    -in-  attaches ONLY to an ANIMATE
-    s(ul,  best,  adj).     -ul-  makes an animate FROM an adjective
-    s(ej,  subst, verb).    -ej-  makes a place FROM a verb
-    s(ig,  tr,    adj).     -ig-  makes a transitive verb FROM an adjective
-
-    sub(best, subst).  sub(pers, best).  sub(parc, pers).  sub(tr, verb).
-                            ^ the SEMANTIC TYPE HIERARCHY
-
-WHY IT RANKS RATHER THAN FILTERS
---------------------------------
-Because the table is imperfect and the lexicon is imperfect. `vir` is tagged
-`subst` in ReVo, not `best` — so `s(in, _, best)` would *strictly forbid*
-`virino`, which is an ordinary word. A hard filter would delete real language.
-
-So a violation COSTS points; it does not kill the reading. That keeps the
-analyser's recall intact while its precision improves, and it means the ranking
-degrades gracefully as the lexicon improves rather than breaking.
-
-**And the ranker is still fully deterministic.** No learned parameters. The
-residue that survives THIS is the residue that genuinely needs a model — and that
-is exactly the boundary this project exists to find.
+Search preserves alternatives within the configured lexicon and recursion bounds.
+Ranking uses deterministic costs and soft selectional restrictions; a winning
+score is not a probability or proof that another reading is ungrammatical.
+The cached candidates are immutable. Their structured serialization preserves
+ordered morphemes, linking vowels, endings, and ranking evidence.
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -80,12 +34,27 @@ class Morpheme:
     pos: str | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class Analysis:
-    morphemes: list[Morpheme]
+    morphemes: tuple[Morpheme, ...]
     pos: str | None = None            # POS of the whole word
     score: float = 0.0
-    violations: list[str] = field(default_factory=list)
+    violations: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, 'morphemes', tuple(self.morphemes))
+        object.__setattr__(self, 'violations', tuple(self.violations))
+
+    def to_dict(self) -> dict:
+        """Preserve ordered roots, linking vowels, endings, and ranking evidence."""
+        return {
+            'radiko': self.radiko, 'prefiksoj': self.prefiksoj,
+            'sufiksoj': self.sufiksoj, 'kunmetitaj_radikoj': self.kunmetitaj_radikoj,
+            'morfemoj': [{'form': m.form, 'kind': m.kind, 'pos': m.pos}
+                        for m in self.morphemes],
+            'surface': self.surface, 'pos': self.pos,
+            'poentaro': self.score, 'malobservoj': list(self.violations),
+        }
 
     @property
     def radiko(self) -> str:
@@ -155,14 +124,12 @@ class Lexicon:
         self.roots = {k: v['pos']
                       for k, v in json.loads(tr.read_text(encoding='utf-8'))['roots'].items()}
         self.tier1 = set(self.roots)
-        if nr.exists():
-            self.names = {k.lower(): v['pos']
-                          for k, v in json.loads(nr.read_text(encoding='utf-8'))['roots'].items()}
-            # A name root is a ROOT for morphology — `amerik` must be present or
-            # `amerikano` cannot decompose.
-            for k, pos in self.names.items():
-                self.roots.setdefault(k, pos)
-                self.tier1.add(k)
+        self.names = {k.lower(): v['pos']
+                      for k, v in json.loads(nr.read_text(encoding='utf-8'))['roots'].items()}
+        # Name roots participate in derivation: amerik -> amerikano.
+        for k, pos in self.names.items():
+            self.roots.setdefault(k, pos)
+            self.tier1.add(k)
 
         # PROTECTED roots and the CORPUS tier. Without these, morphology.py is
         # strictly weaker than the parser it is meant to replace:
@@ -178,18 +145,16 @@ class Lexicon:
         # selectional restrictions simply do not fire on them. That is the honest
         # behaviour: no type information means no type check, not a false one.
         rv = Path(__file__).parent.parent / 'data' / 'vocabularies' / 'root_vocab.json'
-        if rv.exists():
-            d = json.loads(rv.read_text(encoding='utf-8'))
-            for r in d.get('roots', []):
-                self.roots.setdefault(r, None)
-            for r in d.get('protected', []):
-                self.roots.setdefault(r, None)
-                self.protected.add(r)
+        d = json.loads(rv.read_text(encoding='utf-8'))
+        for r in d['roots']:
+            self.roots.setdefault(r, None)
+        for r in d.get('protected', []):
+            self.roots.setdefault(r, None)
+            self.protected.add(r)
         pr = Path(__file__).parent.parent / 'data' / 'vocabularies' / 'protected_roots.json'
-        if pr.exists():
-            for r in json.loads(pr.read_text(encoding='utf-8')).get('roots', []):
-                self.roots.setdefault(r, None)
-                self.protected.add(r)
+        for r in json.loads(pr.read_text(encoding='utf-8'))['roots']:
+            self.roots.setdefault(r, None)
+            self.protected.add(r)
 
         a = json.loads(af.read_text(encoding='utf-8'))
         for s in a['suffixes']:
@@ -358,7 +323,8 @@ def _score(morphemes: list[Morpheme]) -> Analysis:
     `hundino` = hund + in: `hund` is `best`. Satisfied.
     """
     lex = lexicon()
-    a = Analysis(morphemes=list(morphemes))
+    score = 0.0
+    violations = []
     cur: str | None = None
 
     # ORDER MATTERS, and it is not the order the morphemes appear in.
@@ -381,28 +347,28 @@ def _score(morphemes: list[Morpheme]) -> Analysis:
         if m.kind == 'radiko':
             cur = m.pos
             if m is not _head:
-                a.score += _PENALTY_EXTRA_ROOT   # a compound posits extra structure
+                score += _PENALTY_EXTRA_ROOT   # a compound posits extra structure
             elif m.form in lex.protected:
-                a.score += _SCORE_ROOT_PROTECTED
+                score += _SCORE_ROOT_PROTECTED
             elif m.form in lex.tier1:
-                a.score += _SCORE_ROOT_KNOWN
+                score += _SCORE_ROOT_KNOWN
             else:
-                a.score += _SCORE_ROOT_CORPUS
+                score += _SCORE_ROOT_CORPUS
         elif m.kind == 'kunmeto':
             continue                     # the linking vowel is surface, not structure
         elif m.kind == 'sufikso':
             rules = lex.suffix_rules.get(m.form, [])
             ok = [(out, req) for out, req in rules if lex.isa(cur, req)]
             if ok:
-                a.score += _SCORE_SELECTION_OK
+                score += _SCORE_SELECTION_OK
                 cur = ok[0][0] or cur
             else:
-                a.score += _PENALTY_SELECTION_BAD
-                a.violations.append(
+                score += _PENALTY_SELECTION_BAD
+                violations.append(
                     f'-{m.form}- demands '
                     f'{{{", ".join(str(r) for _, r in rules)}}}, got {cur}')
                 cur = rules[0][0] if rules else cur
-        a.score += _PENALTY_PER_MORPHEME
+        score += _PENALTY_PER_MORPHEME
 
     # (3) PREFIXES select on the DERIVED stem.
     for m in morphemes:
@@ -410,8 +376,8 @@ def _score(morphemes: list[Morpheme]) -> Analysis:
             continue
         reqs = lex.prefix_rules.get(m.form, [])
         if reqs and not any(lex.isa(cur, r) for r in reqs):
-            a.score += _PENALTY_SELECTION_BAD
-            a.violations.append(
+            score += _PENALTY_SELECTION_BAD
+            violations.append(
                 f'{m.form}- demands {{{", ".join(str(r) for r in reqs)}}}, got {cur}')
 
     # (4) THE ENDING must match the stem. `-i` is the infinitive: it demands a VERB.
@@ -419,21 +385,19 @@ def _score(morphemes: list[Morpheme]) -> Analysis:
     if end is not None and cur is not None:
         demanded = lex.ending_pos.get(end.form)
         if demanded and not lex.isa(cur, demanded):
-            a.score += _PENALTY_SELECTION_BAD
-            a.violations.append(
+            score += _PENALTY_SELECTION_BAD
+            violations.append(
                 f'|{end.form} demands a {demanded} stem, got {cur}')
 
-    a.pos = cur
-    return a
+    return Analysis(tuple(morphemes), cur, score, tuple(violations))
 
 
 @lru_cache(maxsize=100_000)
 def analyze(word: str) -> tuple[Analysis, ...]:
-    """All licensed analyses of a word form, BEST FIRST.
+    """Candidates within the configured lexicon and search bounds, best first.
 
-    Returns the SET. The caller may take `[0]`, but the rest are still there —
-    which is the whole point: a parser that returns one reading where the grammar
-    licenses two is not deterministic, it is arbitrary.
+    The deterministic ranking retains all generated alternatives. Enumeration is
+    bounded and a score margin does not establish linguistic certainty.
     """
     w = word.lower()
     out: list[Analysis] = []
@@ -443,8 +407,7 @@ def analyze(word: str) -> tuple[Analysis, ...]:
                 a = _score(ms + [Morpheme(end, 'finaĵo', ENDINGS[end])])
                 # The ending declares the surface POS (Rules 2-7) and always wins:
                 # `hundo` is a noun even though `hund` is `best`.
-                a.pos = ENDINGS[end]
-                out.append(a)
+                out.append(replace(a, pos=ENDINGS[end]))
     # ⚠️ NO BARE-ROOT FALLBACK. Rules 2-7: every CONTENT word carries a
     # grammatical ending. `nov` is a ROOT; `nova` is a WORD.
     #

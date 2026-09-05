@@ -96,7 +96,7 @@ recovered by resolving token IDs. Old software does not understand v2 blobs:
 deploy updated readers before producing a v2 corpus. Retain the old store until
 the replacement is validated. The current production store has not been rebuilt.
 
-Storage v2 now carries syntax graph v1. For predicate-bearing clauses, clause
+Storage v2 now carries syntax graph v2; readers also accept historical syntax v1. For predicate-bearing clauses, clause
 and main-sentence frames are derived from dependencies. Storage boundaries check
 dependency cycles, roots, clause membership, parents, and argument consistency.
 Verbless fragments retain a legacy heuristic flat view; they have no asserted
@@ -147,7 +147,8 @@ corrected structure.
 `propozicioj` contains dependency-derived predicate frames, including nonfinite
 complements. Each frame carries `predikato`, `token_ids`,
 `parent_predicate_id`, direct `argumentoj`, and a derivation version.
-`phrases` contains nominal groups. Legacy relative-clause wrappers are derived
+`phrases` contains dependency-derived groups with head, member, modifier, and
+case-marker IDs. Clause frames also link direct complement predicate IDs. Legacy relative-clause wrappers are derived
 from the same dependencies; canonical extraction avoids extracting them twice.
 
 The main clause supplies the top-level subject, verb, object, other dependents,
@@ -155,11 +156,11 @@ and negation fields. Tokens in embedded clauses do not supply the main clause's
 arguments. The compatibility `verbo` may be a copula while `predikato` identifies
 the actual dependency head. Missing shared arguments are not invented.
 
-`syntax.version` is 1. Multiple roots are explicitly marked as a forest; tokens
+`syntax.version` is 2. Multiple roots are explicitly marked as a forest; tokens
 outside predicate frames are listed in `unassigned_token_ids`. Empty alternatives
 with `alternatives_status: not_enumerated` do **not** mean there is no ambiguity.
-Version and frame derivation identify the construction method; fine-grained
-per-token rule explanations are not yet implemented.
+Refinement traces identify rule IDs, before/after edges, and evidence tokens.
+Trace coverage is explicitly partial; older attachment passes remain untraced.
 
 `source.original` retains the input verbatim. `source.normalized` retains the
 normalized text before tokenizer protection markers. Tokens carry character
@@ -203,7 +204,7 @@ consulting parser success. The builder preserves IDs, text, and provenance;
 rebuilds ASTs, sentence columns, clauses, token edges, and dependency arcs; and
 copies the ontology with its actual schema. The existing `verb_klaso` convention
 remains POS/transitivity codes from the typed lexicon, not semantic classes.
-The manifest records source statistics, code/vocabulary hashes, row counts, and
+The manifest records source statistics, code/vocabulary/lexical-artifact hashes, row counts, and
 completion status. Every serialized AST is compared with its fresh parse.
 
 Oversized input blocks before any candidate rows are written. Parse failures
@@ -223,3 +224,29 @@ passages. It is still not a full rebuilt-store comparison. Retain that distincti
 when citing results. `recheck_parser_qa.py` can prove input AST equality and rerun
 affected questions after a narrowly scoped parser repair; reused timings remain
 those of the original run.
+
+## September 5 research and syntax v2 cycle
+
+The active architecture and seven-workstream plan are in [PARSER_DESIGN.md](PARSER_DESIGN.md).
+The selected dependency graph remains authoritative. Source hashes, offset
+conventions, complete morphological candidates, partial attachment traces, and
+stand-off annotation layers now have explicit contracts. Predicate and argument
+registries are checked against dependencies; storage rejects values JSON cannot
+preserve. The complete package comparison loads historical syntax, morphology,
+and storage together rather than mixing revisions.
+
+`klareco.ast_annotations.with_annotation_layer(ast, layer)` returns a validated,
+owned copy. The layer binds to source text and, when needed, tokenization or
+selected dependencies. Targets support sentence, token IDs, edges, and original
+character spans. Review status requires review metadata but does not prove
+independent linguistic judgment. The gold exporter now writes `annotations.jsonl`
+alongside CoNLL-U; these gold targets are original spans and never depend on a
+parser's proposed tokens.
+
+`klareco.conllu.ast_to_conllu(ast, strict=True)` exports an existing graph without
+reparsing, and rejects forests or unaligned tokens. Diagnostic mode explicitly
+labels forests. The serializer no longer repairs roots privately.
+
+The new measurements supersede the previous cycle's figures for current code;
+the production store and previously measured QA results still refer to their
+recorded revisions. See the latest section in [PARSER_SEVEN_STEP_RESULTS.md](PARSER_SEVEN_STEP_RESULTS.md).

@@ -50,6 +50,11 @@ _COPULA_ROOTS = {"est"}
 # Subordinating vs coordinating — UD splits these; Esperanto's `konjunkcio` does not.
 _SCONJ = {"ke", "ĉar", "se", "kvankam", "dum", "ĝis", "apenaŭ", "kvazaŭ", "ol"}
 
+# These particles are grammatical operators in UD even when they modify a
+# neighboring word. Other native `partiklo` analyses in the parser are
+# adverbial forms and project as ADV (`ne`, `nur`, `pli`, `tre`, ...).
+_UD_PARTICLES = {"ajn", "ĉi", "ĉu"}
+
 
 def upos(w: dict) -> str:
     vs = w.get("vortspeco")
@@ -67,6 +72,8 @@ def upos(w: dict) -> str:
         return "SCONJ"
     if vs == "verbo" and (w.get("radiko") or "").lower() in _COPULA_ROOTS:
         return "AUX"
+    if vs == "partiklo":
+        return "PART" if (w.get("radiko") or "").lower() in _UD_PARTICLES else "ADV"
     return _UPOS.get(vs, "X")
 
 

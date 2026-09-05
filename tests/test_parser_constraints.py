@@ -148,6 +148,16 @@ def test_correlative_upos_follows_dependency_role():
     assert "\tĈiu\tĉiu\tDET\t" in determiner
 
 
+def test_adverbial_particles_project_as_adv_but_grammatical_particles_stay_part():
+    text = ast_to_conllu(parse("Mi ne nur venis, sed ĉu vi ankaŭ venis?"))
+    rows = {line.split("\t")[1]: line.split("\t")[3]
+            for line in text.splitlines() if line and not line.startswith("#")}
+    assert rows["ne"] == "ADV"
+    assert rows["nur"] == "ADV"
+    assert rows["ankaŭ"] == "ADV"
+    assert rows["ĉu"] == "PART"
+
+
 
 
 def test_attachment_alternatives_use_final_surface_ids():

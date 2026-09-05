@@ -3732,7 +3732,7 @@ def attach_all(word_asts: list, clauses: list) -> None:
             if xvs == 'verbo':
                 gov_id, gov_rel = x.get('id'), 'xcomp'    # `mi volas lerni`
                 break
-            if xvs in ('artikolo', 'adjektivo', 'adverbo'):
+            if xvs in ('artikolo', 'adjektivo', 'adverbo', 'partiklo'):
                 continue                                   # its own modifiers
             break
 

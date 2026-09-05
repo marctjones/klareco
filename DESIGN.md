@@ -14,9 +14,9 @@ in this repository.
 ## Current state — READ THIS FIRST
 
 **2026-09-05 parser/annotation update:** current deterministic parsing scores
-Prago LAS **69.3953%** and Cairo **79.1946%** on the frozen 131/20-sentence
+Prago LAS **69.4322%** and Cairo **79.1946%** on the frozen 131/20-sentence
 regression fixtures, compared with 64.8968% / 75.1678% at `1b68033`.
-Prago gains 124 correct attachments and loses 2; Cairo gains 6 and loses none.
+Prago gains 125 correct attachments and loses 2; Cairo gains 6 and loses none.
 Coverage remains 99.8894% / 100%. Syntax v2 and versioned stand-off annotations
 preserve source bindings, candidate structures, and dependency-derived views.
 See [the active plan](docs/PARSER_DESIGN.md) and

@@ -98,6 +98,15 @@ def test_punctuated_enumeration_does_not_rewrite_a_fragment_root():
     assert expand_ast(json.loads(json.dumps(compact_ast(ast)))) == ast
 
 
+def test_infinitive_attachment_crosses_intervening_particles():
+    ast = parse("Mi deklaras mian intencon firmvole plu labori.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["labori"]["rolo"] == "acl"
+    assert words["labori"]["kapo"] == words["intencon"]["id"]
+
+
+
+
 def test_attachment_alternatives_use_final_surface_ids():
     ast = parse("Hieraŭ, mi vidis la viron en la domo.")
     words = {w["plena_vorto"]: w for w in ast["vortoj"]}

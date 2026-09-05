@@ -48,13 +48,15 @@ Usage:
     python scripts/eval/eval_conllu.py
     python scripts/eval/eval_conllu.py --emit out.conllu
 
-Last Updated: 2026-07-14
+Last Updated: 2026-09-05
 Author: Claude (with Marc Jones)
 Related Issues: #713, #820
 See Also: docs/PARSER_DESIGN.md, https://aclanthology.org/2025.udw-1.3/
 """
 
 from __future__ import annotations
+
+# CHANGELOG: 2026-09-05: expose token diagnostics using the scoring alignment.
 
 import argparse
 import sys
@@ -104,7 +106,8 @@ def parse_our_conllu(block: str) -> list[dict]:
     return out
 
 
-def evaluate(path: str, emit: list | None = None) -> dict:
+def evaluate(path: str, emit: list | None = None,
+             diagnostics: list | None = None) -> dict:
     gold_sents = read_gold(path)
     uas = las = pos_ok = 0
     aligned = 0
@@ -131,8 +134,15 @@ def evaluate(path: str, emit: list | None = None) -> dict:
         text = g['text'] or ' '.join(t['form'] for t in g['tokens'])
         try:
             block = to_conllu(text, sent_id=str(i + 1))
-        except Exception:
+        except Exception as exc:
             crashed += 1          # every token in this sentence now scores ZERO
+            if diagnostics is not None:
+                for token in g['tokens']:
+                    if token['upos'] != 'PUNCT':
+                        diagnostics.append({'sentence': i + 1, 'text': text,
+                                            'gold': token, 'predicted': None,
+                                            'errors': ['crash'],
+                                            'exception': type(exc).__name__})
             continue
         if emit is not None:
             emit.append(block)
@@ -171,6 +181,29 @@ def evaluate(path: str, emit: list | None = None) -> dict:
                 a=oforms, b=gforms, autojunk=False).get_matching_blocks():
             for k in range(size):
                 ours_to_gold[ours[oi + k]['id']] = g['tokens'][gi_ + k]['id']
+
+        if diagnostics is not None:
+            by_gold = {ours_to_gold[o['id']]: o for o in ours
+                       if o['id'] in ours_to_gold}
+            for gt in g['tokens']:
+                if gt['upos'] == 'PUNCT':
+                    continue
+                o = by_gold.get(gt['id'])
+                predicted = None
+                errors = []
+                if o is None:
+                    errors.append('unaligned')
+                else:
+                    predicted = {**o, 'head_in_gold': (
+                        0 if o['head'] == 0 else ours_to_gold.get(o['head'], -1))}
+                    if predicted['head_in_gold'] != gt['head']:
+                        errors.append('head')
+                    if o['dep'] != gt['dep']:
+                        errors.append('relation')
+                    if o['upos'] != gt['upos']:
+                        errors.append('pos')
+                diagnostics.append({'sentence': i + 1, 'text': text, 'gold': gt,
+                                    'predicted': predicted, 'errors': errors})
 
         for o in ours:
             if o['id'] not in ours_to_gold:

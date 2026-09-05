@@ -116,6 +116,15 @@ def test_por_ke_is_a_clause_marker():
     )
 
 
+def test_correlative_determiner_can_cross_ajn_particle():
+    ast = parse("La edukado per iu ajn etna lingvo estas ligita al perspektivo.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["iu"]["rolo"] == "det"
+    assert words["iu"]["kapo"] == words["lingvo"]["id"]
+    assert words["per"]["rolo"] == "case"
+    assert words["per"]["kapo"] == words["lingvo"]["id"]
+
+
 
 
 def test_attachment_alternatives_use_final_surface_ids():

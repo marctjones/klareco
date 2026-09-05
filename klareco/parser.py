@@ -3283,6 +3283,13 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 break
             if c.get('vortspeco') in ('artikolo', 'adjektivo'):
                 continue                     # `ĉiuj GRANDAJ registaroj`
+            # The focus particle `ajn` may intervene between a correlative
+            # determiner and its noun (`iu ajn etna lingvo`).  It carries no
+            # agreement of its own; skipping it preserves the same hard
+            # case/number test used for an uninterrupted determiner phrase.
+            if (c.get('vortspeco') == 'partiklo'
+                    and (c.get('radiko') or '').lower() == 'ajn'):
+                continue
             if c.get('vortspeco') not in ('substantivo', 'propra_nomo'):
                 break                        # not a noun -> it stands alone
             # AGREEMENT is the test. A numeral does not inflect, so it is exempt.

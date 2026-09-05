@@ -86,6 +86,18 @@ def test_punctuated_pp_does_not_impersonate_a_nominal_enumeration():
     )
 
 
+def test_punctuated_enumeration_does_not_rewrite_a_fragment_root():
+    ast = parse(
+        "del Hoyo, J., Collar, N.J., Christie, D.A., Elliott, A. kaj "
+        "Fishpool, L.D.C. 2014. HBW kaj BirdLife International"
+    )
+    assert not any(
+        change["rule"] == "punctuated-nominal-enumeration-v1"
+        for change in ast["attachment_trace"]
+    )
+    assert expand_ast(json.loads(json.dumps(compact_ast(ast)))) == ast
+
+
 def test_attachment_alternatives_use_final_surface_ids():
     ast = parse("Hieraŭ, mi vidis la viron en la domo.")
     words = {w["plena_vorto"]: w for w in ast["vortoj"]}

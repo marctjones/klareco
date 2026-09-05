@@ -128,6 +128,7 @@ def refine_dependencies(tokens: list[dict]) -> list[AttachmentChange]:
         if (
             predecessor is None
             or final_member is None
+            or candidate.get("kapo") != predecessor["id"]
             or not same_inflection(predecessor, candidate)
             or not same_inflection(candidate, final_member)
             or any(

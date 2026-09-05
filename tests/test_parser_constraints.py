@@ -65,6 +65,27 @@ def test_adverbs_modify_predicates_and_adjective_coordination_survives_projectio
     assert words["ne"]["kapo"] == words["novaj"]["id"]
 
 
+def test_punctuated_nominal_enumeration_is_a_coordinated_phrase():
+    ast = parse("Mi rekomendas librojn, gazetojn kaj revuojn.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["gazetojn"]["rolo"] == "conj"
+    assert words["gazetojn"]["kapo"] == words["librojn"]["id"]
+    assert any(
+        change["rule"] == "punctuated-nominal-enumeration-v1"
+        for change in ast["attachment_trace"]
+    )
+
+
+def test_punctuated_pp_does_not_impersonate_a_nominal_enumeration():
+    ast = parse("Mi legis libron, kun bildoj kaj klarigoj.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["bildoj"]["rolo"] != "conj"
+    assert not any(
+        change["rule"] == "punctuated-nominal-enumeration-v1"
+        for change in ast["attachment_trace"]
+    )
+
+
 def test_attachment_alternatives_use_final_surface_ids():
     ast = parse("Hieraŭ, mi vidis la viron en la domo.")
     words = {w["plena_vorto"]: w for w in ast["vortoj"]}

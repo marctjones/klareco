@@ -9,6 +9,10 @@ from __future__ import annotations
 from typing import TypedDict
 
 
+_LIST_NOMINAL_CLASSES = frozenset(("substantivo", "propra_nomo"))
+_LIST_COORDINATORS = frozenset(("kaj", "aŭ", "nek"))
+
+
 class Edge(TypedDict):
     head_id: int
     relation: str
@@ -48,6 +52,97 @@ def refine_dependencies(tokens: list[dict]) -> list[AttachmentChange]:
                 after=after,
                 evidence_token_ids=sorted(set(evidence)),
             )
+        )
+
+    def same_inflection(left: dict, right: dict) -> bool:
+        """Return whether the visible nominal agreement supports coordination."""
+        return (
+            left.get("kazo") == right.get("kazo")
+            and left.get("nombro") == right.get("nombro")
+        )
+
+    def nearest_list_nominal(words: list[dict]) -> dict | None:
+        return next(
+            (
+                candidate
+                for candidate in reversed(words)
+                if candidate.get("vortspeco") in _LIST_NOMINAL_CLASSES
+            ),
+            None,
+        )
+
+    # A comma-delimited nominal member followed by a coordinator is a list, not
+    # a nominal modifier. Restrict the rule to one member between this comma and
+    # its coordinator: longer enumerations require an explicit UD head-policy
+    # decision (chain versus first-member anchoring), which surface grammar does
+    # not settle.
+    for comma_index, comma in enumerate(tokens):
+        if comma.get("plena_vorto") != ",":
+            continue
+        prefix = tokens[comma_index + 1 : comma_index + 7]
+        candidate = next(
+            (
+                word
+                for word in prefix
+                if word.get("vortspeco") in _LIST_NOMINAL_CLASSES
+            ),
+            None,
+        )
+        if candidate is None or candidate.get("rolo") != "nmod":
+            continue
+        candidate_index = tokens.index(candidate)
+        if any(
+            word.get("vortspeco") in {"verbo", "prepozicio", "konjunkcio"}
+            for word in tokens[comma_index + 1 : candidate_index]
+        ):
+            continue
+        tail = tokens[candidate_index + 1 : candidate_index + 10]
+        coordinator_index = next(
+            (
+                candidate_index + 1 + offset
+                for offset, word in enumerate(tail)
+                if word.get("radiko") in _LIST_COORDINATORS
+            ),
+            None,
+        )
+        if coordinator_index is None:
+            continue
+        between = tokens[candidate_index + 1 : coordinator_index]
+        if any(
+            word.get("vortspeco") in {
+                "verbo", "prepozicio", "konjunkcio", *_LIST_NOMINAL_CLASSES
+            }
+            for word in between
+        ):
+            continue
+        final_member = next(
+            (
+                word
+                for word in tokens[coordinator_index + 1 : coordinator_index + 5]
+                if word.get("vortspeco") in _LIST_NOMINAL_CLASSES
+            ),
+            None,
+        )
+        predecessor_slice = tokens[max(0, comma_index - 7) : comma_index]
+        predecessor = nearest_list_nominal(predecessor_slice)
+        if (
+            predecessor is None
+            or final_member is None
+            or not same_inflection(predecessor, candidate)
+            or not same_inflection(candidate, final_member)
+            or any(
+                word.get("vortspeco") in {"verbo", "prepozicio", "konjunkcio"}
+                for word in tokens[tokens.index(predecessor) + 1 : comma_index]
+            )
+        ):
+            continue
+        attach(
+            candidate,
+            predecessor["id"],
+            "conj",
+            "punctuated-nominal-enumeration-v1",
+            [predecessor["id"], comma["id"], candidate["id"],
+             tokens[coordinator_index]["id"], final_member["id"]],
         )
 
     for index, word in enumerate(tokens):

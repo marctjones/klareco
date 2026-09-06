@@ -25,6 +25,18 @@ marks the queue as unreviewed and not gold.
 
 ## Required scores
 
+For a reviewed gold export, generate sentence-level 95% intervals with:
+
+```bash
+python scripts/eval/parser_bootstrap_report.py \
+  data/test_sets/parser_gold_heldout_v1/gold.conllu \
+  --output data/perf/parser_research/heldout_v1_bootstrap.json
+```
+
+The report reuses the fixed-denominator evaluator and resamples whole
+sentences. It is a confidence diagnostic, not a substitute for independent
+annotation or genre coverage.
+
 Report each split and phenomenon stratum separately:
 
 * token and source-span coverage, including crashes;

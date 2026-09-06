@@ -23,6 +23,21 @@ it cannot authenticate linguistic expertise or resolve an annotation dispute.
 Do not promote `data/test_sets/parser_pilot_v1` yet. Its manifest explicitly
 marks the queue as unreviewed and not gold.
 
+The non-Wikipedia candidate queue can be regenerated with:
+
+```bash
+python scripts/eval/build_parser_corpus_pilot.py \
+  --output data/test_sets/parser_gold_candidates_v1 --size 1000
+```
+
+This reads the extracted Gutenberg, Libera Folio, and Vikifontaro JSONL
+corpora. Selection is deterministic and balanced by source and corpus kind,
+deduplicates normalized text, caps reuse of a document, and assigns entire
+documents to development or heldout. Each row records source title, author,
+kind, license, URL, and source-line provenance. The output is explicitly an
+**unreviewed annotation queue, not gold data**. Automatic parser output must
+not be copied into labels without independent human review.
+
 ## Required scores
 
 For a reviewed gold export, generate sentence-level 95% intervals with:

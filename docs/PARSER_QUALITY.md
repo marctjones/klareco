@@ -47,12 +47,12 @@ filters candidates by parser success. Exact-text exclusion does not establish
 that a different excerpt from the same UD source document is absent; review
 provenance before promoting the queue to gold.
 
-The first local queue has 160 development and 40 heldout sentences. All are
-**unreviewed**, not a gold benchmark. Its source counts are Wikipedia 180 and
-four each from PMEG, Krestomatio, Lingvaj Respondoj, Alice, and Andersen. Those
-smaller sources are each represented as one document in the store, so the
-document cap limits diversification. Acquire more independently sourced
-documents before claiming broad genre coverage.
+The first local queue has 160 development and 40 heldout sentences. A second
+local queue (`parser_pilot_v2`) has 400 development and 100 heldout sentences.
+Both are **unreviewed**, not gold benchmarks. The second queue is still 480/500
+Wikipedia sentences because the smaller sources are each represented as one
+document in the store and the document cap limits diversification. Acquire
+more independently sourced documents before claiming broad genre coverage.
 
 Annotation procedure:
 

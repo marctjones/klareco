@@ -7,6 +7,9 @@ The parser is deterministic. Judge changes against independently annotated
 syntax, preserve the complete result, and report improvements separately from
 downstream QA. No model is part of this workflow.
 
+The decision gate for independent gold, oracle decomposition, stopping rules,
+and learned-component eligibility is [PARSER_EVALUATION_PROTOCOL.md](PARSER_EVALUATION_PROTOCOL.md).
+
 ## Reproduce the measurement
 
 Run from the repository root with the project dependencies installed:

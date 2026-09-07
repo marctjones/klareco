@@ -52,9 +52,12 @@ rows (#805), `verb_klaso` 0% populated (#777), 121,939 redirect stubs indexed
 > and completely dead.
 
 ### `data` — did the data load correctly?
-Per-source row counts, no garbage, provenance intact. Today the store's 5,391,442
-rows account for **every extracted sentence** exactly — the ETL is sound. What is
-missing was never *extracted*: PAG, Proverbaro, Fundamento, ReVo (#810, #806).
+Per-source row counts, no garbage, provenance intact. At the time this ran, the
+store's 5,391,442 rows accounted for **every extracted sentence** exactly — the
+ETL was sound. The store has since been cleaned (2026-07-19, #16): 767,332
+redirect-stub/markup/English rows removed, leaving 4,624,110 — a documented
+cleanup, not a re-appearance of the original problem. What is missing was never
+*extracted*: PAG, Proverbaro, Fundamento, ReVo (#810, #806).
 
 ⚠️ Several tests in this tier **skip** rather than fail (missing ReVo, dead
 FAISS-era assertions). A skipping test masquerades as coverage. See #808.

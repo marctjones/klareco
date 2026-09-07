@@ -117,9 +117,25 @@ one at a time. Each phase closes on a number.
   decoder renders every stage on the golden traces. *(both true today for the
   default spine; extends to all stages once #895 lands)*
 
-### Phase 0.5 — Substrate: the rich AST must reach retrieval  ·  milestone #33  ·  🎯 **NEW, now the critical path**
+### Phase 0.5 — Substrate: the rich AST must reach retrieval  ·  milestone #40 (was #33)  ·  🎯 **PARKED 2026-09-08 — see below**
 *Goal: connect three sound components that are not connected. Added 2026-07-20
 after a full trace of the production path; epic **#901**.*
+
+**PARKED 2026-09-08, at the user's explicit direction: parser output quality
+and extensibility is the current focus, not store consumption.** #905 (the
+one item below already flagged cheap and P0) landed 2026-09-08 alongside a
+crash-bug fix (#927) and a merge-gate restore (#928) — see "Pre-parser work
+and the parser-first pivot" after this phase. Everything else below is
+unchanged in substance, renumbered into milestone **#40**, and will resume
+when store consumption is prioritized again. #35's decoder/candidate-recall
+work is similarly parked as research (milestone **#39**), gated on #920's
+reviewed gold (0/200 today) — its own bar (#914: ≥80%/85% candidate-edge
+recall) is unmet at 76.45%/75.84%, and #926's best decoder result changed 5
+of 2,709 tokens in 2 sentences, not distinguishable from noise on this ruler.
+**#35 supplied the parser justification this phase said #807 lacked**
+(DESIGN.md's July note that #807's rebuild "moved zero UD accuracy metrics")
+— it is a prerequisite input to this phase, not a replacement for it; the
+shape decision #903→#904 is still the gate for the one promotion rebuild.
 
 The 2026-07-14 rebuild succeeded — and a trace found its richest outputs are read
 by nothing. `clauses` (6.95M rows) and `dependency_arcs` (68.9M) have **zero
@@ -151,8 +167,45 @@ production readers**; the whole default pipeline touches five columns
   and reproduces every misalignment above. One rebuild, carrying both.
 - **Exit:** a stage reads clause-level structure through the injected
   `StoreView`, declaring `REQUIRES`; hot-path schema drift **raises**; and the
-  change carries a paired-CI before/after. ⚠️ **Gated by milestone #23** — the
-  discriminating stratum is what makes any of this provable (#736/#778).
+  change carries a paired-CI before/after. ⚠️ **Gated by milestone #41
+  (was #23)** — the discriminating stratum is what makes any of this
+  provable (#736/#778). **Parked with the rest of Phase 0.5, see above.**
+
+### Phase 0.5-parser — Pre-parser work and the parser-first pivot  ·  milestones #36/#37/#38/#39  ·  🔶 CURRENT FOCUS
+*Goal, decided 2026-09-08: fix what's broken, then make sure the parser's own
+output is fully parsed, correctly annotated, and extensible — before any more
+store-consumption or accuracy-research work.*
+
+- ✅ **Pre-parser work (milestone #36)** — #927 (a 0f995ba apposition rule
+  could attach a dependency cycle, crashing `parse()` on ~2.5% of store
+  sentences); #928 (the merge gate itself couldn't collect — a module-level
+  `pandas` import with none installed, silent since 2026-09-05); #905
+  (retriever swallowing schema errors on the hot path, folded in). All three
+  closed 2026-09-08 with a real ledger entry each. #929 (a second, unrelated
+  crash class) and #932 (back up the 1,700-sentence annotation queues before
+  investing review time in them) remain open.
+- 🎯 **Parser: structured extensible AST output (milestone #37)** — the open
+  question is #935: does `klareco/ast_annotations.py`'s versioned,
+  provenance-tracked envelope actually host a RULE-based producer, or only
+  the human/gold ingestion it's been proven on so far? #801/#813/#814
+  (deparser correctness, 16-rule conformance) are the same output-contract
+  question from the reverse direction (AST → text) and moved here from
+  milestone #17. #933 (the candidate generator's ~4x latency + AST-blob
+  bloat for 0 LAS gain) is a cost/hygiene item on the same structure.
+- 🔶 **Parser accuracy — active (milestone #38)** — #918 (PP/argument
+  candidates with valency), #922 (clause spine), #863 (LAS ruler
+  maintenance), #819/#820 (VISION.md's own proper-noun-disambiguation
+  residue claim, falsify or confirm it against a real evaluation set rather
+  than taking the document on trust). None of these needs a reviewed gold
+  set to be worth doing.
+- 🎯 **Parked as research (milestone #39, was #35)** — #914, #919, #923-#925,
+  #926: candidate-generation and the global decoder. #914's own gate
+  (≥80%/85% candidate-edge recall) is unmet (76.45%/75.84%); #926's best
+  result moved 5 of 2,709 tokens in 2 sentences. Resume once #920 has a
+  reviewed stratum (0/200 today).
+- **Exit:** #929/#932 close; #935 produces either a working second producer
+  or a scoped follow-up naming the real gap; #918/#922 move an unseen-stratum
+  LAS number when one exists, or stay regression-fixture evidence until then.
 
 ### Phase 1 — MVP-1: single-turn QA, honest/loud/measured  ·  milestone #29  ·  🎯
 *Goal: the smallest QA system that actually works, on the enforced contract.*
@@ -205,7 +258,21 @@ deterministic core stabilizes first).
 
 ---
 
-## 5. Where we are (2026-07-20)
+## 5. Where we are (2026-09-08)
+
+**Update 2026-09-08:** a read-only audit found the September parser cycle
+real (Prago LAS 62.3%→70.0%, Cairo 66.4%→81.9%, both well above the
+sentence-bootstrap noise floor) but shipped an unguarded crash regression,
+and found the merge gate itself hadn't been running (a missing `pandas`
+import broke `pytest -m contract`/`-m accuracy` collection since
+2026-09-05). Both fixed same-day (#927, #928), along with #905 below. The
+user then made an explicit scope decision: **focus is the parser's own
+output — correctness and an extensible annotation contract — not store
+consumption**, until further notice. Phase 0.5 (milestone #33, now #40) and
+milestone #35 (now #39, demoted to research) are parked, not abandoned; see
+"Phase 0.5-parser" above for the current active milestones (#36-#38).
+
+**The July snapshot, preserved for context (superseded, not deleted):**
 
 - **Foundation, not features.** Phase 0 is most of the way done; almost nothing
   "new" shipped recently by design — the effort proved the old capabilities were

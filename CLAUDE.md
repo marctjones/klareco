@@ -114,14 +114,40 @@ one at a time.
 
 ### Parser stabilization handoff
 
-The active parser work is in [P0 milestone #35](https://github.com/marctjones/klareco/milestone/35).
-Issue #914 owns deterministic candidate coverage, #922 owns clause ownership,
-#919 and #923–#925 own morphology and lexical resources, and #926 owns the
-offline globally constrained decoder. The current selected baseline is Prago
-LAS_all 70.0% / UAS_all 76.5% / UPOS 89.5% and Cairo LAS_all 81.9% / UAS_all
-85.9% / UPOS 91.3%. Research decoder results live under
-`data/perf/parser_research/`; do not promote an offline spike to runtime without
-a frozen LAS movement recorded in `data/perf/bench_history.jsonl`.
+**Restructured 2026-09-08** after a read-only audit found the September
+parser cycle (Prago LAS 62.3%→70.0%, Cairo 66.4%→81.9% — both real, but
+neither reaches a live answer yet, see DESIGN.md "Current state") had also
+shipped an unguarded crash regression, and that milestone #35 was P0-labeled
+work gated on a reviewed gold stratum (#920) that has zero reviewed
+sentences. Milestone #35 is closed; its issues are redistributed:
+
+- **Fixed and closed**: the crash bug (#927 — an apposition rule could
+  attach a cycle; guarded 2026-09-08, LAS unaffected) and the merge gate
+  itself (#928 — `pytest -m contract`/`-m accuracy` could not collect at
+  all; a lazy pandas import and a `_TIERS` fix restored it). Both landed
+  alongside #905 (retriever swallowing schema errors on the hot path).
+- **[Parser: structured extensible AST output](https://github.com/marctjones/klareco/milestone/37)** —
+  the current focus. #935 asks whether the annotation-layer contract
+  (`klareco/ast_annotations.py`) generalizes to a rule-based parser
+  producer, not just human/gold ingestion; #801/#813/#814 cover deparser
+  correctness and 16-rule conformance — the same output-contract question.
+- **[Parser accuracy — active](https://github.com/marctjones/klareco/milestone/38)** —
+  #918 (PP/argument candidates with valency) and #922 (clause spine):
+  real grammar work that doesn't depend on a reviewed gold set to be worth
+  doing.
+- **[Parser accuracy research — deferred](https://github.com/marctjones/klareco/milestone/39)** —
+  #914 (candidate coverage), #919/#923–#925 (morphology/lexical resources),
+  #926 (the global decoder). Demoted from P0: #914's own edge-recall gate
+  (≥80%/85%) is unmet at 76.45%/75.84%, and #926's headlined "+2 Prago
+  edges" changed 5 of 2,709 tokens in 2 sentences — not distinguishable
+  from noise on this ruler. Resume once #920 has a reviewed stratum.
+
+Research decoder results live under `data/perf/parser_research/`; do not
+promote an offline spike to runtime without a frozen LAS movement recorded in
+`data/perf/bench_history.jsonl`. Current selected baseline: Prago LAS_all
+70.0% / UAS_all 76.5% / UPOS 89.5%; Cairo LAS_all 81.9% / UAS_all 85.9% /
+UPOS 91.3% — both are **development-informed regression fixtures**, neither
+is a held-out generalization test (see "Working", below).
 
 ## Schema-First Development
 
@@ -339,7 +365,7 @@ python -m klareco translate "The dog sees the cat." --to eo
 ```bash
 # Parse cleaned texts into a unified corpus with ASTs
 # MEASURED 2026-07-14: the parser does 7,384 sentences/sec on one core with zero
-# crashes, so PARSING 5.39M sentences is ~15 MINUTES, not hours. The wall-clock
+# crashes, so PARSING 4,624,110 sentences is ~10 MINUTES, not hours. The wall-clock
 # cost of a rebuild is I/O and INDEXING — writing a 20 GB JSONL and building the
 # Whoosh index over 5.4M documents — NOT the parse.
 ./scripts/parse/parse_corpus.sh
@@ -835,14 +861,19 @@ with deterministic-first evaluation. See `DESIGN.md` — especially its
 **"Current state"** section — for the full picture.
 
 **Working**:
-- 16-rule parser + deparser. Measured on the UD Esperanto gold treebanks
-  (Prago in-corpus / Cairo **held-out**): POS strict 81.3% / 80.3%, scheme-adj
-  94.7% / 95.9%; **subject-role F1 68.7% / 93.0%** (the field retrieval keys on);
-  dependency LAS 62.3% / 66.4%. Regression-guarded in `pytest -m accuracy`
+- 16-rule parser + deparser. Current numbers live in `DESIGN.md` → "Current
+  state" (single-owned, not duplicated here — this bullet went stale twice
+  by doing that). Regression-guarded in `pytest -m accuracy`
   (`tests/test_parser_ud_accuracy.py`, no store needed — fixtures under
-  `tests/fixtures/ud/`). Caveat: 131+20 gold sentences are a good ceiling +
-  regression ruler but too small to detect targeted incremental wins (#726).
-- DuckDB store: 5.39M sentences, `ast_json` blob + shredded AST columns
+  `tests/fixtures/ud/`). **Both Prago and Cairo are development-informed
+  regression fixtures, not held-out generalization tests** — corrected
+  2026-09-08; Cairo had been mislabeled "held-out" since its errors have in
+  fact informed development. 131+20 gold sentences are a good ceiling +
+  regression ruler but too small to detect targeted incremental wins (#726);
+  an independently reviewed stratum is #920, currently 0/200 reviewed.
+- DuckDB store: 4,624,110 sentences (not 5.39M — the #16 corpus-cleanup pass
+  removed 767,332 redirect-stub/markup/English rows on 2026-07-19; this is a
+  documented cleanup, not data loss), `ast_json` blob + shredded AST columns
 - Whoosh BM25 index with AST-role matching
 - Extractive QA end-to-end: retrieves and answers with citations
 - `klareco.eval` shared by local + Modal evaluators

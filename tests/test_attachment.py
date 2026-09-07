@@ -321,3 +321,22 @@ class TestEllipsisGapping:
         rows = _rows('La hundo vidis la katon.')
         assert _dep(rows, 'katon')['dep'] == 'obj'
         assert 'orphan' not in {r['dep'] for r in rows}
+
+
+class TestApposition:
+    """Rename relationships are appositions, not nominal modifiers."""
+
+    def test_comma_introduced_apposition(self):
+        rows = _rows('Ni, anoj de la movado, laboras.')
+        assert _dep(rows, 'anoj')['dep'] == 'appos'
+        assert _dep(rows, 'anoj')['head'] == _dep(rows, 'Ni')['id']
+
+    def test_proper_noun_after_head_is_apposition(self):
+        rows = _rows('La lingvo Esperanto estas internacia.')
+        assert _dep(rows, 'Esperanto')['dep'] == 'appos'
+        assert _dep(rows, 'Esperanto')['head'] == _dep(rows, 'lingvo')['id']
+
+    def test_article_phrase_after_comma_is_apposition(self):
+        rows = _rows('Ŝi kreskis en Parizo, la ĉefurbo de Francio.')
+        assert _dep(rows, 'ĉefurbo')['dep'] == 'appos'
+        assert _dep(rows, 'ĉefurbo')['head'] == _dep(rows, 'Parizo')['id']

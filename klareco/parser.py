@@ -3377,6 +3377,79 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 w['kapo'], w['rolo'] = c.get('id'), 'nmod'
             break
 
+    # ---- APPOSITION ------------------------------------------------------
+    # A second nominal can rename the first one: `Ni, anoj ...`,
+    # `lingvo Esperanto`, and `Parizo, la ĉefurbo ...`. These are not
+    # genitive modifiers. The signal is structural: the second noun phrase
+    # starts after a comma, or an immediately following proper noun renames a
+    # nominal. Require case/number agreement when both are available and
+    # never cross a coordinator or a preposition.
+    for i, w in enumerate(word_asts, start=1):
+        if not isinstance(w, dict) or w.get('kapo') is not None:
+            continue
+        if w.get('vortspeco') not in ('substantivo', 'propra_nomo'):
+            continue
+
+        # Find the beginning of the noun phrase headed by w. Articles and
+        # agreeing adjectives may precede the head (`la ĉefurbo`).
+        start = i
+        j = i - 1
+        while j >= 1:
+            prev = word_asts[j - 1]
+            if not isinstance(prev, dict):
+                break
+            if prev.get('vortspeco') in ('artikolo', 'adjektivo'):
+                start = j
+                j -= 1
+                continue
+            break
+        phrase_start = word_asts[start - 1]
+        comma_signal = bool(phrase_start.get('punctuation_before')
+                            and ',' in phrase_start['punctuation_before'])
+        prev_nominal = None
+        for k in range(start - 1, 0, -1):
+            candidate = word_asts[k - 1]
+            if not isinstance(candidate, dict):
+                continue
+            if candidate.get('vortspeco') == 'interpunkcio':
+                continue
+            if _nominal(candidate):
+                prev_nominal = candidate
+            break
+
+        # Without punctuation, require a proper-noun rename (`lingvo
+        # Esperanto`) so ordinary noun-noun sequences remain untouched.
+        adjacent_name_signal = (
+            not phrase_start.get('punctuation_before')
+            and not comma_signal and w.get('vortspeco') == 'propra_nomo'
+            and prev_nominal is not None
+            and not any(isinstance(x, dict) and
+                        (x.get('radiko') or '').lower() in _COORDINATORS
+                        for x in word_asts[start - 1:i - 1]))
+        # A comma-delimited apposition is safest when it renames a pronoun
+        # (`Ni, anoj`) or starts an explicit noun phrase (`Parizo, la
+        # ĉefurbo`). Bare address fragments such as `HOMARO, Chemin 20,
+        # Lausanne` are not licensed by this local signal and remain nmod.
+        comma_appos_signal = (
+            comma_signal and prev_nominal is not None
+            and (prev_nominal.get('vortspeco') == 'pronomo'
+                 or (start < i and
+                     word_asts[start - 1].get('vortspeco') == 'artikolo')))
+        if not comma_appos_signal and not adjacent_name_signal:
+            continue
+        if prev_nominal is None:
+            continue
+        if any(isinstance(x, dict) and x.get('vortspeco') == 'prepozicio'
+               for x in word_asts[start - 1:i - 1]):
+            continue
+        if (prev_nominal.get('kazo') and w.get('kazo')
+                and prev_nominal.get('kazo') != w.get('kazo')):
+            continue
+        if (not comma_signal and prev_nominal.get('nombro') and w.get('nombro')
+                and prev_nominal.get('nombro') != w.get('nombro')):
+            continue
+        w['kapo'], w['rolo'] = prev_nominal.get('id'), 'appos'
+
     # ---- THE COPULA ------------------------------------------------------
     # `Esperanto estas lingvo` — UD makes the PREDICATE (`lingvo`) the ROOT and
     # `estas` a `cop` CHILD of it. We were making `estas` the root, which is not
@@ -4444,6 +4517,20 @@ def _parse_cached(text: str):
                 ast["propra_nomo_evidence"] = "preceded_by_la"
 
         word_asts.append(ast)
+
+    # Preserve punctuation context before syntactic attachment.  The final
+    # weaving pass repeats this metadata for the public AST, but attachment
+    # rules such as apposition need to see commas while they are deciding
+    # heads and relations.
+    pending_marks = []
+    content_index = 0
+    for surface, is_punctuation in surface_tokens:
+        if is_punctuation:
+            pending_marks.append(surface)
+        else:
+            word_asts[content_index]['punctuation_before'] = pending_marks
+            pending_marks = []
+            content_index += 1
 
     # Validate adjective agreement: an adjective must agree with a head
     # noun. The capitalization-guard exception lets sentence-initial -a

@@ -1,0 +1,31 @@
+{
+  "experiment": "deterministic-apposition-attachment-v1",
+  "commit": "0f995ba",
+  "benchmark": "ud_conllu_las_uas",
+  "test_set": "eo_prago-ud-test + eo_cairo-ud-test",
+  "before": {
+    "prago_las_all": 0.6976401179941003,
+    "prago_uas_all": 0.7636430678466076,
+    "cairo_las_all": 0.7919463087248322,
+    "cairo_uas_all": 0.8523489932885906
+  },
+  "after": {
+    "prago_las_all": 0.698377581120944,
+    "prago_uas_all": 0.7636430678466076,
+    "cairo_las_all": 0.8120805369127517,
+    "cairo_uas_all": 0.8523489932885906
+  },
+  "delta": {
+    "prago_las_correct": 2,
+    "prago_las_lost": 0,
+    "cairo_las_correct": 3,
+    "cairo_las_lost": 0
+  },
+  "validation": {
+    "focused_tests": "30 passed",
+    "parser_regression": "295 passed, 1 xfailed",
+    "treebank_crashes": {"prago": 0, "cairo": 0}
+  },
+  "method": "Attach a second nominal as appos when a comma-delimited phrase follows a pronoun or explicit article phrase, or when an adjacent proper noun renames a nominal. Preserve ordinary noun sequences and address fragments as nmod.",
+  "limitation": "This is a structural rule for observed appositive shapes; punctuation-free common-noun apposition and semantically ambiguous nominal sequences remain unresolved."
+}

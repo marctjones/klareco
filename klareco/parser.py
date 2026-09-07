@@ -3791,6 +3791,15 @@ def attach_all(word_asts: list, clauses: list) -> None:
                             in _SUBORDINATORS):
                         w['kapo'], w['rolo'] = j, _CASE_ROLE
                         break
+                    # An article can license a substantivized adjective too:
+                    # `kiel la bosna kaj Esperanto`.  Treating the later
+                    # proper noun as the PP head makes coordination point back
+                    # through `kiel` and creates a dependency cycle.
+                    prev = word_asts[j - 2] if j >= 2 else None
+                    if (isinstance(prev, dict)
+                            and prev.get('vortspeco') == 'artikolo'):
+                        w['kapo'], w['rolo'] = j, _CASE_ROLE
+                        break
                     continue
                 if c.get('vortspeco') == 'artikolo':
                     continue
@@ -3915,6 +3924,40 @@ def attach_all(word_asts: list, clauses: list) -> None:
             _attach_pp(word_asts, w, i, gov, verb)
         else:
             w['kapo'], w['rolo'] = verb, 'dep'
+
+    # Final guard for a provisional PP edge that survived the coordination
+    # revisit. In `kiel la bosna kaj Esperanto`, the proper noun is the second
+    # conjunct and must not remain a `conj` child of `kiel`.
+    for index, word in enumerate(word_asts):
+        if word.get('rolo') != 'conj' or not word.get('kapo'):
+            continue
+        head = word_asts[word['kapo'] - 1]
+        if (head.get('vortspeco') != 'prepozicio'
+                and not head.get('comparison_marker')
+                and head.get('vortspeco') != 'adjektivo'):
+            continue
+        for left_index in range(index - 1, max(index - 8, 0), -1):
+            left = word_asts[left_index]
+            if left.get('vortspeco') == 'konjunkcio':
+                if left_index == 0:
+                    break
+                predecessor = word_asts[left_index - 1]
+                if (predecessor.get('vortspeco') == 'adjektivo'
+                        and left_index >= 2
+                        and word_asts[left_index - 2].get('vortspeco') == 'artikolo'):
+                    if predecessor.get('kapo') == word['id']:
+                        # The adjective was provisionally made an `amod` of
+                        # the following conjunct. Make its nominalized phrase
+                        # attach to the list head before redirecting the
+                        # second conjunct, which removes the cycle.
+                        for anchor in reversed(word_asts[:left_index - 2]):
+                            if anchor.get('vortspeco') in (
+                                    'substantivo', 'propra_nomo', 'pronomo'):
+                                predecessor['kapo'], predecessor['rolo'] = (
+                                    anchor['id'], 'nmod')
+                                break
+                    word['kapo'], word['rolo'] = predecessor['id'], 'conj'
+                break
 
     # ---- 3. `nmod` vs `obl` IS DECIDED BY THE HEAD, NOT BY WHOEVER SET IT ----
     #

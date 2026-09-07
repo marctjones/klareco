@@ -155,12 +155,18 @@ def measure(path: Path) -> dict:
                 "tokens": 0,
                 "head_errors": 0,
                 "head_errors_with_gold_candidate": 0,
+                "las_errors": 0,
+                "las_errors_with_gold_edge": 0,
             })
             bucket["tokens"] += 1
             if not head_ok:
                 bucket["head_errors"] += 1
                 if candidate_has_gold:
                     bucket["head_errors_with_gold_candidate"] += 1
+            if not (head_ok and relation_ok):
+                bucket["las_errors"] += 1
+                if candidate_has_gold_edge:
+                    bucket["las_errors_with_gold_edge"] += 1
 
     aligned = totals["aligned"]
     head_errors = totals["head_errors"]

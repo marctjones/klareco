@@ -1,0 +1,391 @@
+{
+  "eo_prago-ud-test": {
+    "path": "data/external/ud_esperanto_prago/eo_prago-ud-test.conllu",
+    "metrics": {
+      "gold_tokens": 2712,
+      "aligned": 2709,
+      "head_correct": 2076,
+      "las_correct": 1898,
+      "candidate_head_recall": 2398,
+      "candidate_edge_recall": 2054,
+      "candidate_head_recall_on_head_errors": 458,
+      "candidate_edge_recall_on_las_errors": 285,
+      "head_errors": 633,
+      "head_errors_with_gold_candidate": 458,
+      "head_errors_without_gold_candidate": 175,
+      "las_errors_with_gold_edge": 285,
+      "las_errors_without_gold_edge": 526,
+      "relation_errors_with_gold_head": 178,
+      "unaligned": 3,
+      "crashed_sentences": 0,
+      "uas": 0.7663344407530454,
+      "las": 0.7006275378368402,
+      "candidate_head_recall_rate": 0.8851974898486527,
+      "candidate_edge_recall_rate": 0.7582133628645257,
+      "candidate_recall_on_head_errors_rate": 0.7235387045813586,
+      "candidate_edge_recall_on_las_errors_rate": 0.35141800246609123,
+      "potential_las_if_candidate_edges_selected": 0.8058324104835732
+    },
+    "by_gold_relation": {
+      "root": {
+        "tokens": 131,
+        "head_errors": 13,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 13,
+        "las_errors_with_gold_edge": 0
+      },
+      "case": {
+        "tokens": 365,
+        "head_errors": 17,
+        "head_errors_with_gold_candidate": 16,
+        "las_errors": 21,
+        "las_errors_with_gold_edge": 12
+      },
+      "nmod": {
+        "tokens": 372,
+        "head_errors": 103,
+        "head_errors_with_gold_candidate": 79,
+        "las_errors": 142,
+        "las_errors_with_gold_edge": 35
+      },
+      "det": {
+        "tokens": 249,
+        "head_errors": 13,
+        "head_errors_with_gold_candidate": 10,
+        "las_errors": 17,
+        "las_errors_with_gold_edge": 8
+      },
+      "amod": {
+        "tokens": 267,
+        "head_errors": 17,
+        "head_errors_with_gold_candidate": 15,
+        "las_errors": 24,
+        "las_errors_with_gold_edge": 12
+      },
+      "appos": {
+        "tokens": 17,
+        "head_errors": 7,
+        "head_errors_with_gold_candidate": 6,
+        "las_errors": 15,
+        "las_errors_with_gold_edge": 0
+      },
+      "nsubj": {
+        "tokens": 223,
+        "head_errors": 55,
+        "head_errors_with_gold_candidate": 47,
+        "las_errors": 60,
+        "las_errors_with_gold_edge": 23
+      },
+      "advmod": {
+        "tokens": 199,
+        "head_errors": 69,
+        "head_errors_with_gold_candidate": 56,
+        "las_errors": 78,
+        "las_errors_with_gold_edge": 45
+      },
+      "obj": {
+        "tokens": 143,
+        "head_errors": 53,
+        "head_errors_with_gold_candidate": 49,
+        "las_errors": 62,
+        "las_errors_with_gold_edge": 47
+      },
+      "obl": {
+        "tokens": 79,
+        "head_errors": 42,
+        "head_errors_with_gold_candidate": 30,
+        "las_errors": 52,
+        "las_errors_with_gold_edge": 24
+      },
+      "conj": {
+        "tokens": 168,
+        "head_errors": 64,
+        "head_errors_with_gold_candidate": 41,
+        "las_errors": 77,
+        "las_errors_with_gold_edge": 14
+      },
+      "cc": {
+        "tokens": 145,
+        "head_errors": 44,
+        "head_errors_with_gold_candidate": 39,
+        "las_errors": 46,
+        "las_errors_with_gold_edge": 37
+      },
+      "acl": {
+        "tokens": 52,
+        "head_errors": 17,
+        "head_errors_with_gold_candidate": 11,
+        "las_errors": 20,
+        "las_errors_with_gold_edge": 4
+      },
+      "xcomp": {
+        "tokens": 28,
+        "head_errors": 8,
+        "head_errors_with_gold_candidate": 8,
+        "las_errors": 16,
+        "las_errors_with_gold_edge": 1
+      },
+      "advcl": {
+        "tokens": 50,
+        "head_errors": 23,
+        "head_errors_with_gold_candidate": 5,
+        "las_errors": 43,
+        "las_errors_with_gold_edge": 1
+      },
+      "mark": {
+        "tokens": 84,
+        "head_errors": 27,
+        "head_errors_with_gold_candidate": 20,
+        "las_errors": 35,
+        "las_errors_with_gold_edge": 9
+      },
+      "ccomp": {
+        "tokens": 32,
+        "head_errors": 9,
+        "head_errors_with_gold_candidate": 3,
+        "las_errors": 16,
+        "las_errors_with_gold_edge": 2
+      },
+      "cop": {
+        "tokens": 20,
+        "head_errors": 4,
+        "head_errors_with_gold_candidate": 2,
+        "las_errors": 5,
+        "las_errors_with_gold_edge": 1
+      },
+      "aux": {
+        "tokens": 50,
+        "head_errors": 29,
+        "head_errors_with_gold_candidate": 7,
+        "las_errors": 41,
+        "las_errors_with_gold_edge": 0
+      },
+      "nummod": {
+        "tokens": 15,
+        "head_errors": 10,
+        "head_errors_with_gold_candidate": 10,
+        "las_errors": 10,
+        "las_errors_with_gold_edge": 10
+      },
+      "discourse": {
+        "tokens": 2,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 2,
+        "las_errors": 2,
+        "las_errors_with_gold_edge": 0
+      },
+      "iobj": {
+        "tokens": 4,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 4,
+        "las_errors_with_gold_edge": 0
+      },
+      "parataxis": {
+        "tokens": 8,
+        "head_errors": 6,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 6,
+        "las_errors_with_gold_edge": 0
+      },
+      "fixed": {
+        "tokens": 5,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 5,
+        "las_errors_with_gold_edge": 0
+      },
+      "csubj": {
+        "tokens": 1,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 0
+      }
+    }
+  },
+  "eo_cairo-ud-test": {
+    "path": "data/external/ud_esperanto_cairo/eo_cairo-ud-test.conllu",
+    "metrics": {
+      "gold_tokens": 149,
+      "aligned": 149,
+      "head_correct": 128,
+      "las_correct": 122,
+      "candidate_head_recall": 128,
+      "candidate_edge_recall": 113,
+      "candidate_head_recall_on_head_errors": 19,
+      "candidate_edge_recall_on_las_errors": 10,
+      "head_errors": 21,
+      "head_errors_with_gold_candidate": 19,
+      "head_errors_without_gold_candidate": 2,
+      "las_errors_with_gold_edge": 10,
+      "las_errors_without_gold_edge": 17,
+      "relation_errors_with_gold_head": 6,
+      "unaligned": 0,
+      "crashed_sentences": 0,
+      "uas": 0.8590604026845637,
+      "las": 0.8187919463087249,
+      "candidate_head_recall_rate": 0.8590604026845637,
+      "candidate_edge_recall_rate": 0.7583892617449665,
+      "candidate_recall_on_head_errors_rate": 0.9047619047619048,
+      "candidate_edge_recall_on_las_errors_rate": 0.37037037037037035,
+      "potential_las_if_candidate_edges_selected": 0.8859060402684564
+    },
+    "by_gold_relation": {
+      "det": {
+        "tokens": 10,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 1
+      },
+      "nsubj": {
+        "tokens": 24,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 1
+      },
+      "root": {
+        "tokens": 20,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 0
+      },
+      "obj": {
+        "tokens": 14,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 2,
+        "las_errors": 3,
+        "las_errors_with_gold_edge": 2
+      },
+      "case": {
+        "tokens": 6,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 0,
+        "las_errors_with_gold_edge": 0
+      },
+      "nmod": {
+        "tokens": 10,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 2,
+        "las_errors_with_gold_edge": 1
+      },
+      "mark": {
+        "tokens": 5,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 2,
+        "las_errors_with_gold_edge": 0
+      },
+      "ccomp": {
+        "tokens": 2,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 0,
+        "las_errors_with_gold_edge": 0
+      },
+      "xcomp": {
+        "tokens": 8,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 2,
+        "las_errors_with_gold_edge": 0
+      },
+      "cc": {
+        "tokens": 8,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 2,
+        "las_errors": 2,
+        "las_errors_with_gold_edge": 2
+      },
+      "conj": {
+        "tokens": 8,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 2,
+        "las_errors": 2,
+        "las_errors_with_gold_edge": 2
+      },
+      "advmod": {
+        "tokens": 15,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 2,
+        "las_errors": 2,
+        "las_errors_with_gold_edge": 1
+      },
+      "vocative": {
+        "tokens": 1,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 0
+      },
+      "cop": {
+        "tokens": 2,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 0,
+        "las_errors_with_gold_edge": 0
+      },
+      "orphan": {
+        "tokens": 3,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 0
+      },
+      "amod": {
+        "tokens": 1,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 0,
+        "las_errors_with_gold_edge": 0
+      },
+      "appos": {
+        "tokens": 3,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 0,
+        "las_errors_with_gold_edge": 0
+      },
+      "aux": {
+        "tokens": 4,
+        "head_errors": 3,
+        "head_errors_with_gold_candidate": 2,
+        "las_errors": 4,
+        "las_errors_with_gold_edge": 0
+      },
+      "acl": {
+        "tokens": 1,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0,
+        "las_errors": 0,
+        "las_errors_with_gold_edge": 0
+      },
+      "compound": {
+        "tokens": 1,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 0
+      },
+      "advcl": {
+        "tokens": 2,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 0
+      },
+      "parataxis": {
+        "tokens": 1,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 1,
+        "las_errors": 1,
+        "las_errors_with_gold_edge": 0
+      }
+    }
+  }
+}

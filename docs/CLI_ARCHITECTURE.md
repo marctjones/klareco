@@ -75,7 +75,7 @@ format), plus any enabled optional modules.
 |---|---|---|
 | 🔶 | `python -m klareco query "<demando>"` | Answer an Esperanto question with citations. **Gap: defaults still point at retired `data/indexes/whoosh` + a Kuzu path; pass `--whoosh-dir data/indexes/whoosh_v2` (fix tracked below).** |
 | ✅ | `python -m klareco explain "<demando>"` | Answer **and print the decoded thought at every stage** — the universal decoder (#882). The primary tool for seeing what the system "thought". |
-| ✅ | `python -m klareco parse "<frazo>" [--format json]` | Parse one sentence to a role-annotated AST (no retrieval). |
+| ✅ | `python -m klareco parse "<frazo>" [--format json] [--export-json PATH]` | Parse one sentence to a role-annotated AST (no retrieval). `--format json` displays the expanded AST; `--export-json` writes the versioned compact JSON envelope. The Python `parse()` API remains a native dictionary. |
 | ✅ | `python -m klareco translate "<text>" [--to eo]` | Deterministic translation to/from Esperanto. |
 | 🎯 | `klareco serve [--port N]` | Long-lived server: build the pipeline once, answer many questions (avoids per-call startup). |
 

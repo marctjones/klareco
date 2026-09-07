@@ -43,6 +43,16 @@ def test_parse_json_flag_is_machine_readable(capsys):
     json.loads(capsys.readouterr().out)      # must be valid JSON
 
 
+def test_parse_exports_canonical_compact_ast_json(tmp_path, capsys):
+    output = tmp_path / 'sentence.ast.json'
+    rc = main(['parse', 'La suno brilas.', '--export-json', str(output)])
+    capsys.readouterr()
+    stored = json.loads(output.read_text(encoding='utf-8'))
+    assert rc == EXIT_OK
+    assert stored['_ast_format'] == 2
+    assert set(stored) == {'_ast_format', 'vortoj', 'structure'}
+
+
 def test_data_stage_previews_by_default(capsys):
     rc = main(['data', 'parse'])
     out = capsys.readouterr().out

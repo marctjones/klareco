@@ -14,9 +14,15 @@ from klareco.cli._base import (
 
 
 def cmd_parse(args) -> int:
-    from klareco.parser import parse
+    from klareco.parser import compact_ast, parse
     try:
         ast = parse(read_text_input(args))
+        if args.export_json:
+            from pathlib import Path
+            Path(args.export_json).write_text(
+                _json.dumps(compact_ast(ast), indent=2, ensure_ascii=False) + '\n',
+                encoding='utf-8',
+            )
     except Exception as e:
         return err(str(e))
     if getattr(args, 'json', False) or args.format == 'json':
@@ -50,6 +56,8 @@ def register(sub) -> None:
     p.add_argument('text', nargs='?', help='Esperanto text to parse')
     p.add_argument('-f', '--file', help='Read input from a file')
     p.add_argument('--format', choices=['text', 'json'], default='text')
+    p.add_argument('--export-json', metavar='PATH',
+                   help='Write the canonical compact AST JSON envelope to PATH')
     add_common(p)
     p.set_defaults(func=cmd_parse)
 

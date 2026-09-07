@@ -1,0 +1,27 @@
+{
+  "experiment": "comparative-ol-case-v1",
+  "issue": "#918",
+  "benchmark": "ud_conllu_las_uas",
+  "test_set": "tests/fixtures/ud/eo_prago-ud-test.conllu + eo_cairo-ud-test.conllu",
+  "metric": "LAS_all / UAS_all",
+  "before": {
+    "prago_las_all": 0.698377581120944,
+    "prago_uas_all": 0.7636430678466076,
+    "cairo_las_all": 0.8120805369127517,
+    "cairo_uas_all": 0.8523489932885906
+  },
+  "after": {
+    "prago_las_all": 0.6998525073746312,
+    "prago_uas_all": 0.7654867256637168,
+    "cairo_las_all": 0.8187919463087249,
+    "cairo_uas_all": 0.8590604026845637
+  },
+  "delta": {
+    "prago_las_correct": 4,
+    "prago_las_lost": 0,
+    "cairo_las_correct": 1,
+    "cairo_las_lost": 0
+  },
+  "method": "Classify ol as a preposition and mark it as a non-clausal comparison only when its following span has no finite predicate; substantivized possessives such as ol via and ol la mia are treated as nominal PP complements.",
+  "limitation": "The finite-clause distinction is structural; lexical and semantic comparison scope remains outside deterministic evidence."
+}

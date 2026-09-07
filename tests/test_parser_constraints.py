@@ -57,6 +57,31 @@ def test_comparison_phrase_does_not_steal_subject_of_following_clause():
     assert not question["vortoj"][0].get("comparison_marker")
 
 
+@pytest.mark.parametrize("text", [
+    "Li estas pli juna ol ŝi.",
+    "Mia patro estas pli moda ol via.",
+    "Mia patro estas pli amika ol la mia.",
+])
+def test_nominal_comparative_ol_is_a_case_marker(text):
+    ast = parse(text)
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["ol"]["vortspeco"] == "prepozicio"
+    assert words["ol"]["rolo"] == "case"
+    assert words["ol"].get("comparison_marker") is True
+    complement = next(
+        words[name] for name in ("ŝi", "via", "mia") if name in words
+    )
+    assert words["ol"]["kapo"] == complement["id"]
+
+
+def test_finite_comparative_ol_still_opens_a_clause():
+    ast = parse("Li estas pli alta ol mi estas.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["ol"]["vortspeco"] == "prepozicio"
+    assert not words["ol"].get("comparison_marker")
+    assert words["estas"]["rolo"] == "advcl"
+
+
 def test_adverbs_modify_predicates_and_adjective_coordination_survives_projection():
     ast = parse("La domoj grandaj kaj malgrandaj ne estas novaj.")
     words = {w["plena_vorto"]: w for w in ast["vortoj"]}

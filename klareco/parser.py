@@ -299,6 +299,7 @@ KNOWN_PREPOSITIONS = {
     "per",     # by means of, with
     "po",      # at (distributive)
     "por",     # for (purpose, benefit) - Issue #89
+    "ol",      # than (comparative complement; also opens finite clauses)
     "post",    # after, behind
     "preter",  # past, by
     "pri",     # about, concerning
@@ -3853,6 +3854,13 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 if c.get('rolo') in ('det', 'nummod'):
                     continue                 # a determiner of the noun we want
                 if c.get('vortspeco') == 'adjektivo':
+                    # Possessives can stand alone after a comparative marker:
+                    # `pli moda ol via` / `ol la mia`. With no following noun,
+                    # the adjective is the PP's nominal complement.
+                    if (_is_possessive(c)
+                            and not any(_nominal(x) for x in word_asts[j:])):
+                        w['kapo'], w['rolo'] = j, _CASE_ROLE
+                        break
                     # An inflected adjective can stand substantivally when a
                     # clause marker follows (`de aliaj ke ili ...`).  In that
                     # construction it is the PP's nominal head, not an
@@ -3954,6 +3962,12 @@ def attach_all(word_asts: list, clauses: list) -> None:
             # relation instead of forcing it through adjective agreement.
             prev = word_asts[i - 2] if i >= 2 else None
             nxt = word_asts[i] if i < n else None
+            if (_is_possessive(w) and isinstance(prev, dict)
+                    and (prev.get('vortspeco') == 'prepozicio'
+                         or prev.get('comparison_marker'))
+                    and not any(_nominal(x) for x in word_asts[i:])):
+                _attach_pp(word_asts, w, i, prev, verb)
+                continue
             if (isinstance(prev, dict)
                     and (prev.get('vortspeco') == 'prepozicio'
                          or prev.get('comparison_marker'))
@@ -4897,12 +4911,16 @@ def _parse_cached(text: str):
             content_index += 1
 
     for i, word in enumerate(word_asts):
-        if not (word.get('vortspeco') == 'korelativo'
-                and word.get('korelativo_prefikso') == 'ki'
-                and word.get('korelativo_sufikso') == 'el'):
+        is_kiel = (word.get('vortspeco') == 'korelativo'
+                   and word.get('korelativo_prefikso') == 'ki'
+                   and word.get('korelativo_sufikso') == 'el')
+        is_ol = ((word.get('radiko') or '').lower() == 'ol'
+                 and word.get('vortspeco') == 'prepozicio')
+        if not (is_kiel or is_ol):
             continue
-        # A delimited comparison without a finite predicate is a phrase, not
-        # a new finite clause: kiel ĉiu lingvo, ... / kiel mi, ... .
+        # A comparison without a finite predicate is a phrase, not a new
+        # finite clause: kiel ĉiu lingvo, ... / ol via patro.  A finite
+        # predicate remains a subordinate comparative clause (ol mi venis).
         tail = []
         for following in word_asts[i + 1:]:
             if any(m in (',', ';', '.', '!', '?')
@@ -4910,7 +4928,7 @@ def _parse_cached(text: str):
                 break
             tail.append(following)
         if (tail and not any(_is_finite_verb(w) for w in tail)
-                and any(_nominal(w) for w in tail)):
+                and any(_nominal(w) or _is_possessive(w) for w in tail)):
             word['comparison_marker'] = True
 
     sentence_ast["propozicioj"] = build_clauses(word_asts)

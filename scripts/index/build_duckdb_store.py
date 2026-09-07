@@ -53,7 +53,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import duckdb
-import pandas as pd
 from whoosh import index as whoosh_index
 from whoosh.fields import ID, TEXT, Schema
 
@@ -347,6 +346,10 @@ def main() -> int:
     def flush(rows):
         if not rows:
             return
+        import pandas as pd              # klareco#928: lazy — the contract
+                                          # suite imports ensure_schema/shred
+                                          # from this module and must collect
+                                          # without pandas installed.
         df = pd.DataFrame(rows)          # noqa: F841 (used by DuckDB)
         # Columns are listed EXPLICITLY and in schema order. A positional
         # `SELECT *` here would silently mis-map the moment a column is added —

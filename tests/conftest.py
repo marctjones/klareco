@@ -55,6 +55,9 @@ _TIERS: dict[str, str] = {
     'test_decoder':              'contract',
     'test_dependencies':         'contract',
     'test_loud_failure_lint':    'contract',
+    'test_stored_ast':           'contract',
+    'test_parser_rebuild':       'contract',
+    'test_no_private_connections': 'contract',
 
     # --- pipeline: do the pieces work, end to end? ----------------------------
     'test_orchestrator':         'pipeline',

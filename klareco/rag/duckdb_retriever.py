@@ -261,13 +261,23 @@ class DuckDBRetriever:
         # (measured: DuckDB dominated 82.6% of retrieval wall clock).
         t0 = time.time()
         placeholders = ','.join('?' * len(cand_ids))
+        # klareco#905: only IO/corruption-class errors are recoverable here —
+        # they're the known-bad-block scenario the fallback below exists for.
+        # A schema error (BinderException/CatalogException: a column or table
+        # this query names doesn't exist) is a bug, not a corrupt block, and
+        # must propagate so RetrieveStage.on_failure stamps stage_failed
+        # instead of silently degrading to an empty result (#881's failure
+        # mode, on the one path that always runs).
+        _RECOVERABLE_DB_ERRORS = (
+            duckdb.IOException, duckdb.InternalException, duckdb.FatalException,
+        )
         try:
             rows = self.con.execute(
                 f"SELECT sid, subj_vortspeco, obj_radiko "
                 f"FROM sentences WHERE sid IN ({placeholders})",
                 cand_ids,
             ).fetchall()
-        except Exception as e:
+        except _RECOVERABLE_DB_ERRORS as e:
             # Likely corrupt-block IO. Fall back to per-sid fetch, dropping
             # the ones that throw.
             logger.warning(f"Bulk fetch failed ({e}); falling back to per-sid")
@@ -279,7 +289,7 @@ class DuckDBRetriever:
                         "FROM sentences WHERE sid = ?", [sid]).fetchone()
                     if r:
                         rows.append(r)
-                except Exception:
+                except _RECOVERABLE_DB_ERRORS:
                     continue
         self._phase_timer.add('duckdb_fetch', (time.time() - t0) * 1000)
 
@@ -322,7 +332,7 @@ class DuckDBRetriever:
                         f"SELECT sid, text, ast_json FROM sentences "
                         f"WHERE sid IN ({ph})", top_ids).fetchall():
                     heavy[sid] = (text, aj)
-            except Exception as e:
+            except _RECOVERABLE_DB_ERRORS as e:
                 logger.warning(f"Top-k heavy fetch failed ({e}); per-sid fallback")
                 for sid in top_ids:
                     try:
@@ -331,7 +341,7 @@ class DuckDBRetriever:
                             "WHERE sid = ?", [sid]).fetchone()
                         if r:
                             heavy[r[0]] = (r[1], r[2])
-                    except Exception:
+                    except _RECOVERABLE_DB_ERRORS:
                         continue
         for r in top:
             text, aj = heavy.get(int(r['id']), (None, None))

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from klareco.orchestrator.context import (
     QueryContext, ContextDelta, StageMetrics, ParsedPassage
 )
+from klareco.orchestrator.dependencies import TableDependency
 from klareco.orchestrator.stage import PipelineStage, ModelRegistry
 
 if TYPE_CHECKING:
@@ -25,6 +26,21 @@ logger = logging.getLogger(__name__)
 
 class RetrieveStage(PipelineStage):
     name = 'retrieve'
+
+    # Loud-failure contract (#884, #905): the columns DuckDBRetriever
+    # actually queries on the hot path (light candidate fetch + heavy top-k
+    # fetch). A schema drift here used to be swallowed into an empty result
+    # (#881's failure mode); it's now a construction-time preflight failure
+    # instead, and duckdb_retriever.py's own except blocks were narrowed to
+    # let schema errors (BinderException/CatalogException) raise rather than
+    # degrade like a corrupt block.
+    REQUIRES = (
+        TableDependency(
+            'sentences',
+            columns=('sid', 'text', 'ast_json', 'subj_vortspeco', 'obj_radiko'),
+            issue='#905',
+        ),
+    )
 
     def __init__(
         self,

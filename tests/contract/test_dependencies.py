@@ -95,6 +95,52 @@ def test_stages_without_requires_need_no_db(tmp_path):
     preflight_stages([stage], duckdb_path=tmp_path / 'nonexistent.db')
 
 
+def _drifted_store(mini_store, tmp_path):
+    import shutil
+    import duckdb as duckdb_mod
+
+    db_path, whoosh_dir = mini_store
+    drifted_db = tmp_path / 'drifted.db'
+    shutil.copy(db_path, drifted_db)
+    con = duckdb_mod.connect(str(drifted_db))
+    con.execute("ALTER TABLE sentences RENAME COLUMN subj_vortspeco TO subj_vortspeco_old")
+    con.close()
+    return drifted_db, whoosh_dir
+
+
+def test_retrieve_stage_construction_preflight_catches_hot_path_drift(mini_store, tmp_path):
+    """CONSTRUCTION-TIME half of #905: RetrieveStage.REQUIRES now names the
+    exact columns its SQL selects, so a schema drift on any of them fails
+    build_mini_pipeline() (== build_default_pipeline()) itemized, with the
+    issue number, before a single question is ever answered."""
+    from klareco.orchestrator.mini import build_mini_pipeline
+
+    drifted_db, whoosh_dir = _drifted_store(mini_store, tmp_path)
+    with pytest.raises(DependencyError) as ei:
+        build_mini_pipeline(whoosh_dir=whoosh_dir, duckdb_path=drifted_db)
+    msg = str(ei.value)
+    assert '[retrieve]' in msg
+    assert 'subj_vortspeco' in msg
+    assert '#905' in msg
+
+
+def test_duckdb_retriever_raises_on_hot_path_schema_drift(mini_store, tmp_path):
+    """RUNTIME half of #905: even bypassing preflight (e.g. a caller that
+    constructs DuckDBRetriever directly, or runs KLARECO_ALLOW_DEGRADED=1), a
+    schema error on the hot path must raise — not silently degrade to an
+    empty result, which is indistinguishable from "no relevant passages
+    exist" and is exactly how #881 hid for weeks on the always-runs path.
+    This exercises the except-narrowing fix in duckdb_retriever.py directly."""
+    from klareco.parser import parse
+    from klareco.rag.duckdb_retriever import DuckDBRetriever
+
+    drifted_db, whoosh_dir = _drifted_store(mini_store, tmp_path)
+    retriever = DuckDBRetriever(whoosh_index_dir=whoosh_dir, duckdb_path=drifted_db)
+    question_ast = parse("Kiu kreis Esperanton?")
+    with pytest.raises(duckdb.Error):
+        retriever.retrieve_with_ast_roles(question_ast, top_k=5)
+
+
 def test_planner_and_biography_declare_the_live_triple_schema():
     """Post-#881: both read entity_facts through the SLOTS adapter over the live
     TRIPLE table, so they must DECLARE the triple columns that actually exist —

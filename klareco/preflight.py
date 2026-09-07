@@ -219,9 +219,18 @@ def _check_duckdb(duckdb_path: Path) -> list[Finding]:
         # argument frame belongs to a CLAUSE, not a sentence, because gold has 1.64
         # subjects per sentence. The preflight was written before that and still
         # looks for the column where it used to be.
-        POPULATION_CONTRACTS: list[tuple[str, str, float, str]] = [
-            ("sentences", "ast_json",    0.99, "every stage that inspects structure"),
-            ("sentences", "aliaj_json",  0.90, "KIE/KIAM answer-slot matching"),
+        # klareco#905: `ast_json`, `text`, `subj_vortspeco`/`subj_radiko` and
+        # `obj_radiko` are the columns RetrieveStage's hot path reads on
+        # EVERY question (see RetrieveStage.REQUIRES) — a degraded value here
+        # doesn't just weaken one reranker feature, it silently empties
+        # retrieval. Those four are `required=True`. `aliaj_json` and
+        # `clauses.verb_klaso` are read by stages that are off the default
+        # pipeline (KIE/KIAM slot matching, ast_aware_reranker) and stay
+        # `required=False` — degraded, not fatal.
+        POPULATION_CONTRACTS: list[tuple[str, str, float, str, bool]] = [
+            ("sentences", "ast_json",    0.99, "every stage that inspects structure", True),
+            ("sentences", "text",        0.99, "retrieval hot path (RetrieveStage)", True),
+            ("sentences", "aliaj_json",  0.90, "KIE/KIAM answer-slot matching", False),
             # 0.80 -> 0.70 (2026-07-17, #858): investigated, NOT a shredding bug —
             # 0 of 75 sampled NULL rows have a subject in their stored AST. 28.6%
             # of corpus sentences are genuinely subjectless under the stricter
@@ -230,15 +239,15 @@ def _check_duckdb(duckdb_path: Path) -> list[Finding]:
             # over-attribution (the rebuild epic called its 2.25M proper-noun
             # subjects "implausible"). Clause-0 backfill closes the small
             # sentences/clauses inconsistency (~1.5pp).
-            ("sentences", "subj_radiko", 0.70, "subject-role retrieval, KIU reranking"),
+            ("sentences", "subj_radiko", 0.70, "subject-role retrieval, KIU reranking", True),
             ("clauses",   "verb_klaso",  0.01, "ast_aware_reranker's verb-class "
-                                               "generalization"),
+                                               "generalization", False),
         ]
         have_tables = {t[0] for t in con.execute('SHOW TABLES').fetchall()}
-        for table, col, min_frac, reader in POPULATION_CONTRACTS:
+        for table, col, min_frac, reader, hot_path in POPULATION_CONTRACTS:
             if table not in have_tables:
                 findings.append(Finding(
-                    table, required=False,
+                    table, required=hot_path,
                     detail="table does not exist",
                     consequence=f"{reader} silently no-ops.",
                     remedy=f"Build it (scripts/index/build_{table[:-1]}_table.py).",
@@ -255,7 +264,7 @@ def _check_duckdb(duckdb_path: Path) -> list[Finding]:
             if frac < min_frac:
                 findings.append(Finding(
                     f"{table}.{col}",
-                    required=False,
+                    required=hot_path,
                     detail=f"{frac:.1%} populated ({n:,} of {denom:,}); "
                            f"contract requires >= {min_frac:.0%}",
                     consequence=(f"{reader} silently no-ops. A scoring function "

@@ -31,6 +31,7 @@ FALLBACK_WAIVERS = {
     'ast_aware_rerank.py': 'reranker fallback to prior order by design; formalized by #893',
     'math_tool.py':        'sympy hiccup must not kill QA; per-stage review in #812',
     'dialog.py':           'default-off; defects tracked in #890/#891',
+    'parse_question.py':   'a crashing parse must not kill QA; sets question_unparseable flag; #927',
 }
 
 

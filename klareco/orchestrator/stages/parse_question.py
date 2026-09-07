@@ -66,6 +66,17 @@ class ParseQuestionStage(PipelineStage):
             ),
         )
 
+    def on_failure(self, ctx: QueryContext, exc: Exception) -> ContextDelta:
+        # klareco#927: the parser can raise (e.g. a dependency-cycle guard)
+        # on text it has never seen before. Without this override the
+        # exception propagates out of Orchestrator.answer() and the whole
+        # request crashes. question_ast stays unset, so should_skip() on
+        # every downstream stage short-circuits it, and FormatOutputStage
+        # emits its normal "no answer" text. The orchestrator stamps
+        # `stage_failed:parse_question` on ctx.flags automatically.
+        logger.error(f"[parse_question] failed to parse {ctx.question!r}: {exc}")
+        return ContextDelta(flags={'question_unparseable': True})
+
 
 def _classify_from_ast(ast: dict) -> str:
     """

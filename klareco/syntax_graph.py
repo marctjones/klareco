@@ -101,6 +101,9 @@ def _structural_relations(word: dict, head: dict) -> list[str]:
             relations.extend(("obj", "obl"))
         elif word.get("vortspeco") in ("numero", "numeralo"):
             relations.append("obl")
+    if head_is_predicate and word.get("kazo") == "nominativo":
+        if word.get("vortspeco") in ("substantivo", "propra_nomo", "pronomo"):
+            relations.append("nsubj")
     return list(dict.fromkeys(relations))
 
 

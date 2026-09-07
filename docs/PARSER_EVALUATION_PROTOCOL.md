@@ -75,6 +75,9 @@ Report each split and phenomenon stratum separately:
 * root, clause-boundary, subject, object, coordination, PP attachment, and
   proper-noun accuracy;
 * complete AST/storage round-trip exactness and latency.
+* complete syntactic-tree sentence accuracy and root sentence accuracy;
+* lemma and morphology accuracy with both aligned-only and fixed gold-token
+  denominators.
 
 `LAS_all` and `UAS_all` are the headline dependency scores. Aligned-only scores
 are diagnostics. A missing or crashed token is wrong; it must not disappear from

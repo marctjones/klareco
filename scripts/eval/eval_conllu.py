@@ -88,6 +88,7 @@ def read_gold(path: str) -> list[dict]:
         x = line.rstrip('\n').split('\t')
         if len(x) >= 8 and x[0].isdigit():
             cur.append({'id': int(x[0]), 'form': x[1], 'upos': x[3],
+                        'lemma': x[2], 'feats': x[5],
                         'head': int(x[6]), 'dep': x[7].split(':')[0]})
     if cur:
         sents.append({'text': text, 'tokens': cur})
@@ -102,6 +103,7 @@ def parse_our_conllu(block: str) -> list[dict]:
         x = line.split('\t')
         if len(x) >= 8 and x[0].isdigit():
             out.append({'id': int(x[0]), 'form': x[1], 'upos': x[3],
+                        'lemma': x[2], 'feats': x[5],
                         'head': int(x[6]), 'dep': x[7].split(':')[0]})
     return out
 
@@ -109,9 +111,11 @@ def parse_our_conllu(block: str) -> list[dict]:
 def evaluate(path: str, emit: list | None = None,
              diagnostics: list | None = None) -> dict:
     gold_sents = read_gold(path)
-    uas = las = pos_ok = 0
+    uas = las = pos_ok = lemma_ok = morph_ok = 0
     aligned = 0
     crashed = 0
+    roots_correct = complete_trees = 0
+    error_by_relation = {}
 
     # ── THE DENOMINATOR IS COMPUTED UP FRONT, FROM THE GOLD FILE ALONE ──────
     #
@@ -205,6 +209,10 @@ def evaluate(path: str, emit: list | None = None,
                 diagnostics.append({'sentence': i + 1, 'text': text, 'gold': gt,
                                     'predicted': predicted, 'errors': errors})
 
+        sentence_complete = True
+        gold_nonpunct = [t for t in g['tokens'] if t['upos'] != 'PUNCT']
+        sentence_roots = []
+
         for o in ours:
             if o['id'] not in ours_to_gold:
                 continue
@@ -224,15 +232,54 @@ def evaluate(path: str, emit: list | None = None,
             # before it existed.
             if gt['upos'] == 'PUNCT':
                 continue
+            sentence_roots.append(gt['id']) if gt['head'] == 0 else None
             aligned += 1
+            token_errors = []
             if o['upos'] == gt['upos']:
                 pos_ok += 1
+            else:
+                token_errors.append('pos')
+            if o.get('lemma') == gt.get('lemma'):
+                lemma_ok += 1
+            else:
+                token_errors.append('lemma')
+            if o.get('feats', '_') == gt.get('feats', '_'):
+                morph_ok += 1
+            else:
+                token_errors.append('morphology')
             # ROOT (head 0) maps to 0 in either space.
             our_head_in_gold = 0 if o['head'] == 0 else ours_to_gold.get(o['head'], -1)
             if our_head_in_gold == gt['head']:
                 uas += 1
                 if o['dep'] == gt['dep']:
                     las += 1
+                else:
+                    token_errors.append('relation')
+            else:
+                token_errors.append('head')
+            if any(error in token_errors for error in ('head', 'relation')):
+                sentence_complete = False
+            error_by_relation.setdefault(gt['dep'], {'tokens': 0, 'head_errors': 0,
+                                                      'relation_errors': 0})
+            bucket = error_by_relation[gt['dep']]
+            bucket['tokens'] += 1
+            bucket['head_errors'] += 'head' in token_errors
+            bucket['relation_errors'] += 'relation' in token_errors
+
+        # A complete tree requires every non-punctuation gold token to align
+        # and every predicted head/relation to match. Punctuation is excluded
+        # consistently with LAS_all/UAS_all.
+        if sentence_complete and len([t for t in g['tokens']
+                                      if t['upos'] != 'PUNCT']) == len(
+                                          [o for o in ours
+                                           if o['id'] in ours_to_gold and
+                                           g['tokens'][ours_to_gold[o['id']] - 1]['upos'] != 'PUNCT']):
+            complete_trees += 1
+        predicted_roots = [ours_to_gold[o['id']] for o in ours
+                           if o['id'] in ours_to_gold and o['head'] == 0
+                           and g['tokens'][ours_to_gold[o['id']] - 1]['upos'] != 'PUNCT']
+        if predicted_roots == sentence_roots:
+            roots_correct += 1
 
     return {'aligned': aligned, 'gold_tokens': n, 'crashed': crashed,
             'n_sents': len(gold_sents),
@@ -240,6 +287,13 @@ def evaluate(path: str, emit: list | None = None,
             'las': las / aligned if aligned else 0.0,
             'upos': pos_ok / aligned if aligned else 0.0,
             'coverage': aligned / n if n else 0.0,
+            'lemma': lemma_ok / aligned if aligned else 0.0,
+            'morphology': morph_ok / aligned if aligned else 0.0,
+            'lemma_all': lemma_ok / n if n else 0.0,
+            'morphology_all': morph_ok / n if n else 0.0,
+            'root_sentence_accuracy': roots_correct / len(gold_sents) if gold_sents else 0.0,
+            'complete_tree_sentence_accuracy': complete_trees / len(gold_sents) if gold_sents else 0.0,
+            'error_by_gold_relation': error_by_relation,
             # ── THE NUMBER TO STEER BY ──────────────────────────────────────
             # `las` above divides by ALIGNED tokens, and alignment is not fixed:
             # it depends on our own tokenizer. So a structural change can RAISE
@@ -286,6 +340,10 @@ def main() -> int:
               f'unaligned counted WRONG')
         print(f'    LAS_all                        {r["las_all"]:6.1%}   '
               f'unaligned counted WRONG')
+        print(f'    lemma accuracy                 {r["lemma_all"]:6.1%}   unaligned counted WRONG')
+        print(f'    morphology accuracy            {r["morphology_all"]:6.1%}   unaligned counted WRONG')
+        print(f'    root sentence accuracy         {r["root_sentence_accuracy"]:6.1%}')
+        print(f'    complete tree sentence accuracy {r["complete_tree_sentence_accuracy"]:6.1%}')
 
     if args.emit and emit:
         Path(args.emit).write_text('\n'.join(emit), encoding='utf-8')

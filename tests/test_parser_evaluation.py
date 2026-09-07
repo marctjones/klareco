@@ -28,6 +28,13 @@ def test_diagnostics_agree_with_fixed_denominator(tmp_path, monkeypatch,
     assert metrics['coverage'] == expected_coverage
     correct = sum(not (set(t['errors']) - {'pos'}) for t in tokens)
     assert metrics['las_all'] == correct / len(tokens)
+    if prediction == GOLD:
+        assert metrics['lemma'] == 1.0
+        assert metrics['morphology'] == 1.0
+        assert metrics['lemma_all'] == 1.0
+        assert metrics['morphology_all'] == 1.0
+        assert metrics['root_sentence_accuracy'] == 1.0
+        assert metrics['complete_tree_sentence_accuracy'] == 1.0
 
 
 def test_crash_stays_in_diagnostic_denominator(tmp_path, monkeypatch):
@@ -41,6 +48,8 @@ def test_crash_stays_in_diagnostic_denominator(tmp_path, monkeypatch):
     assert metrics['gold_tokens'] == len(tokens) == 2
     assert metrics['las_all'] == 0
     assert all(t['errors'] == ['crash'] for t in tokens)
+    assert metrics['root_sentence_accuracy'] == 0.0
+    assert metrics['complete_tree_sentence_accuracy'] == 0.0
 
 
 def test_annotation_queue_is_deterministic_and_document_disjoint():

@@ -13,14 +13,15 @@ in this repository.
 
 ## Current state — READ THIS FIRST
 
-**2026-09-05 parser/annotation update:** current deterministic parsing scores
-Prago LAS **69.5428%** and Cairo **79.1946%** on the frozen 131/20-sentence
-regression fixtures, compared with 64.8968% / 75.1678% at `1b68033`.
-Prago gains 128 correct attachments and loses 2; Cairo gains 6 and loses none.
-Coverage remains 99.8894% / 100%. Syntax v2 and versioned stand-off annotations
-preserve source bindings, candidate structures, and dependency-derived views.
-See [the active plan](docs/PARSER_DESIGN.md) and
-[execution results](docs/PARSER_SEVEN_STEP_RESULTS.md).
+**2026-09-07 parser handoff:** current deterministic parsing scores Prago
+LAS_all **70.0%**, UAS_all **76.5%**, UPOS **89.5%**, and Cairo LAS_all
+**81.9%**, UAS_all **85.9%**, UPOS **91.3%** on the frozen 131/20-sentence
+fixtures. Coverage is 99.9% / 100%. Candidate-generation and decoder research
+does not change the selected runtime tree unless a frozen LAS number moves.
+The active work is consolidated in [P0 milestone #35](https://github.com/marctjones/klareco/milestone/35):
+#914 candidate coverage, #922 clause ownership, #919/#923–#925 lexical and
+morphology resources, and #926 global constrained selection. Evidence is in
+`data/perf/parser_research/` and `data/perf/bench_history.jsonl`.
 The production store has **not** been rebuilt: 21 oversized rows require source
 repair, and the independent 200-sentence annotation pilot remains unreviewed.
 Historical store-consistency and QA claims below do not describe this revision.
@@ -487,13 +488,14 @@ and retain missing tokens in the denominator.
 | Native POS strict / scheme-adjusted | 82.80% / 95.09% | 81.88% / 96.64% |
 | Subject-role F1 | 86.10% | 97.78% |
 | Object-role F1 | 80.53% | 92.31% |
-| Dependency UAS / LAS, all gold tokens | 75.85% / 69.06% | 85.23% / 79.19% |
+| Dependency UAS / LAS, all gold tokens | 76.55% / 70.06% | 85.91% / 81.88% |
 | Coverage | 99.8894% | 100% |
 
-The tests protect exact correct-attachment floors of 1,873 / 118 and retain
-separate POS and role checks. The latest package comparison gains 115 and loses
-2 attachments on Prago; Cairo gains 6 and loses none. This is measurable progress
-on small regression sets, not a generalization guarantee.
+The tests protect exact correct-attachment floors of 1,898 / 122 and retain
+separate POS and role checks. Candidate-generation research has raised the
+measured Prago candidate ceiling to 81.21% LAS, while the selected runtime tree
+remains at the baseline above. These are small development-informed regression
+sets, not a generalization guarantee.
 
 Correlative role constraints, comparison phrases, local adjective coordination,
 and particle/copy consistency are implementation improvements. The remaining

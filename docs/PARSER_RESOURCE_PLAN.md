@@ -1,14 +1,14 @@
 # Deterministic parser ceiling plan
 
-Status: proposed after the 2026-09-06 oracle decomposition.
+Status: active after the 2026-09-07 parser issue/milestone consolidation.
 
-The next measurement shows that the current parser is not yet selecting among a
-rich deterministic candidate set. On Prago, only 43/2,709 aligned tokens have
-an explicit candidate set containing the gold head (1.59%). Of 633 head errors,
-617 have no gold head in the candidate set. Cairo has 1/149 candidate-covered
-tokens and all 21 head errors lack a gold candidate. This is evidence for a
-candidate-generation problem before it is evidence for a semantic-model
-problem.
+The current parser is not yet selecting reliably among a rich deterministic
+candidate set. After bounded structural, relation, and nominative-subject
+candidate work, exact gold-edge recall is 76.45% on Prago and 75.84% on Cairo.
+The candidate ceiling is 81.21% / 88.59% LAS respectively. This is evidence for
+candidate-generation and global-selection work before it is evidence for a
+semantic-model problem. The first Apertium-backed global decoder spike improves
+Prago by two LAS edges with no Cairo regression, but remains offline.
 
 The decomposition is intentionally conservative. It does not claim that every
 candidate is linguistically valid; it asks whether the current parser has even

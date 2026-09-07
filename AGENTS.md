@@ -82,9 +82,10 @@ AST carried as an `ast_json` blob) and `data/indexes/whoosh_v2` (BM25).
   ```
 - **Eval (local)**: `python scripts/eval/evaluate_extractive_qa.py --test-set <set>.jsonl`
 - **Reranker A/B**: `python scripts/eval/multi_reranker_bench.py --test-set <set>.jsonl`
-- **Parser ruler**: `python scripts/eval/eval_ud_prago.py` — UD_Esperanto-Prago,
-  131 gold sentences. The only benchmark in the repo that is independent of the
-  Q&A stack, and the only one currently trustworthy.
+- **Parser ruler**: `python scripts/eval/eval_conllu.py` — UD_Esperanto-Prago
+  (131 sentences) and UD_Esperanto-Cairo (20 sentences). Report LAS/UAS/UPOS and
+  coverage separately. Both fixtures have informed development; an independent
+  document-disjoint gold set is still required for broad claims.
 - **Tests**: `python -m pytest`, or scope with `-k`. Tests needing the
   production indexes skip when absent.
 

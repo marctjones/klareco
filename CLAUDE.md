@@ -112,6 +112,17 @@ Sequencing: **Core (ms 28) → MVP-1 single-turn QA (29) → MVP-2 dialog (30) �
 Dual-track slots (31)** — stable environment first, optional modules admitted
 one at a time.
 
+### Parser stabilization handoff
+
+The active parser work is in [P0 milestone #35](https://github.com/marctjones/klareco/milestone/35).
+Issue #914 owns deterministic candidate coverage, #922 owns clause ownership,
+#919 and #923–#925 own morphology and lexical resources, and #926 owns the
+offline globally constrained decoder. The current selected baseline is Prago
+LAS_all 70.0% / UAS_all 76.5% / UPOS 89.5% and Cairo LAS_all 81.9% / UAS_all
+85.9% / UPOS 91.3%. Research decoder results live under
+`data/perf/parser_research/`; do not promote an offline spike to runtime without
+a frozen LAS movement recorded in `data/perf/bench_history.jsonl`.
+
 ## Schema-First Development
 
 **The store is DuckDB, not Kuzu.** Kuzu was removed in the May–June 2026

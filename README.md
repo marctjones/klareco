@@ -16,6 +16,12 @@ For the build & implementation plan (architecture + sequenced roadmap) see
 `PLAN.md`. For the long-term thesis see `VISION.md`. For the active architecture
 see `DESIGN.md`. For development conventions see `CLAUDE.md`.
 
+Parser stabilization is tracked in [P0 milestone #35](https://github.com/marctjones/klareco/milestone/35).
+The active work is split into candidate coverage (#914), clause ownership
+(#922), lexical and morphology resources (#919, #923–#925), and the offline
+global decoder (#926). Research spikes stay out of the runtime parser until a
+frozen LAS number moves.
+
 ## Current state
 
 **Working today**: end-to-end extractive QA over a 5.4M-sentence Esperanto
@@ -50,7 +56,7 @@ maps the deterministic boundary as surely as a win does. See `DESIGN.md` →
 
 | Component | Status |
 |-----------|--------|
-| 16-rule parser + deparser | ✅ UD gold (Prago/Cairo-held-out): POS 81/80% strict, subj-role F1 69/93%, LAS 62/66% — regression-guarded in `pytest -m accuracy` |
+| 16-rule parser + deparser | ✅ deterministic baseline: Prago LAS_all 70.0% / UAS_all 76.5% / UPOS 89.5%; Cairo LAS_all 81.9% / UAS_all 85.9% / UPOS 91.3%; candidate and decoder research tracked in milestone #35 |
 | DuckDB store + shredded AST columns | ✅ 5.39M sentences, `ast_json` blob (Kuzu retired 2026-05) |
 | Whoosh BM25 index | ✅ live |
 | Orchestrator pipeline | ✅ active spine; immutable context, phase-level timing |

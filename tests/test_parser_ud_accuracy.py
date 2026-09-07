@@ -55,20 +55,29 @@ import eval_ud_roles  # noqa: E402
 from klareco.parser import parse  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# FROZEN BASELINE FLOORS — recorded 2026-07-19 (bench_history "PARSER BASELINE
-# on UD Esperanto gold treebanks"). Values are deterministic. `>=` guard: raise
-# a floor only when an INTENDED parser improvement clears it.
+# FROZEN BASELINE FLOORS — ratcheted 2026-09-08 (klareco#928) to HEAD's actual
+# measured values after the September parser cycle + the 0f995ba cycle-guard
+# fix. The PREVIOUS floors (below) were measured 2026-07-19 and had drifted
+# 7+ points below HEAD, so a real 25-edge Prago regression would have passed
+# this gate silently. `>=` guard: raise a floor only when an INTENDED parser
+# improvement clears it; never lower one to let a regression through.
+#   prago: pos_strict 0.813->0.829, pos_adjusted 0.947->0.952, subj_f1
+#     0.687->0.870, subj_recall 0.683->0.866, obj_f1 0.760->0.813,
+#     uas 0.695->0.766, las 0.623->0.700
+#   cairo: pos_strict 0.803->0.819, pos_adjusted 0.959->0.966, subj_f1
+#     0.930->0.978, subj_recall 0.909->1.000, obj_f1 0.880->0.923,
+#     uas 0.738->0.859, las 0.664->0.819
 # ---------------------------------------------------------------------------
 BASELINE = {
     "prago": {  # in-corpus
-        "pos_strict": 0.813, "pos_adjusted": 0.947,
-        "subj_f1": 0.687, "subj_recall": 0.683, "obj_f1": 0.760,
-        "uas": 0.695, "las": 0.623,
+        "pos_strict": 0.829, "pos_adjusted": 0.952,
+        "subj_f1": 0.870, "subj_recall": 0.866, "obj_f1": 0.813,
+        "uas": 0.766, "las": 0.700,
     },
     "cairo": {  # Regression set: its errors have informed parser development
-        "pos_strict": 0.803, "pos_adjusted": 0.959,
-        "subj_f1": 0.930, "subj_recall": 0.909, "obj_f1": 0.880,
-        "uas": 0.738, "las": 0.664,
+        "pos_strict": 0.819, "pos_adjusted": 0.966,
+        "subj_f1": 0.978, "subj_recall": 1.000, "obj_f1": 0.923,
+        "uas": 0.859, "las": 0.819,
     },
 }
 # Small tolerance so a floating-point last-digit wobble in a deterministic metric
@@ -155,7 +164,7 @@ def test_dependency_uas_las_floor(tb):
         f"{tb}: LAS {r['las']:.4f} < floor {b['las']}")
 
 
-@pytest.mark.parametrize('tb,correct', [('prago', 1873), ('cairo', 118)])
+@pytest.mark.parametrize('tb,correct', [('prago', 1898), ('cairo', 122)])
 def test_parser_labeled_attachment_count(tb, correct):
     """Protect the measured gain without the older half-point tolerance."""
     result = _dep(tb)

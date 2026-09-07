@@ -62,9 +62,12 @@ def measure(path: Path) -> dict:
         "candidate_head_recall": 0,
         "candidate_edge_recall": 0,
         "candidate_head_recall_on_head_errors": 0,
+        "candidate_edge_recall_on_las_errors": 0,
         "head_errors": 0,
         "head_errors_with_gold_candidate": 0,
         "head_errors_without_gold_candidate": 0,
+        "las_errors_with_gold_edge": 0,
+        "las_errors_without_gold_edge": 0,
         "relation_errors_with_gold_head": 0,
         "unaligned": 0,
         "crashed_sentences": 0,
@@ -135,12 +138,19 @@ def measure(path: Path) -> dict:
                 totals["candidate_head_recall"] += 1
             if candidate_has_gold_edge:
                 totals["candidate_edge_recall"] += 1
+                if not (head_ok and relation_ok):
+                    totals["candidate_edge_recall_on_las_errors"] += 1
             if not head_ok:
                 if candidate_has_gold:
                     totals["candidate_head_recall_on_head_errors"] += 1
                     totals["head_errors_with_gold_candidate"] += 1
                 else:
                     totals["head_errors_without_gold_candidate"] += 1
+            if not (head_ok and relation_ok):
+                if candidate_has_gold_edge:
+                    totals["las_errors_with_gold_edge"] += 1
+                else:
+                    totals["las_errors_without_gold_edge"] += 1
             bucket = by_relation.setdefault(gold_token["dep"], {
                 "tokens": 0,
                 "head_errors": 0,
@@ -165,6 +175,16 @@ def measure(path: Path) -> dict:
     totals["candidate_recall_on_head_errors_rate"] = (
         totals["candidate_head_recall_on_head_errors"] / head_errors
         if head_errors else 0.0
+    )
+    las_errors = aligned - totals["las_correct"]
+    totals["candidate_edge_recall_on_las_errors_rate"] = (
+        totals["candidate_edge_recall_on_las_errors"] / las_errors
+        if las_errors else 0.0
+    )
+    totals["potential_las_if_candidate_edges_selected"] = (
+        (totals["las_correct"] + totals["candidate_edge_recall_on_las_errors"])
+        / aligned
+        if aligned else 0.0
     )
     return {"path": str(path), "metrics": totals, "by_gold_relation": by_relation}
 

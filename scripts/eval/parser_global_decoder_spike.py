@@ -35,6 +35,11 @@ def _score(token: dict, head: dict, option: dict, baseline: tuple[int, str], cou
         score += 3.0
     if head.get("vortspeco") == "verbo" and relation in {"nsubj", "obj", "obl", "xcomp", "ccomp"}:
         score += 1.5
+    suffixes = {str(s).lower() for s in (head.get("sufiksoj") or [])}
+    if relation in {"obj", "obl"} and "iĝ" in suffixes:
+        score -= 3.0
+    if relation == "obj" and "ig" in suffixes:
+        score += 2.0
     if relation == "obj" and counts.get(head["id"], 0):
         score -= 2.0
     score -= 0.05 * abs(token["id"] - head["id"])

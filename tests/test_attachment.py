@@ -402,6 +402,42 @@ class TestEllipsisGapping:
         assert 'orphan' not in {r['dep'] for r in rows}
 
 
+class TestHyphenSplitDoesNotProduceEmptyParts:
+    """A fourth crash class, distinct from the three compact_ast() ones
+    above: this one crashes parse() itself with an IndexError, not a
+    ValueError. Esperantists commonly cite a SUFFIX in isolation with a
+    leading hyphen ('la formoj -ujo kaj -io', discussing the suffixes
+    themselves) -- and `word.split('-')` on '-ujo' yields ['', 'ujo'], an
+    EMPTY leading part. The hyphenated-compound-word branch recursed into
+    parse_word('') for that empty part, which reached
+    `original_word[0].isupper()` deeper in the same function and raised
+    IndexError: string index out of range (2/80,000 sampled store
+    sentences, from a Wikipedia talk-page discussion thread literally about
+    the -ujo/-io suffixes -- klareco#936-adjacent).
+    """
+
+    @pytest.mark.parametrize('word', ['-ujo', '-io', 'ujo-', '--foo',
+                                       'foo--bar', '-'])
+    def test_a_hyphen_at_a_word_boundary_does_not_crash(self, word):
+        from klareco.parser import parse_word
+        result = parse_word(word)   # must not raise
+        assert result.get('plena_vorto') == word
+
+    def test_the_reproducing_sentence_does_not_crash(self):
+        s = ('Ekzemple ĉi tie: Vikipedio kaj -ujo_kaj_-io, certe ankaŭ '
+             'jam pli frue. Laŭ mi ni povas permesi ambaŭ formojn '
+             '(-ujo kaj -io) paralele.')
+        parse(s)   # must not raise
+
+    def test_a_genuine_hyphenated_compound_is_unaffected(self):
+        """The fix must not stop treating a REAL compound as one -- only
+        skip the branch when a split produces an empty part."""
+        from klareco.parser import parse_word
+        w = parse_word('Esperanto-klubo')
+        assert w.get('estas_kunmetita') is True
+        assert w.get('radiko') == 'klub'
+
+
 class TestApposition:
     """Rename relationships are appositions, not nominal modifiers."""
 

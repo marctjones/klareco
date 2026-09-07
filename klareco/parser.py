@@ -1210,7 +1210,17 @@ def _parse_word_impl(word: str) -> dict:
     # Example: "Esperanto-klubon" → HEAD=klub, MODIFIER=esperant
     if '-' in word:
         parts = word.split('-')
-        if len(parts) >= 2:
+        # klareco#936-adjacent: a word like "-ujo" (Esperantists citing a
+        # SUFFIX in isolation -- "la formoj -ujo kaj -io", a common pattern
+        # in grammar/linguistics discussion) or "ujo-" splits to an EMPTY
+        # leading/trailing part, not a genuine modifier+head compound
+        # ("Esperanto-klubo" -> ["Esperanto", "klubo"], both non-empty).
+        # Recursing into parse_word('') hits `original_word[0]` further down
+        # this function with an empty string and raises IndexError (2/80,000
+        # sampled store sentences, from a Wikipedia talk-page discussion
+        # thread literally about the -ujo/-io suffixes). Not a genuine
+        # compound: fall through to the rest of this function instead.
+        if len(parts) >= 2 and all(parts):
             # Parse each component
             modifier_parts = parts[:-1]  # All except last
             head_part = parts[-1]  # Last part is HEAD

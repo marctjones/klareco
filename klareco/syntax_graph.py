@@ -17,6 +17,12 @@ CLAUSE_RELATIONS = frozenset(
 PHRASE_MODIFIERS = frozenset(
     ("amod", "nmod", "det", "nummod", "appos", "compound", "flat")
 )
+_STRUCTURAL_CANDIDATE_DISTANCE = 8
+_FIXED_CANDIDATE_RELATIONS = frozenset({
+    "nsubj", "obj", "iobj", "csubj", "advmod", "amod", "det", "nummod",
+    "appos", "compound", "flat", "conj", "cc", "mark", "case", "cop",
+    "aux", "acl", "advcl", "ccomp", "xcomp", "dep",
+})
 
 
 def _phrase_members(head_id: int, children: dict, predicates: set[int]) -> list[int]:
@@ -62,9 +68,71 @@ def validate_tokens(tokens: list[dict]) -> list[int]:
     return [w["id"] for w in tokens if w["kapo"] == 0]
 
 
+def _would_cycle(registry: dict[int, dict], token_id: int, head_id: int) -> bool:
+    """Reject a local candidate that points into the token's current subtree."""
+    seen = {token_id}
+    node = head_id
+    while node:
+        if node in seen:
+            return True
+        seen.add(node)
+        node = registry[node].get("kapo")
+    return False
+
+
+def _structural_relation(word: dict, head: dict) -> str:
+    relation = word.get("rolo") or "dep"
+    if relation in _FIXED_CANDIDATE_RELATIONS:
+        return relation
+    if relation == "root":
+        return "dep"
+    if relation in {"nmod", "obl"}:
+        return "obl" if head.get("vortspeco") == "verbo" else "nmod"
+    return relation
+
+
+def _add_structural_candidates(tokens: list[dict]) -> None:
+    """Expose bounded, cycle-safe local heads for unresolved token analyses.
+
+    Existing PP alternatives remain authoritative.  For every other content
+    token, this creates a partial candidate set without changing the selected
+    dependency.  The set is intentionally local and conservative: punctuation,
+    self-links, descendants, and distant tokens are excluded.  A later solver
+    may narrow or rank these edges, but cannot claim a head it never saw.
+    """
+    registry = {word["id"]: word for word in tokens}
+    for word in tokens:
+        if word.get("alligo_opcioj") or word.get("vortspeco") == "interpunkcio":
+            continue
+        if word.get("rolo") in (None, "root"):
+            continue
+        token_id = word["id"]
+        candidates = []
+        lower = max(1, token_id - _STRUCTURAL_CANDIDATE_DISTANCE)
+        upper = min(len(tokens), token_id + _STRUCTURAL_CANDIDATE_DISTANCE)
+        for head_id in range(lower, upper + 1):
+            if head_id == token_id:
+                continue
+            head = registry[head_id]
+            if head.get("vortspeco") == "interpunkcio":
+                continue
+            if _would_cycle(registry, token_id, head_id):
+                continue
+            edge = {
+                "kapo": head_id,
+                "rolo": _structural_relation(word, head),
+                "fonto": "bounded-local-structure-v1",
+            }
+            if edge not in candidates:
+                candidates.append(edge)
+        if candidates:
+            word["alligo_opcioj"] = candidates
+
+
 def project(ast: dict, original: str, normalized: str) -> dict:
     tokens = ast["vortoj"]
     roots = validate_tokens(tokens)
+    _add_structural_candidates(tokens)
     registry = {w["id"]: w for w in tokens}
     children = {i: [] for i in registry}
     for word in tokens:
@@ -217,7 +285,7 @@ def project(ast: dict, original: str, normalized: str) -> dict:
         options = []
         for option in word["alligo_opcioj"]:
             head = registry.get(option["kapo"])
-            relation = (
+            relation = option.get("rolo") or (
                 "root"
                 if not option["kapo"]
                 else "obl" if head and head.get("vortspeco") == "verbo" else "nmod"
@@ -236,8 +304,18 @@ def project(ast: dict, original: str, normalized: str) -> dict:
                 "options": options,
                 "status": "unresolved",
                 "completeness": "partial",
-                "generator": "pp-candidates-v1",
-                "selection_rule": "nominal-proximity-v1",
+                "generator": (
+                    "structural-candidates-v1"
+                    if any(option.get("fonto") == "bounded-local-structure-v1"
+                           for option in word["alligo_opcioj"])
+                    else "pp-candidates-v1"
+                ),
+                "selection_rule": (
+                    "bounded-local-v1"
+                    if any(option.get("fonto") == "bounded-local-structure-v1"
+                           for option in word["alligo_opcioj"])
+                    else "nominal-proximity-v1"
+                ),
             }
         )
     for word in tokens:
@@ -518,8 +596,12 @@ def _validate_v2(ast: dict, registry: dict, roots: list[int]) -> None:
             candidate["options"] != expected_options
             or candidate.get("status") != "unresolved"
             or candidate.get("completeness") != "partial"
-            or candidate.get("generator") != "pp-candidates-v1"
-            or candidate.get("selection_rule") != "nominal-proximity-v1"
+            or candidate.get("generator") not in {
+                "pp-candidates-v1", "structural-candidates-v1"
+            }
+            or candidate.get("selection_rule") not in {
+                "nominal-proximity-v1", "bounded-local-v1"
+            }
         ):
             raise ValueError(
                 "Attachment candidates contradict their recorded generator"

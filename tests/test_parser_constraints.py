@@ -222,6 +222,26 @@ def test_attachment_alternatives_use_final_surface_ids():
     assert expand_ast(json.loads(json.dumps(compact_ast(ast)))) == ast
 
 
+def test_structural_candidates_cover_local_nominal_heads_without_changing_selection():
+    ast = parse("La knabo rapide vidas la katon.")
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    candidates = {
+        candidate["token_id"]: candidate
+        for candidate in ast["syntax"]["attachment_candidates"]
+    }
+    for name in ("knabo", "rapide", "katon"):
+        token = words[name]
+        assert token["id"] in candidates
+        candidate = candidates[token["id"]]
+        assert candidate["generator"] == "structural-candidates-v1"
+        assert candidate["selected"] in candidate["options"]
+        assert any(option["head_id"] == token["kapo"]
+                   for option in candidate["options"])
+    assert words["knabo"]["rolo"] == "nsubj"
+    assert words["katon"]["rolo"] == "obj"
+    assert words["vidas"]["rolo"] == "root"
+
+
 def test_lost_alternatives_or_false_completeness_are_rejected():
     text = "Hieraŭ, mi vidis la viron en la domo."
     ast = parse(text)

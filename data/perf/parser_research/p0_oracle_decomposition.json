@@ -1,0 +1,283 @@
+{
+  "eo_prago-ud-test": {
+    "path": "data/external/ud_esperanto_prago/eo_prago-ud-test.conllu",
+    "metrics": {
+      "gold_tokens": 2712,
+      "aligned": 2709,
+      "head_correct": 2076,
+      "las_correct": 1898,
+      "candidate_head_recall": 43,
+      "candidate_head_recall_on_head_errors": 16,
+      "head_errors": 633,
+      "head_errors_with_gold_candidate": 16,
+      "head_errors_without_gold_candidate": 617,
+      "relation_errors_with_gold_head": 178,
+      "unaligned": 3,
+      "crashed_sentences": 0,
+      "uas": 0.7663344407530454,
+      "las": 0.7006275378368402,
+      "candidate_head_recall_rate": 0.015873015873015872,
+      "candidate_recall_on_head_errors_rate": 0.02527646129541864
+    },
+    "by_gold_relation": {
+      "root": {
+        "tokens": 131,
+        "head_errors": 13,
+        "head_errors_with_gold_candidate": 0
+      },
+      "case": {
+        "tokens": 365,
+        "head_errors": 17,
+        "head_errors_with_gold_candidate": 0
+      },
+      "nmod": {
+        "tokens": 372,
+        "head_errors": 103,
+        "head_errors_with_gold_candidate": 5
+      },
+      "det": {
+        "tokens": 249,
+        "head_errors": 13,
+        "head_errors_with_gold_candidate": 0
+      },
+      "amod": {
+        "tokens": 267,
+        "head_errors": 17,
+        "head_errors_with_gold_candidate": 0
+      },
+      "appos": {
+        "tokens": 17,
+        "head_errors": 7,
+        "head_errors_with_gold_candidate": 0
+      },
+      "nsubj": {
+        "tokens": 223,
+        "head_errors": 55,
+        "head_errors_with_gold_candidate": 6
+      },
+      "advmod": {
+        "tokens": 199,
+        "head_errors": 69,
+        "head_errors_with_gold_candidate": 0
+      },
+      "obj": {
+        "tokens": 143,
+        "head_errors": 53,
+        "head_errors_with_gold_candidate": 0
+      },
+      "obl": {
+        "tokens": 79,
+        "head_errors": 42,
+        "head_errors_with_gold_candidate": 5
+      },
+      "conj": {
+        "tokens": 168,
+        "head_errors": 64,
+        "head_errors_with_gold_candidate": 0
+      },
+      "cc": {
+        "tokens": 145,
+        "head_errors": 44,
+        "head_errors_with_gold_candidate": 0
+      },
+      "acl": {
+        "tokens": 52,
+        "head_errors": 17,
+        "head_errors_with_gold_candidate": 0
+      },
+      "xcomp": {
+        "tokens": 28,
+        "head_errors": 8,
+        "head_errors_with_gold_candidate": 0
+      },
+      "advcl": {
+        "tokens": 50,
+        "head_errors": 23,
+        "head_errors_with_gold_candidate": 0
+      },
+      "mark": {
+        "tokens": 84,
+        "head_errors": 27,
+        "head_errors_with_gold_candidate": 0
+      },
+      "ccomp": {
+        "tokens": 32,
+        "head_errors": 9,
+        "head_errors_with_gold_candidate": 0
+      },
+      "cop": {
+        "tokens": 20,
+        "head_errors": 4,
+        "head_errors_with_gold_candidate": 0
+      },
+      "aux": {
+        "tokens": 50,
+        "head_errors": 29,
+        "head_errors_with_gold_candidate": 0
+      },
+      "nummod": {
+        "tokens": 15,
+        "head_errors": 10,
+        "head_errors_with_gold_candidate": 0
+      },
+      "discourse": {
+        "tokens": 2,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 0
+      },
+      "iobj": {
+        "tokens": 4,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "parataxis": {
+        "tokens": 8,
+        "head_errors": 6,
+        "head_errors_with_gold_candidate": 0
+      },
+      "fixed": {
+        "tokens": 5,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "csubj": {
+        "tokens": 1,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      }
+    }
+  },
+  "eo_cairo-ud-test": {
+    "path": "data/external/ud_esperanto_cairo/eo_cairo-ud-test.conllu",
+    "metrics": {
+      "gold_tokens": 149,
+      "aligned": 149,
+      "head_correct": 128,
+      "las_correct": 122,
+      "candidate_head_recall": 1,
+      "candidate_head_recall_on_head_errors": 0,
+      "head_errors": 21,
+      "head_errors_with_gold_candidate": 0,
+      "head_errors_without_gold_candidate": 21,
+      "relation_errors_with_gold_head": 6,
+      "unaligned": 0,
+      "crashed_sentences": 0,
+      "uas": 0.8590604026845637,
+      "las": 0.8187919463087249,
+      "candidate_head_recall_rate": 0.006711409395973154,
+      "candidate_recall_on_head_errors_rate": 0.0
+    },
+    "by_gold_relation": {
+      "det": {
+        "tokens": 10,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "nsubj": {
+        "tokens": 24,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "root": {
+        "tokens": 20,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "obj": {
+        "tokens": 14,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 0
+      },
+      "case": {
+        "tokens": 6,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "nmod": {
+        "tokens": 10,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "mark": {
+        "tokens": 5,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "ccomp": {
+        "tokens": 2,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "xcomp": {
+        "tokens": 8,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "cc": {
+        "tokens": 8,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 0
+      },
+      "conj": {
+        "tokens": 8,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 0
+      },
+      "advmod": {
+        "tokens": 15,
+        "head_errors": 2,
+        "head_errors_with_gold_candidate": 0
+      },
+      "vocative": {
+        "tokens": 1,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "cop": {
+        "tokens": 2,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "orphan": {
+        "tokens": 3,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "amod": {
+        "tokens": 1,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "appos": {
+        "tokens": 3,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "aux": {
+        "tokens": 4,
+        "head_errors": 3,
+        "head_errors_with_gold_candidate": 0
+      },
+      "acl": {
+        "tokens": 1,
+        "head_errors": 0,
+        "head_errors_with_gold_candidate": 0
+      },
+      "compound": {
+        "tokens": 1,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "advcl": {
+        "tokens": 2,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      },
+      "parataxis": {
+        "tokens": 1,
+        "head_errors": 1,
+        "head_errors_with_gold_candidate": 0
+      }
+    }
+  }
+}

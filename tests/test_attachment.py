@@ -346,3 +346,78 @@ class TestApposition:
         rows = _rows('Ŝi kreskis en Parizo, la ĉefurbo de Francio.')
         assert _dep(rows, 'ĉefurbo')['dep'] == 'appos'
         assert _dep(rows, 'ĉefurbo')['head'] == _dep(rows, 'Parizo')['id']
+
+
+class TestNoDependencyCycleOnUnseenText:
+    """#927 / #929 — the parser must never raise on text it has not seen
+    before, no matter how a governor-search rule chose a candidate.
+
+    #927: an apposition rule assigned a head directly, without the
+    ancestor-walk guard `syntax_rules.attach()` already used elsewhere,
+    letting `w -> prev_nominal` close a loop back through `w` itself.
+
+    #929: a RELATIVE-clause antecedent search (`_governor`, for clauses
+    whose opener is a ki-korelativo) could pick a KI-PREFIX adverbial
+    correlative ('kiel'/'kiam'/'kie'/'kiom'/'kial') as the antecedent. That
+    candidate's own head is often not yet resolved at check time (its
+    advmod attachment happens in a later pass), so the existing ancestor
+    walk can't see that it will later chain back into the very clause being
+    attached. Fixed two ways: (1) a ki-prefix adverbial correlative is
+    never accepted as a relative-clause antecedent — but a TI-prefix one
+    (`tiel`/`tiam`/...) still is, because "tiel X, kiel Y" is a genuine
+    correlative pairing where `tiel` IS the correct antecedent (see
+    TestGeneral below); (2) a safety-net repair pass at the end of
+    `attach_all` runs the same cycle check `syntax_graph.validate_tokens`
+    uses and, if a THIRD unknown rule ever reproduces this class, breaks
+    the cycle deterministically (reattach to the main verb as `parataxis`)
+    instead of raising.
+    """
+
+    def test_kiam_after_a_kiel_comparison_does_not_crash(self):
+        """klareco#929's first reproduction: 'kiel parafiletika' (a
+        comparison) precedes a 'kiam' clause; the old code picked 'kiel' as
+        the kiam-clause's antecedent even though 'kiel' itself attaches
+        inside that same clause's structure."""
+        s = ('Grupo konstituiĝas kiel parafiletika kiam al klado '
+             '(evolua branĉo) oni forprenas unu aŭ pliajn grupojn '
+             'holofiletikajn.')
+        parse(s)   # must not raise
+
+    def test_tiam_before_a_kiel_predicate_does_not_crash(self):
+        """klareco#929's second reproduction: a different cause (not the
+        ki/ti-prefix rule above) — the safety-net repair pass is what
+        catches this one."""
+        s = ('Tio estas konata kiel malsano tiam konata kiel '
+             '"malsano de la francoj" aŭ "morbus gallico".')
+        parse(s)   # must not raise
+
+    def test_tiel_kiel_pairing_still_attaches_to_tiel(self):
+        """The fix must NOT bar every adverbial correlative — only the
+        ki-prefix half of a tiel...kiel pair. Prago sentence 68 is gold for
+        exactly this attachment (advcl:relcl -> tiel)."""
+        rows = _rows('Li komentarios tiel, kiel li volas.')
+        assert _dep(rows, 'volas')['head'] == _dep(rows, 'tiel')['id']
+
+    def test_safety_net_repairs_a_cycle_instead_of_raising(self, caplog):
+        """Unit-level: force attach_all's final repair pass to fire on a
+        synthetic cycle, independent of which upstream rule caused it."""
+        import logging
+        from klareco.parser import attach_all
+
+        # A 3-token cycle: 1 -> 2 -> 3 -> 1. No real rule should ever
+        # produce this; the test manufactures it directly.
+        word_asts = [
+            {'id': 1, 'kapo': 2, 'rolo': 'dep', 'vortspeco': 'substantivo',
+             'radiko': 'a'},
+            {'id': 2, 'kapo': 3, 'rolo': 'dep', 'vortspeco': 'substantivo',
+             'radiko': 'b'},
+            {'id': 3, 'kapo': 1, 'rolo': 'dep', 'vortspeco': 'substantivo',
+             'radiko': 'c'},
+        ]
+        with caplog.at_level(logging.WARNING, logger='klareco.parser'):
+            attach_all(word_asts, clauses=[])
+        from klareco.syntax_graph import validate_tokens
+        validate_tokens(word_asts)   # must not raise: the cycle is gone
+        assert any('dependency cycle' in r.message.lower()
+                  for r in caplog.records), \
+            'a repaired cycle must be logged loudly, not silently fixed'

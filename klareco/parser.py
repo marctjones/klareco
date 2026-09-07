@@ -5,11 +5,14 @@ external parsing libraries like Lark. It performs morphological and syntactic
 analysis to produce a detailed, Esperanto-native Abstract Syntax Tree (AST)."""
 import re
 import json
+import logging
 from functools import lru_cache
 from copy import deepcopy
 from pathlib import Path
 
 from klareco.ast_storage import compact_ast, expand_ast
+
+logger = logging.getLogger(__name__)
 
 # Dictionary roots — the language's own vocabulary. This is the artifact the
 # parser's NEGATIVE DETECTION rests on: "capitalised AND the root is not a known
@@ -3646,8 +3649,26 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 continue
             if not isinstance(w, dict):
                 continue
-            if w.get('vortspeco') in ('substantivo', 'propra_nomo', 'pronomo',
-                                      'korelativo'):
+            # klareco#929: a KI-PREFIX adverbial correlative ('kiel'/'kiam'/
+            # 'kie'/'kiom'/'kial') can never be a relative clause's own
+            # antecedent — it's the OPENER of a different subordinate
+            # clause, not a nominal target. Excluding it here (rather than
+            # relying on the ancestor-walk above) matters because that walk
+            # only sees a candidate's CURRENT `kapo`: a ki-correlative's own
+            # head is often not yet assigned at this point in attach_all, so
+            # the walk can't detect that it will later chain back into this
+            # very clause and close a cycle (reproduced on live corpus
+            # text, 2/3000 sampled sentences — a different, unrelated cause
+            # from the apposition-rule cycle #927 fixed). Deliberately NOT
+            # excluded: a TI-prefix adverbial correlative ('tiel'/'tiam'/
+            # 'tie'/...) — Esperanto's "tiel X, kiel Y" correlative pairing
+            # legitimately attaches a kiel-clause's `advcl:relcl` to `tiel`
+            # as its antecedent (Prago sentence 68 is gold for exactly
+            # this), so only the ki-prefix half of the pair is barred.
+            if (w.get('vortspeco') in ('substantivo', 'propra_nomo', 'pronomo',
+                                      'korelativo')
+                    and not (_adverbial_correlative(w)
+                             and w.get('korelativo_prefikso') == 'ki')):
                 # Prago labels relative clauses plain `acl`, not `acl:relcl`.
                 return (j + 1, 'acl')
         return None
@@ -4058,6 +4079,46 @@ def attach_all(word_asts: list, clauses: list) -> None:
         if not isinstance(head, dict):
             continue
         w['rolo'] = 'obl' if head.get('vortspeco') == 'verbo' else 'nmod'
+
+    # ---- SAFETY NET: no attachment rule may ship a dependency cycle -------
+    # klareco#927/#929: a governor-search rule can pick a candidate whose
+    # OWN head is not yet resolved at check time (e.g. a korelativo whose
+    # advmod attachment happens in a later pass) — the rule's own cycle
+    # guard can't see a chain that doesn't exist yet, so a cycle can still
+    # close once every pass has run. Fixing each rule's search heuristic
+    # (as #927 and #929 did for the two known causes) is the right
+    # long-term answer, but a THIRD as-yet-uncharacterized rule could
+    # reproduce the same failure class. This pass is the backstop: it runs
+    # the identical walk `syntax_graph.validate_tokens` uses, and instead of
+    # raising, deterministically breaks any cycle it finds by detaching the
+    # LAST node the walk revisits — the one whose edge actually closed the
+    # loop — to the sentence's main verb (or ROOT if there is none) as
+    # `parataxis`, a low-confidence fallback already used elsewhere for
+    # attachments a rule declines to make. This must never fire on the UD
+    # gold fixtures (a fired repair is exactly the "regression-fixture
+    # gain" the parser gate wants to see recorded, not silently hidden);
+    # log it loudly so a real occurrence is visible.
+    registry = {w['id']: w for w in word_asts if isinstance(w, dict) and 'id' in w}
+    complete: set[int] = set()
+    for w in word_asts:
+        if not isinstance(w, dict):
+            continue
+        seen: list[int] = []
+        node = w['id']
+        while node and node not in complete:
+            if node in seen:
+                closer = registry[node]
+                fallback = main_verb if (main_verb and main_verb != node) else 0
+                logger.warning(
+                    "attach_all: repaired a dependency cycle at token %s "
+                    "(%s) — reattached to %s as parataxis instead of "
+                    "raising (klareco#929 safety net)",
+                    node, closer.get('radiko'), fallback or 'ROOT')
+                closer['kapo'], closer['rolo'] = fallback, 'parataxis'
+                break
+            seen.append(node)
+            node = registry[node]['kapo']
+        complete.update(seen)
 
 # ---------------------------------------------------------------------------
 # CLAUSES — the AST becomes an actual TREE.

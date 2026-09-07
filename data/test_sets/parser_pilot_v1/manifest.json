@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "seed": "parser-pilot-v1",
+  "store": "data/indexes/duckdb_store.db",
+  "status": "unreviewed annotation queue, not gold",
+  "files": {
+    "development.jsonl": "43af6bdef0b766667fe5976c1aa45cf62f6f27719de9c9a062273f6ea22b4ead",
+    "heldout.jsonl": "0fc4901023f4f94abc91b2d4838b5850f3686a29cb7dc355e19d12feb12dcc05"
+  },
+  "sources": {
+    "alice": 4,
+    "andersen": 4,
+    "krestomatio": 4,
+    "lingvaj_respondoj": 4,
+    "pmeg": 4,
+    "wikipedia": 180
+  },
+  "splits": {
+    "development": 160,
+    "heldout": 40
+  },
+  "selection": "source round-robin, at most four per document; no parser labels"
+}

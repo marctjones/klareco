@@ -19,6 +19,13 @@ data/*
 !data/test_sets/
 data/test_sets/*
 !data/test_sets/*.jsonl
+# klareco#932: the parser annotation queues (unreviewed, ~1MB total) were
+# gitignored and local-only — exactly the artifact class the June 2026
+# migration lost. Small enough to just commit; back them up BEFORE any
+# human review time is invested (docs/PARSER_EVALUATION_PROTOCOL.md).
+!data/test_sets/parser_pilot_v1/
+!data/test_sets/parser_pilot_v2/
+!data/test_sets/parser_gold_candidates_v1/
 models/
 logs/
 results/

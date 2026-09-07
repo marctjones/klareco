@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "seed": "parser-corpus-pilot-v1",
+  "status": "unreviewed annotation queue, not gold",
+  "inputs": [
+    "data/extracted/eo/free/gutenberg_sentences.jsonl",
+    "data/extracted/eo/free/libera_folio_sentences.jsonl",
+    "data/extracted/eo/free/vikifontaro_sentences.jsonl"
+  ],
+  "size": 1000,
+  "splits": {
+    "heldout": 200,
+    "development": 800
+  },
+  "sources": {
+    "gutenberg": 373,
+    "libera_folio": 157,
+    "vikifontaro": 470
+  },
+  "kinds": {
+    "nekonata": 229,
+    "originala": 458,
+    "tradukita": 313
+  },
+  "documents": 400,
+  "files": {
+    "development.jsonl": "10eeb28afc964e0a5d33cec5d62ed172ebedf772740c502279a8ce9bc0ad69e7",
+    "heldout.jsonl": "af83889dc56e413d01d4afd1781f04d6b3245fd8a921b67cc83fbe0b726dc8b1"
+  },
+  "selection": "source/kind round-robin, max eight sentences per document, normalized-text deduplication, no parser labels",
+  "annotation_requirement": "two independent reviewers plus adjudication before promotion to gold"
+}

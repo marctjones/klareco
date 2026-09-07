@@ -15,6 +15,17 @@ from klareco.parser import parse
 from eval_conllu import read_gold
 
 
+_APERTIUM_PATH = Path("data/raw/eo/dictionaries/apertium_lexicon.json")
+if not _APERTIUM_PATH.exists():
+    raise FileNotFoundError(f"Required lexical resource is missing: {_APERTIUM_PATH}")
+_APERTIUM = json.loads(_APERTIUM_PATH.read_text(encoding="utf-8"))["entries"]
+_VALENCY = {
+    entry["stem"]: ("transitive" if "vbtr" in entry.get("par", "") else "intransitive")
+    for entry in _APERTIUM.values()
+    if isinstance(entry, dict) and entry.get("pos") == "verbo" and entry.get("stem")
+}
+
+
 def _cycle(assignments: dict[int, tuple[int, str]], token: int, head: int) -> bool:
     seen = {token}
     node = head
@@ -40,6 +51,11 @@ def _score(token: dict, head: dict, option: dict, baseline: tuple[int, str], cou
         score -= 3.0
     if relation == "obj" and "ig" in suffixes:
         score += 2.0
+    valency = _VALENCY.get(head.get("tigo"))
+    if relation == "obj" and valency == "transitive":
+        score += 2.5
+    if relation in {"obj", "obl"} and valency == "intransitive":
+        score -= 2.5
     if relation == "obj" and counts.get(head["id"], 0):
         score -= 2.0
     score -= 0.05 * abs(token["id"] - head["id"])
@@ -55,15 +71,18 @@ def _decode(ast: dict) -> tuple[dict[int, tuple[int, str]], float]:
     states: list[tuple[float, dict[int, tuple[int, str]], dict[int, int]]] = [(0.0, {}, {})]
     for token in ambiguous:
         next_states = []
-        options = token["alligo_opcioj"]
+        options = list(token["alligo_opcioj"])
+        baseline_option = {"kapo": baseline[token["id"]][0], "rolo": baseline[token["id"]][1]}
+        if baseline_option not in options:
+            options.append(baseline_option)
         for score, assignments, counts in states:
             for option in options:
                 head_id = option["kapo"]
-                if head_id not in by_id or head_id == token["id"]:
+                if head_id not in by_id and head_id != 0 or head_id == token["id"]:
                     continue
                 if _cycle(assignments, token["id"], head_id):
                     continue
-                head = by_id[head_id]
+                head = by_id.get(head_id, {"id": 0, "vortspeco": "radiko"})
                 updated = dict(assignments)
                 updated[token["id"]] = (head_id, option["rolo"])
                 updated_counts = dict(counts)

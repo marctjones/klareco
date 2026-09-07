@@ -1,0 +1,22 @@
+{
+  "eo_prago-ud-test": {
+    "tokens": 2709,
+    "baseline_las": 1898,
+    "decoded_las": 1900,
+    "sentences": 131,
+    "decode_failures": 0,
+    "baseline_las_rate": 0.7006275378368402,
+    "decoded_las_rate": 0.7013658176448874,
+    "las_delta": 2
+  },
+  "eo_cairo-ud-test": {
+    "tokens": 149,
+    "baseline_las": 122,
+    "decoded_las": 122,
+    "sentences": 20,
+    "decode_failures": 0,
+    "baseline_las_rate": 0.8187919463087249,
+    "decoded_las_rate": 0.8187919463087249,
+    "las_delta": 0
+  }
+}

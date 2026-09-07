@@ -3449,6 +3449,22 @@ def attach_all(word_asts: list, clauses: list) -> None:
         if (not comma_signal and prev_nominal.get('nombro') and w.get('nombro')
                 and prev_nominal.get('nombro') != w.get('nombro')):
             continue
+        # Guard against creating a cycle: if `prev_nominal`'s existing
+        # ancestor chain already leads back to `w`, attaching `w` under
+        # `prev_nominal` would close a loop (klareco#927). Walk the chain
+        # the same way `syntax_rules.attach()` does before committing.
+        ancestor_id = prev_nominal.get('id')
+        cycle = False
+        seen_ids = set()
+        while ancestor_id:
+            if ancestor_id == w['id'] or ancestor_id in seen_ids:
+                cycle = True
+                break
+            seen_ids.add(ancestor_id)
+            ancestor = word_asts[ancestor_id - 1] if 0 < ancestor_id <= len(word_asts) else None
+            ancestor_id = ancestor.get('kapo') if isinstance(ancestor, dict) else None
+        if cycle:
+            continue
         w['kapo'], w['rolo'] = prev_nominal.get('id'), 'appos'
 
     # ---- THE COPULA ------------------------------------------------------

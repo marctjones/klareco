@@ -3904,9 +3904,22 @@ def attach_all(word_asts: list, clauses: list) -> None:
             # another ADVERB attaches to IT, not to the clause verb. We were
             # sending every adverb to the verb, which is why advmod sat at 18%.
             nxt = word_asts[i] if i < n else None
+            prev = word_asts[i - 2] if i >= 2 else None
+            clause_id = clause_of.get(i, clause_of.get(verb))
+
             if (isinstance(nxt, dict)
                     and nxt.get('vortspeco') in ('adjektivo', 'adverbo')):
                 w['kapo'], w['rolo'] = nxt['id'], 'advmod'
+            # `volas rapide labori` — infinitive complements can be adverb heads
+            # and are often the right attachment for the adverb.
+            elif (isinstance(nxt, dict)
+                    and nxt.get('vortspeco') == 'verbo'
+                    and clause_of.get(nxt.get('id'), clause_id) == clause_id):
+                w['kapo'], w['rolo'] = nxt['id'], 'advmod'
+            elif (isinstance(prev, dict)
+                    and prev.get('vortspeco') == 'verbo'
+                    and clause_of.get(prev.get('id'), clause_id) == clause_id):
+                w['kapo'], w['rolo'] = prev['id'], 'advmod'
             else:
                 # …otherwise the NEAREST VERB, which is not always the clause's
                 # finite one:
@@ -3922,7 +3935,8 @@ def attach_all(word_asts: list, clauses: list) -> None:
                 for j in list(range(i + 1, min(i + 5, n + 1))) + \
                         list(range(i - 1, max(i - 5, 0), -1)):
                     c = word_asts[j - 1]
-                    if isinstance(c, dict) and c.get('vortspeco') == 'verbo':
+                    if (isinstance(c, dict) and c.get('vortspeco') == 'verbo'
+                            and clause_of.get(c.get('id'), clause_id) == clause_id):
                         ancestor = c.get('id')
                         seen = set()
                         while ancestor and ancestor not in seen and ancestor != i:

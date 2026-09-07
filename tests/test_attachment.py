@@ -189,6 +189,12 @@ class TestAdverbScope:
         assert _dep(rows, 'tre')['dep'] == 'advmod'
         assert _dep(rows, 'tre')['head'] == _dep(rows, 'granda')['id']
 
+    def test_an_adverb_between_finite_and_infinitive_attaches_to_infinitive(self):
+        """`Ni volas rapide labori` — the adverb belongs to the infinitive."""
+        rows = _rows('Ni volas rapide labori.')
+        assert _dep(rows, 'rapide')['dep'] == 'advmod'
+        assert _dep(rows, 'rapide')['head'] == _dep(rows, 'labori')['id']
+
 
 class TestCoordination:
     """#827 — 11.5% of LAS. Bick found coordination 4x over-represented among

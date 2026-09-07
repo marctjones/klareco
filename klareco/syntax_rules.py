@@ -88,7 +88,7 @@ def refine_dependencies(tokens: list[dict]) -> list[AttachmentChange]:
             ),
             None,
         )
-        if candidate is None or candidate.get("rolo") != "nmod":
+        if candidate is None or candidate.get("rolo") not in {"nmod", "conj"}:
             continue
         candidate_index = tokens.index(candidate)
         if any(
@@ -145,6 +145,15 @@ def refine_dependencies(tokens: list[dict]) -> list[AttachmentChange]:
             [predecessor["id"], comma["id"], candidate["id"],
              tokens[coordinator_index]["id"], final_member["id"]],
         )
+        if final_member.get("rolo") in {"nsubj", "obj", "nmod"} and final_member != predecessor:
+            attach(
+                final_member,
+                candidate["id"],
+                "conj",
+                "punctuated-nominal-enumeration-v1",
+                [predecessor["id"], comma["id"], candidate["id"],
+                 tokens[coordinator_index]["id"], final_member["id"]],
+            )
 
     for index, word in enumerate(tokens):
         # A zero head is the root relation even in a verbless fragment. The

@@ -86,6 +86,24 @@ def test_punctuated_pp_does_not_impersonate_a_nominal_enumeration():
     )
 
 
+def test_punctuated_nominal_enumeration_fixes_nsubj_tail_member():
+    ast = parse(
+        "Ni, anoj de la tutmonda movado por la progresigo de Esperanto, "
+        "direktas ĉi tiun manifeston al ĉiuj registaroj, internaciaj "
+        "organizaĵoj, kaj homoj de bona volo, deklaras nian intencon."
+    )
+    words = {w["plena_vorto"]: w for w in ast["vortoj"]}
+    assert words["organizaĵoj"]["rolo"] == "conj"
+    assert words["organizaĵoj"]["kapo"] == words["registaroj"]["id"]
+    assert words["homoj"]["rolo"] == "conj"
+    assert words["homoj"]["kapo"] == words["organizaĵoj"]["id"]
+    assert any(
+        change["rule"] == "punctuated-nominal-enumeration-v1"
+        and change["token_id"] == words["homoj"]["id"]
+        for change in ast["attachment_trace"]
+    )
+
+
 def test_punctuated_enumeration_does_not_rewrite_a_fragment_root():
     ast = parse(
         "del Hoyo, J., Collar, N.J., Christie, D.A., Elliott, A. kaj "

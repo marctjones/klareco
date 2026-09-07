@@ -215,6 +215,45 @@ class TestAmbiguousPPWithNoVerb:
         assert {o['rolo'] for o in w['alligo_opcioj']} == {'nmod', 'obl'}
 
 
+class TestAttachmentTraceToleratesAPreRootSweepSnapshot:
+    """A third, distinct compact_ast() crash class (4/50,000 sampled store
+    sentences): `attach_all` can leave a token with head_id 0 (unattached)
+    and whatever relation label it happened to carry at that point.
+    `syntax_rules.refine_dependencies`'s root-relation-v1 sweep is what
+    visits every token afterward and normalizes this to relation 'root' —
+    but it is not necessarily the FIRST refinement rule to touch such a
+    token. `punctuated-nominal-enumeration-v1` runs earlier and can call
+    `attach()` on one first, capturing {head_id: 0, relation: <not 'root'>}
+    as ITS "before" snapshot in the attachment trace. The validator already
+    special-cased exactly this shape for root-relation-v1's OWN before-edge
+    (root-relation-v1 uses attach(word, 0, 'root', ...), so its own before
+    edge is naturally this shape) but rejected it from any other rule.
+    """
+
+    def test_a_biographical_listing_sentence_does_not_crash_compact_ast(self):
+        """'Name (dates) profession, profession, profession kaj kaj mayor of
+        City' -- the duplicated 'kaj' is present in the reproducing corpus
+        sentence and is incidental; the enumeration/coordination structure
+        is what exercises the pre-root-sweep state."""
+        from klareco.parser import compact_ast
+        s = ('Johann Sebastian Bruch (1759-1828) komercisto, politikisto, '
+             'juĝisto kaj kaj urbestro de Saarbrücken')
+        compact_ast(parse(s))   # must not raise
+
+    def test_the_final_selected_tree_has_no_zero_head_non_root_relation(self):
+        """Whatever the trace's intermediate 'before' snapshots look like,
+        the FINAL selected kapo/rolo on every token must still satisfy the
+        root invariant -- this fix only widens what the TRACE HISTORY may
+        show, never the answer the parser actually commits to."""
+        s = ('Johann Sebastian Bruch (1759-1828) komercisto, politikisto, '
+             'juĝisto kaj kaj urbestro de Saarbrücken')
+        for w in parse(s)['vortoj']:
+            if not isinstance(w, dict):
+                continue
+            assert (w.get('kapo') == 0) == (w.get('rolo') == 'root'), \
+                f"token {w.get('id')} ({w.get('radiko')!r}) has kapo=0 with rolo={w.get('rolo')!r}"
+
+
 class TestAdverbScope:
     def test_an_adverb_modifying_an_ADJECTIVE_attaches_to_IT(self):
         """`tre granda` — not to the clause verb. We were sending every adverb to

@@ -655,18 +655,27 @@ def _validate_v2(ast: dict, registry: dict, roots: list[int]) -> None:
         ):
             raise ValueError("Attachment trace contradicts dependencies or evidence")
         edge_ok(token_id, change["after"])
-        # The previous stage may have emitted an inconsistent root relation;
-        # root-relation-v1 explicitly documents its repair.
+        # attach_all can leave a token with head_id 0 (unattached) and
+        # whatever relation label it happened to carry at that point — the
+        # root-relation-v1 sweep (klareco/syntax_rules.py) is what visits
+        # every token and normalizes this to relation 'root', but it is not
+        # necessarily the FIRST rule to run: punctuated-nominal-enumeration-v1
+        # (and any future rule placed before that sweep) can call attach()
+        # on such a token first, capturing this exact shape as ITS "before"
+        # snapshot (klareco#933-adjacent: reproduced on a biographical
+        # listing sentence, 4/50,000 sampled store sentences). The relevant
+        # fact is the EDGE'S shape, not which rule recorded it — root-
+        # relation-v1's own "before" is simply the common case.
         before = change.get("before")
-        if change["rule"] != "root-relation-v1":
+        if isinstance(before, dict) and before.get("head_id") == 0:
+            if (
+                set(before) != {"head_id", "relation"}
+                or not isinstance(before["relation"], str)
+                or not before["relation"]
+            ):
+                raise ValueError("Invalid root repair trace")
+        else:
             edge_ok(token_id, before)
-        elif (
-            not isinstance(before, dict)
-            or set(before) != {"head_id", "relation"}
-            or before["head_id"] != 0
-            or not isinstance(before["relation"], str)
-        ):
-            raise ValueError("Invalid root repair trace")
         current[token_id] = before
 
 

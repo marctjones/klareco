@@ -229,6 +229,30 @@ class TestTheParserPrefixBugsMorphologyFixes:
         assert a['radiko'] == 'san'
         assert 're' in a['prefiksoj'] and 'ig' in a['sufiksoj']
 
+    def test_a_hyphenated_compound_does_not_carry_a_stale_alternativoj(self):
+        """`parse_word` calls `_apply_morphology` twice for a hyphenated
+        compound: once on the HEAD sub-word alone (recursively, inside
+        `_parse_word_impl`'s hyphen split), then again on the copied
+        compound ast with the FULL hyphenated string. If the head word had
+        multiple morphological readings ('Horizonto' does: horizont+o vs
+        hor+iz+ont+o), that first call sets a self-consistent `alternativoj`
+        whose candidate surfaces match the HEAD's own `morfologia_formo`
+        ('horizonto'). The second call correctly overwrites `radiko`/
+        `tigo`/`morfemoj`/`morfologia_formo` to the FULL compound's single
+        reading ('bel-horizonto') — but used to return early without
+        clearing the now-stale `alternativoj`, whose candidate surfaces no
+        longer matched anything on the word. syntax_graph's own validator
+        (rightly) rejects that mismatch on compact_ast() (klareco#933-
+        adjacent: reproduced on 'Bel-Horizonto', 2/20,000 sampled store
+        sentences)."""
+        from klareco.parser import parse, compact_ast
+        ast = parse('Ĝi estas en Bel-Horizonto')
+        compact_ast(ast)   # must not raise
+        w = next(x for x in ast['vortoj'] if x.get('radiko') == 'bel-horizont')
+        assert w.get('alternativoj') is None, (
+            "a hyphenated compound's single-reading morphology must not "
+            "carry a stale multi-reading alternativoj from its head sub-word")
+
     def test_the_ENDING_must_match_the_STEM(self):
         """The check that was missing entirely, and it decides real ambiguities:
 

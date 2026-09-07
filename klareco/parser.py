@@ -1960,6 +1960,20 @@ def _apply_morphology(ast: dict, word: str) -> dict:
     ast['morfologia_formo'] = best.surface
 
     if len(readings) == 1:
+        # `parse_word` calls `_apply_morphology` twice for a hyphenated
+        # compound: once on the HEAD sub-word alone (recursively, via
+        # `_parse_word_impl`'s hyphen-split), then again on the copied
+        # compound ast with the FULL hyphenated string. If the head had
+        # multiple readings, that first call left a self-consistent
+        # `alternativoj` on `ast` (all options' surface matching the HEAD's
+        # own `morfologia_formo`). This second call just overwrote `radiko`/
+        # `tigo`/`morfemoj`/`morfologia_formo` to the FULL compound's single
+        # reading — but without this pop, the stale `alternativoj` survives
+        # with candidates whose surface no longer matches, which
+        # syntax_graph's validator (rightly) rejects on compact_ast()
+        # (klareco#933-adjacent: reproduced on 'Bel-Horizonto', 2/20,000
+        # sampled store sentences).
+        ast.pop('alternativoj', None)
         return ast                      # One candidate in this bounded search.
 
     margin = best.score - readings[1].score
@@ -3176,11 +3190,18 @@ def _attach_pp(word_asts: list, w: dict, i: int, gov, verb: int) -> None:
     #     options, so #834's ranker can collapse it and we can COUNT how often we
     #     had to guess. Guessing silently is what we are trying to stop doing.
     w['kapo'], w['rolo'] = noun, 'nmod'
-    w['alligo_ambigua'] = True
-    w['alligo_opcioj'] = [
-        {'kapo': noun, 'rolo': 'nmod', 'fonto': None},
-        {'kapo': verb, 'rolo': 'obl', 'fonto': None},
-    ]
+    w['alligo_opcioj'] = [{'kapo': noun, 'rolo': 'nmod', 'fonto': None}]
+    # A verbless fragment ("Ludgerus en Rheine-Elte") has no verb for the
+    # `obl` alternative to point at — `verb` is 0 (this codebase's "no such
+    # token" sentinel), and `{'kapo': 0, 'rolo': 'obl'}` is not a valid edge:
+    # head_id 0 means ROOT, which requires relation 'root'. Recording it
+    # anyway made syntax_graph's edge validator raise on compact_ast() for
+    # every such fragment (4.24% of a 5,000-sentence store sample). With no
+    # verb, the ambiguity is moot: `noun` is the only real candidate, so
+    # attach deterministically and don't claim a choice was made.
+    if verb:
+        w['alligo_ambigua'] = True
+        w['alligo_opcioj'].append({'kapo': verb, 'rolo': 'obl', 'fonto': None})
 
 # ---------------------------------------------------------------------------
 # ATTACHMENT — every token gets a HEAD and a ROLE. `aliaj` stops being a bucket.

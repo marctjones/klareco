@@ -181,6 +181,40 @@ class TestPPAttachment:
             'nothing deterministic chose — the AST must say so'
 
 
+class TestAmbiguousPPWithNoVerb:
+    """A verbless fragment ("Ludgerus en Rheine-Elte", a Wikipedia-style
+    title) still goes through the genuinely-ambiguous-PP residue path
+    (TestPPAttachment, case 5), which used to unconditionally record an
+    `obl`-to-the-verb alternative. With no verb, that alternative's head_id
+    was 0 (this codebase's "no such token" sentinel) paired with relation
+    'obl' — an edge that violates syntax_graph's own invariant that head_id
+    0 always means relation 'root'. compact_ast() validates every
+    attachment alternative and raised on it: 212/5,000 sampled store
+    sentences (4.24%) failed to serialize at all.
+    """
+
+    def test_a_verbless_fragment_does_not_crash_compact_ast(self):
+        from klareco.parser import compact_ast
+        ast = parse('Ludgerus en Rheine-Elte')
+        compact_ast(ast)   # must not raise
+
+    def test_the_bogus_root_obl_alternative_is_not_recorded(self):
+        ast = parse('Ludgerus en Rheine-Elte')
+        w = next(x for x in ast['vortoj'] if x.get('radiko') == 'Elte')
+        assert w.get('alligo_opcioj') == [
+            {'kapo': w['kapo'], 'rolo': 'nmod', 'fonto': None}
+        ], 'with no verb, the ambiguity is moot -- only the noun option remains'
+        assert not w.get('alligo_ambigua'), \
+            'a single-option "choice" must not be flagged ambiguous'
+
+    def test_a_genuinely_ambiguous_pp_with_a_real_verb_is_unaffected(self):
+        """The fix must not remove the alternative when a verb DOES exist."""
+        w = next(x for x in parse('Mi vidis la viron en la parko.')['vortoj']
+                 if x.get('plena_vorto') == 'parko')
+        assert w.get('alligo_ambigua') is True
+        assert {o['rolo'] for o in w['alligo_opcioj']} == {'nmod', 'obl'}
+
+
 class TestAdverbScope:
     def test_an_adverb_modifying_an_ADJECTIVE_attaches_to_IT(self):
         """`tre granda` — not to the clause verb. We were sending every adverb to

@@ -41,6 +41,17 @@ def _candidate_heads(ast: dict, token_id: int) -> set[int]:
     return heads
 
 
+def _candidate_edges(ast: dict, token_id: int) -> set[tuple[int, str]]:
+    edges: set[tuple[int, str]] = set()
+    for candidate in ast.get("syntax", {}).get("attachment_candidates", []):
+        if candidate.get("token_id") != token_id:
+            continue
+        for option in candidate.get("options", []):
+            if isinstance(option.get("head_id"), int) and isinstance(option.get("relation"), str):
+                edges.add((option["head_id"], option["relation"]))
+    return edges
+
+
 def measure(path: Path) -> dict:
     gold_sentences = read_gold(str(path))
     totals = {
@@ -49,6 +60,7 @@ def measure(path: Path) -> dict:
         "head_correct": 0,
         "las_correct": 0,
         "candidate_head_recall": 0,
+        "candidate_edge_recall": 0,
         "candidate_head_recall_on_head_errors": 0,
         "head_errors": 0,
         "head_errors_with_gold_candidate": 0,
@@ -114,8 +126,15 @@ def measure(path: Path) -> dict:
                 for head in _candidate_heads(ast, ours_token["id"])
             }
             candidate_has_gold = gold_token["head"] in candidate_heads
+            candidate_edges = {
+                (0 if head == 0 else ours_to_gold.get(head, -1), relation)
+                for head, relation in _candidate_edges(ast, ours_token["id"])
+            }
+            candidate_has_gold_edge = (gold_token["head"], gold_token["dep"]) in candidate_edges
             if candidate_has_gold:
                 totals["candidate_head_recall"] += 1
+            if candidate_has_gold_edge:
+                totals["candidate_edge_recall"] += 1
             if not head_ok:
                 if candidate_has_gold:
                     totals["candidate_head_recall_on_head_errors"] += 1
@@ -139,6 +158,9 @@ def measure(path: Path) -> dict:
     totals["las"] = totals["las_correct"] / aligned if aligned else 0.0
     totals["candidate_head_recall_rate"] = (
         totals["candidate_head_recall"] / aligned if aligned else 0.0
+    )
+    totals["candidate_edge_recall_rate"] = (
+        totals["candidate_edge_recall"] / aligned if aligned else 0.0
     )
     totals["candidate_recall_on_head_errors_rate"] = (
         totals["candidate_head_recall_on_head_errors"] / head_errors

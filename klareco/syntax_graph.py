@@ -91,6 +91,19 @@ def _structural_relation(word: dict, head: dict) -> str:
     return relation
 
 
+def _structural_relations(word: dict, head: dict) -> list[str]:
+    """Return relation labels licensed by the token's morphology and role."""
+    relation = _structural_relation(word, head)
+    relations = [relation]
+    head_is_predicate = head.get("vortspeco") == "verbo"
+    if head_is_predicate and word.get("kazo") == "akuzativo":
+        if word.get("vortspeco") in ("substantivo", "propra_nomo", "pronomo"):
+            relations.extend(("obj", "obl"))
+        elif word.get("vortspeco") in ("numero", "numeralo"):
+            relations.append("obl")
+    return list(dict.fromkeys(relations))
+
+
 def _add_structural_candidates(tokens: list[dict]) -> None:
     """Expose bounded, cycle-safe local heads for unresolved token analyses.
 
@@ -118,21 +131,22 @@ def _add_structural_candidates(tokens: list[dict]) -> None:
                 continue
             if _would_cycle(registry, token_id, head_id):
                 continue
-            edge = {
-                "kapo": head_id,
-                "rolo": _structural_relation(word, head),
-                "fonto": "bounded-local-structure-v1",
-            }
-            if edge not in candidates:
-                candidates.append(edge)
+            for relation in _structural_relations(word, head):
+                edge = {
+                    "kapo": head_id,
+                    "rolo": relation,
+                    "fonto": "bounded-local-structure-v1",
+                }
+                if edge not in candidates:
+                    candidates.append(edge)
         if candidates:
             word["alligo_opcioj"] = candidates
 
 
 def project(ast: dict, original: str, normalized: str) -> dict:
     tokens = ast["vortoj"]
-    roots = validate_tokens(tokens)
     _add_structural_candidates(tokens)
+    roots = validate_tokens(tokens)
     registry = {w["id"]: w for w in tokens}
     children = {i: [] for i in registry}
     for word in tokens:

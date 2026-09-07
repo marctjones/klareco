@@ -1,0 +1,78 @@
+{
+  "eo_prago-ud-test": {
+    "nearest": {
+      "tokens": 2709,
+      "baseline_las_correct": 1898,
+      "baseline_las": 0.7006275378368402,
+      "selected_las_correct": 1884,
+      "selected_las": 0.6954595791805094,
+      "las_delta": -14,
+      "selected": 190
+    },
+    "finite-nearest": {
+      "tokens": 2709,
+      "baseline_las_correct": 1898,
+      "baseline_las": 0.7006275378368402,
+      "selected_las_correct": 1869,
+      "selected_las": 0.689922480620155,
+      "las_delta": -29,
+      "selected": 190
+    },
+    "rightmost": {
+      "tokens": 2709,
+      "baseline_las_correct": 1898,
+      "baseline_las": 0.7006275378368402,
+      "selected_las_correct": 1859,
+      "selected_las": 0.6862310815799187,
+      "las_delta": -39,
+      "selected": 190
+    },
+    "finite-rightmost": {
+      "tokens": 2709,
+      "baseline_las_correct": 1898,
+      "baseline_las": 0.7006275378368402,
+      "selected_las_correct": 1851,
+      "selected_las": 0.6832779623477298,
+      "las_delta": -47,
+      "selected": 190
+    }
+  },
+  "eo_cairo-ud-test": {
+    "nearest": {
+      "tokens": 149,
+      "baseline_las_correct": 122,
+      "baseline_las": 0.8187919463087249,
+      "selected_las_correct": 118,
+      "selected_las": 0.7919463087248322,
+      "las_delta": -4,
+      "selected": 18
+    },
+    "finite-nearest": {
+      "tokens": 149,
+      "baseline_las_correct": 122,
+      "baseline_las": 0.8187919463087249,
+      "selected_las_correct": 118,
+      "selected_las": 0.7919463087248322,
+      "las_delta": -4,
+      "selected": 18
+    },
+    "rightmost": {
+      "tokens": 149,
+      "baseline_las_correct": 122,
+      "baseline_las": 0.8187919463087249,
+      "selected_las_correct": 118,
+      "selected_las": 0.7919463087248322,
+      "las_delta": -4,
+      "selected": 18
+    },
+    "finite-rightmost": {
+      "tokens": 149,
+      "baseline_las_correct": 122,
+      "baseline_las": 0.8187919463087249,
+      "selected_las_correct": 118,
+      "selected_las": 0.7919463087248322,
+      "las_delta": -4,
+      "selected": 18
+    }
+  }
+}

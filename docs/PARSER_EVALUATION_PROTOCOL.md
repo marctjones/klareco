@@ -38,6 +38,19 @@ kind, license, URL, and source-line provenance. The output is explicitly an
 **unreviewed annotation queue, not gold data**. Automatic parser output must
 not be copied into labels without independent human review.
 
+For large natural-text robustness checks, use the unlabeled coverage report:
+
+```bash
+python scripts/eval/parser_coverage_report.py \
+  --output data/perf/parser_research/nonwiki_coverage_5000.json --size 5000
+```
+
+It samples the same non-Wikipedia sources and reports parse failures, complete
+AST storage round-trips, deterministic reparses, latency, and source/kind
+coverage. These are engineering and robustness metrics, not UPOS/UAS/LAS
+accuracy. A larger sample is useful for finding failures, but it does not
+create gold labels.
+
 ## Required scores
 
 For a reviewed gold export, generate sentence-level 95% intervals with:

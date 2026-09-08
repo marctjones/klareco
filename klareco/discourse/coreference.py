@@ -1,36 +1,42 @@
-"""Deterministic candidate generation for cross-sentence pronoun reference.
+"""Deterministic candidate generation for cross-sentence pronoun and
+demonstrative reference.
 
 VISION.md lists "cross-sentence coreference" as a suspected residue and
 says it has never been tested. This module is that test, at the smallest
 scope that can be measured: does the deterministic information already in
 the corpus (sentence order within a document, grammatical number, the
-thin entity-type ontology, morphological affixes) resolve a 3rd-person
-pronoun's antecedent, and when it doesn't, how far off is it?
+thin entity-type ontology, morphological affixes) resolve a referring
+expression's antecedent, and when it doesn't, how far off is it?
 
-Scope, deliberately narrow:
-- Esperanto's PERSONAL pronouns li/ŝi/ĝi/ili only. Reflexive `si` is
-  EXCLUDED on purpose: it is bound to the subject of its OWN clause by
-  grammar, never a cross-sentence reference, so including it would not be
-  testing coreference at all. Demonstratives (tiu/tio) are a distinct
-  closed class and out of scope for this first pass.
+Scope:
+- Esperanto's PERSONAL pronouns li/ŝi/ĝi/ili, plus the demonstrative
+  tiu/tiuj ("that one" / "those"). Reflexive `si` is EXCLUDED on purpose:
+  it is bound to the subject of its OWN clause by grammar, never a
+  cross-sentence reference, so including it would not be testing
+  coreference at all. `tio` ("that thing/fact") is ALSO excluded on
+  purpose, for a different reason: it overwhelmingly refers to an entire
+  preceding CLAUSE or EVENT, not a nominal ("Li malfruis. Tio kolerigis
+  ŝin." = "He was late. THAT [fact] angered her.") -- searching for a
+  nominal antecedent for it would be answering the wrong question. That
+  is a real, separate, uncharacterized residue (propositional anaphora),
+  not something this module's candidate shape can honestly represent.
 - A candidate antecedent is any NOMINAL (substantivo/propra_nomo) token in
-  one of the `window` sentences immediately preceding the pronoun's own
+  one of the `window` sentences immediately preceding the mention's own
   sentence, in the same document (matched by DB `article_id`, not by the
   parser -- the parser has no concept of "document").
 - Compatibility is grammatical NUMBER (always reliable in Esperanto: an
-  explicit, unambiguous morphological marker) plus an ontology-informed,
-  NON-EXCLUSIONARY animacy check. The entity-type ontology
-  (`ontology_edges` WHERE rel='HAVAS_ENTECAN_TIPON') covers 2,337 roots and
-  is hand-seeded and thin (CLAUDE.md) -- an UNCLASSIFIED root is never
-  treated as evidence against a candidate, only a classified one is.
+  explicit, unambiguous morphological marker) plus, for li/ŝi/ĝi only, an
+  ontology-informed animacy check. `tiu` carries no animacy constraint --
+  grammatically correct for both persons and things ("tiu viro" / "tiu
+  tablo") -- so only number agreement applies to it.
 
 Ranking preference (nearer sentence, then subject role over object role)
 follows Centering Theory (Grosz, Joshi & Weinstein 1995; Brennan, Friedman
 & Pollard 1987): the current utterance's subject is the single strongest
-predictor of what a following pronoun refers to. This module does not
-implement full Centering Theory -- no discourse-segment tracking, no
-transition typing -- it borrows exactly the one, well-established ranking
-signal that is cheap and deterministic here.
+predictor of what a following referring expression picks out. This module
+does not implement full Centering Theory -- no discourse-segment tracking,
+no transition typing -- it borrows exactly the one, well-established
+ranking signal that is cheap and deterministic here.
 
 This is NOT wired into the default orchestrator pipeline. Per the
 project's contract, a new capability stays default-OFF until it passes
@@ -38,16 +44,27 @@ the contract suite and carries a measured number.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
+
+from klareco.discourse.annotations import make_annotation_layer as _make_layer
+from klareco.discourse.annotations import make_finding
 
 # Esperanto's closed personal-pronoun set and the grammatical number each
 # one requires of its antecedent. `si` (reflexive) is deliberately absent.
-_PRONOUN_NUMBER: dict[str, str] = {
+# `ili`'s own `nombro` field is unreliable at parse time (a separate,
+# characterized gap -- klareco.parser tags it 'singularo'), so its number
+# requirement is hardcoded here rather than read off the token.
+_PERSONAL_PRONOUN_NUMBER: dict[str, str] = {
     "li": "singularo",
     "ŝi": "singularo",
     "ĝi": "singularo",
     "ili": "pluralo",
 }
+
+# 'tiu' carries its OWN correct nombro (singularo for "tiu", pluralo for
+# "tiuj") -- read directly off the token rather than hardcoded. 'tio' is
+# deliberately absent; see the module docstring.
+_DEMONSTRATIVE_RADIKOJ = frozenset({"tiu"})
 
 _NOMINAL_VORTSPECOJ = ("substantivo", "propra_nomo")
 
@@ -61,20 +78,38 @@ _NOMINAL_VORTSPECOJ = ("substantivo", "propra_nomo")
 _SUBJECT_ROLES = frozenset({"nsubj", "csubj"})
 
 MODULE_NAME = "klareco.discourse.coreference"
-MODULE_VERSION = "1"
+MODULE_VERSION = "2"
 
 
+def referring_expression(word: dict) -> Optional[tuple[str, str]]:
+    """Return (radiko, required_antecedent_number) if `word` is a personal
+    pronoun or the nominal-referring demonstrative 'tiu'/'tiuj', else None.
+    """
+    if not isinstance(word, dict):
+        return None
+    radiko = (word.get("radiko") or "").lower()
+    if radiko in _PERSONAL_PRONOUN_NUMBER:
+        return radiko, _PERSONAL_PRONOUN_NUMBER[radiko]
+    if radiko in _DEMONSTRATIVE_RADIKOJ:
+        nombro = word.get("nombro")
+        if nombro in ("singularo", "pluralo"):
+            return radiko, nombro
+    return None
+
+
+# Backward-compatible alias for the personal-pronoun-only check.
 def pronoun_radiko(word: dict) -> Optional[str]:
     """Return 'li'/'ŝi'/'ĝi'/'ili' if `word` is one of those, else None."""
     if not isinstance(word, dict):
         return None
     radiko = (word.get("radiko") or "").lower()
-    return radiko if radiko in _PRONOUN_NUMBER else None
+    return radiko if radiko in _PERSONAL_PRONOUN_NUMBER else None
 
 
 def _iter_slot_words(ast: dict):
     """Yield every word-shaped node in subjekto/objekto/aliaj -- the slots
-    a pronoun can occupy. Mirrors klareco.dialog.state's `_kerno` unwrap."""
+    a referring expression can occupy. Mirrors klareco.dialog.state's
+    `_kerno` unwrap."""
     for role in ("subjekto", "objekto"):
         node = ast.get(role)
         if isinstance(node, dict):
@@ -85,16 +120,20 @@ def _iter_slot_words(ast: dict):
 
 
 def find_pronoun_mentions(sid: int, ast: dict) -> list[dict]:
-    """Every li/ŝi/ĝi/ili occurrence in one sentence, as a mention record."""
+    """Every li/ŝi/ĝi/ili/tiu(j) occurrence in one sentence, as a mention
+    record. Name kept for backward compatibility with earlier callers;
+    covers demonstratives too now."""
     mentions = []
     for role, w in _iter_slot_words(ast):
-        radiko = pronoun_radiko(w)
-        if radiko is None:
+        ref = referring_expression(w)
+        if ref is None:
             continue
+        radiko, target_number = ref
         mentions.append({
             "sid": sid,
             "token_id": w.get("id"),
             "pronoun": radiko,
+            "target_number": target_number,
             "surface": w.get("plena_vorto"),
             "role": role,
         })
@@ -104,11 +143,12 @@ def find_pronoun_mentions(sid: int, ast: dict) -> list[dict]:
 def _nominal_candidates(sid: int, ast: dict) -> list[dict]:
     """Every substantivo/propra_nomo token in one sentence's AST, PLUS one
     synthetic PLURAL candidate per coordinated nominal chain ("Maria kaj
-    Petro" -> one group candidate with nombro='pluralo'), so 'ili' can
-    match a coordinated pair of singular names -- the single most common
-    source of a plural antecedent in ordinary text. Coordination is read
-    directly off the dependency tree (rolo='conj' pointing at another
-    nominal's head), not re-detected with a separate heuristic."""
+    Petro" -> one group candidate with nombro='pluralo'), so a plural
+    referring expression can match a coordinated pair of singular names --
+    the single most common source of a plural antecedent in ordinary text.
+    Coordination is read directly off the dependency tree (rolo='conj'
+    pointing at another nominal's head), not re-detected with a separate
+    heuristic."""
     tokens = {w["id"]: w for w in ast.get("vortoj", []) if isinstance(w, dict)}
     out = []
     conj_children: dict[int, list[dict]] = {}
@@ -156,18 +196,21 @@ def _animacy_class(candidate: dict, entity_types: dict[str, str]) -> Optional[st
     return None
 
 
-def is_compatible(pronoun: str, candidate: dict, entity_types: dict[str, str]) -> bool:
+def is_compatible(
+    pronoun: str, target_number: str, candidate: dict, entity_types: dict[str, str]
+) -> bool:
     """NUMBER agreement is required (a hard, always-marked Esperanto
-    signal). Animacy agreement for li/ŝi/ĝi is ontology-informed.
+    signal). Animacy agreement for li/ŝi/ĝi is ontology-informed; 'tiu'
+    and 'ili' carry no animacy constraint at all.
 
-    The default direction differs by candidate kind, on purpose:
-    - PROPER NOUNS default to ELIGIBLE for li/ŝi when unclassified: most
-      capitalized names in this corpus denote a person, place, or
-      organization, and there is no better default for a name specifically.
-    - COMMON NOUNS default to INELIGIBLE for li/ŝi when unclassified: the
-      ordinary vocabulary is overwhelmingly non-human referents (objects,
-      places, abstract concepts), so treating "the ontology has no entry"
-      as "assume it's a person" would manufacture false positives (an
+    The li/ŝi animacy default differs by candidate kind, on purpose:
+    - PROPER NOUNS default to ELIGIBLE when unclassified: most capitalized
+      names in this corpus denote a person, place, or organization, and
+      there is no better default for a name specifically.
+    - COMMON NOUNS default to INELIGIBLE when unclassified: the ordinary
+      vocabulary is overwhelmingly non-human referents (objects, places,
+      abstract concepts), so treating "the ontology has no entry" as
+      "assume it's a person" would manufacture false positives (an
       earlier version of this rule let 'ĝi'-only nouns like 'matematiko'
       compete for 'ŝi' purely because the thin ontology never classified
       them). A common noun needs a POSITIVE 'persono' classification to be
@@ -178,9 +221,9 @@ def is_compatible(pronoun: str, candidate: dict, entity_types: dict[str, str]) -
     general "it", expected to cover most unclassified common nouns, and
     only excluded by a POSITIVE 'persono' classification.
     """
-    if candidate.get("nombro") != _PRONOUN_NUMBER[pronoun]:
+    if candidate.get("nombro") != target_number:
         return False
-    if pronoun == "ili":
+    if pronoun in ("ili", "tiu"):
         return True
     animacy = _animacy_class(candidate, entity_types)
     if pronoun == "ĝi":
@@ -219,19 +262,19 @@ def resolve_mention(
 
     `preceding_sentences` must already be ordered nearest-first (index 0 =
     the sentence immediately before the mention's sentence). `chain_candidate`,
-    if given, is "the entity the last same-type pronoun in this document
+    if given, is "the entity the last same-type mention in this document
     resolved to" (see `resolve_document`) -- it competes on equal footing
     with fresh nominal mentions, ranked as if at distance 0 (Centering
     Theory's CONTINUE preference: an already-established topic beats a
     same-distance competing noun, but a genuinely closer or better-ranked
     fresh mention is still listed alongside it, not hidden).
 
-    Returns {status: 'resolved'|'ambiguous'|'unresolved', candidates: [...]}.
-    `candidates` is sorted by rank and is empty iff status is 'unresolved'.
+    Returns a finding dict {status, candidates} (klareco.discourse.annotations).
     """
+    target_number = mention["target_number"]
     scored: list[tuple[tuple, dict]] = []
     if chain_candidate is not None and is_compatible(
-        mention["pronoun"], chain_candidate, entity_types
+        mention["pronoun"], target_number, chain_candidate, entity_types
     ):
         entry = dict(chain_candidate)
         entry["distance_sentences"] = 0
@@ -239,7 +282,7 @@ def resolve_mention(
         scored.append((_rank_key(chain_candidate, 0), entry))
     for distance, (csid, cast) in enumerate(preceding_sentences[:window], start=1):
         for cand in _nominal_candidates(csid, cast):
-            if is_compatible(mention["pronoun"], cand, entity_types):
+            if is_compatible(mention["pronoun"], target_number, cand, entity_types):
                 entry = dict(cand)
                 entry["distance_sentences"] = distance
                 entry["source"] = "nominal_mention"
@@ -252,7 +295,7 @@ def resolve_mention(
         status = "resolved"
     else:
         status = "ambiguous"
-    return {"status": status, "candidates": candidates}
+    return make_finding(status, candidates)
 
 
 def resolve_document(
@@ -261,8 +304,8 @@ def resolve_document(
     *,
     window: int = 5,
 ) -> list[tuple[dict, dict]]:
-    """Resolve every li/ŝi/ĝi/ili mention in a document-ordered list of
-    (sid, ast) pairs, tracking one PRONOUN CHAIN per pronoun type.
+    """Resolve every li/ŝi/ĝi/ili/tiu(j) mention in a document-ordered list
+    of (sid, ast) pairs, tracking one CHAIN per referring-expression type.
 
     Why a chain: a long stretch of biographical or narrative text often
     refers to its subject with a run of pronouns ("Ŝi studis ... Ŝi estis
@@ -270,14 +313,14 @@ def resolve_document(
     pure "look at nearby NOUNS" search never finds a nominal candidate for
     the second, third, ... mention in that run, even though the answer is
     obvious to a reader tracking WHO is being talked about. Once a
-    same-type pronoun resolves (uniquely, or as the top-ranked guess among
-    several), later same-type pronouns in the SAME document get that
+    same-type mention resolves (uniquely, or as the top-ranked guess among
+    several), later same-type mentions in the SAME document get that
     resolution offered again as a `chain_candidate`, competing on equal
     footing with any fresh nominal mention (see `resolve_mention`) --
     never overriding a genuinely closer or unambiguous fresh candidate,
     only filling the gap when there isn't one.
 
-    Returns a list of (mention, resolution) pairs in document order.
+    Returns a list of (mention, finding) pairs in document order.
     """
     chain: dict[str, dict] = {}
     results: list[tuple[dict, dict]] = []
@@ -319,43 +362,19 @@ def make_annotation_layer(
     mention: dict,
     resolution: dict,
     *,
-    artifact_hashes: Optional[dict[str, str]] = None,
+    artifact_hashes: Optional[dict] = None,
 ) -> dict:
-    """Build one mention's resolution as an annotation_layers entry per
-    klareco.ast_annotations's contract, ready for
-    `with_annotation_layer(mention_ast, layer)`.
-
-    `mention_ast` is the pronoun's OWN sentence's ast (used only to compute
-    the required source/tokenization basis hashes). The candidates
-    themselves live in `value`, referencing their own (different, earlier)
-    sentence by `sid` -- the envelope's TokenTarget can only address token
-    ids within the annotated ast's own tokenization, so a genuinely
-    cross-sentence reference has to live in the free-form payload, not the
-    structural `target`.
-    """
-    from klareco.ast_annotations import annotation_basis
-
-    return {
-        "version": 1,
-        "id": f"corefcand:{mention['sid']}:{mention['token_id']}",
-        "schema": "urn:klareco:coref-candidates:1",
-        "status": "predicted",
-        "producer": {
-            "name": MODULE_NAME,
-            "version": MODULE_VERSION,
-            "method": "rule",
-            "artifacts": artifact_hashes or {},
-        },
-        "basis": annotation_basis(mention_ast, tokens=True),
-        "annotations": [{
-            "id": f"mention:{mention['sid']}:{mention['token_id']}",
-            "target": {"kind": "tokens", "ids": [mention["token_id"]]},
-            "value": {
-                "pronoun": mention["pronoun"],
-                "surface": mention["surface"],
-                "role": mention["role"],
-                "resolution_status": resolution["status"],
-                "candidates": resolution["candidates"],
-            },
-        }],
-    }
+    """Build one mention's resolution as an annotation_layers entry, via
+    the shared klareco.discourse.annotations envelope (kind='coreference')."""
+    return _make_layer(
+        kind="coreference",
+        mention_ast=mention_ast,
+        mention_sid=mention["sid"],
+        token_id=mention["token_id"],
+        finding=resolution,
+        value_extra={"pronoun": mention["pronoun"], "surface": mention["surface"],
+                     "role": mention["role"]},
+        producer_name=MODULE_NAME,
+        producer_version=MODULE_VERSION,
+        artifact_hashes=artifact_hashes,
+    )

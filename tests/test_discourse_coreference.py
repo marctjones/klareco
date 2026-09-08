@@ -20,6 +20,7 @@ from klareco.discourse.coreference import (
     is_compatible,
     make_annotation_layer,
     pronoun_radiko,
+    referring_expression,
     resolve_document,
     resolve_mention,
 )
@@ -64,10 +65,21 @@ class TestPronounIdentification:
                  if x.get("plena_vorto") == "sin")
         assert pronoun_radiko(w) is None
 
-    def test_demonstratives_are_out_of_scope_for_this_module(self):
+    def test_tiu_and_tiuj_are_in_scope_with_their_own_number(self):
         w = next(x for x in parse("Tiu venis.")["vortoj"]
                  if x.get("plena_vorto") == "Tiu")
-        assert pronoun_radiko(w) is None
+        assert referring_expression(w) == ("tiu", "singularo")
+        w2 = next(x for x in parse("Tiuj venis.")["vortoj"]
+                  if x.get("plena_vorto") == "Tiuj")
+        assert referring_expression(w2) == ("tiu", "pluralo")
+
+    def test_tio_is_deliberately_out_of_scope(self):
+        """'tio' overwhelmingly refers to a preceding CLAUSE/EVENT, not a
+        nominal -- searching for a nominal antecedent would answer the
+        wrong question, so it is excluded rather than forced."""
+        w = next(x for x in parse("Tio okazis.")["vortoj"]
+                 if x.get("plena_vorto") == "Tio")
+        assert referring_expression(w) is None
 
 
 class TestResolution:
@@ -130,6 +142,42 @@ class TestResolution:
         assert res["candidates"][0]["surface"] == "Kongō"
 
 
+class TestDemonstrativeResolution:
+    """'tiu'/'tiuj' carry no animacy constraint at all -- grammatically
+    fine for both persons and things ("tiu viro" / "tiu tablo") -- so only
+    NUMBER agreement applies, unlike li/ŝi/ĝi."""
+
+    def test_tiu_resolves_to_a_singular_antecedent_of_any_animacy(self, entity_types):
+        [(m, res)] = _resolve(
+            ["Mi legis interesan libron hieraŭ."], "Tiu estis tre bona.",
+            entity_types)
+        assert res["status"] == "resolved"
+        assert res["candidates"][0]["surface"] == "libron"
+
+    def test_tiu_is_compatible_with_a_classified_person_too(self, entity_types):
+        cand = {"radiko": "petr", "nombro": "singularo", "sufiksoj": []}
+        assert is_compatible("tiu", "singularo", cand, entity_types)
+
+    def test_tiuj_requires_a_plural_antecedent(self, entity_types):
+        [(m, res)] = _resolve(
+            ["La hundoj bojis."], "Tiuj estis grandaj.", entity_types)
+        assert res["status"] == "resolved"
+        assert res["candidates"][0]["surface"] == "hundoj"
+
+    def test_tiu_and_gxi_chains_are_tracked_separately(self, entity_types):
+        """A document mixing 'tiu' and 'ĝi' references must not let one
+        contaminate the other's chain."""
+        texts = ["Maria havis hundon.", "Ĝi estis granda.", "Tiu estis feliĉa."]
+        sentences = [(5000 + i, parse(t)) for i, t in enumerate(texts)]
+        results = resolve_document(sentences, entity_types, window=1)
+        # 'Tiu' (3rd sentence) looks back only 1 sentence ("Ĝi estis
+        # granda", no nominal there) and has no prior 'tiu' chain -- must
+        # be unresolved, not accidentally inherit 'ĝi's chain (hundo).
+        tiu_mention, tiu_res = results[-1]
+        assert tiu_mention["pronoun"] == "tiu"
+        assert tiu_res["status"] == "unresolved"
+
+
 class TestPronounChaining:
     """A run of same-type pronouns with no re-mentioned noun in between --
     common in biographical/narrative text -- should resolve via chain
@@ -178,8 +226,8 @@ class TestPronounChaining:
 class TestAnimacyIsSoftNotHard:
     def test_a_classified_person_is_excluded_from_gxi(self, entity_types):
         cand = {"radiko": "petr", "nombro": "singularo", "sufiksoj": []}
-        assert not is_compatible("ĝi", cand, entity_types)
-        assert is_compatible("li", cand, entity_types)
+        assert not is_compatible("ĝi", "singularo", cand, entity_types)
+        assert is_compatible("li", "singularo", cand, entity_types)
 
     def test_an_unclassified_proper_noun_is_never_excluded_on_animacy_alone(self, entity_types):
         """The ontology is thin (CLAUDE.md) -- silence must not become a
@@ -187,9 +235,9 @@ class TestAnimacyIsSoftNotHard:
         person, place, or organization, so a name defaults to eligible)."""
         cand = {"radiko": "tutecfremda_ne_en_ontologio", "nombro": "singularo",
                 "sufiksoj": [], "vortspeco": "propra_nomo"}
-        assert is_compatible("li", cand, entity_types)
-        assert is_compatible("ŝi", cand, entity_types)
-        assert is_compatible("ĝi", cand, entity_types)
+        assert is_compatible("li", "singularo", cand, entity_types)
+        assert is_compatible("ŝi", "singularo", cand, entity_types)
+        assert is_compatible("ĝi", "singularo", cand, entity_types)
 
     def test_an_unclassified_common_noun_defaults_to_ineligible_for_li_sxi(self, entity_types):
         """The opposite default for ORDINARY vocabulary: an unclassified
@@ -199,17 +247,17 @@ class TestAnimacyIsSoftNotHard:
         which is the pronoun expected to cover exactly this case."""
         cand = {"radiko": "tuteca_nekonata_vorto", "nombro": "singularo",
                 "sufiksoj": [], "vortspeco": "substantivo"}
-        assert not is_compatible("li", cand, entity_types)
-        assert not is_compatible("ŝi", cand, entity_types)
-        assert is_compatible("ĝi", cand, entity_types)
+        assert not is_compatible("li", "singularo", cand, entity_types)
+        assert not is_compatible("ŝi", "singularo", cand, entity_types)
+        assert is_compatible("ĝi", "singularo", cand, entity_types)
 
     def test_the_in_suffix_excludes_li_but_absence_does_not_exclude_sxi(self, entity_types):
         feminine = {"radiko": "instruist", "nombro": "singularo", "sufiksoj": ["in"]}
-        assert is_compatible("ŝi", feminine, entity_types)
-        assert not is_compatible("li", feminine, entity_types)
+        assert is_compatible("ŝi", "singularo", feminine, entity_types)
+        assert not is_compatible("li", "singularo", feminine, entity_types)
         unmarked = {"radiko": "instruist", "nombro": "singularo", "sufiksoj": []}
-        assert is_compatible("li", unmarked, entity_types)
-        assert is_compatible("ŝi", unmarked, entity_types), (
+        assert is_compatible("li", "singularo", unmarked, entity_types)
+        assert is_compatible("ŝi", "singularo", unmarked, entity_types), (
             "absence of -in- is not evidence of male reference -- Esperanto's "
             "unmarked form is not sex-exclusive")
 
@@ -227,9 +275,11 @@ class TestAnnotationLayerContract:
         restored = expand_ast(compact)
         validate_layers(restored)
         [restored_layer] = restored["annotation_layers"]
-        assert restored_layer["schema"] == "urn:klareco:coref-candidates:1"
+        assert restored_layer["schema"] == "urn:klareco:cross-sentence-ambiguity:1"
         assert restored_layer["producer"]["method"] == "rule"
-        assert restored_layer["annotations"][0]["value"]["resolution_status"] == "resolved"
+        value = restored_layer["annotations"][0]["value"]
+        assert value["kind"] == "coreference"
+        assert value["resolution_status"] == "resolved"
 
     def test_the_layer_never_relabels_the_source_parse(self, entity_types):
         """with_annotation_layer must return an owned copy -- the original

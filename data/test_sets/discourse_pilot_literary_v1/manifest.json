@@ -5,20 +5,22 @@
   "status": "unreviewed PASSAGE annotation queue, not gold",
   "unit": "10-sentence passage from one document (extracted literary text, NOT in the DuckDB store), starting at its first sentence",
   "files": {
-    "development.jsonl": "eff17e4761cc582ad455cbbc80f872c93800b45ca721d1f9d02035713f45ac36",
-    "heldout.jsonl": "dbb45e36e78f0adcd6c3e7517af8323557c5e498c20a7bb51eb2a85e97bf1595"
+    "development.jsonl": "23668c94872ee495b40e4ffae5d6572ca87075e7068dda19934d24c3d290efb5",
+    "heldout.jsonl": "01e1093a627737f1d40a5e8be478c0cfba9e824793ed02e07ea3a7d63a1b9d27"
   },
   "sources_used": [
     "gutenberg",
-    "vikifontaro"
+    "vikifontaro",
+    "libera_folio"
   ],
   "sources": {
     "gutenberg": 50,
-    "vikifontaro": 50
+    "libera_folio": 51,
+    "vikifontaro": 49
   },
   "splits": {
-    "heldout": 20,
-    "development": 80
+    "heldout": 30,
+    "development": 120
   },
   "excluded_titles": [
     "Enciklopedio de Esperanto, 1933.pdf",

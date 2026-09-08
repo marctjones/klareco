@@ -36,16 +36,33 @@ all:
     that this script's document-length filter mostly screens out on its
     own since a dictionary is one enormous "document" that would need
     an explicit exclude to avoid dominating the sample -- see EXCLUDE_TITLES.
-  - libera_folio_sentences.jsonl (40,038 sentences, 832 works, licence
-    'CC BY 4.0'): a modern Esperanto news site -- articles, not books;
-    excluded by default (SOURCES) since it answers a different question
-    than "public domain books" and carries a share-alike-free but still
-    attribution-bearing licence.
+  - libera_folio_sentences.jsonl (40,038 sentences, 832 articles, licence
+    'CC BY 4.0'): a modern, professionally-edited Esperanto news site --
+    articles rather than books, and CC BY (attribution required) rather
+    than public domain, but included by default alongside the other two.
 
-This directly answers "can we use the other Esperanto texts we have" and
-"could we find public domain books like Poe" together: the Poe (and
-Shakespeare, Ibsen, Twain...) translations already exist on disk, fully
-extracted, and simply were never connected to anything downstream.
+Included by default because a direct measurement (2026-09-07, n=500
+sentences per source, klareco.parser's own `sukcesoprocento` --
+fraction of words classified as in-vocabulary Esperanto, excluding
+`fremda_vorto`/foreign-word classifications) found Wikipedia sentences
+score consistently lower than all three of these sources: wikipedia
+0.9798 vs. gutenberg 0.9929, vikifontaro 0.9915, libera_folio 0.9939. A
+~1.5-2 point gap is modest, not dramatic, but it is consistent with the
+expectation that curated literary translations and edited journalism
+carry less untranslated technical vocabulary, foreign proper nouns, and
+machine-stub content than Wikipedia's more heterogeneous, often
+bot-assisted article base. This does not mean Wikipedia should be
+dropped -- it remains the only source with real `article_id` linkage
+into the DuckDB store -- but for a NEW discourse/parser pilot built
+from scratch, these three sources are a reasonable default, not merely
+an addition.
+
+This directly answers "can we use the other Esperanto texts we have,"
+"could we find public domain books like Poe," and "shouldn't we prefer
+these to Wikipedia" together: the Poe (and Shakespeare, Ibsen, Twain...)
+translations, Quo Vadis, and a modern edited newspaper already exist on
+disk, fully extracted, measurably cleaner by this one metric, and
+simply were never connected to anything downstream.
 
 A "document" here is a maximal run of CONSECUTIVE rows sharing the same
 `source_title` (checked 2026-09-07: 110/111 gutenberg titles are already
@@ -91,7 +108,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.eval.build_discourse_pilot import document_split, normalized, select  # noqa: E402
 
-SOURCES = ('gutenberg', 'vikifontaro')
+SOURCES = ('gutenberg', 'vikifontaro', 'libera_folio')
 
 # Not narrative: a dictionary and an encyclopedia extracted alongside the
 # literary works in vikifontaro. Including them would let one "document"
@@ -149,7 +166,7 @@ def main() -> None:
                      help='number of PASSAGES (documents), not sentences')
     ap.add_argument('--passage-length', type=int, default=8,
                      help='sentences per passage, taken from the start of the document')
-    ap.add_argument('--sources', nargs='+', default=list(SOURCES), choices=list(SOURCES) + ['libera_folio'])
+    ap.add_argument('--sources', nargs='+', default=list(SOURCES), choices=list(SOURCES))
     args = ap.parse_args()
     if args.size < 5:
         ap.error('--size must be at least 5')

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "seed": "discourse-pilot-v1",
+  "store": "data/indexes/duckdb_store.db",
+  "status": "unreviewed PASSAGE annotation queue, not gold",
+  "unit": "8-sentence passage from one document, starting at its first sentence",
+  "files": {
+    "development.jsonl": "53c0e198e0986f124d61598d7bfb34a2687e15f3f0330f62965446386f332180",
+    "heldout.jsonl": "ae76c9b4d616f5daaa5fcdf0c956fe7cce6a9825d8b2185cb1312938bb519cf3"
+  },
+  "sources": {
+    "wikipedia": 200
+  },
+  "splits": {
+    "heldout": 40,
+    "development": 160
+  },
+  "selection": "one passage per document, source round-robin, document-disjoint splits; excludes any text already in the frozen UD Prago/Cairo fixtures; no parser labels"
+}

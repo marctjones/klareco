@@ -26,6 +26,7 @@ data/test_sets/*
 !data/test_sets/parser_pilot_v1/
 !data/test_sets/parser_pilot_v2/
 !data/test_sets/parser_gold_candidates_v1/
+!data/test_sets/discourse_pilot_v1/
 models/
 logs/
 results/

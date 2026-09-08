@@ -1,19 +1,30 @@
 {
   "version": 1,
   "seed": "discourse-pilot-v1",
-  "store": "data/indexes/duckdb_store.db",
+  "free_dir": "/Users/marc/Documents/GitHub/klareco/data/extracted/eo/free",
   "status": "unreviewed PASSAGE annotation queue, not gold",
-  "unit": "8-sentence passage from one document, starting at its first sentence",
+  "unit": "8-sentence passage from one document (extracted literary text, NOT in the DuckDB store), starting at its first sentence",
   "files": {
-    "development.jsonl": "53c0e198e0986f124d61598d7bfb34a2687e15f3f0330f62965446386f332180",
-    "heldout.jsonl": "ae76c9b4d616f5daaa5fcdf0c956fe7cce6a9825d8b2185cb1312938bb519cf3"
+    "development.jsonl": "2c3d21862df2969cdb30a382a67a502c20e5ba80bd29e48cf43daf09d8447710",
+    "heldout.jsonl": "009780e82015d4bd30779c020a5695dc8a1a87e697bffae1b137c51d80e97409"
   },
+  "sources_used": [
+    "gutenberg",
+    "vikifontaro",
+    "libera_folio"
+  ],
   "sources": {
-    "wikipedia": 200
+    "gutenberg": 68,
+    "libera_folio": 66,
+    "vikifontaro": 66
   },
   "splits": {
     "heldout": 40,
     "development": 160
   },
-  "selection": "one passage per document, source round-robin, document-disjoint splits; excludes any text already in the frozen UD Prago/Cairo fixtures; no parser labels"
+  "excluded_titles": [
+    "Enciklopedio de Esperanto, 1933.pdf",
+    "Kabe - Vortaro de Esperanto, 1922.pdf"
+  ],
+  "selection": "one passage per document (a maximal contiguous run of one source_title), source round-robin, document-disjoint splits; excludes any text already in the frozen UD Prago/Cairo fixtures; no parser labels; documents are NOT in the DuckDB store -- parse on demand with klareco.parser.parse"
 }

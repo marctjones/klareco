@@ -1,23 +1,25 @@
 {
   "version": 1,
   "seed": "parser-pilot-v1",
-  "store": "data/indexes/duckdb_store.db",
+  "free_dir": "/Users/marc/Documents/GitHub/klareco/data/extracted/eo/free",
   "status": "unreviewed annotation queue, not gold",
   "files": {
-    "development.jsonl": "ef063d067f0afa174d7567b767d052ed2fbdfe778e78e7db1146bcda490235ca",
-    "heldout.jsonl": "fbd2e9f4569dc0dd4fb2c659960de59597992dbf623c3c7ca2ac649b9f00de76"
+    "development.jsonl": "4a18d42cbd0daa3f331e49a353c81d3d1eb0322615a47f22219dfd6f4958ab7e",
+    "heldout.jsonl": "6c0f64d8470cf83e84e897d889ec39c90298c24748c54430c1af3f3da044bd43"
   },
+  "sources_used": [
+    "gutenberg",
+    "vikifontaro",
+    "libera_folio"
+  ],
   "sources": {
-    "alice": 4,
-    "andersen": 4,
-    "krestomatio": 4,
-    "lingvaj_respondoj": 4,
-    "pmeg": 4,
-    "wikipedia": 480
+    "gutenberg": 167,
+    "libera_folio": 167,
+    "vikifontaro": 166
   },
   "splits": {
-    "development": 400,
-    "heldout": 100
+    "heldout": 100,
+    "development": 400
   },
-  "selection": "source round-robin, at most four per document; no parser labels"
+  "selection": "source round-robin, at most four per document (source_title); no parser labels; documents are NOT in the DuckDB store"
 }

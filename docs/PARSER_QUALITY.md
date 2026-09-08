@@ -47,12 +47,29 @@ filters candidates by parser success. Exact-text exclusion does not establish
 that a different excerpt from the same UD source document is absent; review
 provenance before promoting the queue to gold.
 
-The first local queue has 160 development and 40 heldout sentences. A second
-local queue (`parser_pilot_v2`) has 400 development and 100 heldout sentences.
-Both are **unreviewed**, not gold benchmarks. The second queue is still 480/500
-Wikipedia sentences because the smaller sources are each represented as one
-document in the store and the document cap limits diversification. Acquire
-more independently sourced documents before claiming broad genre coverage.
+**Superseded 2026-09-07**: `parser_pilot_v1` and `parser_pilot_v2` were
+originally built with the command above, which reads the DuckDB store and is
+therefore Wikipedia-dominated (`article_id` is only populated for
+`source_type='encyclopedia'`). A direct measurement found Wikipedia scores
+lower on the parser's own `sukcesoprocento` (in-vocabulary-Esperanto word
+fraction) than the extracted-but-unindexed literary/news corpora: wikipedia
+0.9798 vs. gutenberg 0.9929, vikifontaro 0.9915, libera_folio 0.9939 (n=500
+sentences/source). Both queues were therefore regenerated as drop-in
+replacements, same paths and same sizes, using
+[`scripts/eval/build_literary_parser_pilot.py`](../scripts/eval/build_literary_parser_pilot.py)
+instead, which reuses this script's own `select()`/`document_split()`
+unchanged but sources rows from
+`data/extracted/eo/free/{gutenberg,vikifontaro,libera_folio}_sentences.jsonl`.
+The first queue (`parser_pilot_v1`) still has 160 development and 40 heldout
+sentences; the second (`parser_pilot_v2`) still has 400 development and 100
+heldout. Both are now roughly evenly split across the three literary/news
+sources instead of ~90-96% Wikipedia. Both remain **unreviewed**, not gold
+benchmarks -- rebuilding changes only which text is in the queue, not its
+review status.
+
+`build_parser_pilot.py` itself is unchanged and still works against the
+DuckDB store directly; it is simply no longer what produced the two checked-in
+queues above.
 
 Annotation procedure:
 

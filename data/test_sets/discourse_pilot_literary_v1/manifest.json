@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "seed": "discourse-pilot-v1",
+  "free_dir": "/Users/marc/Documents/GitHub/klareco/data/extracted/eo/free",
+  "status": "unreviewed PASSAGE annotation queue, not gold",
+  "unit": "10-sentence passage from one document (extracted literary text, NOT in the DuckDB store), starting at its first sentence",
+  "files": {
+    "development.jsonl": "eff17e4761cc582ad455cbbc80f872c93800b45ca721d1f9d02035713f45ac36",
+    "heldout.jsonl": "dbb45e36e78f0adcd6c3e7517af8323557c5e498c20a7bb51eb2a85e97bf1595"
+  },
+  "sources_used": [
+    "gutenberg",
+    "vikifontaro"
+  ],
+  "sources": {
+    "gutenberg": 50,
+    "vikifontaro": 50
+  },
+  "splits": {
+    "heldout": 20,
+    "development": 80
+  },
+  "excluded_titles": [
+    "Enciklopedio de Esperanto, 1933.pdf",
+    "Kabe - Vortaro de Esperanto, 1922.pdf"
+  ],
+  "selection": "one passage per document (a maximal contiguous run of one source_title), source round-robin, document-disjoint splits; excludes any text already in the frozen UD Prago/Cairo fixtures; no parser labels; documents are NOT in the DuckDB store -- parse on demand with klareco.parser.parse"
+}

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "free_dir": "/Users/marc/Documents/GitHub/klareco/data/extracted/eo/free",
+  "status": "unreviewed targeted candidate queue, not gold -- parser-labeled, not human-labeled",
+  "sentences_scanned": 200000,
+  "parse_crashes": 0,
+  "per_category_cap": 15,
+  "counts_by_category": {
+    "aux": 15,
+    "ccomp": 15,
+    "multiroot": 15,
+    "nummod": 15,
+    "pp_ambiguous": 15
+  },
+  "total_unique_candidates": 68,
+  "sources": {
+    "gutenberg": 68
+  },
+  "selection": "sentence qualifies for a category the first time the PARSER'S OWN output assigns it that relation (or, for multiroot/pp_ambiguous, that structural flag); prev_text/next_text are same-document neighbors for review context only, not annotation targets"
+}

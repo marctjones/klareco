@@ -1,0 +1,165 @@
+# Klareco CI — the data-free test tiers on every push and pull request.
+#
+# Why this exists: in September 2026 the merge gate (`pytest -m contract` /
+# `-m accuracy`) silently could not even collect for several days (klareco#928)
+# and a parser crash shipped unnoticed (klareco#927). A gate that only a human
+# runs is a convention; this workflow runs it on every push.
+#
+# What runs here: the three tiers that need NO production indexes —
+#   contract   the orchestrator holds every stage to the contract (tiny in-memory store)
+#   unit       code correctness, offline
+#   accuracy   parser quality vs. the committed UD fixtures (tests/fixtures/ud/)
+# The environment, data, pipeline and perf tiers need the 44 GB store and stay local.
+#
+# What the tiers DO need and git does NOT carry: the lexical artifacts the parser
+# refuses to start without (data/vocabularies/root_vocab.json and friends — see
+# the preflight step below and docs/TESTING.md → "Continuous integration").
+# Provide them either by committing them or by pointing the repository variable
+# KLARECO_LEXICON_URL at a .tar.gz whose paths mirror the repository layout.
+
+name: CI
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [dev, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  data-free-tiers:
+    name: contract + unit + accuracy (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # pandas>=3.0.0 (requirements-ci.txt) needs Python >= 3.11, so 3.10 is
+        # out even though pyproject.toml allows it. Only 3.12 was verified by a
+        # local run (2026-10-17). 3.11 is UNTESTED beyond a grammar-only
+        # ast.parse(feature_version=(3, 11)) of klareco/ and tests/; its first
+        # run here is the test.
+        python: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Optional: fetch the lexical artifacts from a release asset (or any URL)
+      # when they are not committed. The tarball must contain repository-
+      # relative paths (data/vocabularies/..., data/raw/eo/dictionaries/...).
+      - name: Fetch lexical artifacts (only if KLARECO_LEXICON_URL is set)
+        if: ${{ vars.KLARECO_LEXICON_URL != '' }}
+        env:
+          KLARECO_LEXICON_URL: ${{ vars.KLARECO_LEXICON_URL }}
+        run: |
+          echo "Fetching lexical artifacts from $KLARECO_LEXICON_URL"
+          curl -fsSL "$KLARECO_LEXICON_URL" | tar -xz -C "$GITHUB_WORKSPACE"
+
+      # Fail loudly and FIRST if the artifacts are missing, so a red run says
+      # "no lexicon" rather than looking like 41 unrelated import errors.
+      # The list mirrors the loud-failure checks in klareco/parser.py,
+      # klareco/morphology.py and klareco/ontology.py. capitalization_ratio.json
+      # is optional in code but changes proper-noun verdicts, so the tests
+      # were calibrated with it present. Runs before setup-python on purpose
+      # (deliberately cheap: the runner's system python3 and os.path.exists).
+      - name: Preflight lexical artifacts
+        run: |
+          python3 - <<'EOF'
+          import os, sys
+          required = [
+              "data/vocabularies/fundamento_roots.json",      # tracked in git
+              "data/vocabularies/root_vocab.json",            # parser refuses to import without it
+              "data/vocabularies/protected_roots.json",       # morphology reads it unconditionally
+              "data/vocabularies/capitalization_ratio.json",  # proper-noun usage veto; tests assume it
+              "data/raw/eo/dictionaries/revo_typed_roots.json",
+              "data/raw/eo/dictionaries/revo_name_roots.json",
+              "data/raw/eo/dictionaries/affix_table.json",
+              "data/raw/eo/dictionaries/revo_ontology.json",  # klareco/ontology.py refuses to start without it
+          ]
+          missing = [p for p in required if not os.path.exists(p)]
+          for p in required:
+              print(("MISSING  " if p in missing else "ok       ") + p)
+          if missing:
+              print("\nThe data-free tiers cannot run: the parser fails loudly without these files.")
+              print("Either commit them (about 18.5 MB in total) or set the repository variable")
+              print("KLARECO_LEXICON_URL to a .tar.gz containing them at these paths.")
+              print("See docs/TESTING.md -> 'Continuous integration'.")
+              sys.exit(1)
+          EOF
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      # torch first, CPU-only, so `pip install -r requirements-ci.txt` finds it
+      # satisfied and never resolves the CUDA-bundled Linux wheel.
+      - name: Install CPU-only torch
+        run: python -m pip install --upgrade pip && python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install CI dependencies
+        run: python -m pip install -r requirements-ci.txt
+
+      # scripts/index/build_duckdb_store.py opens logs/build_duckdb_store.log at
+      # IMPORT time, and tests/contract/test_parser_rebuild.py imports it. logs/
+      # is gitignored, so a clean checkout has no such directory and collection
+      # fails with FileNotFoundError (verified 2026-10-17). Creating it here is
+      # the no-code-change workaround; the real fix is a lazy log handler.
+      - name: Create the log directory the store builder opens at import
+        run: mkdir -p logs
+
+      - name: Run the data-free tiers (contract, unit, accuracy)
+        run: python -m pytest -m "contract or unit or accuracy" -q -p no:cacheprovider
+
+  script-versions:
+    name: script version docstrings (changed scripts)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The same policy as .githooks/pre-commit: scripts ADDED OR MODIFIED in
+      # this push / PR must carry VERSION, COMPATIBLE WITH, DEPENDENCIES and
+      # STAGE. It deliberately does not lint the whole tree: 32 legacy scripts
+      # fail the linter on HEAD (2026-10-17), and a job that is red from day
+      # one gets ignored. Stdlib only.
+      - name: Validate version docstrings of changed scripts
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE_SHA"
+          elif [ -n "${PUSH_BEFORE_SHA:-}" ] && [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "$PUSH_BEFORE_SHA^{commit}" 2>/dev/null; then
+            base="$PUSH_BEFORE_SHA"
+          else
+            base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          fi
+          echo "Comparing $base..HEAD"
+          # git pathspec wildcards cross directory boundaries, so 'scripts/*.py'
+          # matches scripts/index/foo.py as well. NUL-separated so a path with
+          # spaces cannot split; no mapfile so this also runs under bash 3.
+          lst="${RUNNER_TEMP:-/tmp}/changed_scripts.lst"
+          git diff --name-only --diff-filter=AM -z "$base" HEAD -- 'scripts/*.py' > "$lst"
+          if [ ! -s "$lst" ]; then
+            echo "No scripts added or modified; nothing to lint."
+            exit 0
+          fi
+          echo "Linting changed script(s):"
+          tr '\0' '\n' < "$lst" | sed 's/^/  /'
+          xargs -0 python scripts/util/validate_script_versions.py < "$lst"

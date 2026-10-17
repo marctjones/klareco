@@ -1,0 +1,46 @@
+# ============================================================================
+# Klareco CI requirements — the DATA-FREE test tiers only
+# ============================================================================
+# This is the minimal dependency set for
+#
+#     python -m pytest -m "contract or unit or accuracy"
+#
+# which needs no production indexes (the contract suite builds a tiny
+# in-memory DuckDB store; the accuracy tier reads tests/fixtures/ud/). It is
+# what .github/workflows/ci.yml installs. For the full development
+# environment (corpus building, Modal eval, FAISS, transformers) use
+# requirements.txt.
+#
+# Determined empirically on 2026-10-17 by running the three tiers in a fresh
+# Python 3.12 virtualenv and adding packages only when a collected test
+# demanded them. Versions that passed: pytest 9.1.1, duckdb 1.5.6,
+# Whoosh 2.7.4, numpy 2.5.4, sympy 1.14.0, pandas 3.0.6, torch 2.14.1 (CPU).
+#
+# The lexical artifacts under data/vocabularies/ and data/raw/eo/dictionaries/
+# are ALSO required and are NOT a pip concern — see "Continuous integration"
+# in docs/TESTING.md.
+
+pytest
+duckdb
+Whoosh
+numpy
+
+# klareco/__init__ imports the orchestrator factory, which imports the math
+# tool stage, which imports sympy at module level. Every test module that
+# imports klareco therefore needs it.
+sympy
+
+# scripts/index/reparse_store.py (exercised by tests/contract/test_parser_rebuild.py
+# as a subprocess) imports pandas. >=3.0.0 mirrors requirements.txt; pandas 3
+# requires Python >= 3.11, which is why the CI matrix starts at 3.11.
+pandas>=3.0.0
+
+# klareco/rag/extractive_answering.py lazily imports
+# klareco/rag/ast_semantic_ranker.py for a pure-Python helper, and that module
+# imports torch at module level — so the LIVE extraction path (and therefore
+# the contract suite's golden traces) needs torch installed even though no
+# model runs. The workflow installs the CPU-only build FIRST from
+# https://download.pytorch.org/whl/cpu so this line is already satisfied and
+# pip does not pull the CUDA-bundled Linux wheel. Making that import lazy in
+# ast_semantic_ranker.py would remove torch from CI entirely.
+torch

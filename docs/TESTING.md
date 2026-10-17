@@ -120,6 +120,74 @@ worth having.
 
 ---
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request to `dev` and
+`master`, and on manual dispatch. Two jobs:
+
+| Job | Command | Needs |
+|---|---|---|
+| `data-free-tiers` (Python 3.11 and 3.12) | `python -m pytest -m "contract or unit or accuracy" -q -p no:cacheprovider` | `requirements-ci.txt` plus the lexical artifacts below. No store. |
+| `script-versions` | `scripts/util/validate_script_versions.py` over the `scripts/**/*.py` files **added or modified** in the push or PR | stdlib only |
+
+What stays local: `environment`, `data`, `pipeline` and `perf` need
+`data/indexes/` (44 GB) and never run in CI.
+
+**Dependencies.** `requirements-ci.txt` is the minimal set found by running the
+three tiers in a fresh virtualenv and adding a package only when a collected
+test demanded it: pytest, duckdb, Whoosh, numpy, sympy (`klareco/__init__`
+imports the factory, which imports the math-tool stage, which imports sympy at
+module level), pandas (`scripts/index/reparse_store.py`, run as a subprocess by
+the contract suite), and torch (CPU build: `klareco/rag/extractive_answering.py`
+lazily imports `ast_semantic_ranker.py` for a pure-Python helper, and that
+module imports torch at the top, so the golden traces need it even though no
+model runs). Two small code changes would shrink this: a lazy torch import in
+`ast_semantic_ranker.py`, and a lazy log handler in `build_duckdb_store.py`,
+which opens `logs/build_duckdb_store.log` at import time. The workflow does
+`mkdir -p logs` for the second one.
+
+**Lexical artifacts, the real prerequisite.** The parser, morphology and
+ontology modules refuse to import without seven files that `.gitignore`
+excludes under `data/*`. In a clean checkout every test module that imports
+the parser fails at collection with `FileNotFoundError: The parser has NO ROOT
+LEXICON`. The workflow checks for them before anything else and fails with the
+list:
+
+| File | Size | Why it is needed |
+|---|---:|---|
+| `data/vocabularies/root_vocab.json` | 441 KB | `parser.py` refuses to import without it (#821) |
+| `data/vocabularies/protected_roots.json` | 585 B | `morphology.py` reads it unconditionally |
+| `data/vocabularies/capitalization_ratio.json` | 7.0 MB | optional in code; the proper-noun tests assume it |
+| `data/raw/eo/dictionaries/revo_typed_roots.json` | 573 KB | typed lexicon; `morphology.py` raises without it |
+| `data/raw/eo/dictionaries/revo_name_roots.json` | 96 KB | name roots; `morphology.py` |
+| `data/raw/eo/dictionaries/affix_table.json` | 6 KB | selectional table; `morphology.py` raises without it |
+| `data/raw/eo/dictionaries/revo_ontology.json` | 10.4 MB | `ontology.py` raises without it; the parser calls it per sentence |
+
+`fundamento_roots.json` is already tracked. There are two ways to make CI
+green, and the choice is a repository decision because the files derive from
+GPL sources (ReVo is GPL-2.0, voko-akrido GPL-3.0) and from the corpus:
+
+1. Un-ignore and commit the seven files (about 18.5 MB in total). This is the
+   same reasoning that committed the annotation queues in #932: small enough,
+   and exactly the artifact class the June 2026 migration lost.
+2. Publish them as a `.tar.gz` with repository-relative paths and set the
+   repository variable `KLARECO_LEXICON_URL` to its URL. The workflow downloads
+   and extracts it before the preflight. From the repo root,
+   `tar -czf klareco-lexicon.tar.gz <the seven paths>` produces a 5.5 MB file.
+
+**Verified 2026-10-17** on a clean `git archive` checkout plus the seven
+artifacts, `mkdir -p logs`, and a fresh Python 3.12 virtualenv holding exactly
+`requirements-ci.txt`: **858 passed, 1 failed, 7 skipped, 1 xfailed in 12 s.**
+The one failure is pre-existing on HEAD in every environment:
+`tests/test_clause_tree.py::TestASTCompaction::test_the_blob_is_actually_SMALLER`
+asserts the compact blob is under 45% of the expanded JSON and measures 47.9%
+(30,225 B vs 63,068 B), which dates from the lossless storage v2 writer
+(`docs/PARSER_SEVEN_STEP_RESULTS.md` records blobs growing 47.6%). The
+`data-free-tiers` job is red until that threshold is re-baselined or compaction
+is improved; that is a storage decision, not a CI one. The script-version
+linter reports 32 invalid legacy scripts over the whole tree, which is why the
+CI job lints only changed files, the same policy as `.githooks/pre-commit`.
+
 ## Adding a test
 
 Put it in a file, and add the file to `_TIERS` in `tests/conftest.py`. Unlisted
